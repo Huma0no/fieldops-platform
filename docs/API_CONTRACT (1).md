@@ -1,0 +1,453 @@
+# API Contract
+## Field Ops + Dispatch — HVAC Startup Platform
+**Version:** 1.0
+**Date:** 2026-06-15
+**Authors:** Christian Huerta + Claude (planning session)
+**Status:** Design baseline — pre-development
+
+---
+
+## Overview
+
+This document defines every API endpoint required by the system described in `SYSTEM_DESIGN.md` and `DATA_MODEL.md`. It is organized by domain in the same order the data model was reviewed.
+
+All endpoints are prefixed `/api`. All authenticated endpoints require a valid bearer token unless noted otherwise. Role-restricted endpoints are marked explicitly.
+
+This contract defines behavior and shape, not implementation. Security details (token expiration, transport requirements, duplicate-device handling) are left to implementation-time best practices and are noted where relevant.
+
+---
+
+## 1. Authentication
+
+Field technicians authenticate once per device via a one-time invite code. No daily login is required — the device holds a permanent token until revoked.
+
+**Flow:**
+1. Dispatcher creates technician record in Dispatch, generates a one-time invite code (24-hour validity).
+2. Technician opens the PWA for the first time, enters the invite code.
+3. Server validates the code, issues a permanent device token, technician never sees it again.
+4. Every subsequent request includes `Authorization: Bearer {deviceToken}`.
+5. If a device is lost, dispatcher revokes the token from Dispatch — device is blocked immediately.
+
+```
+POST /api/auth/redeem-invite
+  body: { inviteCode }
+  returns: { deviceToken, technician: { id, name, role } }
+
+POST /api/auth/revoke
+  auth: dispatcher/owner only
+  body: { technicianId }
+  effect: invalidates all device tokens for that technician
+
+POST /api/auth/generate-invite
+  auth: dispatcher/owner only
+  body: { technicianId }
+  returns: { inviteCode, expiresAt }
+```
+
+**Pending for implementation phase (not blocking design):** token expiration policy, HTTPS enforcement, behavior on duplicate device redemption.
+
+---
+
+## 2. Lobby & Visit Assignment
+
+```
+GET /api/visits/lobby
+  auth: technician
+  returns: [] of visits where status = "in_lobby"
+  fields: id, address, subdivision, builder, scheduledTime, workType,
+          isTwoSystems, tags (urgent, a2l, twoSystems, builder)
+
+POST /api/visits/:id/claim
+  auth: technician
+  effect: status → "assigned", technician_id → caller
+  fails if: visit no longer in_lobby (race condition — another tech claimed it first)
+  error: "This visit was just claimed by another technician" — first come, first served
+
+GET /api/visits/mine
+  auth: technician
+  returns: [] of visits where technician_id = caller, status in (assigned, in_progress, temporarily)
+
+POST /api/visits/:id/start
+  auth: technician (must be assigned)
+  effect: status → "in_progress"
+
+GET /api/visits/:id
+  auth: technician (must be assigned) or dispatcher
+  returns: full visit object — context fields, systems, pre-selected accessories/thermostat
+```
+
+---
+
+## 3. Dispatch — PDF Intake & Visit Creation
+
+Calls are reviewed one at a time against the original PDF, confirmed individually, but held in a pre-lobby state (`pending_review`) until the entire batch is reviewed. Confirmed calls are released to the Lobby together once the batch is complete.
+
+```
+POST /api/dispatch/parse-pdf
+  auth: dispatcher
+  body: PDF file (multipart)
+  effect: AI extracts fields per call found in PDF
+  returns: { batchId, totalCalls, calls: [] of draft visits with index (1 of N, 2 of N...) }
+
+GET /api/dispatch/batch/:batchId/call/:index
+  auth: dispatcher
+  returns: single draft visit pre-filled, plus reference to original PDF page/section
+           for side-by-side comparison
+
+POST /api/dispatch/batch/:batchId/call/:index/confirm
+  auth: dispatcher
+  body: edited draft visit fields
+  effect: creates address (or triggers comparison modal if near-match found)
+          creates visit with status "pending_review" — NOT visible to technicians yet
+  returns: { created: true, visitId } or { comparisonRequired: true, addressId }
+
+POST /api/dispatch/batch/:batchId/call/:index/skip
+  auth: dispatcher
+  effect: marks this call as skipped — won't be created, doesn't block other calls in batch
+
+POST /api/dispatch/batch/:batchId/release-to-lobby
+  auth: dispatcher
+  requires: all calls in batch confirmed or skipped
+  effect: moves all "pending_review" visits in this batch → "in_lobby" simultaneously
+  returns: { releasedCount, visitIds: [...] }
+
+POST /api/addresses/:id/resolve-comparison
+  auth: dispatcher
+  body: { action: "create_new" | "merge_keep_new" | "merge_keep_existing", incomingData }
+  effect: resolves the address conflict per the chosen action — visit history is
+          never affected by the resolution, only address fields change
+```
+
+---
+
+## 4. Workspace — Field Execution
+
+```
+PATCH /api/visits/:id/services
+  auth: technician (must be assigned)
+  body: { serviceName, isFinish, isTemporarily }
+  note: serviceName carries the base service value, including "Prestart System"
+        and "Cancel" — those are NOT separate flags, they are values of
+        serviceName itself. isFinish and isTemporarily are modifiers that can
+        apply on top of any base service (e.g. serviceName: "AC", isFinish: true
+        → "Finish/AC"). isTwoSystems is NOT part of this payload — it lives on
+        visits, not visit_services, since it describes the visit as a whole.
+  effect: creates/updates visit_services row, server recalculates price
+          (bundle rule, two-systems multiplier, cancel rule)
+  
+  special case — switching to Cancel with existing items:
+    if visit_items exist:
+      → returns { requiresConfirmation: true, itemsToRemove: [...] }
+      → PWA shows warning modal before proceeding
+      → technician confirms → resend with { serviceName: "Cancel", confirmed: true }
+      → server deletes all visit_items and visit_services, total_price → 0
+    if no visit_items exist: proceeds directly, no confirmation needed
+    Cancel only accepts `notes` afterward — no other workspace field is editable.
+  
+  returns: updated visit with new total_price
+
+POST /api/visits/:id/items
+  auth: technician (must be assigned)
+  body: { category, itemName, quantity }
+  effect: creates visit_items row — server resolves tech_supplied from catalog
+          if visit status = cancelled, price forced to 0
+  returns: updated visit with new total_price
+
+DELETE /api/visits/:id/items/:itemId
+  auth: technician (must be assigned)
+  effect: removes item, recalculates total_price
+
+PATCH /api/visits/:id/systems/:systemNumber
+  auth: technician (must be assigned)
+  body: { indoorModel, outdoorModel }
+  effect: updates models, re-resolves refrigerant from catalog
+
+PUT /api/visits/:id/weigh-in/:systemNumber
+  auth: technician (must be assigned)
+  body: { linesetLength, factoryLineConfig, adjustedOz, fanSpeedCfm,
+          liquidLineTemp, suctionLineTemp, condenserSatTemp, subcoolingValue }
+  effect: server calculates approxAdjustOz, reads oemSubcoolingGoal from catalog,
+          calculates subcoolingDeviation
+  returns: full weigh-in record with calculated fields
+
+POST /api/visits/:id/photos
+  auth: technician (must be assigned)
+  body: image file (multipart) + { category, systemNumber?, label? }
+  returns: { photoId, storedAt }
+
+PATCH /api/visits/:id/notes
+  auth: technician (must be assigned)
+  body: { notes }
+```
+
+---
+
+## 5. Completion & Offline Behavior
+
+```
+POST /api/visits/:id/complete
+  auth: technician (must be assigned)
+  requires: at least one visit_service exists (unless service = Cancel)
+  effect: status set to final outcome per selected service (see visits.status in DATA_MODEL.md)
+          completed_at timestamp set
+          inventory_assignments consumption reflects tech_supplied items (skipped if cancelled)
+          notification created for dispatcher: "completion_received"
+          if any pending transfers exist for this visit → marked "expired",
+          recipient's notification cleared automatically
+  returns: full completion record
+
+GET /api/visits/:id/report-preview
+  auth: technician (must be assigned) or dispatcher
+  returns: { reportText } — comma-separated string matching current PWA format
+
+GET /api/visits/:id/download
+  auth: technician (must be assigned) or dispatcher
+  returns: JSON file matching current completion JSON format
+  note: must be generable entirely from local device data — no server round-trip
+        required when offline
+```
+
+**Client-side behavior (PWA) — send-on-completion:**
+
+When the technician finishes a workspace, the completion report (and photo ZIP, if applicable) is generated and stored locally first — it is not sent instantly. Two submission modes are possible (to be decided during development):
+
+- **Countdown mode** — a short countdown (duration TBD) gives the technician a window to review and cancel the send. If the countdown completes without cancellation, the report is sent automatically.
+- **Manual submit mode** — the technician taps Submit explicitly, either per visit or once at the end of the route.
+
+Once a report is actually sent and processed by Dispatch, this window has closed. From that point, any change requires the formal correction flow in §6 — the two mechanisms operate at different moments and are not interchangeable: this section covers the pre-send window, §6 covers post-send correction.
+
+1. Technician finishes workspace → report + photos generated locally.
+2. Countdown or manual trigger → sends to Dispatch.
+3. Online → sends → success icon shown on the visit's Reports card.
+4. Offline → completion queued locally (IndexedDB) → modal: "No internet connection — this report cannot be sent. Download to send manually, or wait for connection?" [Download] [Wait]
+5. "Wait" → PWA retries automatically in background when connection returns → icon updates to success once sent.
+6. "Download" → generates JSON locally, no server call needed → icon reflects "downloaded, not auto-sent" (distinct from the success icon).
+7. Queued completions never block work on other visits.
+
+---
+
+## 6. Visit Correction (Post-Completion)
+
+Technicians can edit their own completions freely before submitting, from the Reports section. After submission, changes require a formal correction request.
+
+```
+POST /api/visits/:id/request-correction
+  auth: technician (must be original assignee)
+  requires: visit status = completed/temporarily/cancelled (already submitted)
+  body: { correctedFields, reason }
+  effect: creates correction request — does not apply changes yet
+  returns: { correctionId, status: "pending_dispatcher_review" }
+
+PATCH /api/dispatch/corrections/:id/approve
+  auth: dispatcher
+  effect: applies correctedFields to visit, creates edit_log entry,
+          checks pay period cutoff date:
+            before cutoff → reflected in current period
+            after cutoff → reflected in next period
+  returns: updated visit + which pay period it affects
+```
+
+**Note:** the grace period for corrections (how long after submission a correction can be requested) depends on terms from The Company — pending external definition, see `SYSTEM_DESIGN.md` §10.
+
+**Derived artifacts (JSON to Dispatch, CSV, report to The Company) are never edited directly.** They are always regenerated on demand from current `visits` data, so a correction automatically propagates to all three the next time they're generated — no manual file sync required.
+
+---
+
+## 7. Dispatch — History, Edit Log, Inventory, Restock
+
+```
+GET /api/dispatch/history
+  auth: dispatcher
+  query: ?addressId? ?technicianId? ?dateFrom? ?dateTo? ?status?
+  returns: [] of visits matching filters, grouped by address by default
+
+GET /api/dispatch/history/address/:addressId
+  auth: dispatcher
+  returns: full visit history for one address, chronological
+
+PATCH /api/dispatch/visits/:id
+  auth: dispatcher
+  body: any editable visit field (address, builder, equipment, items, notes, etc.)
+  effect: updates visit, recalculates total_price if items/services changed,
+          creates edit_log entry automatically
+  note: full editability — no restrictions by data origin
+
+GET /api/dispatch/visits/:id/edit-log
+  auth: dispatcher
+  returns: [] of edit_log entries for this visit, chronological — what changed
+           and when, not who (displayed as expandable mini-log, e.g.
+           "06-15 20:15 — edited from Dispatch")
+```
+
+```
+GET /api/inventory/mine
+  auth: technician
+  returns: [] of { itemName, quantityAssigned, quantityConsumed, balance }
+           for caller, current period
+
+GET /api/dispatch/inventory
+  auth: dispatcher
+  returns: [] of same shape, all technicians
+
+POST /api/dispatch/inventory/assign
+  auth: dispatcher
+  body: { technicianId, itemName, quantityAssigned, periodStart }
+  effect: creates inventory_assignments row
+```
+
+```
+GET /api/dispatch/restock-report
+  auth: dispatcher
+  query: ?dateFrom? ?dateTo?
+  returns: { items: [{ itemName, totalConsumed, byTechnician: [...] }] }
+  note: pulls from visit_items where tech_supplied = true, grouped by item
+
+POST /api/dispatch/restock-report/mark-restocked
+  auth: dispatcher
+  body: { itemNames: [...] }
+  effect: marks items as restocked for the period (audit trail only — The Company
+          provides material, this does not deduct inventory)
+```
+
+---
+
+## 8. Pay Periods
+
+```
+GET /api/dispatch/pay-periods
+  auth: dispatcher
+  returns: [] of pay_periods, most recent first
+
+GET /api/dispatch/pay-periods/:id
+  auth: dispatcher
+  returns: full period with pay_period_lines per technician
+
+POST /api/dispatch/pay-periods/close
+  auth: dispatcher
+  body: { periodId }
+  requires: period status = "open", week_end has passed
+  effect: calculates gross_amount per technician from completed visits in range,
+          applies commission split (owner: 0%, collaborator: 20%),
+          creates pay_period_lines, sets period status → "closed"
+  returns: full closed period with all lines
+
+PATCH /api/dispatch/pay-periods/:id/mark-paid
+  auth: dispatcher
+  effect: status → "paid", paid_at timestamp set
+
+GET /api/pay/mine
+  auth: technician
+  query: ?periodId?
+  returns: own pay_period_lines only — never other technicians' data
+```
+
+**Note:** period closing is a manual dispatcher action, not automatic on date rollover — daily audit of technician reports happens before closing, allowing discrepancies to be caught and corrected first.
+
+**Price anomaly detection:** manually reviewing every service report line by line is tedious. The catalog can define an expected min/max range per item, particularly relevant for free-form "Other" entries. Visits with any price outside the expected range for its item are flagged visually during the daily audit — this does not block anything, it only draws the dispatcher's attention before approval.
+
+```
+GET /api/dispatch/pay-periods/:id/anomalies
+  auth: dispatcher
+  returns: [] of { visitId, itemName, price, expectedRange } for any line item
+           outside its catalog-defined expected range, within this period
+```
+
+---
+
+## 9. Chat
+
+```
+GET /api/chat/direct/:technicianId
+  auth: technician
+  returns: [] of chat_messages between caller and :technicianId, chronological
+
+POST /api/chat/direct/:technicianId
+  auth: technician
+  body: { body }
+  effect: creates chat_messages row, type "direct"
+          creates notification for recipient: "message"
+
+GET /api/chat/broadcast
+  auth: technician
+  returns: [] of chat_messages where type = "broadcast", chronological
+
+POST /api/chat/broadcast
+  auth: dispatcher or owner only
+  body: { body }
+  effect: creates chat_messages row, type "broadcast", recipient_id null
+          creates notification for ALL technicians: "broadcast"
+
+POST /api/chat/:messageId/mark-read
+  auth: technician
+  effect: creates chat_reads row for caller + this message
+
+GET /api/chat/broadcast/:messageId/read-receipts
+  auth: dispatcher or owner only
+  returns: [] of { technicianId, readAt } — who has confirmed reading
+```
+
+---
+
+## 10. Notifications
+
+```
+GET /api/notifications/mine
+  auth: technician
+  query: ?unreadOnly?
+  returns: [] of notifications for caller, most recent first
+
+PATCH /api/notifications/:id/mark-read
+  auth: technician
+  effect: read → true
+```
+
+---
+
+## 11. Transfers
+
+Technician-to-technician reassignment, no dispatcher approval required.
+
+```
+POST /api/visits/:id/transfer/initiate
+  auth: technician (must be current assignee)
+  body: { toTechnicianId, reason }
+  effect: creates transfers row, status "pending"
+          visit stays assigned to caller — no change to visit.technician_id yet
+          creates notification for toTechnicianId: "transfer_request"
+  returns: { transferId, status: "pending" }
+
+POST /api/transfers/:id/accept
+  auth: technician (must be the toTechnicianId on this transfer)
+  effect: transfers.status → "accepted", resolved_at set
+          visit.technician_id → toTechnicianId
+          visit.status reset to "assigned"
+          creates notification for dispatcher: "transfer_accepted" (informational)
+  returns: updated visit now assigned to caller
+
+POST /api/transfers/:id/reject
+  auth: technician (must be the toTechnicianId on this transfer)
+  effect: transfers.status → "rejected", resolved_at set
+          visit remains with original technician, unchanged
+          creates notification for fromTechnicianId: "transfer_rejected"
+
+GET /api/transfers/pending/mine
+  auth: technician
+  returns: [] of pending transfer requests where caller is toTechnicianId
+```
+
+**Behavior on no response:** if Tech2 never accepts or rejects, the transfer remains "pending" indefinitely — no expiration logic, no scheduled job. If Tech1 completes the visit through normal workflow before Tech2 responds, the transfer is automatically marked "expired" and Tech2's pending notification is cleared silently — no action required from either technician (see §5 for the completion-triggered effect).
+
+---
+
+## Cross-cutting Rules
+
+- All monetary calculations (pricing, commissions, totals) are performed server-side. Clients never calculate or trust client-side totals as authoritative.
+- All catalog lookups (refrigerant, subcooling goal, tech_supplied flag) happen server-side at the moment of data creation, then are stored explicitly for immutable history.
+- All derived report artifacts (JSON, CSV, TXT) are generated on demand from current data — never stored as the source of truth, never manually synced.
+- All endpoints validate that the caller's role and assignment match the action being requested before applying any effect.
+
+---
+
+*Document generated in planning session — 2026-06-15*
+*Version 1.0 — first formal API contract*
+*Next step: development plan with phases, dependencies, and acceptance criteria*
