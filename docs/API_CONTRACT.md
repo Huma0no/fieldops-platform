@@ -41,6 +41,8 @@ POST /api/auth/revoke
 POST /api/auth/generate-invite
   auth: dispatcher/owner only
   body: { technicianId }
+  fails if: technician.is_active = false — must be reactivated first via
+            PATCH /api/dispatch/technicians/:id/reactivate
   returns: { inviteCode, expiresAt }
 ```
 
@@ -48,14 +50,111 @@ POST /api/auth/generate-invite
 
 ---
 
-## 2. Lobby & Visit Assignment
+## 2. Sync
+
+"Real-time" elsewhere in these documents does not mean instant push — for genuinely urgent communication, a phone call is the right tool, and the platform doesn't need to compete with that. What it means here is that the PWA and Dispatch stay reasonably current with each other without requiring a manual refresh or a full re-download, while staying robust against the weak (rarely zero) signal common at new-construction sites.
+
+The mechanism is polling, not WebSockets or Server-Sent Events — the complexity of a persistent push connection isn't justified when a few seconds of delay is acceptable, and polling degrades more gracefully on flaky connections: each attempt is independent, so a failed poll just gets retried, with no connection state to recover.
+
+```
+GET /api/sync/changes
+  auth: technician or dispatcher
+  query: { since: <ISO 8601 timestamp of last successful sync> }
+  returns: { visits: [] of changed visits since `since`, notifications: [] of
+            new notifications since `since`, chatMessages: [] of new messages
+            since `since`, corrections: [] of new/updated corrections since
+            `since` (dispatcher sees pending requests, technician sees
+            resolution of their own), serverTime: <ISO 8601, to use as next `since`> }
+  note: returns deltas only — never re-sends the full catalog or full visit
+        list. Catalog data is fetched separately and far less frequently
+        (§6) since it changes rarely compared to visits.
+```
+
+**Polling interval:** suggested 15-30 seconds while the app is in the foreground, paused when backgrounded. The exact number is an implementation detail, not a design constraint — adjust based on real battery/data usage once built.
+
+---
+
+### Technician lifecycle
+
+```
+POST /api/dispatch/technicians
+  auth: dispatcher/owner only
+  body: { name, role }
+  effect: creates technicians row, is_active = true, created_at set
+  returns: { technicianId, name, role, isActive, createdAt }
+  note: this is the only way a technician row comes into existence — generate-invite
+        above requires the technicianId to already exist, created here first
+
+GET /api/dispatch/technicians
+  auth: dispatcher/owner only
+  query: ?includeInactive?
+  returns: [] of technicians, active only by default
+
+PATCH /api/dispatch/technicians/:id/deactivate
+  auth: dispatcher/owner only
+  effect: is_active → false. Does not delete the row, does not touch their
+          active visits automatically (see DATA_MODEL.md technicians rules).
+          If the technician has any visits with status "assigned" or
+          "in_progress", creates a dispatcher notification listing them as
+          orphaned, to be resolved via PATCH /api/dispatch/visits/:id/reassign
+          or by releasing them back to the Lobby.
+  returns: updated technician + list of any orphaned visit ids
+
+PATCH /api/dispatch/technicians/:id/reactivate
+  auth: dispatcher/owner only
+  effect: is_active → true. Same technician_id, same historical visits,
+          pay_period_lines, and edit_log entries — reactivation preserves
+          continuity rather than starting a new identity, since the same
+          person returning should not appear as a second, disconnected record.
+  note: does not automatically restore a device token. If their old device
+        token was revoked at deactivation time (or they have a new device),
+        generate a fresh invite via POST /api/auth/generate-invite after
+        reactivating. If the token was never revoked, no new invite is needed.
+  returns: updated technician
+```
+
+---
+
+## 3. Technician Settings & Price Overrides
+
+```
+GET /api/technicians/me/settings
+  auth: technician
+  returns: technician_settings row for caller (created with defaults on first
+           device-token redemption if it doesn't exist yet)
+
+PATCH /api/technicians/me/settings
+  auth: technician
+  body: any of { theme, aiProvider, aiApiKeyAnthropic, aiApiKeyOpenai, aiApiKeyGoogle, onboardingCompleted }
+  effect: updates technician_settings row for caller — a technician can only
+          read/write their own row, never another technician's
+
+GET /api/technicians/me/price-overrides
+  auth: technician
+  returns: [] of technician_price_overrides rows for caller
+
+POST /api/technicians/me/price-overrides
+  auth: technician
+  body: { itemName, overridePrice }
+  effect: creates or updates a technician_price_overrides row for caller —
+          takes precedence over catalog default_price for this technician's
+          future visit_items/visit_services using this itemName
+
+DELETE /api/technicians/me/price-overrides/:itemName
+  auth: technician
+  effect: removes the override — caller's visits fall back to catalog default_price
+```
+
+---
+
+## 4. Lobby & Visit Assignment
 
 ```
 GET /api/visits/lobby
   auth: technician
   returns: [] of visits where status = "in_lobby"
   fields: id, address, subdivision, builder, scheduledTime, workType,
-          isTwoSystems, tags (urgent, a2l, twoSystems, builder)
+          hasMultipleSystems, tags (urgent, a2l, multiSystem, builder)
 
 POST /api/visits/:id/claim
   auth: technician
@@ -74,11 +173,25 @@ POST /api/visits/:id/start
 GET /api/visits/:id
   auth: technician (must be assigned) or dispatcher
   returns: full visit object — context fields, systems, pre-selected accessories/thermostat
+
+PATCH /api/dispatch/visits/:id/reassign
+  auth: dispatcher/owner only
+  body: { technicianId }
+  effect: visit.technician_id → technicianId. If visit.status was "in_lobby",
+          it also becomes "assigned". Otherwise status is left untouched.
+  note: this is the dispatcher's direct-control path — distinct from a
+        technician claiming from the Lobby and from a technician-to-technician
+        transfer (§14). No acceptance from the receiving technician is
+        required; the dispatcher's decision is final. This is the typical
+        day-to-day operating mode (see SYSTEM_DESIGN.md §6, step 4) — the
+        Lobby is the alternative, used when the dispatcher has no preference.
+        The same endpoint resolves orphaned visits after a technician
+        deactivation (see §1 Technician lifecycle).
 ```
 
 ---
 
-## 3. Dispatch — PDF Intake & Visit Creation
+## 5. Dispatch — PDF Intake & Visit Creation
 
 Calls are reviewed one at a time against the original PDF, confirmed individually, but held in a pre-lobby state (`pending_review`) until the entire batch is reviewed. Confirmed calls are released to the Lobby together once the batch is complete.
 
@@ -86,7 +199,11 @@ Calls are reviewed one at a time against the original PDF, confirmed individuall
 POST /api/dispatch/parse-pdf
   auth: dispatcher
   body: PDF file (multipart)
-  effect: AI extracts fields per call found in PDF
+  effect: deletes any existing pdf_batches row with status = "released"
+          (displacement cleanup — see pdf_batches rules)
+          AI extracts fields per call found in PDF
+          creates a pdf_batches row: total_calls = N, skipped_count = 0,
+            status = "in_review"
   returns: { batchId, totalCalls, calls: [] of draft visits with index (1 of N, 2 of N...) }
 
 GET /api/dispatch/batch/:batchId/call/:index
@@ -98,18 +215,25 @@ POST /api/dispatch/batch/:batchId/call/:index/confirm
   auth: dispatcher
   body: edited draft visit fields
   effect: creates address (or triggers comparison modal if near-match found)
-          creates visit with status "pending_review" — NOT visible to technicians yet
+          creates visit with status "pending_review", batch_id = batchId —
+            NOT visible to technicians yet
   returns: { created: true, visitId } or { comparisonRequired: true, addressId }
 
 POST /api/dispatch/batch/:batchId/call/:index/skip
   auth: dispatcher
-  effect: marks this call as skipped — won't be created, doesn't block other calls in batch
+  effect: increments pdf_batches.skipped_count for this batch — marks this
+          call as skipped, won't be created, doesn't block other calls in batch
 
 POST /api/dispatch/batch/:batchId/release-to-lobby
   auth: dispatcher
   requires: all calls in batch confirmed or skipped
-  effect: moves all "pending_review" visits in this batch → "in_lobby" simultaneously
-  returns: { releasedCount, visitIds: [...] }
+  effect: verifies delivery — count of visits where batch_id = batchId and
+            status = "pending_review" must equal total_calls − skipped_count
+          if count matches: moves all matching visits → "in_lobby"
+            simultaneously, sets pdf_batches.status → "released"
+          if count does not match: nothing is released, batch stays
+            "in_review" with an alert for manual dispatcher intervention
+  returns: { releasedCount, visitIds: [...] } or { mismatch: true, expected, actual }
 
 POST /api/addresses/:id/resolve-comparison
   auth: dispatcher
@@ -120,7 +244,43 @@ POST /api/addresses/:id/resolve-comparison
 
 ---
 
-## 4. Workspace — Field Execution
+## 6. Catalog
+
+The PWA is offline-first (SYSTEM_DESIGN.md §8.1) and must be able to download and cache all catalog data on the device. These endpoints are the only way catalog data reaches the client — server-side resolution (refrigerant, tech_supplied, pricing) consumes the same tables internally, but the client never gets this data any other way.
+
+```
+GET /api/catalog/equipment
+  auth: technician or dispatcher
+  returns: [] of catalog_equipment rows
+
+GET /api/catalog/lineset-configs
+  auth: technician or dispatcher
+  returns: [] of catalog_lineset_configs rows
+
+GET /api/catalog/items
+  auth: technician or dispatcher
+  returns: [] of catalog_items rows
+
+GET /api/catalog/item-relations
+  auth: technician or dispatcher
+  returns: [] of catalog_item_relations rows
+
+GET /api/catalog/services
+  auth: technician or dispatcher
+  returns: [] of catalog_services rows
+
+PATCH /api/dispatch/catalog/:table/:id
+  auth: dispatcher
+  body: any editable column for the given catalog row
+  effect: updates the catalog row — e.g. dispatcher manually updating pesp
+          from a technician's field-reading note
+  note: editing a catalog value never changes historical visit records —
+        only future visits read the updated value (see catalog_equipment rules)
+```
+
+---
+
+## 7. Workspace — Field Execution
 
 ```
 PATCH /api/visits/:id/services
@@ -130,10 +290,10 @@ PATCH /api/visits/:id/services
         and "Cancel" — those are NOT separate flags, they are values of
         serviceName itself. isFinish and isTemporarily are modifiers that can
         apply on top of any base service (e.g. serviceName: "AC", isFinish: true
-        → "Finish/AC"). isTwoSystems is NOT part of this payload — it lives on
+        → "Finish/AC"). hasMultipleSystems is NOT part of this payload — it lives on
         visits, not visit_services, since it describes the visit as a whole.
   effect: creates/updates visit_services row, server recalculates price
-          (bundle rule, two-systems multiplier, cancel rule)
+          (bundle rule, system-count multiplier, cancel rule)
   
   special case — switching to Cancel with existing items:
     if visit_items exist:
@@ -148,14 +308,24 @@ PATCH /api/visits/:id/services
 
 POST /api/visits/:id/items
   auth: technician (must be assigned)
-  body: { category, itemName, quantity }
+  body: { category, itemName, quantity, price? }
+  note: price is required when itemName references a catalog_items row with
+        custom_price = true (e.g. "Other") — there is no default_price to fall
+        back on for those items. For all other items, price is ignored if sent
+        and the server uses catalog default_price instead.
   effect: creates visit_items row — server resolves tech_supplied from catalog
-          if visit status = cancelled, price forced to 0
-  returns: updated visit with new total_price
+          server checks catalog_item_relations for itemName:
+            companion rows → auto-creates visit_items rows for each related_item_name
+            exclusion_group rows → auto-removes any existing visit_items row for
+              other items sharing the same exclusion_group_id
+  fails if: visit status = cancelled — server rejects the request, no item is created
+  returns: updated visit with new total_price (reflecting any cascaded items)
 
 DELETE /api/visits/:id/items/:itemId
   auth: technician (must be assigned)
   effect: removes item, recalculates total_price
+          if the removed item has companion rows in catalog_item_relations,
+          those auto-created companion visit_items rows are removed too
 
 PATCH /api/visits/:id/systems/:systemNumber
   auth: technician (must be assigned)
@@ -164,16 +334,34 @@ PATCH /api/visits/:id/systems/:systemNumber
 
 PUT /api/visits/:id/weigh-in/:systemNumber
   auth: technician (must be assigned)
-  body: { linesetLength, factoryLineConfig, adjustedOz, fanSpeedCfm,
+  body: { linesetLength, factoryLineConfig, factoryChargeUsed, adjustedOz, fanSpeedCfm,
           liquidLineTemp, suctionLineTemp, condenserSatTemp, subcoolingValue }
-  effect: server calculates approxAdjustOz, reads oemSubcoolingGoal from catalog,
-          calculates subcoolingDeviation
+  note: factoryChargeUsed is the technician's choice of "factory" or "revised" — required
+        whenever the visit's equipment model has a non-null catalog_equipment.revised_charge_oz
+        (currently Trane and Lennox lineset config variants). The technician reads the
+        physical nameplate in the field and picks accordingly; the server cannot resolve
+        this automatically. Ignored (and not required) for models with no revised_charge_oz.
+  effect: server calculates approxAdjustOz from catalog_lineset_configs, reads
+          oemSubcoolingGoal from catalog_equipment, calculates subcoolingDeviation,
+          stores whichever factory_charge_oz value (factory or revised) corresponds
+          to factoryChargeUsed
   returns: full weigh-in record with calculated fields
 
 POST /api/visits/:id/photos
   auth: technician (must be assigned)
-  body: image file (multipart) + { category, systemNumber?, label? }
-  returns: { photoId, storedAt }
+  body: image file (multipart) + { category, tag, systemNumber?, label? }
+  note: tag identifies which fixed button was pressed (SCALE, FAN, NO_GAS_METER,
+        NO_ELECTRIC_METER, NO_PDRAIN, BREAKERS_MISSING) or carries free text when
+        the technician uses +Other. category alone cannot disambiguate this —
+        multiple fixed buttons share category = "site_evidence". label is only
+        populated when tag comes from +Other.
+  effect: stores the photo locally on the device (compressed, per
+          DATA_MODEL.md visit_photos rules) — does NOT upload to Google Drive
+          at this point. Photos for a visit accumulate locally as the
+          technician works and are only bundled into the visit's ZIP and
+          uploaded together when that visit is completed (§8) — one ZIP per
+          completed visit, never one upload per photo.
+  returns: { photoId, storedAt: null until the visit's ZIP uploads at completion }
 
 PATCH /api/visits/:id/notes
   auth: technician (must be assigned)
@@ -182,7 +370,7 @@ PATCH /api/visits/:id/notes
 
 ---
 
-## 5. Completion & Offline Behavior
+## 8. Completion & Offline Behavior
 
 ```
 POST /api/visits/:id/complete
@@ -214,7 +402,7 @@ When the technician finishes a workspace, the completion report (and photo ZIP, 
 - **Countdown mode** — a short countdown (duration TBD) gives the technician a window to review and cancel the send. If the countdown completes without cancellation, the report is sent automatically.
 - **Manual submit mode** — the technician taps Submit explicitly, either per visit or once at the end of the route.
 
-Once a report is actually sent and processed by Dispatch, this window has closed. From that point, any change requires the formal correction flow in §6 — the two mechanisms operate at different moments and are not interchangeable: this section covers the pre-send window, §6 covers post-send correction.
+Once a report is actually sent and processed by Dispatch, this window has closed. From that point, any change requires the formal correction flow in §9 — the two mechanisms operate at different moments and are not interchangeable: this section covers the pre-send window, §9 covers post-send correction.
 
 1. Technician finishes workspace → report + photos generated locally.
 2. Countdown or manual trigger → sends to Dispatch.
@@ -226,7 +414,7 @@ Once a report is actually sent and processed by Dispatch, this window has closed
 
 ---
 
-## 6. Visit Correction (Post-Completion)
+## 9. Visit Correction (Post-Completion)
 
 Technicians can edit their own completions freely before submitting, from the Reports section. After submission, changes require a formal correction request.
 
@@ -235,16 +423,35 @@ POST /api/visits/:id/request-correction
   auth: technician (must be original assignee)
   requires: visit status = completed/temporarily/cancelled (already submitted)
   body: { correctedFields, reason }
-  effect: creates correction request — does not apply changes yet
-  returns: { correctionId, status: "pending_dispatcher_review" }
+  effect: creates a corrections row, status "pending" — does not apply changes yet
+  returns: { correctionId, status: "pending" }
 
 PATCH /api/dispatch/corrections/:id/approve
   auth: dispatcher
-  effect: applies correctedFields to visit, creates edit_log entry,
+  effect: corrections.status → "approved", resolved_at set
+          applies corrected_fields to the visit
+          creates edit_log entry (source: "correction_approved", summary
+            built from corrections.reason)
           checks pay period cutoff date:
             before cutoff → reflected in current period
             after cutoff → reflected in next period
   returns: updated visit + which pay period it affects
+
+PATCH /api/dispatch/corrections/:id/reject
+  auth: dispatcher
+  body: { dispatcherNote? }
+  effect: corrections.status → "rejected", resolved_at set,
+          dispatcher_note stored if provided
+          no changes applied to the visit, no edit_log entry created
+          creates notification for the requesting technician, including
+          dispatcher_note if present
+  returns: updated correction
+
+GET /api/dispatch/corrections
+  auth: dispatcher
+  query: ?status?
+  returns: [] of corrections, pending first by default — the dispatcher's
+           review queue
 ```
 
 **Note:** the grace period for corrections (how long after submission a correction can be requested) depends on terms from The Company — pending external definition, see `SYSTEM_DESIGN.md` §10.
@@ -253,7 +460,7 @@ PATCH /api/dispatch/corrections/:id/approve
 
 ---
 
-## 7. Dispatch — History, Edit Log, Inventory, Restock
+## 10. Dispatch — History, Edit Log, Inventory, Restock
 
 ```
 GET /api/dispatch/history
@@ -304,14 +511,15 @@ GET /api/dispatch/restock-report
 
 POST /api/dispatch/restock-report/mark-restocked
   auth: dispatcher
-  body: { itemNames: [...] }
-  effect: marks items as restocked for the period (audit trail only — The Company
+  body: { periodStart, periodEnd, itemNames: [...] }
+  effect: creates or updates restock_records rows for each item — status →
+          "restocked", restocked_at set (audit trail only — The Company
           provides material, this does not deduct inventory)
 ```
 
 ---
 
-## 8. Pay Periods
+## 11. Pay Periods
 
 ```
 GET /api/dispatch/pay-periods
@@ -327,7 +535,7 @@ POST /api/dispatch/pay-periods/close
   body: { periodId }
   requires: period status = "open", week_end has passed
   effect: calculates gross_amount per technician from completed visits in range,
-          applies commission split (owner: 0%, collaborator: 20%),
+          applies commission split (owner: 0%, technician non-owner: 20%),
           creates pay_period_lines, sets period status → "closed"
   returns: full closed period with all lines
 
@@ -354,7 +562,7 @@ GET /api/dispatch/pay-periods/:id/anomalies
 
 ---
 
-## 9. Chat
+## 12. Chat
 
 ```
 GET /api/chat/direct/:technicianId
@@ -388,7 +596,7 @@ GET /api/chat/broadcast/:messageId/read-receipts
 
 ---
 
-## 10. Notifications
+## 13. Notifications
 
 ```
 GET /api/notifications/mine
@@ -403,7 +611,7 @@ PATCH /api/notifications/:id/mark-read
 
 ---
 
-## 11. Transfers
+## 14. Transfers
 
 Technician-to-technician reassignment, no dispatcher approval required.
 
@@ -420,7 +628,10 @@ POST /api/transfers/:id/accept
   auth: technician (must be the toTechnicianId on this transfer)
   effect: transfers.status → "accepted", resolved_at set
           visit.technician_id → toTechnicianId
-          visit.status reset to "assigned"
+          visit.status is left untouched — it keeps whatever status it already
+          had (typically "assigned" or "in_progress"); this endpoint never
+          writes to visit.status (see SYSTEM_DESIGN.md §4.2 and DATA_MODEL.md's
+          visits status rules)
           creates notification for dispatcher: "transfer_accepted" (informational)
   returns: updated visit now assigned to caller
 
@@ -435,7 +646,7 @@ GET /api/transfers/pending/mine
   returns: [] of pending transfer requests where caller is toTechnicianId
 ```
 
-**Behavior on no response:** if Tech2 never accepts or rejects, the transfer remains "pending" indefinitely — no expiration logic, no scheduled job. If Tech1 completes the visit through normal workflow before Tech2 responds, the transfer is automatically marked "expired" and Tech2's pending notification is cleared silently — no action required from either technician (see §5 for the completion-triggered effect).
+**Behavior on no response:** if Tech2 never accepts or rejects, the transfer remains "pending" indefinitely — no expiration logic, no scheduled job. If Tech1 completes the visit through normal workflow before Tech2 responds, the transfer is automatically marked "expired" and Tech2's pending notification is cleared silently — no action required from either technician (see §8 for the completion-triggered effect).
 
 ---
 
