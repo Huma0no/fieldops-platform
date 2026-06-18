@@ -59,6 +59,8 @@ Technician collaborators
 
 ## 3. Actors
 
+**Terminology note:** "Dispatch" refers exclusively to the administrative panel application. "Dispatcher" (lowercase, not a proper name) refers to the human role described in §3.2. These terms are never used interchangeably elsewhere in this document.
+
 ### 3.1 The Company (Big-AC Company)
 
 - Origin of all service calls.
@@ -152,7 +154,8 @@ A visit is a service call to an address on a specific date, executed by a specif
 In Lobby → Assigned → In Progress → Completed
                                   → Temporarily
                                   → Cancelled
-                                  → Transferred → Reassigned (never returns to Lobby)
+
+A technician-to-technician transfer (§4.3) does not move a visit through a separate status of its own. The visit stays in whatever status it already has (typically `Assigned` or `In Progress`) while the transfer is negotiated; only `visit.technician_id` changes, the moment the receiving technician accepts. The transfer's own progress (pending/accepted/rejected/expired) is tracked separately — see §4.3.
 ```
 
 **Rules:**
@@ -261,13 +264,21 @@ The complete logic for services, prices, modifiers, accessories, and fixes is im
 
 ### 5.1 Base services
 
-AC · Heat · AC & Heat · Prestart System · Finish · Temporarily · Cancel · Drive Run
+AC · Heat · AC & Heat · Prestart System · Cancel · Drive Run
 
-### 5.2 Critical Cancel rule
+These are the values a visit's service is set to. Finish and Temporarily are not base services — they are modifiers applied on top of one (see §5.2).
+
+### 5.2 Modifiers
+
+**Finish** is applied on top of a base service (e.g. "Finish/AC") and has a real pricing effect: when combined with the Weigh-In-Data accessory on the same visit, it adds a fixed addon to the total (see `catalog_items.finish_addon_price` in DATA_MODEL.md).
+
+**Temporarily** is applied on top of a base service but has no pricing effect at all — the base service is charged at its normal price. It is purely a label: the system equipment was turned on provisionally during the visit and turned off before leaving. Its only effect is setting the visit's final `status` to `"temporarily"` instead of `"completed"`.
+
+### 5.3 Critical Cancel rule
 
 Cancel = zero work performed. Price $0. Invalidates charging any accessory or fix. Any accessory charged on a Cancel is a UI error the system must prevent.
 
-### 5.3 Accessories and Fixes
+### 5.4 Accessories and Fixes
 
 Catalog defined in the PWA (~20 accessories, ~12 fixes). It is the single source — Dispatch consumes it, does not duplicate it.
 
@@ -282,9 +293,11 @@ Catalog defined in the PWA (~20 accessories, ~12 fixes). It is the single source
    AI extracts fields → fields remain editable → Dispatcher confirms → Visits created
         ↓
 3. Visits published to the Lobby
-   (visible to all technicians with tags: urgent · A2L · 2 systems · builder)
+   (visible to all technicians with tags: urgent · A2L · multi-system · builder)
         ↓
-4. Technician takes visit from Lobby  ←→  Dispatcher assigns directly
+4. Dispatcher assigns directly to a specific technician — the typical day-to-day
+   operating mode  ←→  Technician takes visit from Lobby instead, when the
+   dispatcher has no preference and availability should decide
    Visit disappears from Lobby
         ↓
 5. Technician in field — PWA
@@ -373,7 +386,7 @@ The PWA works completely without connection. When connected, it syncs in real ti
 
 ### 8.2 Shared server
 
-A single backend (Node/Express + PostgreSQL) serves both Dispatch and the PWA. It is the source of truth for all persistent entities. PostgreSQL was chosen from the start — this is a new system built for multi-technician concurrency, real-time sync, and future scale, so there is no migration cost to avoid by starting with SQLite.
+A single backend (Node/Express + PostgreSQL) serves both Dispatch and the PWA. It is the source of truth for all persistent entities.
 
 ### 8.3 Catalogs as single source
 
