@@ -23,6 +23,7 @@ app.use(authenticate);
 
 app.use('/api/notifications', require('./routes/notifications'));
 app.use('/api/dispatch/technicians', require('./routes/technicians'));
+app.use('/api/sync', require('./routes/sync'));
 
 // Global error handler
 app.use((err, req, res, _next) => {
