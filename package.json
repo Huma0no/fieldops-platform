@@ -5,7 +5,9 @@
   "main": "src/index.js",
   "scripts": {
     "start": "node src/index.js",
+    "test": "jest --runInBand",
     "db:schema": "psql $DATABASE_URL -f src/db/schema.sql",
+    "db:migrate": "psql $DATABASE_URL -f src/db/migrations/001_invite_codes.sql",
     "db:seed:catalog": "node src/db/seed/catalog.js",
     "db:seed:roles": "node src/db/seed/roles.js"
   },
@@ -13,5 +15,9 @@
     "dotenv": "^16.4.7",
     "express": "^4.21.2",
     "pg": "^8.13.3"
+  },
+  "devDependencies": {
+    "jest": "^29.0.0",
+    "supertest": "^7.0.0"
   }
 }
