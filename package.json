@@ -1,0 +1,17 @@
+{
+  "name": "fieldops-platform",
+  "version": "0.1.0",
+  "description": "HVAC field operations backend",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "db:schema": "psql $DATABASE_URL -f src/db/schema.sql",
+    "db:seed:catalog": "node src/db/seed/catalog.js",
+    "db:seed:roles": "node src/db/seed/roles.js"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "pg": "^8.13.3"
+  }
+}
