@@ -10,6 +10,9 @@ router.get('/changes', async (req, res, next) => {
     if (!since) {
       return res.status(400).json({ error: 'Missing required query param: since' });
     }
+    if (isNaN(Date.parse(since))) {
+      return res.status(400).json({ error: 'since must be a valid ISO 8601 timestamp' });
+    }
 
     const { id: callerId, role } = req.technician;
     const isTech = role === 'technician';

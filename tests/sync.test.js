@@ -38,6 +38,18 @@ describe('GET /api/sync/changes', () => {
     expect(res.body.error).toBe('Missing required query param: since');
   });
 
+  it('returns 400 for invalid since value', async () => {
+    const tech = await seedTech();
+    const token = await seedToken(tech.id);
+
+    const res = await request(app)
+      .get('/api/sync/changes?since=not-a-date')
+      .set('Authorization', `Bearer ${token}`);
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toBe('since must be a valid ISO 8601 timestamp');
+  });
+
   it('returns empty arrays and serverTime for fresh DB', async () => {
     const tech = await seedTech();
     const token = await seedToken(tech.id);
