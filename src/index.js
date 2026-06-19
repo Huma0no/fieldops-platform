@@ -21,8 +21,8 @@ app.use('/api/auth', require('./routes/auth'));
 // All routes below require a valid bearer token
 app.use(authenticate);
 
-app.use('/api/notifications', require('./routes/notifications'));
 app.use('/api/dispatch/technicians', require('./routes/technicians'));
+app.use('/api/notifications', require('./routes/notifications'));
 app.use('/api/sync', require('./routes/sync'));
 
 // Global error handler
