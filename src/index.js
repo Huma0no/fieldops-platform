@@ -6,7 +6,6 @@ const { authenticate } = require('./middleware/auth');
 const app = express();
 app.use(express.json());
 
-// Health check — unauthenticated, placed BEFORE authenticate middleware
 app.get('/api/health', async (req, res) => {
   try {
     await pool.query('SELECT 1');
@@ -15,6 +14,9 @@ app.get('/api/health', async (req, res) => {
     res.status(503).json({ status: 'error', db: 'unreachable', message: err.message });
   }
 });
+
+// Auth routes mount BEFORE global authenticate (redeem-invite is unauthenticated)
+app.use('/api/auth', require('./routes/auth'));
 
 // All routes below require a valid bearer token
 app.use(authenticate);
@@ -25,8 +27,8 @@ app.use((err, req, res, _next) => {
   res.status(500).json({ error: 'Internal server error' });
 });
 
+const PORT = process.env.PORT || 3001;
 if (require.main === module) {
-  const PORT = process.env.PORT || 3001;
   app.listen(PORT, () => {
     console.log(`FieldOps server listening on port ${PORT}`);
   });
