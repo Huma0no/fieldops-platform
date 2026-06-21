@@ -18,6 +18,11 @@ router.post('/:id/resolve-comparison', requireRole('owner', 'dispatcher'), async
       return res.status(400).json({ error: `action must be one of: ${VALID_ACTIONS.join(', ')}` });
     }
 
+    if ((action === 'create_new' || action === 'merge_keep_new') &&
+        (!incomingData || !incomingData.address)) {
+      return res.status(400).json({ error: 'incomingData.address is required for this action' });
+    }
+
     // Verify existing address exists
     const existingResult = await pool.query('SELECT * FROM addresses WHERE id = $1', [existingId]);
     if (existingResult.rows.length === 0) {

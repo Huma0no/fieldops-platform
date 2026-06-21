@@ -18,6 +18,10 @@ router.post('/parse-pdf', requireRole('owner', 'dispatcher'), upload.single('pdf
     // Displacement cleanup: delete previously released batches
     await pool.query("DELETE FROM pdf_batches WHERE status = 'released'");
 
+    if (!req.file) {
+      return res.status(400).json({ error: 'pdf file is required' });
+    }
+
     const calls = await extractCallsFromPDF(req.file.buffer);
     const now = new Date().toISOString();
 
@@ -166,30 +170,43 @@ router.post('/batch/:batchId/release-to-lobby', requireRole('owner', 'dispatcher
     }
 
     const now = new Date().toISOString();
-
-    const releaseResult = await pool.query(
-      `UPDATE visits SET status = 'in_lobby', updated_at = $1
-       WHERE batch_id = $2 AND status = 'pending_review'
-       RETURNING id`,
-      [now, batchId]
-    );
-
-    await pool.query(
-      "UPDATE pdf_batches SET status = 'released' WHERE id = $1",
-      [batchId]
-    );
-
     const today = new Date().toISOString().slice(0, 10);
-    await pool.query(
-      `UPDATE visits SET is_deferred = true, updated_at = $1
-       WHERE status = 'assigned'
-         AND LEFT(created_at, 10) < $2
-         AND is_deferred = false`,
-      [now, today]
-    );
 
-    const visitIds = releaseResult.rows.map((r) => r.id);
-    res.json({ releasedCount: visitIds.length, visitIds });
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+
+      const releaseResult = await client.query(
+        `UPDATE visits SET status = 'in_lobby', updated_at = $1
+         WHERE batch_id = $2 AND status = 'pending_review'
+         RETURNING id`,
+        [now, batchId]
+      );
+
+      await client.query(
+        "UPDATE pdf_batches SET status = 'released' WHERE id = $1",
+        [batchId]
+      );
+
+      // Mark all assigned visits from previous days as deferred
+      await client.query(
+        `UPDATE visits SET is_deferred = true, updated_at = $1
+         WHERE status = 'assigned'
+           AND LEFT(created_at, 10) < $2
+           AND is_deferred = false`,
+        [now, today]
+      );
+
+      await client.query('COMMIT');
+
+      const visitIds = releaseResult.rows.map((r) => r.id);
+      res.json({ releasedCount: visitIds.length, visitIds });
+    } catch (err) {
+      await client.query('ROLLBACK');
+      throw err;
+    } finally {
+      client.release();
+    }
   } catch (err) {
     next(err);
   }
