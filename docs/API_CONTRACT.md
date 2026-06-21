@@ -231,6 +231,9 @@ POST /api/dispatch/batch/:batchId/release-to-lobby
             status = "pending_review" must equal total_calls − skipped_count
           if count matches: moves all matching visits → "in_lobby"
             simultaneously, sets pdf_batches.status → "released"
+            for each technician who already has visits in "assigned" status
+            from a previous day, sets is_deferred = true on those existing
+            assigned visits — signals to the PWA that carry-over work exists
           if count does not match: nothing is released, batch stays
             "in_review" with an alert for manual dispatcher intervention
   returns: { releasedCount, visitIds: [...] } or { mismatch: true, expected, actual }
@@ -240,6 +243,21 @@ POST /api/addresses/:id/resolve-comparison
   body: { action: "create_new" | "merge_keep_new" | "merge_keep_existing", incomingData }
   effect: resolves the address conflict per the chosen action — visit history is
           never affected by the resolution, only address fields change
+
+POST /api/dispatch/visits/create-manual
+  auth: dispatcher
+  body: { address, orderNumber, scheduledTime, workType, systemCount?, notes? }
+  effect: creates address (or triggers comparison modal if near-match found)
+          creates visit with status "pending_review" — same starting state as
+          PDF-confirmed visits, so the dispatcher can review before releasing.
+          No batch is created — the visit stands alone and must be released
+          individually via a dedicated release call or included in the next
+          release-to-lobby operation.
+  note: this is the manual-entry path alongside the PDF extraction path.
+        Both produce visits in pending_review with the same downstream flow:
+        review → release → Lobby → assign. The origin (PDF vs manual) does
+        not affect any subsequent behavior.
+  returns: { visitId } or { comparisonRequired: true, addressId }
 ```
 
 ---

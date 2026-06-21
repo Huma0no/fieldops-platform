@@ -156,6 +156,8 @@ In Lobby → Assigned → In Progress → Completed
                                   → Cancelled
 
 A technician-to-technician transfer (§4.3) does not move a visit through a separate status of its own. The visit stays in whatever status it already has (typically `Assigned` or `In Progress`) while the transfer is negotiated; only `visit.technician_id` changes, the moment the receiving technician accepts. The transfer's own progress (pending/accepted/rejected/expired) is tracked separately — see §4.3.
+
+**Deferred visits:** A visit that was assigned but not completed on the day it was created is not a new status — it remains `assigned`. The system marks it as deferred (`is_deferred = true`) automatically when the dispatcher publishes new visits to the same technician the following day (via `release-to-lobby`). This flag allows the technician's app to surface deferred visits distinctly from fresh ones — deferred visits should appear at the top of the list so the technician is aware of pending carry-over work. The flag is written by the system only, never set manually.
 ```
 
 **Rules:**
