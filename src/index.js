@@ -25,6 +25,7 @@ app.use('/api/dispatch/technicians', require('./routes/technicians'));
 app.use('/api/dispatch', require('./routes/dispatch'));
 app.use('/api/notifications', require('./routes/notifications'));
 app.use('/api/sync', require('./routes/sync'));
+app.use('/api/addresses', require('./routes/addresses'));
 
 // Global error handler
 app.use((err, req, res, _next) => {
