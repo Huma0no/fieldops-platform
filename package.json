@@ -8,12 +8,14 @@
     "test": "jest --runInBand",
     "db:schema": "psql $DATABASE_URL -f src/db/schema.sql",
     "db:migrate": "psql $DATABASE_URL -f src/db/migrations/001_invite_codes.sql",
+    "db:migrate2": "psql $DATABASE_URL -f src/db/migrations/002_visits_updated_at_deferred.sql",
     "db:seed:catalog": "node src/db/seed/catalog.js",
     "db:seed:roles": "node src/db/seed/roles.js"
   },
   "dependencies": {
     "dotenv": "^16.4.7",
     "express": "^4.21.2",
+    "multer": "^2.2.0",
     "pg": "^8.13.3"
   },
   "devDependencies": {

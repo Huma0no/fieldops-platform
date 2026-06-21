@@ -12,7 +12,14 @@ async function truncateTables() {
     DELETE FROM notifications;
     DELETE FROM invite_codes;
     DELETE FROM device_tokens;
+    DELETE FROM visit_photos;
+    DELETE FROM weigh_in_data;
+    DELETE FROM visit_items;
+    DELETE FROM visit_services;
+    DELETE FROM visit_systems;
     DELETE FROM visits;
+    DELETE FROM addresses;
+    DELETE FROM pdf_batches;
     DELETE FROM technicians;
   `);
 }
