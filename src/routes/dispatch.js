@@ -3,7 +3,7 @@ const multer = require('multer');
 const { pool } = require('../db/pool');
 const { requireRole } = require('../middleware/auth');
 const { extractCallsFromPDF } = require('../services/ai');
-const { findOrCreateAddress, normalizeStreet } = require('../helpers/address');
+const { findOrCreateAddress } = require('../helpers/address');
 const { createVisitWithSystems } = require('../helpers/visit');
 
 const router = express.Router();
