@@ -266,6 +266,7 @@ A service call to an address on a specific date, executed by a specific technici
 | work_type | text | As specified in PDF e.g. "AC Startup" |
 | company_notes | text | Free-text IMPORTANT NOTES from PDF |
 | has_multiple_systems | boolean | Renamed from "is_two_systems" — quick flag, avoids count query on visit_systems. The platform supports any number of systems, not just two, so the name no longer implies a binary cap. |
+| is_deferred | boolean | Default false. Set to true by the system automatically when new visits are released to the Lobby for a technician who already has this visit in `assigned` status from a previous day. Never set manually. Allows the PWA to surface carry-over visits distinctly from fresh ones. |
 | contact_name | text | Builder contact name |
 | contact_phone | text | Builder contact phone |
 | contact_channel | text | e.g. "EMAIL", "SUPPLY PRO" |
