@@ -22,6 +22,7 @@ app.use('/api/auth', require('./routes/auth'));
 app.use(authenticate);
 
 app.use('/api/dispatch/technicians', require('./routes/technicians'));
+app.use('/api/dispatch', require('./routes/dispatch'));
 app.use('/api/notifications', require('./routes/notifications'));
 app.use('/api/sync', require('./routes/sync'));
 
