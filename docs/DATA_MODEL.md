@@ -190,6 +190,7 @@ The central and permanent entity. One record per physical property.
 - `street` is normalized before insert (uppercase, trim, standard abbreviations).
 - If an incoming address is similar but not identical to an existing one, the system presents a side-by-side comparison modal. Dispatcher chooses: create new, merge keeping new data, or merge keeping existing data.
 - Visit history is never affected by address merges — only address fields change.
+- Weigh-in data for all systems at this address lives in `weigh_in_data` (address_id reference), not in visits. Visible to both technician and dispatcher when viewing the address.
 
 ---
 
@@ -350,13 +351,13 @@ Accessories, fixes, and thermostats installed during a visit. Unified into one t
 ---
 
 ### weigh_in_data
-Refrigerant charge data per system per visit.
+Refrigerant charge data per system per address. Captured during a visit but belongs to the address permanently.
 
 | Column | Type | Notes |
 |---|---|---|
 | id | text PK | UUID |
-| visit_id | text FK | References visits.id |
-| system_number | integer | Matches visit_systems.system_number |
+| address_id | text FK | References addresses.id |
+| system_number | integer | System this weigh-in belongs to (1, 2, 3...) |
 | lineset_length | real | Feet |
 | factory_charge_oz | real | OEM factory charge in oz. For equipment with a `catalog_equipment.revised_charge_oz` value (currently Trane, Lennox), this stores whichever of the two catalog values the technician selected based on the physical nameplate — see `factoryChargeUsed` in API_CONTRACT.md §7. For all other equipment, this is simply `catalog_equipment.factory_charge_oz`. |
 | factory_line_config | text | Preset config key |
@@ -371,7 +372,11 @@ Refrigerant charge data per system per visit.
 | subcooling_deviation | real | subcooling_value − oem_subcooling_goal |
 
 **Rules:**
-- `oem_subcooling_goal` is read from the catalog at visit creation and stored explicitly for immutable history.
+- One row per system per address. Created during the visit where the data is captured, but belongs to the address permanently.
+- If data changes (edge case — equipment replacement, major repair): dispatcher updates the existing row. Change is recorded in edit_log.
+- A system's weigh-in may be captured across different visits — system 1 on visit 1, system 2 on visit 2. This is normal operating behavior.
+- If The Company never reassigns the address, some systems may remain without weigh-in data. This is acceptable — no row is created until data is actually captured.
+- `oem_subcooling_goal` is read from the catalog at capture time and stored explicitly for immutable history.
 - `approx_adjust_oz` is calculated dynamically from `lineset_length` and `factory_line_config` but stored as evidence of what the technician saw in field.
 - `subcooling_deviation` is calculated by the server: positive = overcharged, negative = undercharged.
 
@@ -643,7 +648,7 @@ Change history for visits — what changed and when, not who requested it.
 | visit_services | catalog_services | service_name |
 | visit_items | visits | visit_id |
 | visit_items | catalog_items | item_name |
-| weigh_in_data | visits | visit_id |
+| weigh_in_data | addresses | address_id |
 | weigh_in_data | catalog_lineset_configs | factory_line_config |
 | visit_photos | visits | visit_id |
 | transfers | visits | visit_id |

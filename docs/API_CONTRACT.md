@@ -533,6 +533,21 @@ POST /api/dispatch/restock-report/mark-restocked
   effect: creates or updates restock_records rows for each item — status →
           "restocked", restocked_at set (audit trail only — The Company
           provides material, this does not deduct inventory)
+
+GET /api/addresses/:id/weigh-in
+  auth: technician or dispatcher
+  returns: [] of weigh_in_data rows for this address, ordered by system_number
+  note: collapsed by default in UI — reference data, not active input.
+        Technician sees this when viewing an address to avoid re-capturing
+        data already collected in a prior visit.
+
+PATCH /api/dispatch/addresses/:id/weigh-in/:systemNumber
+  auth: dispatcher
+  body: any editable weigh-in field
+  effect: updates existing weigh_in_data row for this address+system,
+          creates edit_log entry automatically
+  note: edge case only — use when equipment was replaced or major repair
+        changed the system's charge characteristics
 ```
 
 ---
