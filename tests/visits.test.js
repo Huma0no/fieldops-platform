@@ -53,3 +53,58 @@ describe('GET /api/visits/lobby', () => {
     expect(res.status).toBe(401);
   });
 });
+
+// ── POST /api/visits/:id/claim ───────────────────────────────────────────────
+describe('POST /api/visits/:id/claim', () => {
+  it('assigns visit to technician and returns it', async () => {
+    const { tech, token } = await seedTechnicianWithToken();
+    const { visitId } = await seedInLobbyVisit();
+
+    const res = await request(app)
+      .post(`/api/visits/${visitId}/claim`)
+      .set('Authorization', `Bearer ${token}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.id).toBe(visitId);
+    expect(res.body.technicianId).toBe(tech.id);
+    expect(res.body.status).toBe('assigned');
+    expect(res.body.address.street).toBeDefined();
+    expect(res.body.tags).toContain('builder');
+
+    const row = await pool.query('SELECT status, technician_id FROM visits WHERE id = $1', [visitId]);
+    expect(row.rows[0].status).toBe('assigned');
+    expect(row.rows[0].technician_id).toBe(tech.id);
+  });
+
+  it('returns 404 for unknown visit id', async () => {
+    const { token } = await seedTechnicianWithToken();
+    const res = await request(app)
+      .post('/api/visits/nonexistent-id/claim')
+      .set('Authorization', `Bearer ${token}`);
+    expect(res.status).toBe(404);
+    expect(res.body.error).toBe('Visit not found');
+  });
+
+  it('returns 409 when visit already claimed', async () => {
+    const { token: tokenA } = await seedTechnicianWithToken({ name: 'Tech-A' });
+    const { token: tokenB } = await seedTechnicianWithToken({ name: 'Tech-B' });
+    const { visitId } = await seedInLobbyVisit();
+
+    await request(app).post(`/api/visits/${visitId}/claim`).set('Authorization', `Bearer ${tokenA}`);
+
+    const res = await request(app)
+      .post(`/api/visits/${visitId}/claim`)
+      .set('Authorization', `Bearer ${tokenB}`);
+    expect(res.status).toBe(409);
+    expect(res.body.error).toBe('This visit was just claimed by another technician');
+  });
+
+  it('returns 403 for dispatcher role', async () => {
+    const { token } = await seedDispatcherWithToken();
+    const { visitId } = await seedInLobbyVisit();
+    const res = await request(app)
+      .post(`/api/visits/${visitId}/claim`)
+      .set('Authorization', `Bearer ${token}`);
+    expect(res.status).toBe(403);
+  });
+});
