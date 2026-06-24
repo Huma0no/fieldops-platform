@@ -27,4 +27,57 @@ async function seedDispatcherWithToken() {
   return { dispatcher, token };
 }
 
-module.exports = { seedTech, seedToken, seedDispatcherWithToken };
+async function seedTechnicianWithToken({ name } = {}) {
+  const tech = await seedTech({ role: 'technician', name: name || 'Tech-1' });
+  const token = await seedToken(tech.id);
+  return { tech, token };
+}
+
+async function seedInLobbyVisit({ addressOverrides = {}, systemCount = 1, withA2l = false } = {}) {
+  const crypto = require('crypto');
+  const street = addressOverrides.street || `${crypto.randomBytes(4).toString('hex')} TEST ST`;
+  const addrResult = await pool.query(
+    `INSERT INTO addresses (id, street, city, subdivision, builder)
+     VALUES (gen_random_uuid()::text, $1, $2, $3, $4) RETURNING id`,
+    [
+      street,
+      addressOverrides.city || 'Houston',
+      addressOverrides.subdivision || 'TEST SUB',
+      addressOverrides.builder || 'DR HORTON',
+    ]
+  );
+  const addressId = addrResult.rows[0].id;
+
+  const now = new Date().toISOString();
+  const visitResult = await pool.query(
+    `INSERT INTO visits
+       (id, address_id, status, has_multiple_systems, is_deferred, scheduled_time, date, created_at, updated_at)
+     VALUES (gen_random_uuid()::text, $1, 'in_lobby', $2, false, $3, $4, $5, $5)
+     RETURNING id`,
+    [addressId, systemCount > 1, '2026-07-01T09:00:00Z', '2026-07-01', now]
+  );
+  const visitId = visitResult.rows[0].id;
+
+  let a2lModel = null;
+  if (withA2l) {
+    a2lModel = `TEST-A2L-${crypto.randomBytes(4).toString('hex')}`;
+    await pool.query(
+      `INSERT INTO catalog_equipment (model, unit_type, brand, is_a2l)
+       VALUES ($1, 'indoor', 'TEST', true)
+       ON CONFLICT (model) DO NOTHING`,
+      [a2lModel]
+    );
+  }
+
+  for (let i = 1; i <= systemCount; i++) {
+    await pool.query(
+      `INSERT INTO visit_systems (id, visit_id, system_number, indoor_model)
+       VALUES (gen_random_uuid()::text, $1, $2, $3)`,
+      [visitId, i, i === 1 && a2lModel ? a2lModel : null]
+    );
+  }
+
+  return { visitId, addressId, street };
+}
+
+module.exports = { seedTech, seedToken, seedDispatcherWithToken, seedTechnicianWithToken, seedInLobbyVisit };
