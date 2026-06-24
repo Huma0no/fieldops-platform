@@ -34,7 +34,6 @@ async function seedTechnicianWithToken({ name } = {}) {
 }
 
 async function seedInLobbyVisit({ addressOverrides = {}, systemCount = 1, withA2l = false } = {}) {
-  const crypto = require('crypto');
   const street = addressOverrides.street || `${crypto.randomBytes(4).toString('hex')} TEST ST`;
   const addrResult = await pool.query(
     `INSERT INTO addresses (id, street, city, subdivision, builder)
