@@ -6,6 +6,7 @@ const { calculateVisitPrice } = require('../services/pricing');
 const router = express.Router();
 
 const VALID_SERVICES = ['AC', 'Heat', 'AC & Heat', 'Prestart System', 'Drive Run', 'Cancel'];
+const VALID_CATEGORIES = ['accessory', 'fix', 'thermostat'];
 
 async function requireVisitOwnership(req, res, next) {
   try {
@@ -28,6 +29,80 @@ async function requireVisitOwnership(req, res, next) {
   } catch (err) {
     next(err);
   }
+}
+
+async function resolveCompanionCascade(db, visitId, itemName, mode) {
+  const relRes = await db.query(
+    `SELECT related_item_name FROM catalog_item_relations
+     WHERE item_name = $1 AND relation_type = 'companion'`,
+    [itemName]
+  );
+  const companions = relRes.rows.map(r => r.related_item_name);
+  if (companions.length === 0) return [];
+
+  if (mode === 'remove') {
+    await db.query(
+      `DELETE FROM visit_items WHERE visit_id = $1 AND item_name = ANY($2)`,
+      [visitId, companions]
+    );
+    return companions;
+  }
+
+  // add mode
+  const added = [];
+  for (const name of companions) {
+    const existing = await db.query(
+      `SELECT id FROM visit_items WHERE visit_id = $1 AND item_name = $2`,
+      [visitId, name]
+    );
+    if (existing.rows.length > 0) continue;
+    const cat = await db.query(
+      `SELECT default_price, tech_supplied, category FROM catalog_items WHERE item_name = $1`,
+      [name]
+    );
+    if (cat.rows.length === 0) continue;
+    const c = cat.rows[0];
+    await db.query(
+      `INSERT INTO visit_items (id, visit_id, item_name, category, quantity, price, tech_supplied)
+       VALUES (gen_random_uuid()::text, $1, $2, $3, 1, $4, $5)`,
+      [visitId, name, c.category, c.default_price ?? 0, c.tech_supplied]
+    );
+    added.push(name);
+  }
+  return added;
+}
+
+async function resolveExclusionCascade(db, visitId, itemName) {
+  const relRes = await db.query(
+    `SELECT exclusion_group_id FROM catalog_item_relations
+     WHERE item_name = $1 AND relation_type = 'exclusion_group'
+     LIMIT 1`,
+    [itemName]
+  );
+  if (relRes.rows.length === 0 || !relRes.rows[0].exclusion_group_id) return [];
+
+  const groupId = relRes.rows[0].exclusion_group_id;
+  const membersRes = await db.query(
+    `SELECT item_name FROM catalog_item_relations
+     WHERE exclusion_group_id = $1 AND item_name <> $2 AND relation_type = 'exclusion_group'`,
+    [groupId, itemName]
+  );
+  const memberNames = membersRes.rows.map(r => r.item_name);
+  if (memberNames.length === 0) return [];
+
+  const companionRes = await db.query(
+    `SELECT related_item_name FROM catalog_item_relations
+     WHERE item_name = ANY($1) AND relation_type = 'companion'`,
+    [memberNames]
+  );
+  const companionNames = companionRes.rows.map(r => r.related_item_name);
+
+  const toDelete = [...new Set([...memberNames, ...companionNames])];
+  await db.query(
+    `DELETE FROM visit_items WHERE visit_id = $1 AND item_name = ANY($2)`,
+    [visitId, toDelete]
+  );
+  return toDelete;
 }
 
 // PATCH /api/visits/:id/services
@@ -88,6 +163,63 @@ router.patch(
       );
 
       res.json({ id, serviceName, isFinish, isTemporarily, totalPrice });
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
+// POST /api/visits/:id/items
+router.post(
+  '/:id/items',
+  requireRole('technician'),
+  requireVisitOwnership,
+  async (req, res, next) => {
+    const { id } = req.params;
+    const { category, itemName, quantity = 1, price } = req.body;
+    try {
+      if (!VALID_CATEGORIES.includes(category)) {
+        return res.status(400).json({ error: 'Invalid category' });
+      }
+
+      const catRes = await pool.query(
+        `SELECT * FROM catalog_items WHERE item_name = $1`,
+        [itemName]
+      );
+      if (catRes.rows.length === 0) {
+        return res.status(400).json({ error: 'Item not found in catalog' });
+      }
+      const catalog = catRes.rows[0];
+
+      if (catalog.custom_price && price == null) {
+        return res.status(400).json({ error: 'price is required for this item' });
+      }
+
+      const resolvedPrice = catalog.custom_price ? price : (catalog.default_price ?? 0);
+
+      const insertRes = await pool.query(
+        `INSERT INTO visit_items (id, visit_id, item_name, category, quantity, price, tech_supplied)
+         VALUES (gen_random_uuid()::text, $1, $2, $3, $4, $5, $6) RETURNING id`,
+        [id, itemName, category, quantity, resolvedPrice, catalog.tech_supplied]
+      );
+      const newId = insertRes.rows[0].id;
+
+      const addedCompanions = await resolveCompanionCascade(pool, id, itemName, 'add');
+      const removedItems = await resolveExclusionCascade(pool, id, itemName);
+
+      const totalPrice = await calculateVisitPrice(pool, id);
+      const now = new Date().toISOString();
+      await pool.query(
+        `UPDATE visits SET total_price = $1, updated_at = $2 WHERE id = $3`,
+        [totalPrice, now, id]
+      );
+
+      res.json({
+        id: newId,
+        totalPrice,
+        addedItems: [itemName, ...addedCompanions],
+        removedItems,
+      });
     } catch (err) {
       next(err);
     }

@@ -121,3 +121,112 @@ describe('PATCH /api/visits/:id/services', () => {
     expect(res.body.error).toBe('This visit is not assigned to you');
   });
 });
+
+// ── POST /api/visits/:id/items ────────────────────────────────────────────────
+describe('POST /api/visits/:id/items', () => {
+  beforeEach(async () => {
+    // Clean test catalog_item_relations to avoid accumulation across runs
+    await pool.query(`
+      DELETE FROM catalog_item_relations
+      WHERE item_name LIKE 'TEST-%' OR related_item_name LIKE 'TEST-%'
+    `);
+    await pool.query(`
+      INSERT INTO catalog_items
+        (item_name, category, default_price, tech_supplied, multiplies_by_system_count, custom_price)
+      VALUES
+        ('TEST-PARENT',    'accessory', 50, false, false, false),
+        ('TEST-COMPANION', 'accessory', 20, false, false, false),
+        ('TEST-EXCL-A',    'accessory', 30, false, false, false),
+        ('TEST-EXCL-B',    'accessory', 30, false, false, false),
+        ('TEST-EXCL-COMP', 'accessory', 10, false, false, false),
+        ('TEST-CUSTOM',    'fix',        0, false, false, true)
+      ON CONFLICT (item_name) DO NOTHING
+    `);
+    await pool.query(`
+      INSERT INTO catalog_item_relations (id, item_name, relation_type, related_item_name, exclusion_group_id)
+      VALUES
+        (gen_random_uuid()::text, 'TEST-PARENT', 'companion',       'TEST-COMPANION', null),
+        (gen_random_uuid()::text, 'TEST-EXCL-A', 'exclusion_group', 'TEST-EXCL-B',    'TEST-EXG'),
+        (gen_random_uuid()::text, 'TEST-EXCL-B', 'exclusion_group', 'TEST-EXCL-A',    'TEST-EXG'),
+        (gen_random_uuid()::text, 'TEST-EXCL-B', 'companion',       'TEST-EXCL-COMP', null)
+    `);
+    await pool.query(`
+      INSERT INTO catalog_services (service_name, default_price, is_bundle, multiplies_by_system_count)
+      VALUES ('AC', 150, false, false)
+      ON CONFLICT (service_name) DO NOTHING
+    `);
+  });
+
+  it('inserts item and auto-adds companion', async () => {
+    const { visitId, token } = await seedAssignedVisit();
+    const res = await request(app)
+      .post(`/api/visits/${visitId}/items`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ category: 'accessory', itemName: 'TEST-PARENT' });
+    expect(res.status).toBe(200);
+    expect(res.body.addedItems).toContain('TEST-PARENT');
+    expect(res.body.addedItems).toContain('TEST-COMPANION');
+    expect(res.body.removedItems).toHaveLength(0);
+    const rows = await pool.query(
+      `SELECT item_name FROM visit_items WHERE visit_id = $1 ORDER BY item_name`,
+      [visitId]
+    );
+    expect(rows.rows.map(r => r.item_name)).toEqual(['TEST-COMPANION', 'TEST-PARENT']);
+  });
+
+  it('removes conflicting exclusion-group item (and its companion) when adding', async () => {
+    const { visitId, token } = await seedAssignedVisit();
+    // Pre-seed TEST-EXCL-A in the visit (simulate it was previously added)
+    await pool.query(
+      `INSERT INTO visit_items (id, visit_id, item_name, category, quantity, price, tech_supplied)
+       VALUES (gen_random_uuid()::text, $1, 'TEST-EXCL-A', 'accessory', 1, 30, false)`,
+      [visitId]
+    );
+    const res = await request(app)
+      .post(`/api/visits/${visitId}/items`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ category: 'accessory', itemName: 'TEST-EXCL-B' });
+    expect(res.status).toBe(200);
+    expect(res.body.addedItems).toContain('TEST-EXCL-B');
+    expect(res.body.addedItems).toContain('TEST-EXCL-COMP');
+    expect(res.body.removedItems).toContain('TEST-EXCL-A');
+    const rows = await pool.query(
+      `SELECT item_name FROM visit_items WHERE visit_id = $1 ORDER BY item_name`,
+      [visitId]
+    );
+    const names = rows.rows.map(r => r.item_name);
+    expect(names).toContain('TEST-EXCL-B');
+    expect(names).toContain('TEST-EXCL-COMP');
+    expect(names).not.toContain('TEST-EXCL-A');
+  });
+
+  it('returns 400 for item not in catalog', async () => {
+    const { visitId, token } = await seedAssignedVisit();
+    const res = await request(app)
+      .post(`/api/visits/${visitId}/items`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ category: 'accessory', itemName: 'NO-SUCH-ITEM' });
+    expect(res.status).toBe(400);
+    expect(res.body.error).toBe('Item not found in catalog');
+  });
+
+  it('returns 400 when custom_price item sent without price', async () => {
+    const { visitId, token } = await seedAssignedVisit();
+    const res = await request(app)
+      .post(`/api/visits/${visitId}/items`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ category: 'fix', itemName: 'TEST-CUSTOM' });
+    expect(res.status).toBe(400);
+    expect(res.body.error).toBe('price is required for this item');
+  });
+
+  it('returns 403 when token belongs to a different technician', async () => {
+    const { visitId } = await seedAssignedVisit();
+    const { token: otherToken } = await seedTechnicianWithToken({ name: 'Other-Tech' });
+    const res = await request(app)
+      .post(`/api/visits/${visitId}/items`)
+      .set('Authorization', `Bearer ${otherToken}`)
+      .send({ category: 'accessory', itemName: 'TEST-PARENT' });
+    expect(res.status).toBe(403);
+  });
+});
