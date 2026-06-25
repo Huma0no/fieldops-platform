@@ -2,11 +2,15 @@ const express = require('express');
 const { pool } = require('../db/pool');
 const { requireRole } = require('../middleware/auth');
 const { calculateVisitPrice } = require('../services/pricing');
+const multer = require('multer');
 
 const router = express.Router();
 
+const upload = multer({ storage: multer.memoryStorage() });
+
 const VALID_SERVICES = ['AC', 'Heat', 'AC & Heat', 'Prestart System', 'Drive Run', 'Cancel'];
 const VALID_CATEGORIES = ['accessory', 'fix', 'thermostat'];
+const VALID_PHOTO_CATEGORIES = ['weigh_in_scale', 'fan_speed', 'site_evidence'];
 
 async function requireVisitOwnership(req, res, next) {
   try {
@@ -463,6 +467,51 @@ router.put(
         oemSubcoolingGoal: r.oem_subcooling_goal,
         subcoolingDeviation: r.subcooling_deviation,
       });
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
+// POST /api/visits/:id/photos
+router.post(
+  '/:id/photos',
+  requireRole('technician'),
+  requireVisitOwnership,
+  upload.single('photo'),
+  async (req, res, next) => {
+    const { id } = req.params;
+    const { category, tag, systemNumber, label } = req.body;
+    try {
+      if (!VALID_PHOTO_CATEGORIES.includes(category)) {
+        return res.status(400).json({ error: 'Invalid category' });
+      }
+      if (!tag) {
+        return res.status(400).json({ error: 'tag is required' });
+      }
+
+      const addrRes = await pool.query(
+        `SELECT street FROM addresses WHERE id = $1`,
+        [req.visit.address_id]
+      );
+      const street = addrRes.rows[0].street;
+
+      const slugBase = `${street}_${tag}`.toUpperCase().replace(/\s+/g, '_');
+      const slug = systemNumber ? `${slugBase}_SYS${systemNumber}` : slugBase;
+
+      const photoRes = await pool.query(
+        `INSERT INTO visit_photos (id, visit_id, system_number, slug, tag, label, category, stored_at)
+         VALUES (gen_random_uuid()::text, $1, $2, $3, $4, $5, $6, null) RETURNING id`,
+        [id, systemNumber ? parseInt(systemNumber, 10) : null, slug, tag, label ?? null, category]
+      );
+      const photoId = photoRes.rows[0].id;
+
+      await pool.query(
+        `UPDATE visits SET updated_at = $1 WHERE id = $2`,
+        [new Date().toISOString(), id]
+      );
+
+      res.json({ photoId, slug, storedAt: null });
     } catch (err) {
       next(err);
     }

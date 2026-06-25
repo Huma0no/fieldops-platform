@@ -485,3 +485,57 @@ describe('PUT /api/visits/:id/weigh-in/:systemNumber', () => {
     expect(res.body.error).toBe('Lineset config not found');
   });
 });
+
+// ── POST /api/visits/:id/photos ───────────────────────────────────────────────
+describe('POST /api/visits/:id/photos', () => {
+  it('returns photoId, slug, and storedAt null', async () => {
+    const { visitId, token } = await seedAssignedVisit();
+    const res = await request(app)
+      .post(`/api/visits/${visitId}/photos`)
+      .set('Authorization', `Bearer ${token}`)
+      .field('category', 'weigh_in_scale')
+      .field('tag', 'SCALE_READING')
+      .attach('photo', Buffer.from('fake-image-bytes'), 'scale.jpg');
+    expect(res.status).toBe(200);
+    expect(res.body.photoId).toBeTruthy();
+    expect(res.body.storedAt).toBeNull();
+    expect(res.body.slug).toMatch(/SCALE_READING/);
+    expect(res.body.slug).not.toMatch(/ /); // no spaces in slug
+  });
+
+  it('includes SYS{N} suffix in slug when systemNumber is provided', async () => {
+    const { visitId, token } = await seedAssignedVisit();
+    const res = await request(app)
+      .post(`/api/visits/${visitId}/photos`)
+      .set('Authorization', `Bearer ${token}`)
+      .field('category', 'fan_speed')
+      .field('tag', 'FAN_READING')
+      .field('systemNumber', '1')
+      .attach('photo', Buffer.from('fake'), 'fan.jpg');
+    expect(res.status).toBe(200);
+    expect(res.body.slug).toMatch(/SYS1/);
+  });
+
+  it('returns 400 for invalid photo category', async () => {
+    const { visitId, token } = await seedAssignedVisit();
+    const res = await request(app)
+      .post(`/api/visits/${visitId}/photos`)
+      .set('Authorization', `Bearer ${token}`)
+      .field('category', 'INVALID')
+      .field('tag', 'X')
+      .attach('photo', Buffer.from('fake'), 'x.jpg');
+    expect(res.status).toBe(400);
+    expect(res.body.error).toBe('Invalid category');
+  });
+
+  it('returns 400 when tag is missing', async () => {
+    const { visitId, token } = await seedAssignedVisit();
+    const res = await request(app)
+      .post(`/api/visits/${visitId}/photos`)
+      .set('Authorization', `Bearer ${token}`)
+      .field('category', 'weigh_in_scale')
+      .attach('photo', Buffer.from('fake'), 'x.jpg');
+    expect(res.status).toBe(400);
+    expect(res.body.error).toBe('tag is required');
+  });
+});
