@@ -119,4 +119,35 @@ visitsRouter.post('/:id/claim', requireRole('technician'), async (req, res, next
   }
 });
 
+// GET /api/visits/mine — declared before /:id to prevent param capture
+visitsRouter.get('/mine', requireRole('technician'), async (req, res, next) => {
+  try {
+    const result = await pool.query(
+      `SELECT v.id, v.order_number, v.scheduled_time, v.has_multiple_systems,
+              v.is_deferred, v.status, v.technician_id,
+              a.street, a.city, a.subdivision, a.builder
+       FROM visits v
+       JOIN addresses a ON a.id = v.address_id
+       WHERE v.technician_id = $1
+         AND v.status IN ('assigned', 'in_progress', 'temporarily')
+       ORDER BY v.is_deferred DESC, v.scheduled_time ASC NULLS LAST`,
+      [req.technician.id]
+    );
+
+    res.json(result.rows.map((r) => ({
+      id: r.id,
+      orderNumber: r.order_number,
+      scheduledTime: r.scheduled_time,
+      technicianId: r.technician_id,
+      status: r.status,
+      address: { street: r.street, city: r.city, subdivision: r.subdivision, builder: r.builder },
+      hasMultipleSystems: r.has_multiple_systems,
+      isDeferred: r.is_deferred,
+      tags: buildTags(r.has_multiple_systems, false),
+    })));
+  } catch (err) {
+    next(err);
+  }
+});
+
 module.exports = { visitsRouter, dispatchVisitsRouter };

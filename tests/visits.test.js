@@ -108,3 +108,54 @@ describe('POST /api/visits/:id/claim', () => {
     expect(res.status).toBe(403);
   });
 });
+
+// ── GET /api/visits/mine ─────────────────────────────────────────────────────
+describe('GET /api/visits/mine', () => {
+  it('returns assigned visits for the authenticated technician', async () => {
+    const { tech, token } = await seedTechnicianWithToken();
+    const { visitId } = await seedInLobbyVisit();
+    await request(app).post(`/api/visits/${visitId}/claim`).set('Authorization', `Bearer ${token}`);
+
+    const res = await request(app).get('/api/visits/mine').set('Authorization', `Bearer ${token}`);
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveLength(1);
+    const v = res.body[0];
+    expect(v.id).toBe(visitId);
+    expect(v.technicianId).toBe(tech.id);
+    expect(v.status).toBe('assigned');
+    expect(v.address.street).toBeDefined();
+    expect(v.tags).toContain('builder');
+  });
+
+  it('excludes visits assigned to other technicians', async () => {
+    const { token: tokenA } = await seedTechnicianWithToken({ name: 'Tech-A' });
+    const { token: tokenB } = await seedTechnicianWithToken({ name: 'Tech-B' });
+    const { visitId } = await seedInLobbyVisit();
+    await request(app).post(`/api/visits/${visitId}/claim`).set('Authorization', `Bearer ${tokenA}`);
+
+    const res = await request(app).get('/api/visits/mine').set('Authorization', `Bearer ${tokenB}`);
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveLength(0);
+  });
+
+  it('returns deferred visits before non-deferred visits', async () => {
+    const { token } = await seedTechnicianWithToken();
+    const { visitId: idA } = await seedInLobbyVisit();
+    const { visitId: idB } = await seedInLobbyVisit();
+    await request(app).post(`/api/visits/${idA}/claim`).set('Authorization', `Bearer ${token}`);
+    await request(app).post(`/api/visits/${idB}/claim`).set('Authorization', `Bearer ${token}`);
+    await pool.query('UPDATE visits SET is_deferred = true WHERE id = $1', [idB]);
+
+    const res = await request(app).get('/api/visits/mine').set('Authorization', `Bearer ${token}`);
+    expect(res.status).toBe(200);
+    expect(res.body[0].id).toBe(idB);
+    expect(res.body[0].isDeferred).toBe(true);
+    expect(res.body[1].id).toBe(idA);
+  });
+
+  it('returns 403 for dispatcher role', async () => {
+    const { token } = await seedDispatcherWithToken();
+    const res = await request(app).get('/api/visits/mine').set('Authorization', `Bearer ${token}`);
+    expect(res.status).toBe(403);
+  });
+});
