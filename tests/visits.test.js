@@ -212,3 +212,63 @@ describe('POST /api/visits/:id/start', () => {
     expect(res.status).toBe(404);
   });
 });
+
+// ── GET /api/visits/:id ──────────────────────────────────────────────────────
+describe('GET /api/visits/:id', () => {
+  it('returns full visit detail with nested arrays', async () => {
+    const { token } = await seedTechnicianWithToken();
+    const { visitId } = await seedInLobbyVisit({ systemCount: 1 });
+    await request(app).post(`/api/visits/${visitId}/claim`).set('Authorization', `Bearer ${token}`);
+
+    const res = await request(app)
+      .get(`/api/visits/${visitId}`)
+      .set('Authorization', `Bearer ${token}`);
+
+    expect(res.status).toBe(200);
+    const v = res.body;
+    expect(v.id).toBe(visitId);
+    expect(v.status).toBe('assigned');
+    expect(v.address.street).toBeDefined();
+    expect(v.address.city).toBeDefined();
+    expect(Array.isArray(v.systems)).toBe(true);
+    expect(v.systems).toHaveLength(1);
+    expect(v.systems[0].systemNumber).toBe(1);
+    expect(Array.isArray(v.services)).toBe(true);
+    expect(Array.isArray(v.items)).toBe(true);
+    expect(Array.isArray(v.photos)).toBe(true);
+  });
+
+  it('returns 403 if technician does not own the visit', async () => {
+    const { token: tokenA } = await seedTechnicianWithToken({ name: 'Tech-A' });
+    const { token: tokenB } = await seedTechnicianWithToken({ name: 'Tech-B' });
+    const { visitId } = await seedInLobbyVisit();
+    await request(app).post(`/api/visits/${visitId}/claim`).set('Authorization', `Bearer ${tokenA}`);
+
+    const res = await request(app)
+      .get(`/api/visits/${visitId}`)
+      .set('Authorization', `Bearer ${tokenB}`);
+    expect(res.status).toBe(403);
+    expect(res.body.error).toBe('This visit is not assigned to you');
+  });
+
+  it('dispatcher can view any visit regardless of assignment', async () => {
+    const { token: techToken } = await seedTechnicianWithToken();
+    const { token: dispToken } = await seedDispatcherWithToken();
+    const { visitId } = await seedInLobbyVisit();
+    await request(app).post(`/api/visits/${visitId}/claim`).set('Authorization', `Bearer ${techToken}`);
+
+    const res = await request(app)
+      .get(`/api/visits/${visitId}`)
+      .set('Authorization', `Bearer ${dispToken}`);
+    expect(res.status).toBe(200);
+    expect(res.body.id).toBe(visitId);
+  });
+
+  it('returns 404 for unknown visit', async () => {
+    const { token } = await seedTechnicianWithToken();
+    const res = await request(app)
+      .get('/api/visits/nonexistent-id')
+      .set('Authorization', `Bearer ${token}`);
+    expect(res.status).toBe(404);
+  });
+});

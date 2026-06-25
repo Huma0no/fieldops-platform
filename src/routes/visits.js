@@ -180,4 +180,62 @@ visitsRouter.post('/:id/start', requireRole('technician'), async (req, res, next
   }
 });
 
+// GET /api/visits/:id — declared after /mine to avoid param capture
+visitsRouter.get('/:id', async (req, res, next) => {
+  const { id } = req.params;
+  try {
+    const visitResult = await pool.query(
+      `SELECT v.id, v.order_number, v.scheduled_time, v.status, v.technician_id,
+              v.has_multiple_systems, v.is_deferred,
+              a.street, a.city, a.state, a.zip, a.subdivision, a.builder
+       FROM visits v
+       JOIN addresses a ON a.id = v.address_id
+       WHERE v.id = $1`,
+      [id]
+    );
+    if (visitResult.rows.length === 0) return res.status(404).json({ error: 'Visit not found' });
+    const v = visitResult.rows[0];
+
+    if (req.technician.role === 'technician' && v.technician_id !== req.technician.id) {
+      return res.status(403).json({ error: 'This visit is not assigned to you' });
+    }
+
+    const [systems, services, items, photos] = await Promise.all([
+      pool.query(
+        'SELECT system_number, indoor_model, outdoor_model, refrigerant FROM visit_systems WHERE visit_id = $1 ORDER BY system_number',
+        [id]
+      ),
+      pool.query(
+        'SELECT service_name, is_finish, is_temporarily, price FROM visit_services WHERE visit_id = $1',
+        [id]
+      ),
+      pool.query(
+        'SELECT category, item_name, quantity, price, tech_supplied FROM visit_items WHERE visit_id = $1',
+        [id]
+      ),
+      pool.query(
+        'SELECT id, tag, label, category, system_number, stored_at FROM visit_photos WHERE visit_id = $1',
+        [id]
+      ),
+    ]);
+
+    res.json({
+      id: v.id,
+      orderNumber: v.order_number,
+      scheduledTime: v.scheduled_time,
+      status: v.status,
+      technicianId: v.technician_id,
+      hasMultipleSystems: v.has_multiple_systems,
+      isDeferred: v.is_deferred,
+      address: { street: v.street, city: v.city, state: v.state, zip: v.zip, subdivision: v.subdivision, builder: v.builder },
+      systems: systems.rows.map((s) => ({ systemNumber: s.system_number, indoorModel: s.indoor_model, outdoorModel: s.outdoor_model, refrigerant: s.refrigerant })),
+      services: services.rows.map((s) => ({ serviceName: s.service_name, isFinish: s.is_finish, isTemporarily: s.is_temporarily, price: s.price })),
+      items: items.rows.map((i) => ({ category: i.category, itemName: i.item_name, quantity: i.quantity, price: i.price, techSupplied: i.tech_supplied })),
+      photos: photos.rows.map((p) => ({ id: p.id, tag: p.tag, label: p.label, category: p.category, systemNumber: p.system_number, storedAt: p.stored_at })),
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
 module.exports = { visitsRouter, dispatchVisitsRouter };
