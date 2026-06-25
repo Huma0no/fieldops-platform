@@ -68,7 +68,10 @@ router.patch(
         `SELECT default_price FROM catalog_services WHERE service_name = $1`,
         [serviceName]
       );
-      const catalogPrice = catalogRes.rows[0]?.default_price ?? 0;
+      if (!catalogRes.rows.length) {
+        return res.status(400).json({ error: 'Invalid service name' });
+      }
+      const catalogPrice = catalogRes.rows[0].default_price;
 
       await pool.query(`DELETE FROM visit_services WHERE visit_id = $1`, [id]);
       await pool.query(
