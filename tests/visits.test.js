@@ -159,3 +159,56 @@ describe('GET /api/visits/mine', () => {
     expect(res.status).toBe(403);
   });
 });
+
+// ── POST /api/visits/:id/start ───────────────────────────────────────────────
+describe('POST /api/visits/:id/start', () => {
+  it('transitions assigned visit to in_progress', async () => {
+    const { token } = await seedTechnicianWithToken();
+    const { visitId } = await seedInLobbyVisit();
+    await request(app).post(`/api/visits/${visitId}/claim`).set('Authorization', `Bearer ${token}`);
+
+    const res = await request(app)
+      .post(`/api/visits/${visitId}/start`)
+      .set('Authorization', `Bearer ${token}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ id: visitId, status: 'in_progress' });
+
+    const row = await pool.query('SELECT status FROM visits WHERE id = $1', [visitId]);
+    expect(row.rows[0].status).toBe('in_progress');
+  });
+
+  it('returns 403 if wrong technician tries to start', async () => {
+    const { token: tokenA } = await seedTechnicianWithToken({ name: 'Tech-A' });
+    const { token: tokenB } = await seedTechnicianWithToken({ name: 'Tech-B' });
+    const { visitId } = await seedInLobbyVisit();
+    await request(app).post(`/api/visits/${visitId}/claim`).set('Authorization', `Bearer ${tokenA}`);
+
+    const res = await request(app)
+      .post(`/api/visits/${visitId}/start`)
+      .set('Authorization', `Bearer ${tokenB}`);
+    expect(res.status).toBe(403);
+    expect(res.body.error).toBe('This visit is not assigned to you');
+  });
+
+  it('returns 400 if visit is not in assigned status', async () => {
+    const { token } = await seedTechnicianWithToken();
+    const { visitId } = await seedInLobbyVisit();
+    await request(app).post(`/api/visits/${visitId}/claim`).set('Authorization', `Bearer ${token}`);
+    await request(app).post(`/api/visits/${visitId}/start`).set('Authorization', `Bearer ${token}`);
+
+    const res = await request(app)
+      .post(`/api/visits/${visitId}/start`)
+      .set('Authorization', `Bearer ${token}`);
+    expect(res.status).toBe(400);
+    expect(res.body.error).toBe('Visit cannot be started — current status: in_progress');
+  });
+
+  it('returns 404 for unknown visit', async () => {
+    const { token } = await seedTechnicianWithToken();
+    const res = await request(app)
+      .post('/api/visits/nonexistent-id/start')
+      .set('Authorization', `Bearer ${token}`);
+    expect(res.status).toBe(404);
+  });
+});

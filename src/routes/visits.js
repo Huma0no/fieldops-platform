@@ -150,4 +150,34 @@ visitsRouter.get('/mine', requireRole('technician'), async (req, res, next) => {
   }
 });
 
+// POST /api/visits/:id/start
+visitsRouter.post('/:id/start', requireRole('technician'), async (req, res, next) => {
+  const { id } = req.params;
+  try {
+    const result = await pool.query(
+      'SELECT status, technician_id FROM visits WHERE id = $1',
+      [id]
+    );
+    if (result.rows.length === 0) return res.status(404).json({ error: 'Visit not found' });
+    const visit = result.rows[0];
+
+    if (visit.technician_id !== req.technician.id) {
+      return res.status(403).json({ error: 'This visit is not assigned to you' });
+    }
+    if (visit.status !== 'assigned') {
+      return res.status(400).json({ error: `Visit cannot be started — current status: ${visit.status}` });
+    }
+
+    const now = new Date().toISOString();
+    await pool.query(
+      `UPDATE visits SET status = 'in_progress', updated_at = $1 WHERE id = $2`,
+      [now, id]
+    );
+
+    res.json({ id, status: 'in_progress' });
+  } catch (err) {
+    next(err);
+  }
+});
+
 module.exports = { visitsRouter, dispatchVisitsRouter };
