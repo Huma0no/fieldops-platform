@@ -238,4 +238,51 @@ visitsRouter.get('/:id', async (req, res, next) => {
   }
 });
 
+// PATCH /api/dispatch/visits/:id/reassign
+dispatchVisitsRouter.patch('/:id/reassign', requireRole('owner', 'dispatcher'), async (req, res, next) => {
+  const { id } = req.params;
+  const { technicianId } = req.body;
+  try {
+    const visitResult = await pool.query(
+      `SELECT v.id, v.status, a.street
+       FROM visits v
+       JOIN addresses a ON a.id = v.address_id
+       WHERE v.id = $1`,
+      [id]
+    );
+    if (visitResult.rows.length === 0) return res.status(404).json({ error: 'Visit not found' });
+    const visit = visitResult.rows[0];
+
+    const techResult = await pool.query(
+      'SELECT id FROM technicians WHERE id = $1 AND is_active = true',
+      [technicianId]
+    );
+    if (techResult.rows.length === 0) {
+      return res.status(400).json({ error: 'Technician not found or inactive' });
+    }
+
+    const now = new Date().toISOString();
+    const updateResult = await pool.query(
+      `UPDATE visits
+       SET technician_id = $1,
+           status = CASE WHEN status = 'in_lobby' THEN 'assigned' ELSE status END,
+           updated_at = $2
+       WHERE id = $3
+       RETURNING status`,
+      [technicianId, now, id]
+    );
+    const newStatus = updateResult.rows[0].status;
+
+    await createNotification(pool, {
+      recipientId: technicianId,
+      type: 'visit_assigned',
+      message: `You have been assigned to ${visit.street}`,
+    });
+
+    res.json({ id, technicianId, status: newStatus });
+  } catch (err) {
+    next(err);
+  }
+});
+
 module.exports = { visitsRouter, dispatchVisitsRouter };

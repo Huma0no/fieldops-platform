@@ -272,3 +272,102 @@ describe('GET /api/visits/:id', () => {
     expect(res.status).toBe(404);
   });
 });
+
+// ── PATCH /api/dispatch/visits/:id/reassign ──────────────────────────────────
+describe('PATCH /api/dispatch/visits/:id/reassign', () => {
+  it('reassigns in_lobby visit to technician and creates notification', async () => {
+    const { token: dispToken } = await seedDispatcherWithToken();
+    const { tech } = await seedTechnicianWithToken();
+    const { visitId } = await seedInLobbyVisit();
+
+    const res = await request(app)
+      .patch(`/api/dispatch/visits/${visitId}/reassign`)
+      .set('Authorization', `Bearer ${dispToken}`)
+      .send({ technicianId: tech.id });
+
+    expect(res.status).toBe(200);
+    expect(res.body.id).toBe(visitId);
+    expect(res.body.technicianId).toBe(tech.id);
+    expect(res.body.status).toBe('assigned');
+
+    const notif = await pool.query(
+      `SELECT * FROM notifications WHERE recipient_id = $1 AND type = 'visit_assigned'`,
+      [tech.id]
+    );
+    expect(notif.rows).toHaveLength(1);
+    expect(notif.rows[0].body).toMatch(/assigned to/);
+  });
+
+  it('sets status to assigned when visit was in_lobby', async () => {
+    const { token: dispToken } = await seedDispatcherWithToken();
+    const { tech } = await seedTechnicianWithToken();
+    const { visitId } = await seedInLobbyVisit();
+
+    await request(app)
+      .patch(`/api/dispatch/visits/${visitId}/reassign`)
+      .set('Authorization', `Bearer ${dispToken}`)
+      .send({ technicianId: tech.id });
+
+    const row = await pool.query('SELECT status FROM visits WHERE id = $1', [visitId]);
+    expect(row.rows[0].status).toBe('assigned');
+  });
+
+  it('leaves status unchanged when visit is in_progress', async () => {
+    const { token: dispToken } = await seedDispatcherWithToken();
+    const { tech: techA, token: tokenA } = await seedTechnicianWithToken({ name: 'Tech-A' });
+    const { tech: techB } = await seedTechnicianWithToken({ name: 'Tech-B' });
+    const { visitId } = await seedInLobbyVisit();
+    await request(app).post(`/api/visits/${visitId}/claim`).set('Authorization', `Bearer ${tokenA}`);
+    await request(app).post(`/api/visits/${visitId}/start`).set('Authorization', `Bearer ${tokenA}`);
+
+    const res = await request(app)
+      .patch(`/api/dispatch/visits/${visitId}/reassign`)
+      .set('Authorization', `Bearer ${dispToken}`)
+      .send({ technicianId: techB.id });
+
+    expect(res.status).toBe(200);
+    expect(res.body.status).toBe('in_progress');
+
+    const row = await pool.query('SELECT status FROM visits WHERE id = $1', [visitId]);
+    expect(row.rows[0].status).toBe('in_progress');
+  });
+
+  it('returns 400 for inactive technician', async () => {
+    const { token: dispToken } = await seedDispatcherWithToken();
+    const inactive = await seedTech({ role: 'technician', name: 'Inactive', isActive: false });
+    const { visitId } = await seedInLobbyVisit();
+
+    const res = await request(app)
+      .patch(`/api/dispatch/visits/${visitId}/reassign`)
+      .set('Authorization', `Bearer ${dispToken}`)
+      .send({ technicianId: inactive.id });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toBe('Technician not found or inactive');
+  });
+
+  it('returns 404 for unknown visit', async () => {
+    const { token: dispToken } = await seedDispatcherWithToken();
+    const { tech } = await seedTechnicianWithToken();
+
+    const res = await request(app)
+      .patch('/api/dispatch/visits/nonexistent-id/reassign')
+      .set('Authorization', `Bearer ${dispToken}`)
+      .send({ technicianId: tech.id });
+
+    expect(res.status).toBe(404);
+    expect(res.body.error).toBe('Visit not found');
+  });
+
+  it('returns 403 for technician role', async () => {
+    const { tech, token: techToken } = await seedTechnicianWithToken();
+    const { visitId } = await seedInLobbyVisit();
+
+    const res = await request(app)
+      .patch(`/api/dispatch/visits/${visitId}/reassign`)
+      .set('Authorization', `Bearer ${techToken}`)
+      .send({ technicianId: tech.id });
+
+    expect(res.status).toBe(403);
+  });
+});

@@ -27,8 +27,9 @@ app.use('/api/notifications', require('./routes/notifications'));
 app.use('/api/sync', require('./routes/sync'));
 app.use('/api/addresses', require('./routes/addresses'));
 
-const { visitsRouter } = require('./routes/visits');
+const { visitsRouter, dispatchVisitsRouter } = require('./routes/visits');
 app.use('/api/visits', visitsRouter);
+app.use('/api/dispatch/visits', dispatchVisitsRouter);
 
 // Global error handler
 app.use((err, req, res, _next) => {
