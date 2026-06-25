@@ -226,7 +226,7 @@ CREATE TABLE visit_items (
 -- 16. weigh_in_data
 CREATE TABLE weigh_in_data (
   id                   text PRIMARY KEY DEFAULT gen_random_uuid()::text,
-  visit_id             text NOT NULL REFERENCES visits(id),
+  address_id           text REFERENCES addresses(id),
   system_number        integer NOT NULL,
   lineset_length       real,
   factory_charge_oz    real,
@@ -239,7 +239,8 @@ CREATE TABLE weigh_in_data (
   condenser_sat_temp   real,
   subcooling_value     real,
   oem_subcooling_goal  real,
-  subcooling_deviation real
+  subcooling_deviation real,
+  CONSTRAINT weigh_in_data_address_system_unique UNIQUE (address_id, system_number)
 );
 
 -- 17. visit_photos
@@ -387,7 +388,7 @@ CREATE INDEX visits_batch_id_idx ON visits (batch_id);
 CREATE INDEX visit_systems_visit_id_idx ON visit_systems (visit_id);
 CREATE INDEX visit_services_visit_id_idx ON visit_services (visit_id);
 CREATE INDEX visit_items_visit_id_idx ON visit_items (visit_id);
-CREATE INDEX weigh_in_data_visit_id_idx ON weigh_in_data (visit_id);
+CREATE INDEX weigh_in_data_address_id_idx ON weigh_in_data (address_id);
 CREATE INDEX visit_photos_visit_id_idx ON visit_photos (visit_id);
 
 CREATE INDEX transfers_visit_id_idx ON transfers (visit_id);
