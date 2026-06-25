@@ -253,30 +253,37 @@ router.delete(
   requireVisitOwnership,
   async (req, res, next) => {
     const { id, itemId } = req.params;
+    const client = await pool.connect();
     try {
-      const itemRes = await pool.query(
+      await client.query('BEGIN');
+
+      const itemRes = await client.query(
         `SELECT item_name FROM visit_items WHERE id = $1 AND visit_id = $2`,
         [itemId, id]
       );
       if (itemRes.rows.length === 0) {
+        await client.query('ROLLBACK');
         return res.status(404).json({ error: 'Item not found' });
       }
       const { item_name } = itemRes.rows[0];
 
-      await pool.query(`DELETE FROM visit_items WHERE id = $1`, [itemId]);
+      await client.query(`DELETE FROM visit_items WHERE id = $1`, [itemId]);
 
-      const deletedCompanions = await resolveCompanionCascade(pool, id, item_name, 'remove');
+      const deletedCompanions = await resolveCompanionCascade(client, id, item_name, 'remove');
 
-      const totalPrice = await calculateVisitPrice(pool, id);
-      const now = new Date().toISOString();
-      await pool.query(
+      const totalPrice = await calculateVisitPrice(client, id);
+      await client.query(
         `UPDATE visits SET total_price = $1, updated_at = $2 WHERE id = $3`,
-        [totalPrice, now, id]
+        [totalPrice, new Date().toISOString(), id]
       );
 
+      await client.query('COMMIT');
       res.json({ totalPrice, removedItems: [item_name, ...deletedCompanions] });
     } catch (err) {
+      await client.query('ROLLBACK').catch(() => {});
       next(err);
+    } finally {
+      client.release();
     }
   }
 );
