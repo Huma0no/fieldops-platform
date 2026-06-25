@@ -381,3 +381,107 @@ describe('PATCH /api/visits/:id/notes', () => {
     expect(res.status).toBe(403);
   });
 });
+
+// ── PUT /api/visits/:id/weigh-in/:systemNumber ────────────────────────────────
+describe('PUT /api/visits/:id/weigh-in/:systemNumber', () => {
+  beforeEach(async () => {
+    await pool.query(`
+      INSERT INTO catalog_lineset_configs (config_key, reference_length_ft, adjust_rate_oz_per_ft)
+      VALUES ('STANDARD-25', 25, 0.5)
+      ON CONFLICT (config_key) DO NOTHING
+    `);
+    await pool.query(`
+      INSERT INTO catalog_equipment (model, unit_type, brand, factory_charge_oz, revised_charge_oz)
+      VALUES ('TEST-COND-WI', 'outdoor', 'TEST', 80, 70)
+      ON CONFLICT (model) DO NOTHING
+    `);
+  });
+
+  const body = {
+    linesetLength: 35,
+    factoryLineConfig: 'STANDARD-25',
+    factoryChargeUsed: 'factory',
+    adjustedOz: 82,
+    fanSpeedCfm: 1200,
+    liquidLineTemp: 90,
+    suctionLineTemp: 55,
+    condenserSatTemp: 105,
+    subcoolingValue: 18,
+  };
+
+  it('stores weigh-in against address_id and returns all calculated fields', async () => {
+    const { visitId, addressId, token } = await seedAssignedVisit();
+    await pool.query(
+      `UPDATE visit_systems SET outdoor_model = 'TEST-COND-WI' WHERE visit_id = $1 AND system_number = 1`,
+      [visitId]
+    );
+    const res = await request(app)
+      .put(`/api/visits/${visitId}/weigh-in/1`)
+      .set('Authorization', `Bearer ${token}`)
+      .send(body);
+    expect(res.status).toBe(200);
+    expect(res.body.addressId).toBe(addressId);
+    expect(res.body.systemNumber).toBe(1);
+    // approxAdjustOz = (35 - 25) * 0.5 = 5.0
+    expect(res.body.approxAdjustOz).toBeCloseTo(5.0);
+    // oemSubcoolingGoal hardcoded to 10
+    expect(res.body.oemSubcoolingGoal).toBe(10);
+    // subcoolingDeviation = 18 - 10 = 8
+    expect(res.body.subcoolingDeviation).toBeCloseTo(8);
+    expect(res.body.factoryChargeOz).toBe(80); // factory, not revised
+    const row = await pool.query(
+      `SELECT * FROM weigh_in_data WHERE address_id = $1 AND system_number = 1`,
+      [addressId]
+    );
+    expect(row.rows).toHaveLength(1);
+  });
+
+  it('upserts on second call — only one row per (address_id, system_number)', async () => {
+    const { visitId, addressId, token } = await seedAssignedVisit();
+    await pool.query(
+      `UPDATE visit_systems SET outdoor_model = 'TEST-COND-WI' WHERE visit_id = $1 AND system_number = 1`,
+      [visitId]
+    );
+    await request(app)
+      .put(`/api/visits/${visitId}/weigh-in/1`)
+      .set('Authorization', `Bearer ${token}`)
+      .send(body);
+    const secondBody = { ...body, subcoolingValue: 12 };
+    const res = await request(app)
+      .put(`/api/visits/${visitId}/weigh-in/1`)
+      .set('Authorization', `Bearer ${token}`)
+      .send(secondBody);
+    expect(res.status).toBe(200);
+    expect(res.body.subcoolingDeviation).toBeCloseTo(2); // 12 - 10
+    const rows = await pool.query(
+      `SELECT * FROM weigh_in_data WHERE address_id = $1 AND system_number = 1`,
+      [addressId]
+    );
+    expect(rows.rows).toHaveLength(1);
+  });
+
+  it('uses revised_charge_oz when factoryChargeUsed is "revised"', async () => {
+    const { visitId, token } = await seedAssignedVisit();
+    await pool.query(
+      `UPDATE visit_systems SET outdoor_model = 'TEST-COND-WI' WHERE visit_id = $1 AND system_number = 1`,
+      [visitId]
+    );
+    const revisedBody = { ...body, factoryChargeUsed: 'revised' };
+    const res = await request(app)
+      .put(`/api/visits/${visitId}/weigh-in/1`)
+      .set('Authorization', `Bearer ${token}`)
+      .send(revisedBody);
+    expect(res.status).toBe(200);
+    expect(res.body.factoryChargeOz).toBe(70); // revised_charge_oz
+  });
+
+  it('returns 400 for unknown linesetConfig', async () => {
+    const { visitId, token } = await seedAssignedVisit();
+    const res = await request(app)
+      .put(`/api/visits/${visitId}/weigh-in/1`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ ...body, factoryLineConfig: 'NO-SUCH-CONFIG' });
+    expect(res.status).toBe(400);
+    expect(res.body.error).toBe('Lineset config not found');
+  });
+});
