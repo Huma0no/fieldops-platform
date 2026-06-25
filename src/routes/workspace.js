@@ -41,11 +41,20 @@ async function resolveCompanionCascade(db, visitId, itemName, mode) {
   if (companions.length === 0) return [];
 
   if (mode === 'remove') {
-    await db.query(
-      `DELETE FROM visit_items WHERE visit_id = $1 AND item_name = ANY($2)`,
+    // Check which companions actually exist in visit_items for this visit
+    const existingRes = await db.query(
+      `SELECT item_name FROM visit_items WHERE visit_id = $1 AND item_name = ANY($2)`,
       [visitId, companions]
     );
-    return companions;
+    const actualCompanions = existingRes.rows.map(r => r.item_name);
+
+    if (actualCompanions.length > 0) {
+      await db.query(
+        `DELETE FROM visit_items WHERE visit_id = $1 AND item_name = ANY($2)`,
+        [visitId, actualCompanions]
+      );
+    }
+    return actualCompanions;
   }
 
   // add mode
@@ -231,6 +240,41 @@ router.post(
         addedItems: [itemName, ...addedCompanions],
         removedItems,
       });
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
+// DELETE /api/visits/:id/items/:itemId
+router.delete(
+  '/:id/items/:itemId',
+  requireRole('technician'),
+  requireVisitOwnership,
+  async (req, res, next) => {
+    const { id, itemId } = req.params;
+    try {
+      const itemRes = await pool.query(
+        `SELECT item_name FROM visit_items WHERE id = $1 AND visit_id = $2`,
+        [itemId, id]
+      );
+      if (itemRes.rows.length === 0) {
+        return res.status(404).json({ error: 'Item not found' });
+      }
+      const { item_name } = itemRes.rows[0];
+
+      await pool.query(`DELETE FROM visit_items WHERE id = $1`, [itemId]);
+
+      const deletedCompanions = await resolveCompanionCascade(pool, id, item_name, 'remove');
+
+      const totalPrice = await calculateVisitPrice(pool, id);
+      const now = new Date().toISOString();
+      await pool.query(
+        `UPDATE visits SET total_price = $1, updated_at = $2 WHERE id = $3`,
+        [totalPrice, now, id]
+      );
+
+      res.json({ totalPrice, removedItems: [item_name, ...deletedCompanions] });
     } catch (err) {
       next(err);
     }

@@ -230,3 +230,83 @@ describe('POST /api/visits/:id/items', () => {
     expect(res.status).toBe(403);
   });
 });
+
+// ── DELETE /api/visits/:id/items/:itemId ──────────────────────────────────────
+describe('DELETE /api/visits/:id/items/:itemId', () => {
+  beforeEach(async () => {
+    await pool.query(`
+      DELETE FROM catalog_item_relations
+      WHERE item_name LIKE 'TEST-%' OR related_item_name LIKE 'TEST-%'
+    `);
+    await pool.query(`
+      INSERT INTO catalog_items
+        (item_name, category, default_price, tech_supplied, multiplies_by_system_count, custom_price)
+      VALUES
+        ('TEST-PARENT',    'accessory', 50, false, false, false),
+        ('TEST-COMPANION', 'accessory', 20, false, false, false)
+      ON CONFLICT (item_name) DO NOTHING
+    `);
+    await pool.query(`
+      INSERT INTO catalog_item_relations (id, item_name, relation_type, related_item_name, exclusion_group_id)
+      VALUES (gen_random_uuid()::text, 'TEST-PARENT', 'companion', 'TEST-COMPANION', null)
+    `);
+    await pool.query(`
+      INSERT INTO catalog_services (service_name, default_price, is_bundle, multiplies_by_system_count)
+      VALUES ('AC', 150, false, false)
+      ON CONFLICT (service_name) DO NOTHING
+    `);
+  });
+
+  it('deletes item and cascades removal of its companions', async () => {
+    const { visitId, token } = await seedAssignedVisit();
+    // Seed parent + companion directly in visit_items
+    const parentRes = await pool.query(
+      `INSERT INTO visit_items (id, visit_id, item_name, category, quantity, price, tech_supplied)
+       VALUES (gen_random_uuid()::text, $1, 'TEST-PARENT', 'accessory', 1, 50, false) RETURNING id`,
+      [visitId]
+    );
+    const parentId = parentRes.rows[0].id;
+    await pool.query(
+      `INSERT INTO visit_items (id, visit_id, item_name, category, quantity, price, tech_supplied)
+       VALUES (gen_random_uuid()::text, $1, 'TEST-COMPANION', 'accessory', 1, 20, false)`,
+      [visitId]
+    );
+    const res = await request(app)
+      .delete(`/api/visits/${visitId}/items/${parentId}`)
+      .set('Authorization', `Bearer ${token}`);
+    expect(res.status).toBe(200);
+    expect(res.body.removedItems).toContain('TEST-PARENT');
+    expect(res.body.removedItems).toContain('TEST-COMPANION');
+    const rows = await pool.query(`SELECT * FROM visit_items WHERE visit_id = $1`, [visitId]);
+    expect(rows.rows).toHaveLength(0);
+  });
+
+  it('returns 404 for unknown itemId', async () => {
+    const { visitId, token } = await seedAssignedVisit();
+    const res = await request(app)
+      .delete(`/api/visits/${visitId}/items/no-such-id`)
+      .set('Authorization', `Bearer ${token}`);
+    expect(res.status).toBe(404);
+    expect(res.body.error).toBe('Item not found');
+  });
+
+  it('recalculates totalPrice after deletion', async () => {
+    const { visitId, token } = await seedAssignedVisit();
+    await pool.query(
+      `INSERT INTO visit_services (id, visit_id, service_name, is_finish, is_temporarily, price)
+       VALUES (gen_random_uuid()::text, $1, 'AC', false, false, 150)`,
+      [visitId]
+    );
+    const itemRes = await pool.query(
+      `INSERT INTO visit_items (id, visit_id, item_name, category, quantity, price, tech_supplied)
+       VALUES (gen_random_uuid()::text, $1, 'TEST-PARENT', 'accessory', 1, 50, false) RETURNING id`,
+      [visitId]
+    );
+    const itemId = itemRes.rows[0].id;
+    const res = await request(app)
+      .delete(`/api/visits/${visitId}/items/${itemId}`)
+      .set('Authorization', `Bearer ${token}`);
+    expect(res.status).toBe(200);
+    expect(res.body.totalPrice).toBe(150); // AC service remains
+  });
+});
