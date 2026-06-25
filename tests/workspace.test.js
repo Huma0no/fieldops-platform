@@ -310,3 +310,74 @@ describe('DELETE /api/visits/:id/items/:itemId', () => {
     expect(res.body.totalPrice).toBe(150); // AC service remains
   });
 });
+
+// ── PATCH /api/visits/:id/systems/:systemNumber ───────────────────────────────
+describe('PATCH /api/visits/:id/systems/:systemNumber', () => {
+  it('updates indoorModel and returns merged system state', async () => {
+    const { visitId, token } = await seedAssignedVisit();
+    const res = await request(app)
+      .patch(`/api/visits/${visitId}/systems/1`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ indoorModel: 'AH1234' });
+    expect(res.status).toBe(200);
+    expect(res.body.systemNumber).toBe(1);
+    expect(res.body.indoorModel).toBe('AH1234');
+    const row = await pool.query(
+      `SELECT indoor_model FROM visit_systems WHERE visit_id = $1 AND system_number = 1`,
+      [visitId]
+    );
+    expect(row.rows[0].indoor_model).toBe('AH1234');
+  });
+
+  it('pulls refrigerant from catalog_equipment when outdoorModel is provided', async () => {
+    const { visitId, token } = await seedAssignedVisit();
+    await pool.query(`
+      INSERT INTO catalog_equipment (model, unit_type, brand, refrigerant)
+      VALUES ('TEST-CONDENSER', 'outdoor', 'TEST', 'R-410A')
+      ON CONFLICT (model) DO NOTHING
+    `);
+    const res = await request(app)
+      .patch(`/api/visits/${visitId}/systems/1`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ outdoorModel: 'TEST-CONDENSER' });
+    expect(res.status).toBe(200);
+    expect(res.body.outdoorModel).toBe('TEST-CONDENSER');
+    expect(res.body.refrigerant).toBe('R-410A');
+  });
+
+  it('returns 404 for systemNumber that does not exist on this visit', async () => {
+    const { visitId, token } = await seedAssignedVisit();
+    const res = await request(app)
+      .patch(`/api/visits/${visitId}/systems/99`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ indoorModel: 'X' });
+    expect(res.status).toBe(404);
+    expect(res.body.error).toBe('System not found');
+  });
+});
+
+// ── PATCH /api/visits/:id/notes ───────────────────────────────────────────────
+describe('PATCH /api/visits/:id/notes', () => {
+  it('updates notes and returns id + notes', async () => {
+    const { visitId, token } = await seedAssignedVisit();
+    const res = await request(app)
+      .patch(`/api/visits/${visitId}/notes`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ notes: 'Check both systems carefully.' });
+    expect(res.status).toBe(200);
+    expect(res.body.id).toBe(visitId);
+    expect(res.body.notes).toBe('Check both systems carefully.');
+    const row = await pool.query(`SELECT notes FROM visits WHERE id = $1`, [visitId]);
+    expect(row.rows[0].notes).toBe('Check both systems carefully.');
+  });
+
+  it('returns 403 when token belongs to a different technician', async () => {
+    const { visitId } = await seedAssignedVisit();
+    const { token: otherToken } = await seedTechnicianWithToken({ name: 'Other-Tech' });
+    const res = await request(app)
+      .patch(`/api/visits/${visitId}/notes`)
+      .set('Authorization', `Bearer ${otherToken}`)
+      .send({ notes: 'Unauthorized' });
+    expect(res.status).toBe(403);
+  });
+});

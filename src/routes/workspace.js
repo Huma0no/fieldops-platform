@@ -288,4 +288,74 @@ router.delete(
   }
 );
 
+// PATCH /api/visits/:id/systems/:systemNumber
+router.patch(
+  '/:id/systems/:systemNumber',
+  requireRole('technician'),
+  requireVisitOwnership,
+  async (req, res, next) => {
+    const { id, systemNumber } = req.params;
+    const sysNum = parseInt(systemNumber, 10);
+    const { indoorModel, outdoorModel } = req.body;
+    try {
+      const sysRes = await pool.query(
+        `SELECT * FROM visit_systems WHERE visit_id = $1 AND system_number = $2`,
+        [id, sysNum]
+      );
+      if (sysRes.rows.length === 0) {
+        return res.status(404).json({ error: 'System not found' });
+      }
+      const current = sysRes.rows[0];
+
+      let refrigerant = current.refrigerant;
+      if (outdoorModel !== undefined) {
+        const equipRes = await pool.query(
+          `SELECT refrigerant FROM catalog_equipment WHERE model = $1`,
+          [outdoorModel]
+        );
+        if (equipRes.rows.length > 0 && equipRes.rows[0].refrigerant != null) {
+          refrigerant = equipRes.rows[0].refrigerant;
+        }
+      }
+
+      const newIndoor = indoorModel !== undefined ? indoorModel : current.indoor_model;
+      const newOutdoor = outdoorModel !== undefined ? outdoorModel : current.outdoor_model;
+
+      await pool.query(
+        `UPDATE visit_systems SET indoor_model = $1, outdoor_model = $2, refrigerant = $3
+         WHERE visit_id = $4 AND system_number = $5`,
+        [newIndoor, newOutdoor, refrigerant, id, sysNum]
+      );
+      await pool.query(
+        `UPDATE visits SET updated_at = $1 WHERE id = $2`,
+        [new Date().toISOString(), id]
+      );
+
+      res.json({ systemNumber: sysNum, indoorModel: newIndoor, outdoorModel: newOutdoor, refrigerant });
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
+// PATCH /api/visits/:id/notes
+router.patch(
+  '/:id/notes',
+  requireRole('technician'),
+  requireVisitOwnership,
+  async (req, res, next) => {
+    const { id } = req.params;
+    const { notes } = req.body;
+    try {
+      await pool.query(
+        `UPDATE visits SET notes = $1, updated_at = $2 WHERE id = $3`,
+        [notes, new Date().toISOString(), id]
+      );
+      res.json({ id, notes });
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
 module.exports = router;
