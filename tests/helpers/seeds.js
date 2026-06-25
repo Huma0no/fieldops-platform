@@ -79,4 +79,30 @@ async function seedInLobbyVisit({ addressOverrides = {}, systemCount = 1, withA2
   return { visitId, addressId, street };
 }
 
-module.exports = { seedTech, seedToken, seedDispatcherWithToken, seedTechnicianWithToken, seedInLobbyVisit };
+async function seedAssignedVisit() {
+  const tech = await seedTech({ role: 'technician' });
+  const token = await seedToken(tech.id);
+  const street = `${crypto.randomBytes(4).toString('hex')} WORKSPACE ST`;
+  const addrRes = await pool.query(
+    `INSERT INTO addresses (id, street, city, subdivision, builder)
+     VALUES (gen_random_uuid()::text, $1, 'Houston', 'TEST SUB', 'DR HORTON') RETURNING id`,
+    [street]
+  );
+  const addressId = addrRes.rows[0].id;
+  const now = new Date().toISOString();
+  const visitRes = await pool.query(
+    `INSERT INTO visits
+       (id, address_id, technician_id, status, has_multiple_systems, is_deferred, scheduled_time, date, created_at, updated_at)
+     VALUES (gen_random_uuid()::text, $1, $2, 'assigned', false, false, '2026-07-01T09:00:00Z', '2026-07-01', $3, $3)
+     RETURNING id`,
+    [addressId, tech.id, now]
+  );
+  const visitId = visitRes.rows[0].id;
+  await pool.query(
+    `INSERT INTO visit_systems (id, visit_id, system_number) VALUES (gen_random_uuid()::text, $1, 1)`,
+    [visitId]
+  );
+  return { visitId, addressId, street, tech, token };
+}
+
+module.exports = { seedTech, seedToken, seedDispatcherWithToken, seedTechnicianWithToken, seedInLobbyVisit, seedAssignedVisit };

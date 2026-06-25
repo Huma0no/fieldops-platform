@@ -20,6 +20,7 @@ async function truncateTables() {
     DELETE FROM visits;
     DELETE FROM addresses;
     DELETE FROM pdf_batches;
+    DELETE FROM technician_price_overrides;
     DELETE FROM technicians;
   `);
 }

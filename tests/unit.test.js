@@ -166,3 +166,143 @@ describe('createVisitWithSystems', () => {
     expect(systems.rows[1].system_number).toBe(2);
   });
 });
+
+// ── calculateVisitPrice ───────────────────────────────────────────────────────
+describe('calculateVisitPrice', () => {
+  const { calculateVisitPrice } = require('../src/services/pricing');
+
+  async function makePricingVisit({ systemCount = 1 } = {}) {
+    const addrRes = await pool.query(
+      `INSERT INTO addresses (id, street) VALUES (gen_random_uuid()::text, '1 PRICING ST') RETURNING id`
+    );
+    const techRes = await pool.query(
+      `INSERT INTO technicians (id, name, role, is_active, created_at)
+       VALUES (gen_random_uuid()::text, 'PT', 'technician', true, $1) RETURNING id`,
+      [new Date().toISOString()]
+    );
+    const visitRes = await pool.query(
+      `INSERT INTO visits (id, address_id, technician_id, status, has_multiple_systems, is_deferred, created_at, updated_at)
+       VALUES (gen_random_uuid()::text, $1, $2, 'assigned', $3, false, $4, $4) RETURNING id`,
+      [addrRes.rows[0].id, techRes.rows[0].id, systemCount > 1, new Date().toISOString()]
+    );
+    const visitId = visitRes.rows[0].id;
+    const techId = techRes.rows[0].id;
+    for (let i = 1; i <= systemCount; i++) {
+      await pool.query(
+        `INSERT INTO visit_systems (id, visit_id, system_number) VALUES (gen_random_uuid()::text, $1, $2)`,
+        [visitId, i]
+      );
+    }
+    return { visitId, techId };
+  }
+
+  beforeEach(async () => {
+    await pool.query(`
+      INSERT INTO catalog_services (service_name, default_price, is_bundle, multiplies_by_system_count)
+      VALUES
+        ('PT-SVC',        150, false, false),
+        ('PT-SVC-MULTI',   50, false, true),
+        ('Cancel',          0, false, false)
+      ON CONFLICT (service_name) DO NOTHING
+    `);
+    await pool.query(`
+      INSERT INTO catalog_items (item_name, category, default_price, tech_supplied, multiplies_by_system_count, custom_price, finish_addon_price)
+      VALUES
+        ('PT-ITEM-A',    'accessory', 25, false, false, false, 15),
+        ('PT-ITEM-MULTI','accessory', 40, false, true,  false, null),
+        ('PT-ITEM-CUST', 'fix',        0, false, false, true,  null)
+      ON CONFLICT (item_name) DO NOTHING
+    `);
+  });
+
+  it('returns service default_price for basic service with no items', async () => {
+    const { visitId } = await makePricingVisit();
+    await pool.query(
+      `INSERT INTO visit_services (id, visit_id, service_name, is_finish, is_temporarily, price)
+       VALUES (gen_random_uuid()::text, $1, 'PT-SVC', false, false, 150)`,
+      [visitId]
+    );
+    const total = await calculateVisitPrice(pool, visitId);
+    expect(total).toBe(150);
+  });
+
+  it('returns 0 when Cancel is the service regardless of items', async () => {
+    const { visitId } = await makePricingVisit();
+    await pool.query(
+      `INSERT INTO visit_services (id, visit_id, service_name, is_finish, is_temporarily, price)
+       VALUES (gen_random_uuid()::text, $1, 'Cancel', false, false, 0)`,
+      [visitId]
+    );
+    await pool.query(
+      `INSERT INTO visit_items (id, visit_id, item_name, category, quantity, price, tech_supplied)
+       VALUES (gen_random_uuid()::text, $1, 'PT-ITEM-A', 'accessory', 1, 25, false)`,
+      [visitId]
+    );
+    const total = await calculateVisitPrice(pool, visitId);
+    expect(total).toBe(0);
+  });
+
+  it('multiplies service price by systemCount when multiplies_by_system_count = true', async () => {
+    const { visitId } = await makePricingVisit({ systemCount: 3 });
+    await pool.query(
+      `INSERT INTO visit_services (id, visit_id, service_name, is_finish, is_temporarily, price)
+       VALUES (gen_random_uuid()::text, $1, 'PT-SVC-MULTI', false, false, 50)`,
+      [visitId]
+    );
+    const total = await calculateVisitPrice(pool, visitId);
+    expect(total).toBe(150); // 50 * 3 systems
+  });
+
+  it('adds finish_addon_price when service is_finish = true', async () => {
+    const { visitId } = await makePricingVisit();
+    await pool.query(
+      `INSERT INTO visit_services (id, visit_id, service_name, is_finish, is_temporarily, price)
+       VALUES (gen_random_uuid()::text, $1, 'PT-SVC', true, false, 150)`,
+      [visitId]
+    );
+    await pool.query(
+      `INSERT INTO visit_items (id, visit_id, item_name, category, quantity, price, tech_supplied)
+       VALUES (gen_random_uuid()::text, $1, 'PT-ITEM-A', 'accessory', 1, 25, false)`,
+      [visitId]
+    );
+    const total = await calculateVisitPrice(pool, visitId);
+    expect(total).toBe(190); // 150 (service) + 25 (item default) + 15 (finish addon)
+  });
+
+  it('uses visit_items.price directly for custom_price items', async () => {
+    const { visitId } = await makePricingVisit();
+    await pool.query(
+      `INSERT INTO visit_services (id, visit_id, service_name, is_finish, is_temporarily, price)
+       VALUES (gen_random_uuid()::text, $1, 'PT-SVC', false, false, 150)`,
+      [visitId]
+    );
+    await pool.query(
+      `INSERT INTO visit_items (id, visit_id, item_name, category, quantity, price, tech_supplied)
+       VALUES (gen_random_uuid()::text, $1, 'PT-ITEM-CUST', 'fix', 1, 99, false)`,
+      [visitId]
+    );
+    const total = await calculateVisitPrice(pool, visitId);
+    expect(total).toBe(249); // 150 + 99 (custom stored price)
+  });
+
+  it('uses technician price override when available', async () => {
+    const { visitId, techId } = await makePricingVisit();
+    await pool.query(
+      `INSERT INTO visit_services (id, visit_id, service_name, is_finish, is_temporarily, price)
+       VALUES (gen_random_uuid()::text, $1, 'PT-SVC', false, false, 150)`,
+      [visitId]
+    );
+    await pool.query(
+      `INSERT INTO visit_items (id, visit_id, item_name, category, quantity, price, tech_supplied)
+       VALUES (gen_random_uuid()::text, $1, 'PT-ITEM-A', 'accessory', 1, 25, false)`,
+      [visitId]
+    );
+    await pool.query(
+      `INSERT INTO technician_price_overrides (id, technician_id, item_name, override_price)
+       VALUES (gen_random_uuid()::text, $1, 'PT-ITEM-A', 30)`,
+      [techId]
+    );
+    const total = await calculateVisitPrice(pool, visitId);
+    expect(total).toBe(180); // 150 (service) + 30 (override, not catalog 25)
+  });
+});
