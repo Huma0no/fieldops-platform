@@ -119,7 +119,7 @@ async function resolveExclusionCascade(db, visitId, itemName) {
     [itemName]
   );
   const newItemCompanions = new Set(newItemCompsRes.rows.map(r => r.related_item_name));
-  const toDeleteFiltered = toDelete.filter(name => !newItemCompanions.has(name));
+  const toDeleteFiltered = toDelete.filter(name => name !== itemName && !newItemCompanions.has(name));
 
   if (toDeleteFiltered.length === 0) return [];
   await db.query(
