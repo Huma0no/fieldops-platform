@@ -98,11 +98,22 @@ async function resolveExclusionCascade(db, visitId, itemName) {
   const companionNames = companionRes.rows.map(r => r.related_item_name);
 
   const toDelete = [...new Set([...memberNames, ...companionNames])];
+
+  // Don't delete companions that belong to the newly-added item
+  const newItemCompsRes = await db.query(
+    `SELECT related_item_name FROM catalog_item_relations
+     WHERE item_name = $1 AND relation_type = 'companion'`,
+    [itemName]
+  );
+  const newItemCompanions = new Set(newItemCompsRes.rows.map(r => r.related_item_name));
+  const toDeleteFiltered = toDelete.filter(name => !newItemCompanions.has(name));
+
+  if (toDeleteFiltered.length === 0) return [];
   await db.query(
     `DELETE FROM visit_items WHERE visit_id = $1 AND item_name = ANY($2)`,
-    [visitId, toDelete]
+    [visitId, toDeleteFiltered]
   );
-  return toDelete;
+  return toDeleteFiltered;
 }
 
 // PATCH /api/visits/:id/services
@@ -200,7 +211,7 @@ router.post(
       const insertRes = await pool.query(
         `INSERT INTO visit_items (id, visit_id, item_name, category, quantity, price, tech_supplied)
          VALUES (gen_random_uuid()::text, $1, $2, $3, $4, $5, $6) RETURNING id`,
-        [id, itemName, category, quantity, resolvedPrice, catalog.tech_supplied]
+        [id, itemName, catalog.category, quantity, resolvedPrice, catalog.tech_supplied]
       );
       const newId = insertRes.rows[0].id;
 
