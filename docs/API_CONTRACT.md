@@ -13,6 +13,11 @@ This document defines every API endpoint required by the system described in `SY
 
 All endpoints are prefixed `/api`. All authenticated endpoints require a valid bearer token unless noted otherwise. Role-restricted endpoints are marked explicitly.
 
+**URL prefix convention:**
+- `/api/dispatch/` — dispatcher/owner access only.
+- `/api/visits/` — technician access (some endpoints also accessible to dispatcher).
+- The URL prefix indicates who has access, not which file owns the route. Visit lifecycle endpoints — including dispatcher-only ones like `reassign` — live in `visits.js`. `dispatch.js` owns dispatcher administrative routes only (technician management, PDF intake, inventory, restock, pay periods).
+
 This contract defines behavior and shape, not implementation. Security details (token expiration, transport requirements, duplicate-device handling) are left to implementation-time best practices and are noted where relevant.
 
 ---
