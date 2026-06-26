@@ -1,10 +1,18 @@
 require('dotenv').config();
 const express = require('express');
+const cors = require('cors');
+const rateLimit = require('express-rate-limit');
 const { pool } = require('./db/pool');
 const { authenticate } = require('./middleware/auth');
 
 const app = express();
+app.use(cors());
 app.use(express.json());
+
+const globalLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 100 });
+app.use(globalLimiter);
+
+const inviteLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 10 });
 
 app.get('/api/health', async (req, res) => {
   try {
@@ -16,6 +24,7 @@ app.get('/api/health', async (req, res) => {
 });
 
 // Auth routes mount BEFORE global authenticate (redeem-invite is unauthenticated)
+app.post('/api/auth/redeem-invite', inviteLimiter);
 app.use('/api/auth', require('./routes/auth'));
 
 // All routes below require a valid bearer token
@@ -36,11 +45,16 @@ app.use('/api', require('./routes/transfers'));
 app.use('/api/dispatch', require('./routes/history'));
 app.use('/api', require('./routes/inventory'));
 app.use('/api/dispatch', require('./routes/restock'));
+app.use('/api/dispatch', require('./routes/payperiods'));
+app.use('/api', require('./routes/payperiods'));
 
 // Global error handler
 app.use((err, req, res, _next) => {
   console.error(err);
-  res.status(500).json({ error: 'Internal server error' });
+  if (process.env.NODE_ENV === 'production') {
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+  res.status(500).json({ error: err.message, stack: err.stack });
 });
 
 const PORT = process.env.PORT || 3001;
