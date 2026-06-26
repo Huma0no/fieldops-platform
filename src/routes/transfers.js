@@ -55,16 +55,16 @@ router.post('/visits/:id/transfer/initiate', requireRole('technician'), async (r
       return res.status(403).json({ error: 'This visit is not assigned to you' });
     }
 
-    if (toTechnicianId === req.technician.id) {
-      return res.status(400).json({ error: 'Cannot transfer to yourself' });
-    }
-
     const toTechResult = await pool.query(
       'SELECT id, name FROM technicians WHERE id = $1 AND is_active = true',
       [toTechnicianId]
     );
     if (toTechResult.rows.length === 0) {
       return res.status(400).json({ error: 'Technician not found or inactive' });
+    }
+
+    if (toTechnicianId === req.technician.id) {
+      return res.status(400).json({ error: 'Cannot transfer to yourself' });
     }
 
     const pendingResult = await pool.query(

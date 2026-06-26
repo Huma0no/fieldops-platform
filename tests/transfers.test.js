@@ -4,7 +4,6 @@ const { pool, truncateTables } = require('./helpers/db');
 const {
   seedTransferScenario,
   seedDispatcherWithToken,
-  seedTechnicianWithToken,
 } = require('./helpers/seeds');
 
 beforeEach(truncateTables);
