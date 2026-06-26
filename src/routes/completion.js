@@ -53,18 +53,30 @@ router.post('/:id/complete', requireRole('technician'), async (req, res, next) =
     }
 
     const now = new Date().toISOString();
-    await pool.query(
-      `UPDATE visits SET status = $1, completed_at = $2, updated_at = $2 WHERE id = $3`,
-      [finalStatus, now, id]
-    );
-
-    const expiredResult = await pool.query(
-      `UPDATE transfers SET status = 'expired', resolved_at = $1
-       WHERE visit_id = $2 AND status = 'pending'
-       RETURNING to_tech_id`,
-      [now, id]
-    );
-    for (const row of expiredResult.rows) {
+    const client = await pool.connect();
+    let expiredRows = [];
+    try {
+      await client.query('BEGIN');
+      await client.query(
+        `UPDATE visits SET status = $1, completed_at = $2, updated_at = $2 WHERE id = $3`,
+        [finalStatus, now, id]
+      );
+      const expiredResult = await client.query(
+        `UPDATE transfers SET status = 'expired', resolved_at = $1
+         WHERE visit_id = $2 AND status = 'pending'
+         RETURNING to_tech_id`,
+        [now, id]
+      );
+      expiredRows = expiredResult.rows;
+      await client.query('COMMIT');
+    } catch (err) {
+      await client.query('ROLLBACK').catch(() => {});
+      throw err;
+    } finally {
+      client.release();
+    }
+    // Notifications remain outside transaction (soft failures OK)
+    for (const row of expiredRows) {
       await createNotification(pool, {
         recipientId: row.to_tech_id,
         type: 'transfer_expired',

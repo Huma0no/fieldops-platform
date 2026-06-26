@@ -124,6 +124,16 @@ describe('POST /api/visits/:id/transfer/initiate', () => {
 
     expect(res.status).toBe(404);
   });
+
+  it('returns 400 if toTechnicianId is missing from body', async () => {
+    const { token1, visitId } = await seedTransferScenario();
+    const res = await request(app)
+      .post(`/api/visits/${visitId}/transfer/initiate`)
+      .set('Authorization', `Bearer ${token1}`)
+      .send({});
+    expect(res.status).toBe(400);
+    expect(res.body.error).toContain('toTechnicianId');
+  });
 });
 
 // ── POST /api/transfers/:id/accept ───────────────────────────────────────────
@@ -228,6 +238,28 @@ describe('POST /api/transfers/:id/accept', () => {
       .set('Authorization', `Bearer ${token2}`);
 
     expect(res.status).toBe(404);
+  });
+
+  it('returns 400 when accepting a transfer for an already-completed visit', async () => {
+    const { tech1, tech2, token2, visitId } = await seedTransferScenario();
+    const transferId = await createPendingTransfer({ tech1, tech2, visitId });
+
+    // Mark the visit as completed
+    await pool.query(
+      `UPDATE visits SET status = 'completed', completed_at = $1, updated_at = $1 WHERE id = $2`,
+      [new Date().toISOString(), visitId]
+    );
+
+    const res = await request(app)
+      .post(`/api/transfers/${transferId}/accept`)
+      .set('Authorization', `Bearer ${token2}`);
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toContain('closed');
+
+    // visit.technician_id must NOT have changed
+    const visit = await pool.query('SELECT technician_id FROM visits WHERE id = $1', [visitId]);
+    expect(visit.rows[0].technician_id).toBe(tech1.id);
   });
 });
 

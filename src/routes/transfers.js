@@ -40,6 +40,9 @@ router.get('/transfers/pending/mine', requireRole('technician'), async (req, res
 router.post('/visits/:id/transfer/initiate', requireRole('technician'), async (req, res, next) => {
   const { id } = req.params;
   const { toTechnicianId, reason } = req.body;
+  if (!toTechnicianId) {
+    return res.status(400).json({ error: 'toTechnicianId is required' });
+  }
   try {
     const visitResult = await pool.query(
       `SELECT v.id, v.technician_id, a.street
@@ -102,7 +105,7 @@ router.post('/transfers/:id/accept', requireRole('technician'), async (req, res,
     const transferResult = await pool.query(
       `SELECT t.id, t.visit_id, t.to_tech_id, t.from_tech_id, t.status,
               ft.name AS from_tech_name, tt.name AS to_tech_name,
-              a.street
+              a.street, v.status AS visit_status
        FROM transfers t
        JOIN visits v ON v.id = t.visit_id
        JOIN addresses a ON a.id = v.address_id
@@ -122,15 +125,30 @@ router.post('/transfers/:id/accept', requireRole('technician'), async (req, res,
       return res.status(400).json({ error: 'Transfer is not pending' });
     }
 
+    const TERMINAL = ['completed', 'temporarily', 'cancelled'];
+    if (TERMINAL.includes(transfer.visit_status)) {
+      return res.status(400).json({ error: 'Visit is already closed — transfer is no longer valid' });
+    }
+
     const now = new Date().toISOString();
-    await pool.query(
-      `UPDATE transfers SET status = 'accepted', resolved_at = $1 WHERE id = $2`,
-      [now, id]
-    );
-    await pool.query(
-      `UPDATE visits SET technician_id = $1, updated_at = $2 WHERE id = $3`,
-      [req.technician.id, now, transfer.visit_id]
-    );
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      await client.query(
+        `UPDATE transfers SET status = 'accepted', accepted_at = $1, resolved_at = $1 WHERE id = $2`,
+        [now, id]
+      );
+      await client.query(
+        `UPDATE visits SET technician_id = $1, updated_at = $2 WHERE id = $3`,
+        [req.technician.id, now, transfer.visit_id]
+      );
+      await client.query('COMMIT');
+    } catch (err) {
+      await client.query('ROLLBACK').catch(() => {});
+      throw err;
+    } finally {
+      client.release();
+    }
 
     const dispatchersResult = await pool.query(
       `SELECT id FROM technicians WHERE role IN ('dispatcher', 'owner') AND is_active = true`
