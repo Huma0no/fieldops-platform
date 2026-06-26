@@ -47,6 +47,7 @@ app.use('/api', require('./routes/inventory'));
 app.use('/api/dispatch', require('./routes/restock'));
 app.use('/api/dispatch', require('./routes/payperiods'));
 app.use('/api', require('./routes/payperiods'));
+app.use('/api', require('./routes/corrections'));
 
 // Global error handler
 app.use((err, req, res, _next) => {
