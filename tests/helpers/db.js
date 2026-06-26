@@ -7,6 +7,7 @@ const pool = new Pool({
 
 async function truncateTables() {
   await pool.query(`
+    DELETE FROM edit_log;
     DELETE FROM corrections;
     DELETE FROM chat_messages;
     DELETE FROM notifications;
@@ -18,6 +19,10 @@ async function truncateTables() {
     DELETE FROM visit_services;
     DELETE FROM visit_systems;
     DELETE FROM transfers;
+    DELETE FROM pay_period_lines;
+    DELETE FROM pay_periods;
+    DELETE FROM restock_records;
+    DELETE FROM inventory_assignments;
     DELETE FROM visits;
     DELETE FROM addresses;
     DELETE FROM pdf_batches;

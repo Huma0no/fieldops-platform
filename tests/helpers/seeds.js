@@ -138,4 +138,59 @@ async function seedTransferScenario() {
   return { tech1, token1, tech2, token2, visitId, addressId, street };
 }
 
-module.exports = { seedTech, seedToken, seedDispatcherWithToken, seedTechnicianWithToken, seedInLobbyVisit, seedAssignedVisit, seedTransferScenario };
+async function seedCompletedVisit({ technicianId, addressId } = {}) {
+  let tech, token;
+  if (!technicianId) {
+    const result = await seedTechnicianWithToken();
+    tech = result.tech;
+    token = result.token;
+    technicianId = tech.id;
+  }
+
+  let finalAddressId = addressId;
+  let street;
+  if (!finalAddressId) {
+    street = `${crypto.randomBytes(4).toString('hex')} HISTORY ST`;
+    const addrRes = await pool.query(
+      `INSERT INTO addresses (id, street, city, subdivision, builder)
+       VALUES (gen_random_uuid()::text, $1, 'Houston', 'TEST SUB', 'DR HORTON') RETURNING id`,
+      [street]
+    );
+    finalAddressId = addrRes.rows[0].id;
+  }
+
+  const now = new Date().toISOString();
+  const visitRes = await pool.query(
+    `INSERT INTO visits
+       (id, address_id, technician_id, status, has_multiple_systems, is_deferred,
+        scheduled_time, date, created_at, updated_at, completed_at, total_price)
+     VALUES (gen_random_uuid()::text, $1, $2, 'completed', false, false,
+             '2026-07-01T09:00:00Z', '2026-07-01', $3, $3, $3, 150)
+     RETURNING id`,
+    [finalAddressId, technicianId, now]
+  );
+  const visitId = visitRes.rows[0].id;
+
+  await pool.query(
+    `INSERT INTO visit_systems (id, visit_id, system_number)
+     VALUES (gen_random_uuid()::text, $1, 1)`,
+    [visitId]
+  );
+
+  return { visitId, addressId: finalAddressId, street, tech, token, technicianId };
+}
+
+async function seedCatalogItem(itemName, { techSupplied = true, expectedPriceMin = null, expectedPriceMax = null } = {}) {
+  await pool.query(
+    `INSERT INTO catalog_items (item_name, category, default_price, tech_supplied, expected_price_min, expected_price_max)
+     VALUES ($1, 'accessory', 50, $2, $3, $4)
+     ON CONFLICT (item_name) DO NOTHING`,
+    [itemName, techSupplied, expectedPriceMin, expectedPriceMax]
+  );
+}
+
+module.exports = {
+  seedTech, seedToken, seedDispatcherWithToken, seedTechnicianWithToken,
+  seedInLobbyVisit, seedAssignedVisit, seedTransferScenario,
+  seedCompletedVisit, seedCatalogItem,
+};
