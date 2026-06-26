@@ -145,31 +145,43 @@ router.patch('/visits/:id', requireRole('owner', 'dispatcher'), async (req, res,
     values.push(now);
     values.push(id);
 
-    const updated = await pool.query(
-      `UPDATE visits SET ${setClauses.join(', ')} WHERE id = $${values.length}
-       RETURNING id, order_number, status, technician_id, notes, scheduled_time, completed_at, total_price`,
-      values
-    );
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
 
-    const logId = crypto.randomUUID();
-    const changedNames = fieldsToUpdate.join(', ');
-    await pool.query(
-      `INSERT INTO edit_log (id, visit_id, changed_at, summary, source)
-       VALUES ($1, $2, $3, $4, 'dispatch_direct')`,
-      [logId, id, now, `Dispatcher updated: ${changedNames}`]
-    );
+      const updated = await client.query(
+        `UPDATE visits SET ${setClauses.join(', ')} WHERE id = $${values.length}
+         RETURNING id, order_number, status, technician_id, notes, scheduled_time, completed_at, total_price`,
+        values
+      );
 
-    const v = updated.rows[0];
-    res.json({
-      id: v.id,
-      orderNumber: v.order_number,
-      status: v.status,
-      technicianId: v.technician_id,
-      notes: v.notes,
-      scheduledTime: v.scheduled_time,
-      completedAt: v.completed_at,
-      totalPrice: v.total_price,
-    });
+      const logId = crypto.randomUUID();
+      const changedNames = fieldsToUpdate.join(', ');
+      await client.query(
+        `INSERT INTO edit_log (id, visit_id, changed_at, summary, source)
+         VALUES ($1, $2, $3, $4, 'dispatch_direct')`,
+        [logId, id, now, `Dispatcher updated: ${changedNames}`]
+      );
+
+      await client.query('COMMIT');
+
+      const v = updated.rows[0];
+      res.json({
+        id: v.id,
+        orderNumber: v.order_number,
+        status: v.status,
+        technicianId: v.technician_id,
+        notes: v.notes,
+        scheduledTime: v.scheduled_time,
+        completedAt: v.completed_at,
+        totalPrice: v.total_price,
+      });
+    } catch (err) {
+      await client.query('ROLLBACK').catch(() => {});
+      throw err;
+    } finally {
+      client.release();
+    }
   } catch (err) {
     next(err);
   }
