@@ -33,6 +33,7 @@ app.use('/api/dispatch/visits', dispatchVisitsRouter);
 app.use('/api/visits', require('./routes/workspace'));
 app.use('/api/visits', require('./routes/completion'));
 app.use('/api', require('./routes/transfers'));
+app.use('/api/dispatch', require('./routes/history'));
 
 // Global error handler
 app.use((err, req, res, _next) => {
