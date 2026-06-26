@@ -39,7 +39,7 @@ async function generateReportText(db, visitId) {
 async function generateReportJSON(db, visitId) {
   const visitRow = await db.query(
     `SELECT v.id, v.order_number, v.scheduled_time, v.status, v.technician_id,
-            v.has_multiple_systems, v.is_deferred, v.total_price, v.completed_at,
+            v.has_multiple_systems, v.total_price, v.completed_at,
             v.address_id,
             a.street, a.city, a.state, a.zip, a.subdivision, a.builder
      FROM visits v
