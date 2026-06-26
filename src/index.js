@@ -35,6 +35,7 @@ app.use('/api/visits', require('./routes/completion'));
 app.use('/api', require('./routes/transfers'));
 app.use('/api/dispatch', require('./routes/history'));
 app.use('/api', require('./routes/inventory'));
+app.use('/api/dispatch', require('./routes/restock'));
 
 // Global error handler
 app.use((err, req, res, _next) => {
