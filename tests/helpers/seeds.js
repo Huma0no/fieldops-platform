@@ -109,7 +109,7 @@ async function seedTransferScenario() {
   const { tech: tech1, token: token1 } = await seedTechnicianWithToken({ name: 'Transfer-Tech1' });
   const { tech: tech2, token: token2 } = await seedTechnicianWithToken({ name: 'Transfer-Tech2' });
 
-  const street = `${require('crypto').randomBytes(4).toString('hex')} TRANSFER ST`;
+  const street = `${crypto.randomBytes(4).toString('hex')} TRANSFER ST`;
   const addrRes = await pool.query(
     `INSERT INTO addresses (id, street, city, subdivision, builder)
      VALUES (gen_random_uuid()::text, $1, 'Houston', 'TEST SUB', 'DR HORTON') RETURNING id`,
