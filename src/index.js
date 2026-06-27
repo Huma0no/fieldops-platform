@@ -49,6 +49,7 @@ app.use('/api/dispatch', require('./routes/payperiods'));
 app.use('/api', require('./routes/payperiods'));
 app.use('/api', require('./routes/corrections'));
 app.use('/api/chat', require('./routes/chat'));
+app.use('/api/technicians', require('./routes/settings'));
 
 // Global error handler
 app.use((err, req, res, _next) => {
