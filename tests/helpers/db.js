@@ -9,6 +9,7 @@ async function truncateTables() {
   await pool.query(`
     DELETE FROM edit_log;
     DELETE FROM corrections;
+    DELETE FROM chat_reads;
     DELETE FROM chat_messages;
     DELETE FROM notifications;
     DELETE FROM invite_codes;
