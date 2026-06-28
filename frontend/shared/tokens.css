@@ -1,0 +1,93 @@
+/* Field Ops Design Tokens
+ * Single source of truth for both PWA and Dispatch surfaces.
+ * Import this file first in any stylesheet.
+ *
+ * Five semantic color tokens:
+ *   void   — deep background, base dark surface
+ *   signal — electric blue, primary action and interactive elements
+ *   plasma — amber/orange, emphasis and alert states
+ *   heat   — red, errors and critical states
+ *   static — neutral gray, secondary text and disabled elements
+ */
+
+:root {
+  /* ── Core palette ─────────────────────────────────────── */
+  --color-void:    #0D0F14;
+  --color-signal:  #3B82F6;
+  --color-plasma:  #F59E0B;
+  --color-heat:    #EF4444;
+  --color-static:  #6B7280;
+
+  /* ── Surface layers (depth above void) ───────────────── */
+  --surface-base:  #0D0F14;   /* page background  */
+  --surface-1:     #161920;   /* cards, panels    */
+  --surface-2:     #1E2128;   /* nested elements  */
+  --surface-3:     #252830;   /* inputs, hovers   */
+
+  /* ── Text ─────────────────────────────────────────────── */
+  --text-primary:   #F1F2F4;
+  --text-secondary: #C9CDD4;
+  --text-muted:     #9CA3AF;
+  --text-disabled:  #4B5563;
+
+  /* ── Semantic tints (bg + border pairs) ──────────────── */
+  --signal-tint:   rgba(59, 130, 246, 0.12);
+  --signal-border: rgba(59, 130, 246, 0.28);
+
+  --plasma-tint:   rgba(245, 158, 11, 0.12);
+  --plasma-border: rgba(245, 158, 11, 0.28);
+
+  --heat-tint:     rgba(239, 68, 68, 0.12);
+  --heat-border:   rgba(239, 68, 68, 0.28);
+
+  /* ── Borders ──────────────────────────────────────────── */
+  --border-subtle:  rgba(255, 255, 255, 0.06);
+  --border-default: rgba(255, 255, 255, 0.10);
+  --border-strong:  rgba(255, 255, 255, 0.18);
+
+  /* ── Typography ───────────────────────────────────────── */
+  --font-sans: -apple-system, BlinkMacSystemFont, 'SF Pro Text',
+               'Segoe UI', Roboto, sans-serif;
+  --font-mono: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+
+  --text-xs:   11px;
+  --text-sm:   12px;
+  --text-base: 14px;
+  --text-md:   16px;
+  --text-lg:   18px;
+  --text-xl:   22px;
+
+  /* ── Spacing ──────────────────────────────────────────── */
+  --space-1:  4px;
+  --space-2:  8px;
+  --space-3:  12px;
+  --space-4:  16px;
+  --space-5:  20px;
+  --space-6:  24px;
+  --space-8:  32px;
+
+  /* ── Radius ───────────────────────────────────────────── */
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-pill: 999px;
+
+  /* ── Motion ───────────────────────────────────────────── */
+  --dur-fast:   100ms;
+  --dur-base:   180ms;
+  --dur-slow:   300ms;
+  --ease-out:   cubic-bezier(0.0, 0.0, 0.2, 1);
+  --ease-in:    cubic-bezier(0.4, 0.0, 1.0, 1);
+
+  /* ── Status badge backgrounds ─────────────────────────── */
+  --badge-assigned:    rgba(255, 255, 255, 0.06);
+  --badge-in-progress: var(--signal-tint);
+  --badge-deferred:    var(--plasma-tint);
+  --badge-completed:   rgba(34, 197, 94, 0.12);
+
+  /* ── Status badge text colors ─────────────────────────── */
+  --badge-text-assigned:    var(--text-muted);
+  --badge-text-in-progress: var(--color-signal);
+  --badge-text-deferred:    var(--color-plasma);
+  --badge-text-completed:   #22C55E;
+}
