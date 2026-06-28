@@ -58,9 +58,6 @@ function clearSession () {
 }
 
 // ── Routing ────────────────────────────────────────────────
-// Screens are lazy-loaded to keep initial bundle small.
-// Each route handler is responsible for mounting/unmounting its content.
-
 const routes = {
   '/':          () => import('./src/screens/my-calls.js'),
   '/lobby':     () => import('./src/screens/lobby.js'),
@@ -73,9 +70,10 @@ const routes = {
 const appEl = document.getElementById('app')
 
 async function navigate (path) {
-  const loader = routes[path] ?? routes['/']
+  // Strip query string for route matching
+  const base   = path.split('?')[0]
+  const loader = routes[base] ?? routes['/']
   const mod    = await loader()
-  // Each screen module exports a default render function
   mod.default(appEl)
 }
 
@@ -83,15 +81,20 @@ async function navigate (path) {
 function boot () {
   injectStyles(baseStyles, authStyles)
 
-  // Listen for token expiry (fired by api.js on 401)
+  // Token expiry — fired by api.js on 401
   window.addEventListener('auth:expired', () => {
     clearSession()
     showAuth()
   })
 
+  // Internal navigation events from screens
+  window.addEventListener('app:navigate', e => {
+    const { route } = e.detail ?? {}
+    if (route) navigate(route)
+  })
+
   const session = getSession()
   if (session) {
-    // Valid session found — go to My Calls
     navigate('/')
   } else {
     showAuth()
@@ -101,10 +104,7 @@ function boot () {
 function showAuth () {
   appEl.innerHTML = ''
   const screen = AuthScreen({
-    onSuccess: (technician) => {
-      console.info('Auth success:', technician.name)
-      navigate('/')
-    }
+    onSuccess: () => navigate('/')
   })
   appEl.appendChild(screen)
 }
