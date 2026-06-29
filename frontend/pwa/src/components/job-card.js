@@ -111,6 +111,7 @@ export function JobCard ({ visit, onStart, onOpenWorkspace, onNavigate }) {
         wsBtn.textContent = 'Open Workspace'
         wsBtn.addEventListener('click', e => {
           e.stopPropagation()
+          sessionStorage.setItem('workspace:visitId', visit.id)
           onOpenWorkspace?.(visit.id)
         })
         actions.appendChild(wsBtn)
