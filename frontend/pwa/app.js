@@ -104,7 +104,10 @@ function boot () {
 function showAuth () {
   appEl.innerHTML = ''
   const screen = AuthScreen({
-    onSuccess: () => navigate('/')
+    onSuccess: () => {
+      import('./src/lib/queue.js').then(({ startQueueRetry }) => startQueueRetry())
+      navigate('/')
+    }
   })
   appEl.appendChild(screen)
 }
