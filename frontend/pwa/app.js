@@ -4,6 +4,8 @@
  */
 
 import { AuthScreen, authStyles } from './src/screens/auth.js'
+import { api }                   from './shared/api.js'
+import { setCatalog }            from './src/lib/db.js'
 
 // ── Register service worker ────────────────────────────────
 if ('serviceWorker' in navigator) {
@@ -103,11 +105,24 @@ function boot () {
   }
 }
 
+function preloadCatalog () {
+  Promise.all([
+    api.get('/catalog/items'),
+    api.get('/catalog/equipment'),
+    api.get('/catalog/lineset-configs'),
+  ]).then(([items, equipment, linesetConfigs]) => {
+    setCatalog('items', items).catch(() => {})
+    setCatalog('equipment', equipment).catch(() => {})
+    setCatalog('lineset-configs', linesetConfigs).catch(() => {})
+  }).catch(() => {})
+}
+
 function showAuth () {
   appEl.innerHTML = ''
   const screen = AuthScreen({
     onSuccess: () => {
       import('./src/lib/queue.js').then(({ startQueueRetry }) => startQueueRetry())
+      preloadCatalog()
       navigate('/')
     }
   })

@@ -36,7 +36,7 @@ export default function Auth () {
     setError('')
 
     try {
-      const data = await api.post('/auth/redeem-invite', { inviteCode: code.trim() })
+      const data = await api.post('/auth/redeem-invite', { inviteCode: code.replace(/-/g, '').trim() })
       login(data.deviceToken, data.technician)
     } catch (err) {
       if (err.status === 400 || err.status === 404) {
