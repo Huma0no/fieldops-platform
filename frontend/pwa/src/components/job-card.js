@@ -261,26 +261,35 @@ export function JobCard ({ visit, onStart, onOpenWorkspace, onNavigate }) {
 // Empty at F1 — Transfer action added in F9.
 
 function showContextMenu (anchorEl, visit) {
-  // Remove any existing menu
   document.querySelector('.jc-context-menu')?.remove()
 
   const menu = document.createElement('div')
   menu.className = 'jc-context-menu'
 
-  // Placeholder — actions added per phase
-  const empty = document.createElement('p')
-  empty.className   = 'jc-context-empty'
-  empty.textContent = 'No actions available'
-  menu.appendChild(empty)
+  // Transfer Visit action
+  if (['assigned', 'in_progress'].includes(visit.status)) {
+    const transferBtn = document.createElement('button')
+    transferBtn.className   = 'jc-context-item'
+    transferBtn.textContent = 'Transfer Visit'
+    transferBtn.addEventListener('click', () => {
+      menu.remove()
+      sessionStorage.setItem('transfer:preselectedVisitId', visit.id)
+      window.dispatchEvent(new CustomEvent('app:navigate', { detail: { route: '/transfers' } }))
+    })
+    menu.appendChild(transferBtn)
+  } else {
+    const empty = document.createElement('p')
+    empty.className   = 'jc-context-empty'
+    empty.textContent = 'No actions available'
+    menu.appendChild(empty)
+  }
 
-  // Position near anchor
   const rect = anchorEl.getBoundingClientRect()
   menu.style.top   = `${rect.bottom + 4}px`
   menu.style.right = `${window.innerWidth - rect.right}px`
 
   document.body.appendChild(menu)
 
-  // Close on outside click
   function close (e) {
     if (!menu.contains(e.target)) {
       menu.remove()

@@ -12,6 +12,7 @@ const TABS = [
   { id: 'restock',     label: 'Restock',     icon: '🔄' },
   { id: 'pay',         label: 'Pay Periods', icon: '💵' },
   { id: 'corrections', label: 'Corrections', icon: '✏️' },
+  { id: 'chat',        label: 'Chat',        icon: '💬' },
 ]
 
 export default function NavBar ({ active, onNavigate }) {

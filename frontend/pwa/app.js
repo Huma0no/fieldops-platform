@@ -66,6 +66,7 @@ const routes = {
   '/settings':  () => import('./src/screens/settings.js'),
   '/workspace': () => import('./src/screens/workspace.js'),
   '/pay':       () => import('./src/screens/pay.js'),
+  '/transfers': () => import('./src/screens/transfers.js'),
 }
 
 const appEl = document.getElementById('app')

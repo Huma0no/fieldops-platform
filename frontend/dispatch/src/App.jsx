@@ -1,7 +1,6 @@
 /**
  * src/App.jsx
  * Root component for the Dispatch panel.
- * Auth guard + routing with NavBar.
  */
 
 import { useState } from 'react'
@@ -14,6 +13,7 @@ import Inventory   from './screens/Inventory.jsx'
 import Restock     from './screens/Restock.jsx'
 import PayPeriods  from './screens/PayPeriods.jsx'
 import Corrections from './screens/Corrections.jsx'
+import Chat        from './screens/Chat.jsx'
 
 function LobbyPlaceholder () {
   return (
@@ -35,6 +35,7 @@ const SCREENS = {
   restock:     Restock,
   pay:         PayPeriods,
   corrections: Corrections,
+  chat:        Chat,
 }
 
 function AppRoutes () {

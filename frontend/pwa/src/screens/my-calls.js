@@ -13,9 +13,8 @@
 import { api }              from '../../../shared/api.js'
 import { NavBar, navBarStyles }         from '../components/nav-bar.js'
 import { JobCard, jobCardStyles }       from '../components/job-card.js'
-import { jobCardStyles as _ }           from '../components/job-card.js'
-import { navBarStyles as __ }           from '../components/nav-bar.js'
 import { startSync, forceSync }         from '../lib/sync.js'
+import { NotificationBell, notificationStyles } from '../components/notifications.js'
 
 // ── Styles (injected once) ─────────────────────────────────
 
@@ -25,7 +24,7 @@ function injectStyles () {
   if (document.getElementById(STYLES_ID)) return
   const style = document.createElement('style')
   style.id = STYLES_ID
-  style.textContent = screenStyles + jobCardStyles + navBarStyles
+  style.textContent = screenStyles + jobCardStyles + navBarStyles + notificationStyles
   document.head.appendChild(style)
 }
 
@@ -176,11 +175,8 @@ function buildHeader () {
       <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
     </svg>
   `
-  // Notification panel wired in F9
-  bell.addEventListener('click', () => console.info('Notifications — F9'))
-
   header.appendChild(title)
-  header.appendChild(bell)
+  header.appendChild(NotificationBell(navigateTo))
   return header
 }
 
