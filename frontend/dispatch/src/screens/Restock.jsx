@@ -31,7 +31,7 @@ export default function Restock () {
   async function handleRestock (itemName) {
     setMarking(s => new Set(s).add(itemName))
     try {
-      await api.post('/dispatch/restock-report/mark-restocked', { itemName, dateFrom, dateTo })
+      await api.post('/dispatch/restock-report/mark-restocked', { periodStart: dateFrom, periodEnd: dateTo, itemNames: [itemName] })
       setMarked(s => new Set(s).add(itemName))
     } catch (err) {
       console.error('mark restocked failed:', err)

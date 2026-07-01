@@ -22,10 +22,13 @@ const SHELL_ASSETS = [
   '/src/screens/reports.js',
   '/src/screens/chat.js',
   '/src/screens/settings.js',
+  '/src/screens/pay.js',
+  '/src/screens/transfers.js',
   '/src/components/job-card.js',
   '/src/components/nav-bar.js',
-  '/src/components/modal.js',
   '/src/components/badge.js',
+  '/src/components/correction-modal.js',
+  '/src/components/notifications.js',
   '/src/lib/db.js',
   '/src/lib/sync.js',
   '/src/lib/queue.js',
@@ -36,6 +39,8 @@ const CATALOG_PATHS = [
   '/api/catalog/items',
   '/api/catalog/equipment',
   '/api/catalog/lineset-configs',
+  '/api/catalog/item-relations',
+  '/api/catalog/services',
 ]
 
 const NETWORK_ONLY_PATHS = [

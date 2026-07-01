@@ -143,7 +143,7 @@ function CorrectionDetail ({ correction, onBack }) {
     setActionError('')
     try {
       await api.patch(`/dispatch/corrections/${correction.id}/reject`, {
-        note: rejectNote.trim() || null,
+        dispatcherNote: rejectNote.trim() || null,
       })
       setDone('rejected')
     } catch (err) {

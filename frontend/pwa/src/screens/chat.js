@@ -49,12 +49,13 @@ export default async function mount (appEl) {
   appEl.appendChild(screen)
   await loadContacts()
   startSync()
+  window.removeEventListener('sync:update', onSyncUpdate)
   window.addEventListener('sync:update', onSyncUpdate)
 }
 
 async function loadContacts () {
   try {
-    const data = await api.get('/dispatch/technicians?activeOnly=true')
+    const data = await api.get('/technicians/peers')
     contacts = data ?? []
     renderSidebarContacts()
   } catch (err) { console.error('contacts load failed:', err) }

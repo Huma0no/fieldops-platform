@@ -64,7 +64,7 @@ async function buildTransferForm (container, preselectedVisitId) {
   try {
     const [myVisits, technicians] = await Promise.all([
       api.get('/visits/mine'),
-      api.get('/dispatch/technicians?activeOnly=true'),
+      api.get('/technicians/peers'),
     ])
 
     const assignable = (myVisits ?? []).filter(v =>
@@ -189,7 +189,7 @@ async function buildTransferForm (container, preselectedVisitId) {
       errorEl.textContent   = ''
       try {
         await api.post(`/visits/${selectedVisit.id}/transfer/initiate`, {
-          recipientId: selectedTech.id,
+          toTechnicianId: selectedTech.id,
           reason: reasonInput.value.trim() || null,
         })
         container.innerHTML = `

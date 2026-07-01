@@ -56,7 +56,9 @@ export default async function mount (appEl) {
 
   await loadReports()
   startSync()
+  window.removeEventListener('sync:update', onSyncUpdate)
   window.addEventListener('sync:update', onSyncUpdate)
+  window.removeEventListener('queue:sent', onQueueSent)
   window.addEventListener('queue:sent',  onQueueSent)
 }
 
@@ -169,7 +171,7 @@ function buildReportCard (visit) {
   const statusLabel = document.createElement('p')
   statusLabel.className = 'rc-status'
   if (isPending)         { statusLabel.textContent = 'Pending send — will retry when online'; statusLabel.style.color = 'var(--color-plasma)' }
-  else if (isDownloaded) { statusLabel.textContent = 'Downloaded locally — not sent'; statusLabel.style.color = 'var(--static)' }
+  else if (isDownloaded) { statusLabel.textContent = 'Downloaded locally — not sent'; statusLabel.style.color = 'var(--color-static)' }
   else                   { statusLabel.textContent = 'Sent'; statusLabel.style.color = '#22C55E' }
   card.appendChild(statusLabel)
 
@@ -249,7 +251,7 @@ function openCorrectionModal (visit) {
     visitId: visit.id,
     onSubmit: async ({ visitId, fields, reason }) => {
       try {
-        await api.post(`/visits/${visitId}/request-correction`, { fields, reason })
+        await api.post(`/visits/${visitId}/request-correction`, { correctedFields: fields, reason })
         visit.correction_status = 'pending'
         modal.remove()
         renderList()
@@ -271,7 +273,7 @@ function buildStatusIcon (isPending, isDownloaded) {
   } else if (isDownloaded) {
     wrap.textContent = '↓'
     wrap.title = 'Downloaded, not sent'
-    wrap.style.color = 'var(--static)'
+    wrap.style.color = 'var(--color-static)'
   } else {
     wrap.textContent = '✓'
     wrap.style.color = '#22C55E'
@@ -422,6 +424,7 @@ const screenStyles = `
   .rc-context-item { display:block; width:100%; background:none; border:none; text-align:left; font-size:var(--text-base); color:var(--text-secondary); padding:var(--space-3) var(--space-4); cursor:pointer; }
   .rc-context-item:active { background:var(--surface-3); }
   .rc-context-empty { font-size:var(--text-sm); color:var(--text-disabled); padding:var(--space-3) var(--space-4); text-align:center; }
+  .rp-overlay { position:fixed; inset:0; background:rgba(0,0,0,.6); display:flex; align-items:flex-end; z-index:100; }
   .rp-modal { width:100%; background:var(--surface-1); border-radius:var(--radius-lg) var(--radius-lg) 0 0; max-height:80dvh; display:flex; flex-direction:column; padding-bottom:env(safe-area-inset-bottom,0px); }
   .rp-modal-header { display:flex; justify-content:space-between; align-items:center; padding:var(--space-4) var(--space-4) var(--space-3); border-bottom:0.5px solid var(--border-subtle); flex-shrink:0; }
   .rp-modal-title { font-size:var(--text-base); font-weight:500; color:var(--text-primary); }

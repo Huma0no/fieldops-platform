@@ -275,8 +275,7 @@ function getSectionSummary (sectionId) {
     case 'accessories': {
       const items = (visit._items ?? []).filter(i => i.category === 'accessory')
       if (!items.length) return '—'
-      const total = items.reduce((s, i) => s + Number(i.price ?? 0), 0)
-      return `$${total.toFixed(0)} · ${items.length} item${items.length !== 1 ? 's' : ''}`
+      return `${items.length} item${items.length !== 1 ? 's' : ''}`
     }
     case 'fixes': {
       const items = (visit._items ?? []).filter(i => i.category === 'fix')
@@ -410,7 +409,7 @@ async function syncService () {
   else if (svc.driveRun)    serviceName = 'Drive Run'
   try {
     const result = await api.patch(`/visits/${visit.id}/services`, {
-      serviceName, isFinish: svc.finish, isTemporarily: svc.temporarily, twoSystems: svc.twoSystems,
+      serviceName, isFinish: svc.finish, isTemporarily: svc.temporarily,
     })
     if (result?.total_price !== undefined) updatePrice(result.total_price)
   } catch (err) { console.error('Service sync failed:', err) }
@@ -420,9 +419,10 @@ function hasActiveItems () { return (visit._items ?? []).length > 0 }
 
 async function clearAllItems () {
   try {
-    await api.patch(`/visits/${visit.id}/services`, { serviceName: 'Cancel', confirmed: true })
+    const result = await api.patch(`/visits/${visit.id}/services`, { serviceName: 'Cancel', confirmed: true })
     visit._items = []
-    updatePrice(0)
+    if (result?.total_price !== undefined) updatePrice(result.total_price)
+    else updatePrice(0)
   } catch (err) { console.error('Clear items failed:', err) }
 }
 
@@ -588,7 +588,7 @@ function buildItemsSection (category) {
 async function addItem (item, category, quantity, customPrice) {
   try {
     const body = { itemName: item.name, category, quantity }
-    if (customPrice !== undefined) body.customPrice = customPrice
+    if (customPrice !== undefined) body.price = customPrice
     const result = await api.post(`/visits/${visit.id}/items`, body)
     const newItem = result.item ?? { item_name: item.name, category, quantity, price: customPrice ?? item.price }
     visit._items = [...(visit._items ?? []), newItem]
@@ -669,7 +669,8 @@ function buildWeighInPanel (systemNum, showLabel) {
   const FIELDS = [
     ['linesetLength','Lineset length (ft)'],['adjustedOz','Adjusted oz'],['fanSpeedCfm','Fan speed CFM'],
     ['liquidLineTemp','Liquid line temp (°F)'],['suctionLineTemp','Suction line temp (°F)'],
-    ['condenserSatTemp','Condenser sat temp'],['subcooling','Subcooling'],
+    ['condenserSatTemp','Condenser sat temp'],['subcoolingValue','Subcooling'],
+    ['factoryLineConfig','Factory line config'],['factoryChargeUsed','Factory charge used (oz)'],
   ]
   const keys = FIELDS.map(f => f[0])
   FIELDS.forEach(([key, label]) => {

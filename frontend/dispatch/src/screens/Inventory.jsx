@@ -10,7 +10,7 @@ export default function Inventory () {
   const [inventory, setInventory] = useState([])
   const [loading, setLoading]     = useState(true)
   const [assigning, setAssigning] = useState(false)
-  const [assignForm, setAssignForm] = useState({ technicianId: '', itemName: '', quantity: '' })
+  const [assignForm, setAssignForm] = useState({ technicianId: '', itemName: '', quantity: '', periodStart: '' })
   const [assignError, setAssignError] = useState('')
   const [assignSuccess, setAssignSuccess] = useState('')
 
@@ -29,8 +29,8 @@ export default function Inventory () {
   }
 
   async function handleAssign () {
-    const { technicianId, itemName, quantity } = assignForm
-    if (!technicianId || !itemName || !quantity) {
+    const { technicianId, itemName, quantity, periodStart } = assignForm
+    if (!technicianId || !itemName || !quantity || !periodStart) {
       setAssignError('All fields are required.')
       return
     }
@@ -41,10 +41,11 @@ export default function Inventory () {
       await api.post('/dispatch/inventory/assign', {
         technicianId,
         itemName,
-        quantity: Number(quantity),
+        quantityAssigned: Number(quantity),
+        periodStart,
       })
       setAssignSuccess(`Assigned ${quantity} × ${itemName}.`)
-      setAssignForm({ technicianId: '', itemName: '', quantity: '' })
+      setAssignForm({ technicianId: '', itemName: '', quantity: '', periodStart: '' })
       loadInventory()
     } catch (err) {
       setAssignError('Assignment failed. Check the values and try again.')
@@ -142,6 +143,15 @@ export default function Inventory () {
                 value={assignForm.quantity}
                 onChange={e => setAssignForm(f => ({ ...f, quantity: e.target.value }))}
                 placeholder="e.g. 10"
+              />
+            </div>
+            <div style={styles.fieldRow}>
+              <label style={styles.fieldLabel}>Period start</label>
+              <input
+                style={styles.input}
+                type="date"
+                value={assignForm.periodStart}
+                onChange={e => setAssignForm(f => ({ ...f, periodStart: e.target.value }))}
               />
             </div>
 
