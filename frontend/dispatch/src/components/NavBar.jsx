@@ -10,6 +10,7 @@ const TABS = [
   { id: 'history',   label: 'History',     icon: '📋' },
   { id: 'inventory', label: 'Inventory',   icon: '📦' },
   { id: 'restock',   label: 'Restock',     icon: '🔄' },
+  { id: 'pay',       label: 'Pay Periods', icon: '💵' },
 ]
 
 export default function NavBar ({ active, onNavigate }) {

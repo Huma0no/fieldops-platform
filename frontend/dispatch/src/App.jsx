@@ -6,13 +6,14 @@
 
 import { useState } from 'react'
 import { AuthProvider, useAuth } from './lib/auth.jsx'
-import Auth       from './screens/Auth.jsx'
-import PdfIntake  from './screens/PdfIntake.jsx'
-import History    from './screens/History.jsx'
-import Inventory  from './screens/Inventory.jsx'
-import Restock    from './screens/Restock.jsx'
+import NavBar      from './components/NavBar.jsx'
+import Auth        from './screens/Auth.jsx'
+import PdfIntake   from './screens/PdfIntake.jsx'
+import History     from './screens/History.jsx'
+import Inventory   from './screens/Inventory.jsx'
+import Restock     from './screens/Restock.jsx'
+import PayPeriods  from './screens/PayPeriods.jsx'
 
-// Lobby placeholder — implemented in F2 Dispatch (future)
 function LobbyPlaceholder () {
   return (
     <div style={{ flex:1, display:'flex', alignItems:'center', justifyContent:'center', color:'var(--text-muted)', fontSize:'14px' }}>
@@ -21,7 +22,6 @@ function LobbyPlaceholder () {
   )
 }
 
-// Global spinner keyframe
 const spinStyle = document.createElement('style')
 spinStyle.textContent = `@keyframes spin { to { transform: rotate(360deg); } }`
 document.head.appendChild(spinStyle)
@@ -32,9 +32,8 @@ const SCREENS = {
   history:   History,
   inventory: Inventory,
   restock:   Restock,
+  pay:       PayPeriods,
 }
-
-import NavBar from './components/NavBar.jsx'
 
 function AppRoutes () {
   const { session }         = useAuth()
