@@ -13,6 +13,7 @@ import History     from './screens/History.jsx'
 import Inventory   from './screens/Inventory.jsx'
 import Restock     from './screens/Restock.jsx'
 import PayPeriods  from './screens/PayPeriods.jsx'
+import Corrections from './screens/Corrections.jsx'
 
 function LobbyPlaceholder () {
   return (
@@ -27,12 +28,13 @@ spinStyle.textContent = `@keyframes spin { to { transform: rotate(360deg); } }`
 document.head.appendChild(spinStyle)
 
 const SCREENS = {
-  intake:    PdfIntake,
-  lobby:     LobbyPlaceholder,
-  history:   History,
-  inventory: Inventory,
-  restock:   Restock,
-  pay:       PayPeriods,
+  intake:      PdfIntake,
+  lobby:       LobbyPlaceholder,
+  history:     History,
+  inventory:   Inventory,
+  restock:     Restock,
+  pay:         PayPeriods,
+  corrections: Corrections,
 }
 
 function AppRoutes () {

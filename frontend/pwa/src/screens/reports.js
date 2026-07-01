@@ -14,6 +14,7 @@ import { api }                  from '../../../shared/api.js'
 import { NavBar, navBarStyles } from '../components/nav-bar.js'
 import { getQueue }             from '../lib/db.js'
 import { startSync }            from '../lib/sync.js'
+import { CorrectionModal, correctionModalStyles } from '../components/correction-modal.js'
 
 const STYLES_ID = 'styles-reports'
 
@@ -21,7 +22,7 @@ function injectStyles () {
   if (document.getElementById(STYLES_ID)) return
   const style = document.createElement('style')
   style.id = STYLES_ID
-  style.textContent = screenStyles + navBarStyles
+  style.textContent = screenStyles + navBarStyles + correctionModalStyles
   document.head.appendChild(style)
 }
 
@@ -121,6 +122,7 @@ function renderList () {
 function buildReportCard (visit) {
   const isPending    = queuedIds.has(visit.id)
   const isDownloaded = downloadedIds.has(visit.id)
+  const correctionStatus = visit.correction_status  // 'pending' | 'approved' | 'rejected' | null
 
   const card = document.createElement('div')
   card.className = 'report-card'
@@ -142,19 +144,54 @@ function buildReportCard (visit) {
   left.appendChild(addr)
   left.appendChild(meta)
 
+  const rightWrap = document.createElement('div')
+  rightWrap.style.cssText = 'display:flex;align-items:center;gap:8px;'
+
   const statusIcon = buildStatusIcon(isPending, isDownloaded)
+  rightWrap.appendChild(statusIcon)
+
+  // ··· menu — low-frequency actions
+  const menuBtn = document.createElement('button')
+  menuBtn.className   = 'rc-menu-btn'
+  menuBtn.textContent = '···'
+  menuBtn.setAttribute('aria-label', 'More options')
+  menuBtn.addEventListener('click', e => {
+    e.stopPropagation()
+    showCardMenu(menuBtn, visit, correctionStatus)
+  })
+  rightWrap.appendChild(menuBtn)
 
   top.appendChild(left)
-  top.appendChild(statusIcon)
+  top.appendChild(rightWrap)
   card.appendChild(top)
 
   // Status label
   const statusLabel = document.createElement('p')
   statusLabel.className = 'rc-status'
-  if (isPending)    { statusLabel.textContent = 'Pending send — will retry when online'; statusLabel.style.color = 'var(--color-plasma)' }
+  if (isPending)         { statusLabel.textContent = 'Pending send — will retry when online'; statusLabel.style.color = 'var(--color-plasma)' }
   else if (isDownloaded) { statusLabel.textContent = 'Downloaded locally — not sent'; statusLabel.style.color = 'var(--static)' }
-  else              { statusLabel.textContent = 'Sent'; statusLabel.style.color = '#22C55E' }
+  else                   { statusLabel.textContent = 'Sent'; statusLabel.style.color = '#22C55E' }
   card.appendChild(statusLabel)
+
+  // Correction badge
+  if (correctionStatus) {
+    const badge = document.createElement('p')
+    badge.className = 'rc-correction-badge'
+    if (correctionStatus === 'pending')  { badge.textContent = 'Correction pending'; badge.style.color = 'var(--color-plasma)' }
+    if (correctionStatus === 'approved') { badge.textContent = 'Correction approved'; badge.style.color = '#22C55E' }
+    if (correctionStatus === 'rejected') {
+      badge.textContent = 'Correction rejected'
+      badge.style.color = 'var(--color-heat)'
+      if (visit.correction_dispatcher_note) {
+        const note = document.createElement('button')
+        note.className   = 'rc-note-link'
+        note.textContent = ' · View note'
+        note.addEventListener('click', () => alert(visit.correction_dispatcher_note))
+        badge.appendChild(note)
+      }
+    }
+    card.appendChild(badge)
+  }
 
   // Actions
   const actions = document.createElement('div')
@@ -174,6 +211,55 @@ function buildReportCard (visit) {
 
   card.appendChild(actions)
   return card
+}
+
+function showCardMenu (anchorEl, visit, correctionStatus) {
+  document.querySelector('.rc-context-menu')?.remove()
+
+  const menu = document.createElement('div')
+  menu.className = 'rc-context-menu'
+
+  if (!correctionStatus || correctionStatus === 'rejected') {
+    const corrBtn = document.createElement('button')
+    corrBtn.className   = 'rc-context-item'
+    corrBtn.textContent = 'Request correction'
+    corrBtn.addEventListener('click', () => {
+      menu.remove()
+      openCorrectionModal(visit)
+    })
+    menu.appendChild(corrBtn)
+  } else {
+    const info = document.createElement('p')
+    info.className   = 'rc-context-empty'
+    info.textContent = correctionStatus === 'pending' ? 'Correction pending review' : 'Correction approved'
+    menu.appendChild(info)
+  }
+
+  const rect = anchorEl.getBoundingClientRect()
+  menu.style.top   = `${rect.bottom + 4}px`
+  menu.style.right = `${window.innerWidth - rect.right}px`
+  document.body.appendChild(menu)
+
+  function close (e) { if (!menu.contains(e.target)) { menu.remove(); document.removeEventListener('click', close) } }
+  setTimeout(() => document.addEventListener('click', close), 0)
+}
+
+function openCorrectionModal (visit) {
+  const modal = CorrectionModal({
+    visitId: visit.id,
+    onSubmit: async ({ visitId, fields, reason }) => {
+      try {
+        await api.post(`/visits/${visitId}/request-correction`, { fields, reason })
+        visit.correction_status = 'pending'
+        modal.remove()
+        renderList()
+      } catch (err) {
+        console.error('correction submit failed:', err)
+      }
+    },
+    onCancel: () => modal.remove(),
+  })
+  document.body.appendChild(modal)
 }
 
 function buildStatusIcon (isPending, isDownloaded) {
@@ -329,7 +415,13 @@ const screenStyles = `
   .skeleton-card { height:110px; border-radius:var(--radius-lg); background:var(--surface-1); animation:shimmer 1.4s ease-in-out infinite; }
   @keyframes shimmer { 0%,100%{opacity:.5} 50%{opacity:1} }
 
-  .rp-overlay { position:fixed; inset:0; background:rgba(0,0,0,.6); display:flex; align-items:flex-end; z-index:100; }
+  .rc-menu-btn { background:none; border:none; color:var(--text-muted); font-size:18px; cursor:pointer; padding:0 2px; letter-spacing:1px; line-height:1; -webkit-tap-highlight-color:transparent; }
+  .rc-correction-badge { font-size:var(--text-sm); margin-top:2px; }
+  .rc-note-link { background:none; border:none; color:var(--color-signal); font-size:var(--text-sm); cursor:pointer; padding:0; }
+  .rc-context-menu { position:fixed; background:var(--surface-2); border:0.5px solid var(--border-default); border-radius:var(--radius-md); padding:var(--space-2) 0; min-width:180px; z-index:100; box-shadow:0 8px 24px rgba(0,0,0,0.4); }
+  .rc-context-item { display:block; width:100%; background:none; border:none; text-align:left; font-size:var(--text-base); color:var(--text-secondary); padding:var(--space-3) var(--space-4); cursor:pointer; }
+  .rc-context-item:active { background:var(--surface-3); }
+  .rc-context-empty { font-size:var(--text-sm); color:var(--text-disabled); padding:var(--space-3) var(--space-4); text-align:center; }
   .rp-modal { width:100%; background:var(--surface-1); border-radius:var(--radius-lg) var(--radius-lg) 0 0; max-height:80dvh; display:flex; flex-direction:column; padding-bottom:env(safe-area-inset-bottom,0px); }
   .rp-modal-header { display:flex; justify-content:space-between; align-items:center; padding:var(--space-4) var(--space-4) var(--space-3); border-bottom:0.5px solid var(--border-subtle); flex-shrink:0; }
   .rp-modal-title { font-size:var(--text-base); font-weight:500; color:var(--text-primary); }

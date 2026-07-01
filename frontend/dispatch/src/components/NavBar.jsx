@@ -5,12 +5,13 @@
  */
 
 const TABS = [
-  { id: 'intake',    label: 'PDF Intake',  icon: '📄' },
-  { id: 'lobby',     label: 'Lobby',       icon: '🕐' },
-  { id: 'history',   label: 'History',     icon: '📋' },
-  { id: 'inventory', label: 'Inventory',   icon: '📦' },
-  { id: 'restock',   label: 'Restock',     icon: '🔄' },
-  { id: 'pay',       label: 'Pay Periods', icon: '💵' },
+  { id: 'intake',      label: 'PDF Intake',  icon: '📄' },
+  { id: 'lobby',       label: 'Lobby',       icon: '🕐' },
+  { id: 'history',     label: 'History',     icon: '📋' },
+  { id: 'inventory',   label: 'Inventory',   icon: '📦' },
+  { id: 'restock',     label: 'Restock',     icon: '🔄' },
+  { id: 'pay',         label: 'Pay Periods', icon: '💵' },
+  { id: 'corrections', label: 'Corrections', icon: '✏️' },
 ]
 
 export default function NavBar ({ active, onNavigate }) {
