@@ -5,15 +5,17 @@
 
 import { useState } from 'react'
 import { AuthProvider, useAuth } from './lib/auth.jsx'
-import NavBar      from './components/NavBar.jsx'
-import Auth        from './screens/Auth.jsx'
-import PdfIntake   from './screens/PdfIntake.jsx'
-import History     from './screens/History.jsx'
-import Inventory   from './screens/Inventory.jsx'
-import Restock     from './screens/Restock.jsx'
-import PayPeriods  from './screens/PayPeriods.jsx'
-import Corrections from './screens/Corrections.jsx'
-import Chat        from './screens/Chat.jsx'
+import NavBar            from './components/NavBar.jsx'
+import Auth              from './screens/Auth.jsx'
+import PdfIntake         from './screens/PdfIntake.jsx'
+import History           from './screens/History.jsx'
+import Inventory         from './screens/Inventory.jsx'
+import Restock           from './screens/Restock.jsx'
+import PayPeriods        from './screens/PayPeriods.jsx'
+import Corrections       from './screens/Corrections.jsx'
+import Chat              from './screens/Chat.jsx'
+import CatalogEditor     from './screens/CatalogEditor.jsx'
+import TechnicianManager from './screens/TechnicianManager.jsx'
 
 function LobbyPlaceholder () {
   return (
@@ -36,6 +38,8 @@ const SCREENS = {
   pay:         PayPeriods,
   corrections: Corrections,
   chat:        Chat,
+  catalog:     CatalogEditor,
+  technicians: TechnicianManager,
 }
 
 function AppRoutes () {
