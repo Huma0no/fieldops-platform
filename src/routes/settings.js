@@ -53,6 +53,18 @@ async function ensureSettings(technicianId) {
   return result.rows[0];
 }
 
+// GET /api/technicians/peers
+router.get('/peers', async (req, res, next) => {
+  try {
+    const result = await pool.query(
+      'SELECT id, name, role FROM technicians WHERE is_active = true ORDER BY name'
+    )
+    res.json(result.rows)
+  } catch (err) {
+    next(err)
+  }
+})
+
 // GET /api/technicians/me/settings
 router.get('/me/settings', async (req, res, next) => {
   try {
