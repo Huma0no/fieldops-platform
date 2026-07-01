@@ -35,7 +35,7 @@ export default function mount (appEl) {
 
   const body = document.createElement("div")
   body.className = "ph-body"
-  body.innerHTML = `<p class=\ph-title\>Coming in Phase F10</p><p class=\ph-sub\>This screen will be built in a future phase.</p>`
+  body.innerHTML = '<p class="ph-title">Coming in Phase F10</p><p class="ph-sub">This screen will be built in a future phase.</p>'
   screen.appendChild(body)
 
   screen.appendChild(NavBar({

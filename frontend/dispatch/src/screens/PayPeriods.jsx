@@ -149,7 +149,7 @@ function PeriodDetail ({ period, onBack, onUpdated }) {
             <div style={styles.anomalyList}>
               {period.anomalies.map((a, i) => (
                 <p key={i} style={styles.anomalyItem}>
-                  {a.address} — {a.item_name}: ${a.actual_price} (catalog: ${a.catalog_price})
+                  {a.address} — {a.item_name}: ${a.price} (catalog: ${a.expectedRange})
                 </p>
               ))}
             </div>

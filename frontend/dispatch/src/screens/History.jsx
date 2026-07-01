@@ -37,8 +37,8 @@ export default function History () {
   async function openVisit (visit) {
     try {
       const [detail, log] = await Promise.all([
-        api.get(`/dispatch/visits/${visit.id}`),
-        api.get(`/dispatch/visits/${visit.id}/edit-log`),
+        api.get(`/visits/${visit.id}`),
+        api.get(`/visits/${visit.id}/edit-log`),
       ])
       setSelected(detail)
       setEditFields(flattenVisit(detail))
@@ -62,7 +62,7 @@ export default function History () {
   async function saveEdit () {
     setSaving(true)
     try {
-      await api.patch(`/dispatch/visits/${selected.id}`, editFields)
+      await api.patch(`/visits/${selected.id}`, editFields)
       await openVisit(selected)   // reload with updated data + new log entry
     } catch (err) {
       console.error('save failed:', err)

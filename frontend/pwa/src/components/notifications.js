@@ -17,9 +17,17 @@ const NOTIFICATION_ROUTES = {
   correction_rejected: '/reports',
 }
 
-let unreadCount = 0
-let bellEl      = null
-let badgeEl     = null
+let unreadCount   = 0
+let bellEl        = null
+let badgeEl       = null
+let syncHandler   = null
+
+function onSyncUpdate (e) {
+  const { unreadNotificationCount } = e.detail ?? {}
+  if (unreadNotificationCount !== undefined) {
+    updateBadge(unreadNotificationCount)
+  }
+}
 
 export function NotificationBell (onNavigate) {
   const wrap = document.createElement('div')
@@ -43,13 +51,10 @@ export function NotificationBell (onNavigate) {
 
   bellEl.addEventListener('click', () => togglePanel(onNavigate))
 
-  // Listen for sync updates
-  window.addEventListener('sync:update', e => {
-    const { unreadNotificationCount } = e.detail ?? {}
-    if (unreadNotificationCount !== undefined) {
-      updateBadge(unreadNotificationCount)
-    }
-  })
+  // Replace any previous listener before adding a new one
+  if (syncHandler) window.removeEventListener('sync:update', syncHandler)
+  syncHandler = onSyncUpdate
+  window.addEventListener('sync:update', syncHandler)
 
   // Initial load
   loadUnreadCount()

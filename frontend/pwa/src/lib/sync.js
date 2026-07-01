@@ -8,7 +8,7 @@
  * - Callers listen for 'sync:update' to re-render
  *
  * Usage:
- *   import { startSync, stopSync, forcSync } from '../lib/sync.js'
+ *   import { startSync, stopSync, forceSync } from '../lib/sync.js'
  *   startSync()
  *   window.addEventListener('sync:update', e => handleUpdate(e.detail))
  */

@@ -64,6 +64,7 @@ export default function mount (appEl) {
 
   loadLobby()
   startSync()
+  window.removeEventListener('sync:update', onSyncUpdate)
   window.addEventListener('sync:update', onSyncUpdate)
 }
 
