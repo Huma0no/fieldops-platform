@@ -1,38 +1,23 @@
 /**
  * src/App.jsx
  * Root component for the Dispatch panel.
- * Handles auth guard and top-level routing.
+ * Auth guard + top-level routing.
  */
 
 import { AuthProvider, useAuth } from './lib/auth.jsx'
 import Auth from './screens/Auth.jsx'
+import PdfIntake from './screens/PdfIntake.jsx'
 
-// Screens are imported lazily as they're built phase by phase.
-// Placeholder stubs are used until each screen is implemented.
-
-function Placeholder ({ name }) {
-  return (
-    <div style={{
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      height: '100%',
-      color: 'var(--text-muted)',
-      fontSize: 'var(--text-base)',
-    }}>
-      {name} — coming in next phase
-    </div>
-  )
-}
+// Inject spinner keyframe globally
+const spinStyle = document.createElement('style')
+spinStyle.textContent = `@keyframes spin { to { transform: rotate(360deg); } }`
+document.head.appendChild(spinStyle)
 
 function AppRoutes () {
   const { session } = useAuth()
-
   if (!session) return <Auth />
-
-  // Routing will be expanded each phase.
-  // For F0 we just confirm auth works — routes to be wired in F1+.
-  return <Placeholder name="Dispatch Panel" />
+  // Default view: PDF Intake. Additional routes added per phase.
+  return <PdfIntake />
 }
 
 export default function App () {
