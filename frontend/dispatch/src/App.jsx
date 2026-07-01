@@ -1,23 +1,55 @@
 /**
  * src/App.jsx
  * Root component for the Dispatch panel.
- * Auth guard + top-level routing.
+ * Auth guard + routing with NavBar.
  */
 
+import { useState } from 'react'
 import { AuthProvider, useAuth } from './lib/auth.jsx'
-import Auth from './screens/Auth.jsx'
-import PdfIntake from './screens/PdfIntake.jsx'
+import Auth       from './screens/Auth.jsx'
+import PdfIntake  from './screens/PdfIntake.jsx'
+import History    from './screens/History.jsx'
+import Inventory  from './screens/Inventory.jsx'
+import Restock    from './screens/Restock.jsx'
 
-// Inject spinner keyframe globally
+// Lobby placeholder — implemented in F2 Dispatch (future)
+function LobbyPlaceholder () {
+  return (
+    <div style={{ flex:1, display:'flex', alignItems:'center', justifyContent:'center', color:'var(--text-muted)', fontSize:'14px' }}>
+      Lobby — coming in Phase F2 Dispatch
+    </div>
+  )
+}
+
+// Global spinner keyframe
 const spinStyle = document.createElement('style')
 spinStyle.textContent = `@keyframes spin { to { transform: rotate(360deg); } }`
 document.head.appendChild(spinStyle)
 
+const SCREENS = {
+  intake:    PdfIntake,
+  lobby:     LobbyPlaceholder,
+  history:   History,
+  inventory: Inventory,
+  restock:   Restock,
+}
+
+import NavBar from './components/NavBar.jsx'
+
 function AppRoutes () {
-  const { session } = useAuth()
+  const { session }         = useAuth()
+  const [active, setActive] = useState('intake')
+
   if (!session) return <Auth />
-  // Default view: PDF Intake. Additional routes added per phase.
-  return <PdfIntake />
+
+  const Screen = SCREENS[active] ?? PdfIntake
+
+  return (
+    <div style={{ display:'flex', flexDirection:'column', height:'100dvh', background:'var(--surface-base)', fontFamily:'var(--font-sans)', color:'var(--text-primary)' }}>
+      <NavBar active={active} onNavigate={setActive} />
+      <Screen />
+    </div>
+  )
 }
 
 export default function App () {
