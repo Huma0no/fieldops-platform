@@ -288,6 +288,18 @@ describe('POST /api/dispatch/catalog/items', () => {
     expect(res.body.error).toMatch(/category/i);
   });
 
+  it('returns 400 if tech_supplied is missing', async () => {
+    const { token } = await seedDispatcherWithToken();
+
+    const res = await request(app)
+      .post('/api/dispatch/catalog/items')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ item_name: 'Some Item', category: 'accessory' });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/tech_supplied/i);
+  });
+
   it('returns 403 for technician role', async () => {
     const { token } = await seedTechnicianWithToken();
 
@@ -403,5 +415,84 @@ describe('PATCH /api/dispatch/catalog/:table/:id', () => {
       .send({ pesp: 5 });
 
     expect(res.status).toBe(404);
+  });
+
+  it('returns 400 when category value is invalid for catalog_items', async () => {
+    const { token } = await seedDispatcherWithToken();
+    const itemName = await seedItemRow();
+
+    const res = await request(app)
+      .patch(`/api/dispatch/catalog/catalog_items/${encodeURIComponent(itemName)}`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ category: 'bad-category' });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/category/i);
+  });
+
+  it('updates tech_supplied on catalog_items (dispatcher)', async () => {
+    const { token } = await seedDispatcherWithToken();
+    const itemName = await seedItemRow();
+
+    const res = await request(app)
+      .patch(`/api/dispatch/catalog/catalog_items/${encodeURIComponent(itemName)}`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ tech_supplied: true });
+
+    expect(res.status).toBe(200);
+    expect(res.body.tech_supplied).toBe(true);
+  });
+});
+
+// ── PATCH /api/dispatch/catalog/catalog_lineset_configs ───────────────────────
+
+describe('PATCH /api/dispatch/catalog/catalog_lineset_configs', () => {
+  async function seedLinesetRow (configKey = `LC-${crypto.randomBytes(4).toString('hex')}`) {
+    await pool.query(
+      `INSERT INTO catalog_lineset_configs (config_key, reference_length_ft, adjust_rate_oz_per_ft)
+       VALUES ($1, 25, 0.6)
+       ON CONFLICT (config_key) DO NOTHING`,
+      [configKey]
+    );
+    return configKey;
+  }
+
+  it('updates fields for catalog_lineset_configs (dispatcher)', async () => {
+    const { token } = await seedDispatcherWithToken();
+    const configKey = await seedLinesetRow();
+
+    const res = await request(app)
+      .patch(`/api/dispatch/catalog/catalog_lineset_configs/${encodeURIComponent(configKey)}`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ reference_length_ft: 30, adjust_rate_oz_per_ft: 0.75 });
+
+    expect(res.status).toBe(200);
+    expect(res.body.config_key).toBe(configKey);
+    expect(res.body.reference_length_ft).toBe(30);
+    expect(res.body.adjust_rate_oz_per_ft).toBe(0.75);
+  });
+
+  it('returns 400 when a required field is set to null', async () => {
+    const { token } = await seedDispatcherWithToken();
+    const configKey = await seedLinesetRow();
+
+    const res = await request(app)
+      .patch(`/api/dispatch/catalog/catalog_lineset_configs/${encodeURIComponent(configKey)}`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ reference_length_ft: null });
+
+    expect(res.status).toBe(400);
+  });
+
+  it('returns 403 for technician role', async () => {
+    const { token } = await seedTechnicianWithToken();
+    const configKey = await seedLinesetRow();
+
+    const res = await request(app)
+      .patch(`/api/dispatch/catalog/catalog_lineset_configs/${encodeURIComponent(configKey)}`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ reference_length_ft: 20 });
+
+    expect(res.status).toBe(403);
   });
 });
