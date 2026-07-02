@@ -691,12 +691,14 @@ function LinesetConfigsTab () {
   }
 
   async function saveEdit (row) {
+    if (editVals.reference_length_ft === '')   { setError('Reference length is required.'); return }
+    if (editVals.adjust_rate_oz_per_ft === '') { setError('Adjust rate is required.'); return }
     setSaving(true)
     setError('')
     try {
       const body = {
-        reference_length_ft:   editVals.reference_length_ft   !== '' ? Number(editVals.reference_length_ft)   : null,
-        adjust_rate_oz_per_ft: editVals.adjust_rate_oz_per_ft !== '' ? Number(editVals.adjust_rate_oz_per_ft) : null,
+        reference_length_ft:   Number(editVals.reference_length_ft),
+        adjust_rate_oz_per_ft: Number(editVals.adjust_rate_oz_per_ft),
       }
       const updated = await api.patch(
         `/dispatch/catalog/catalog_lineset_configs/${encodeURIComponent(row.config_key)}`, body
