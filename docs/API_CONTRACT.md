@@ -295,10 +295,39 @@ GET /api/catalog/services
 PATCH /api/dispatch/catalog/:table/:id
   auth: dispatcher
   body: any editable column for the given catalog row
+  editable columns per table:
+    catalog_equipment:      unit_type, brand, series, refrigerant, is_a2l, btu,
+                            factory_charge_oz, revised_charge_oz, pesp, oem_subcooling_goal
+    catalog_items:          category, default_price, tech_supplied,
+                            multiplies_by_system_count, custom_price,
+                            expected_price_min, expected_price_max, finish_addon_price
+    catalog_services:       default_price, multiplies_by_system_count
+    catalog_lineset_configs: reference_length_ft, adjust_rate_oz_per_ft
   effect: updates the catalog row — e.g. dispatcher manually updating pesp
           from a technician's field-reading note
   note: editing a catalog value never changes historical visit records —
         only future visits read the updated value (see catalog_equipment rules)
+
+POST /api/dispatch/catalog/equipment
+  auth: dispatcher
+  body (required): { model, unit_type, brand }
+  body (optional): { series, refrigerant, is_a2l, btu, factory_charge_oz,
+                     revised_charge_oz, pesp, oem_subcooling_goal }
+  returns: 201 + created catalog_equipment row
+  errors: 400 if model/unit_type/brand missing, 409 if model already exists
+
+POST /api/dispatch/catalog/items
+  auth: dispatcher
+  body (required): { item_name, category, tech_supplied }
+    category must be one of: accessory | fix | thermostat
+    DB enforces: thermostat → tech_supplied must be true; fix → must be false
+  body (optional): { default_price, multiplies_by_system_count, custom_price,
+                     expected_price_min, expected_price_max, finish_addon_price }
+  returns: 201 + created catalog_items row
+  errors: 400 if required fields missing or category invalid, 409 if item_name already exists
+
+Note: POST /api/dispatch/catalog/services does not exist — the service list is fixed.
+      POST /api/dispatch/catalog/lineset-configs does not exist — configs are fixed.
 ```
 
 ---
