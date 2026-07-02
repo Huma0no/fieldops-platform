@@ -161,6 +161,13 @@ router.patch('/catalog/:table/:id', requireRole('owner', 'dispatcher'), async (r
     return res.status(400).json({ error: `Unknown or non-editable column(s): ${invalid.join(', ')}` });
   }
 
+  // Validate catalog_items category value before hitting the DB CHECK constraint
+  if (table === 'catalog_items' && 'category' in updates) {
+    if (!VALID_CATEGORIES.has(updates.category)) {
+      return res.status(400).json({ error: `category must be one of: ${[...VALID_CATEGORIES].join(', ')}` });
+    }
+  }
+
   try {
     const setClauses = columns.map((col, i) => `${col} = $${i + 1}`).join(', ');
     const values = [...columns.map(c => updates[c]), id];
@@ -175,7 +182,17 @@ router.patch('/catalog/:table/:id', requireRole('owner', 'dispatcher'), async (r
     }
 
     res.json(result.rows[0]);
-  } catch (err) { next(err) }
+  } catch (err) {
+    // CHECK constraint violation (e.g., category/tech_supplied cross-constraint)
+    if (err.code === '23514') {
+      return res.status(400).json({ error: `Update violates a catalog constraint: ${err.constraint}` });
+    }
+    // NOT NULL violation (e.g., required field set to null)
+    if (err.code === '23502') {
+      return res.status(400).json({ error: `Field '${err.column}' cannot be null` });
+    }
+    next(err);
+  }
 });
 
 module.exports = router;
