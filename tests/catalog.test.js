@@ -156,6 +156,150 @@ describe('GET /api/catalog/services', () => {
   });
 });
 
+// ── POST /api/dispatch/catalog/equipment ─────────────────────────────────────
+
+describe('POST /api/dispatch/catalog/equipment', () => {
+  it('creates a new equipment row and returns 201 (dispatcher)', async () => {
+    const { token } = await seedDispatcherWithToken();
+    const model = `MDL-${crypto.randomBytes(4).toString('hex')}`;
+
+    const res = await request(app)
+      .post('/api/dispatch/catalog/equipment')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ model, unit_type: 'condenser', brand: 'Carrier', refrigerant: 'R-410A', pesp: 11.5 });
+
+    expect(res.status).toBe(201);
+    expect(res.body.model).toBe(model);
+    expect(res.body.unit_type).toBe('condenser');
+    expect(res.body.brand).toBe('Carrier');
+    expect(res.body.pesp).toBe(11.5);
+  });
+
+  it('returns 409 if model already exists', async () => {
+    const { token } = await seedDispatcherWithToken();
+    const model = await seedEquipmentRow();
+
+    const res = await request(app)
+      .post('/api/dispatch/catalog/equipment')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ model, unit_type: 'condenser', brand: 'Brand' });
+
+    expect(res.status).toBe(409);
+  });
+
+  it('returns 400 if model is missing', async () => {
+    const { token } = await seedDispatcherWithToken();
+
+    const res = await request(app)
+      .post('/api/dispatch/catalog/equipment')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ unit_type: 'condenser', brand: 'Brand' });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/model/i);
+  });
+
+  it('returns 400 if unit_type is missing', async () => {
+    const { token } = await seedDispatcherWithToken();
+
+    const res = await request(app)
+      .post('/api/dispatch/catalog/equipment')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ model: 'X-001', brand: 'Brand' });
+
+    expect(res.status).toBe(400);
+  });
+
+  it('returns 400 if brand is missing', async () => {
+    const { token } = await seedDispatcherWithToken();
+
+    const res = await request(app)
+      .post('/api/dispatch/catalog/equipment')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ model: 'X-001', unit_type: 'condenser' });
+
+    expect(res.status).toBe(400);
+  });
+
+  it('returns 403 for technician role', async () => {
+    const { token } = await seedTechnicianWithToken();
+
+    const res = await request(app)
+      .post('/api/dispatch/catalog/equipment')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ model: 'X-001', unit_type: 'condenser', brand: 'Brand' });
+
+    expect(res.status).toBe(403);
+  });
+});
+
+// ── POST /api/dispatch/catalog/items ─────────────────────────────────────────
+
+describe('POST /api/dispatch/catalog/items', () => {
+  it('creates a new catalog item and returns 201 (dispatcher)', async () => {
+    const { token } = await seedDispatcherWithToken();
+    const itemName = `ITEM-${crypto.randomBytes(4).toString('hex')}`;
+
+    const res = await request(app)
+      .post('/api/dispatch/catalog/items')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ item_name: itemName, category: 'accessory', tech_supplied: false, default_price: 55 });
+
+    expect(res.status).toBe(201);
+    expect(res.body.item_name).toBe(itemName);
+    expect(res.body.category).toBe('accessory');
+    expect(res.body.default_price).toBe(55);
+    expect(res.body.tech_supplied).toBe(false);
+  });
+
+  it('returns 409 if item_name already exists', async () => {
+    const { token } = await seedDispatcherWithToken();
+    const itemName = await seedItemRow();
+
+    const res = await request(app)
+      .post('/api/dispatch/catalog/items')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ item_name: itemName, category: 'accessory', tech_supplied: false });
+
+    expect(res.status).toBe(409);
+  });
+
+  it('returns 400 if item_name is missing', async () => {
+    const { token } = await seedDispatcherWithToken();
+
+    const res = await request(app)
+      .post('/api/dispatch/catalog/items')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ category: 'accessory', tech_supplied: false });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/item_name/i);
+  });
+
+  it('returns 400 if category is invalid', async () => {
+    const { token } = await seedDispatcherWithToken();
+
+    const res = await request(app)
+      .post('/api/dispatch/catalog/items')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ item_name: 'Some Item', category: 'bad-cat', tech_supplied: false });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/category/i);
+  });
+
+  it('returns 403 for technician role', async () => {
+    const { token } = await seedTechnicianWithToken();
+
+    const res = await request(app)
+      .post('/api/dispatch/catalog/items')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ item_name: 'X', category: 'accessory', tech_supplied: false });
+
+    expect(res.status).toBe(403);
+  });
+});
+
 // ── PATCH /api/dispatch/catalog/:table/:id ────────────────────────────────────
 
 describe('PATCH /api/dispatch/catalog/:table/:id', () => {
@@ -232,7 +376,7 @@ describe('PATCH /api/dispatch/catalog/:table/:id', () => {
     const res = await request(app)
       .patch(`/api/dispatch/catalog/catalog_equipment/${encodeURIComponent(model)}`)
       .set('Authorization', `Bearer ${token}`)
-      .send({ unit_type: 'hacked' });
+      .send({ model: 'hacked' });
 
     expect(res.status).toBe(400);
     expect(res.body.error).toMatch(/column/i);
