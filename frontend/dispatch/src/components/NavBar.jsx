@@ -5,7 +5,7 @@
  */
 
 const TABS = [
-  { id: 'intake',      label: 'PDF Intake',   icon: '📄' },
+  { id: 'intake',      label: 'Call Intake',  icon: '📄' },
   { id: 'lobby',       label: 'Lobby',        icon: '🕐' },
   { id: 'history',     label: 'History',      icon: '📋' },
   { id: 'inventory',   label: 'Inventory',    icon: '📦' },

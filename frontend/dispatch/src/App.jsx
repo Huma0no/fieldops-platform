@@ -7,7 +7,7 @@ import { useState } from 'react'
 import { AuthProvider, useAuth } from './lib/auth.jsx'
 import NavBar            from './components/NavBar.jsx'
 import Auth              from './screens/Auth.jsx'
-import PdfIntake         from './screens/PdfIntake.jsx'
+import CallIntake        from './screens/CallIntake.jsx'
 import History           from './screens/History.jsx'
 import Inventory         from './screens/Inventory.jsx'
 import Restock           from './screens/Restock.jsx'
@@ -16,22 +16,15 @@ import Corrections       from './screens/Corrections.jsx'
 import Chat              from './screens/Chat.jsx'
 import CatalogEditor     from './screens/CatalogEditor.jsx'
 import TechnicianManager from './screens/TechnicianManager.jsx'
-
-function LobbyPlaceholder () {
-  return (
-    <div style={{ flex:1, display:'flex', alignItems:'center', justifyContent:'center', color:'var(--text-muted)', fontSize:'14px' }}>
-      Lobby — coming in Phase F2 Dispatch
-    </div>
-  )
-}
+import Lobby             from './screens/Lobby.jsx'
 
 const spinStyle = document.createElement('style')
 spinStyle.textContent = `@keyframes spin { to { transform: rotate(360deg); } }`
 document.head.appendChild(spinStyle)
 
 const SCREENS = {
-  intake:      PdfIntake,
-  lobby:       LobbyPlaceholder,
+  intake:      CallIntake,
+  lobby:       Lobby,
   history:     History,
   inventory:   Inventory,
   restock:     Restock,
@@ -48,7 +41,7 @@ function AppRoutes () {
 
   if (!session) return <Auth />
 
-  const Screen = SCREENS[active] ?? PdfIntake
+  const Screen = SCREENS[active] ?? CallIntake
 
   return (
     <div style={{ display:'flex', flexDirection:'column', height:'100dvh', background:'var(--surface-base)', fontFamily:'var(--font-sans)', color:'var(--text-primary)' }}>
