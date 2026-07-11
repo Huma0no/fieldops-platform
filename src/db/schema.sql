@@ -138,7 +138,7 @@ CREATE TABLE technicians (
   name       text NOT NULL,
   role       text NOT NULL CHECK (role IN ('owner', 'dispatcher', 'technician')),
   is_active  boolean NOT NULL DEFAULT true,
-  created_at text NOT NULL
+  created_at text NOT NULL DEFAULT now()::text
 );
 
 -- 10. technician_settings
@@ -188,7 +188,8 @@ CREATE TABLE visits (
   total_price          real,
   notes                text,
   created_at           text NOT NULL,
-  completed_at         text
+  completed_at         text,
+  is_priority          boolean NOT NULL DEFAULT false
 );
 
 -- 13. visit_systems
@@ -198,6 +199,7 @@ CREATE TABLE visit_systems (
   system_number  integer NOT NULL,
   indoor_model   text,
   outdoor_model  text,
+  coil_model     text,
   refrigerant    text
 );
 
