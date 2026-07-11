@@ -215,36 +215,147 @@ router.post('/batch/:batchId/release-to-lobby', requireRole('owner', 'dispatcher
 // POST /api/dispatch/visits/create-manual
 router.post('/visits/create-manual', requireRole('owner', 'dispatcher'), async (req, res, next) => {
   try {
-    const { orderNumber, address, city, state, zip, subdivision, builder, scheduledTime, workType, systemCount, notes } = req.body;
+    const {
+      batchId: existingBatchId,
+      orderNumber, address, city, state, zip, subdivision, builder,
+      scheduledTime, workType, notes, systems, isPriority,
+    } = req.body;
 
     const { address: foundAddress, nearMatch } = await findOrCreateAddress(pool, {
-      street: address,
-      city,
-      state,
-      zip,
-      subdivision,
-      builder,
+      street: address, city, state, zip, subdivision, builder,
     });
 
     if (nearMatch) {
+      // Create the batch now if this is the first call, so batchId is in the response
+      let batchId = existingBatchId || null;
+      if (!batchId) {
+        const batchResult = await pool.query(
+          `INSERT INTO pdf_batches (id, total_calls, skipped_count, status, created_at)
+           VALUES (gen_random_uuid()::text, 0, 0, 'in_review', $1) RETURNING id`,
+          [new Date().toISOString()]
+        );
+        batchId = batchResult.rows[0].id;
+      }
       return res.json({
         comparisonRequired: true,
+        batchId,
         incomingData: req.body,
         existingAddress: nearMatch,
       });
     }
 
+    let batchId = existingBatchId || null;
+    if (!batchId) {
+      const batchResult = await pool.query(
+        `INSERT INTO pdf_batches (id, total_calls, skipped_count, status, created_at)
+         VALUES (gen_random_uuid()::text, 0, 0, 'in_review', $1) RETURNING id`,
+        [new Date().toISOString()]
+      );
+      batchId = batchResult.rows[0].id;
+    }
+
     const { visitId } = await createVisitWithSystems(pool, {
       addressId: foundAddress.id,
-      batchId: null,
+      batchId,
       orderNumber,
       scheduledTime,
       workType,
-      systemCount,
       notes,
+      systems,
+      isPriority,
     });
 
+    await pool.query('UPDATE pdf_batches SET total_calls = total_calls + 1 WHERE id = $1', [batchId]);
+
+    res.json({ visitId, batchId });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// DELETE /api/dispatch/batch/:batchId/visits/:visitId
+router.delete('/batch/:batchId/visits/:visitId', requireRole('owner', 'dispatcher'), async (req, res, next) => {
+  try {
+    const { batchId, visitId } = req.params;
+    const result = await pool.query(
+      `UPDATE visits SET status = 'cancelled'
+       WHERE id = $1 AND batch_id = $2 AND status = 'pending_review'
+       RETURNING id`,
+      [visitId, batchId]
+    );
+    if (result.rowCount === 0) {
+      return res.status(404).json({ error: 'Call not found or already processed' });
+    }
+    await pool.query('UPDATE pdf_batches SET skipped_count = skipped_count + 1 WHERE id = $1', [batchId]);
     res.json({ visitId });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// DELETE /api/dispatch/batch/:batchId
+router.delete('/batch/:batchId', requireRole('owner', 'dispatcher'), async (req, res, next) => {
+  try {
+    const { batchId } = req.params;
+    await pool.query(
+      `UPDATE visits SET status = 'cancelled' WHERE batch_id = $1 AND status = 'pending_review'`,
+      [batchId]
+    );
+    await pool.query(
+      `UPDATE pdf_batches SET status = 'released' WHERE id = $1 AND status = 'in_review'`,
+      [batchId]
+    );
+    res.json({ batchId });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// GET /api/dispatch/lobby
+router.get('/lobby', requireRole('owner', 'dispatcher'), async (req, res, next) => {
+  try {
+    const result = await pool.query(`
+      SELECT
+        v.id,
+        v.work_type,
+        v.is_priority,
+        v.has_multiple_systems,
+        a.street,
+        a.subdivision,
+        a.builder,
+        BOOL_OR(ce.is_a2l) AS has_a2l
+      FROM visits v
+      JOIN addresses a ON a.id = v.address_id
+      LEFT JOIN visit_systems vs ON vs.visit_id = v.id
+      LEFT JOIN catalog_equipment ce ON ce.model IN (vs.indoor_model, vs.outdoor_model)
+      WHERE v.status = 'in_lobby'
+      GROUP BY v.id, v.work_type, v.is_priority, v.has_multiple_systems,
+               a.street, a.subdivision, a.builder
+      ORDER BY a.subdivision NULLS LAST, a.street
+    `);
+
+    res.json(result.rows.map(r => ({
+      id: r.id,
+      workType: r.work_type,
+      isPriority: r.is_priority,
+      hasMultipleSystems: r.has_multiple_systems,
+      address: { street: r.street, subdivision: r.subdivision, builder: r.builder },
+      tags: [
+        r.is_priority && 'priority',
+        r.has_multiple_systems && 'multiSystem',
+        r.has_a2l && 'a2l',
+      ].filter(Boolean),
+    })));
+  } catch (err) {
+    next(err);
+  }
+});
+
+// GET /api/dispatch/visits/unassigned/count
+router.get('/visits/unassigned/count', requireRole('owner', 'dispatcher'), async (req, res, next) => {
+  try {
+    const result = await pool.query("SELECT COUNT(*) FROM visits WHERE status = 'in_lobby'");
+    res.json({ count: parseInt(result.rows[0].count, 10) });
   } catch (err) {
     next(err);
   }

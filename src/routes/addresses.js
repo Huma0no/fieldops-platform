@@ -8,6 +8,31 @@ const router = express.Router();
 
 const VALID_ACTIONS = ['create_new', 'merge_keep_new', 'merge_keep_existing'];
 
+// GET /api/addresses/search?q=
+router.get('/search', async (req, res, next) => {
+  try {
+    const q = (req.query.q || '').trim().toUpperCase();
+    if (q.length < 3) return res.json([]);
+    const result = await pool.query(
+      `SELECT id, street, city, subdivision, builder
+       FROM addresses
+       WHERE UPPER(street) LIKE $1
+       ORDER BY street
+       LIMIT 8`,
+      [q + '%']
+    );
+    res.json(result.rows.map(r => ({
+      id: r.id,
+      street: r.street,
+      city: r.city,
+      subdivision: r.subdivision,
+      builder: r.builder,
+    })));
+  } catch (err) {
+    next(err);
+  }
+});
+
 // POST /api/addresses/:id/resolve-comparison
 router.post('/:id/resolve-comparison', requireRole('owner', 'dispatcher'), async (req, res, next) => {
   try {
@@ -59,17 +84,25 @@ router.post('/:id/resolve-comparison', requireRole('owner', 'dispatcher'), async
       addressId = existingId;
     }
 
+    const batchId = pendingVisitData.batchId || null;
+
     const { visitId } = await createVisitWithSystems(pool, {
       addressId,
-      batchId: pendingVisitData.batchId || null,
+      batchId,
       orderNumber: pendingVisitData.orderNumber || null,
       scheduledTime: pendingVisitData.scheduledTime || null,
       workType: pendingVisitData.workType || null,
       systemCount: pendingVisitData.systemCount || 1,
       notes: pendingVisitData.notes || null,
+      systems: pendingVisitData.systems || null,
+      isPriority: pendingVisitData.isPriority || false,
     });
 
-    res.json({ visitId, addressId });
+    if (batchId) {
+      await pool.query('UPDATE pdf_batches SET total_calls = total_calls + 1 WHERE id = $1', [batchId]);
+    }
+
+    res.json({ visitId, addressId, batchId });
   } catch (err) {
     next(err);
   }

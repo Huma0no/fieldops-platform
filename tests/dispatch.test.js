@@ -284,7 +284,7 @@ describe('POST /api/dispatch/batch/:batchId/release-to-lobby', () => {
 
 // ── POST /api/dispatch/visits/create-manual ──────────────────────────────────
 describe('POST /api/dispatch/visits/create-manual', () => {
-  it('creates a standalone visit with batch_id = null', async () => {
+  it('creates a visit and a batch, returns visitId + batchId', async () => {
     const { token } = await seedDispatcherWithToken();
 
     const res = await request(app)
@@ -302,10 +302,15 @@ describe('POST /api/dispatch/visits/create-manual', () => {
 
     expect(res.status).toBe(200);
     expect(res.body.visitId).toBeDefined();
+    expect(res.body.batchId).toBeDefined();
 
     const visit = await pool.query('SELECT * FROM visits WHERE id = $1', [res.body.visitId]);
     expect(visit.rows[0].status).toBe('pending_review');
-    expect(visit.rows[0].batch_id).toBeNull();
+    expect(visit.rows[0].batch_id).toBe(res.body.batchId);
+
+    const batch = await pool.query('SELECT * FROM pdf_batches WHERE id = $1', [res.body.batchId]);
+    expect(batch.rows[0].status).toBe('in_review');
+    expect(batch.rows[0].total_calls).toBe(1);
   });
 
   it('returns comparisonRequired when near-match address exists', async () => {
