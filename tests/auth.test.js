@@ -52,7 +52,7 @@ describe('POST /api/auth/generate-invite', () => {
     expect(res.body.error).toBe('Technician is inactive. Reactivate before generating an invite.');
   });
 
-  it('generates a 6-char uppercase code and returns expiresAt', async () => {
+  it('generates an 8-char uppercase code and returns expiresAt', async () => {
     const dispatcher = await seedDispatcher();
     const dispToken = await seedToken(dispatcher.id);
     const tech = await seedTech();
@@ -63,7 +63,7 @@ describe('POST /api/auth/generate-invite', () => {
       .send({ technicianId: tech.id });
 
     expect(res.status).toBe(200);
-    expect(res.body.inviteCode).toMatch(/^[A-Z0-9]{6}$/);
+    expect(res.body.inviteCode).toMatch(/^[A-Z0-9]{8}$/);
     expect(res.body.expiresAt).toBeDefined();
   });
 

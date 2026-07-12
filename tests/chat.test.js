@@ -44,6 +44,9 @@ describe('GET /api/chat/direct/:technicianId', () => {
     expect(res.body[1].body).toBe('Hey Alice');
     expect(res.body[2].body).toBe('How are you?');
     expect(res.body[0]).toMatchObject({ senderId: alice.id, recipientId: bob.id });
+    expect(res.body[0].sentByMe).toBe(true);   // alice sent it, alice is the caller
+    expect(res.body[1].sentByMe).toBe(false);  // bob sent it
+    expect(res.body[2].sentByMe).toBe(true);
   });
 
   it('returns empty array when no messages exist', async () => {
@@ -209,6 +212,26 @@ describe('GET /api/chat/broadcast', () => {
     expect(res.body[0]).toHaveProperty('senderId');
     expect(res.body[0]).toHaveProperty('createdAt');
     expect(res.body[0]).not.toHaveProperty('recipientId');
+    expect(res.body[0].sentByMe).toBe(true);   // dispatcher is both sender and caller
+    expect(res.body[1].sentByMe).toBe(true);
+  });
+
+  it('sentByMe is false when a technician reads the broadcast', async () => {
+    const { dispatcher } = await seedDispatcherWithToken();
+    const { token: techToken } = await seedTechnicianWithToken();
+
+    await pool.query(
+      `INSERT INTO chat_messages (id, sender_id, recipient_id, body, type, created_at)
+       VALUES ($1, $2, null, 'All hands', 'broadcast', $3)`,
+      [require('crypto').randomUUID(), dispatcher.id, new Date().toISOString()]
+    );
+
+    const res = await request(app)
+      .get('/api/chat/broadcast')
+      .set('Authorization', `Bearer ${techToken}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body[0].sentByMe).toBe(false);
   });
 
   it('is accessible to technician role', async () => {

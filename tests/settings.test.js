@@ -1,7 +1,7 @@
 const request = require('supertest');
 const app = require('../src/index');
 const { pool, truncateTables } = require('./helpers/db');
-const { seedTechnicianWithToken, seedDispatcherWithToken, seedCatalogItem } = require('./helpers/seeds');
+const { seedTechnicianWithToken, seedDispatcherWithToken, seedTech, seedCatalogItem } = require('./helpers/seeds');
 
 beforeEach(truncateTables);
 afterAll(() => pool.end());
@@ -345,5 +345,35 @@ describe('DELETE /api/technicians/me/price-overrides/:itemName', () => {
       [other.id]
     );
     expect(row.rows).toHaveLength(1);
+  });
+});
+
+// ── GET /api/technicians/peers ────────────────────────────────────────────────
+
+describe('GET /api/technicians/peers', () => {
+  it('excludes the calling technician from results', async () => {
+    const { tech: alice, token } = await seedTechnicianWithToken({ name: 'Alice' });
+    await seedTech({ name: 'Bob' });
+
+    const res = await request(app)
+      .get('/api/technicians/peers')
+      .set('Authorization', `Bearer ${token}`);
+
+    expect(res.status).toBe(200);
+    const ids = res.body.map(t => t.id);
+    expect(ids).not.toContain(alice.id);
+  });
+
+  it('includes other active technicians', async () => {
+    const { token } = await seedTechnicianWithToken({ name: 'Alice' });
+    const bob = await seedTech({ name: 'Bob' });
+
+    const res = await request(app)
+      .get('/api/technicians/peers')
+      .set('Authorization', `Bearer ${token}`);
+
+    expect(res.status).toBe(200);
+    const ids = res.body.map(t => t.id);
+    expect(ids).toContain(bob.id);
   });
 });

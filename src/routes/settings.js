@@ -57,7 +57,8 @@ async function ensureSettings(technicianId) {
 router.get('/peers', async (req, res, next) => {
   try {
     const result = await pool.query(
-      'SELECT id, name, role FROM technicians WHERE is_active = true ORDER BY name'
+      'SELECT id, name, role FROM technicians WHERE is_active = true AND id != $1 ORDER BY name',
+      [req.technician.id]
     )
     res.json(result.rows)
   } catch (err) {

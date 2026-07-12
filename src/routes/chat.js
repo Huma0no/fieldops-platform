@@ -31,6 +31,7 @@ router.get('/direct/:technicianId', async (req, res, next) => {
       recipientId: r.recipient_id,
       body: r.body,
       createdAt: r.created_at,
+      sentByMe: r.sender_id === me,
     })));
   } catch (err) {
     next(err);
@@ -79,6 +80,7 @@ router.post('/direct/:technicianId', async (req, res, next) => {
 // GET /api/chat/broadcast
 router.get('/broadcast', async (req, res, next) => {
   try {
+    const me = req.technician.id;
     const result = await pool.query(
       `SELECT id, sender_id, body, created_at
        FROM chat_messages
@@ -91,6 +93,7 @@ router.get('/broadcast', async (req, res, next) => {
       senderId: r.sender_id,
       body: r.body,
       createdAt: r.created_at,
+      sentByMe: r.sender_id === me,
     })));
   } catch (err) {
     next(err);

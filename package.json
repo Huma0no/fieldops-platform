@@ -5,6 +5,7 @@
   "main": "src/index.js",
   "scripts": {
     "start": "node src/index.js",
+    "dev:pwa": "vite frontend/pwa --config frontend/pwa/vite.config.js",
     "test": "jest --runInBand",
     "db:schema": "psql $DATABASE_URL -f src/db/schema.sql",
     "db:migrate": "psql $DATABASE_URL -f src/db/migrations/001_invite_codes.sql",
@@ -22,6 +23,7 @@
   },
   "devDependencies": {
     "jest": "^29.0.0",
-    "supertest": "^7.0.0"
+    "supertest": "^7.0.0",
+    "vite": "^5.4.0"
   }
 }

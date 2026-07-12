@@ -49,6 +49,8 @@ POST /api/auth/generate-invite
   fails if: technician.is_active = false — must be reactivated first via
             PATCH /api/dispatch/technicians/:id/reactivate
   returns: { inviteCode, expiresAt }
+  note: inviteCode is 8 uppercase alphanumeric characters (e.g. C1VSIAUD).
+        UIs display it as XXXX-XXXX; it is stored and transmitted without the hyphen.
 ```
 
 **Pending for implementation phase (not blocking design):** token expiration policy, HTTPS enforcement, behavior on duplicate device redemption.

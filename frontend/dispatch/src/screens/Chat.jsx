@@ -6,14 +6,18 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { api } from '@shared/api.js'
+import { useAuth } from '../lib/auth.jsx'
 
 export default function Chat () {
+  const { session }                   = useAuth()
+  const me                            = session?.dispatcher?.id
   const [contacts, setContacts]       = useState([])
   const [activeId, setActiveId]       = useState(null)   // technician id or 'broadcast'
   const [messages, setMessages]       = useState([])
   const [loading, setLoading]         = useState(false)
   const [text, setText]               = useState('')
   const [sending, setSending]         = useState(false)
+  const [sendError, setSendError]     = useState('')
   const [receipts, setReceipts]       = useState(null)   // for broadcast
   const messagesEndRef                = useRef(null)
 
@@ -23,7 +27,7 @@ export default function Chat () {
   async function loadContacts () {
     try {
       const data = await api.get('/dispatch/technicians?activeOnly=true')
-      setContacts(data ?? [])
+      setContacts((data ?? []).filter(c => c.id !== me))
     } catch (err) { console.error('contacts load failed:', err) }
   }
 
@@ -31,6 +35,7 @@ export default function Chat () {
     setActiveId(id)
     setMessages([])
     setReceipts(null)
+    setSendError('')
     setLoading(true)
     try {
       if (id === 'broadcast') {
@@ -54,6 +59,7 @@ export default function Chat () {
   async function handleSend () {
     if (!text.trim() || !activeId) return
     setSending(true)
+    setSendError('')
     try {
       if (activeId === 'broadcast') {
         await api.post('/chat/broadcast', { body: text.trim() })
@@ -62,7 +68,9 @@ export default function Chat () {
       }
       setText('')
       await openThread(activeId)
-    } catch (err) { console.error('send failed:', err) }
+    } catch (err) {
+      setSendError('Failed to send. Try again.')
+    }
     finally { setSending(false) }
   }
 
@@ -124,12 +132,12 @@ export default function Chat () {
                 <div key={msg.id} style={styles.bubbleWrap}>
                   <div style={{
                     ...styles.bubble,
-                    ...(msg.sent_by_me ? styles.bubbleMine : styles.bubbleTheirs),
+                    ...(msg.sentByMe ? styles.bubbleMine : styles.bubbleTheirs),
                   }}>
                     {msg.body}
-                    <span style={styles.bubbleTime}>{formatTime(msg.created_at)}</span>
+                    <span style={styles.bubbleTime}>{formatTime(msg.createdAt)}</span>
                   </div>
-                  {activeId === 'broadcast' && msg.sent_by_me && (
+                  {activeId === 'broadcast' && msg.sentByMe && (
                     <button style={styles.receiptBtn} onClick={() => loadReceipts(msg.id)}>
                       receipts
                     </button>
@@ -145,6 +153,7 @@ export default function Chat () {
             <div ref={messagesEndRef} />
           </div>
 
+          {sendError && <p style={styles.sendError}>{sendError}</p>}
           <div style={styles.composer}>
             <textarea
               style={styles.composerInput}
@@ -194,6 +203,7 @@ const styles = {
   bubbleTime:   { display:'block', fontSize:'9px', opacity:0.6, marginTop:'3px', textAlign:'right' },
   receiptBtn:   { background:'none', border:'none', color:'var(--text-disabled)', fontSize:'11px', cursor:'pointer', padding:'0 4px', alignSelf:'flex-end' },
   receiptText:  { fontSize:'11px', color:'var(--text-muted)', alignSelf:'flex-end', paddingRight:'4px' },
+  sendError:    { fontSize:'11px', color:'var(--color-heat)', padding:'4px 16px 0', flexShrink:0 },
   composer:     { display:'flex', alignItems:'flex-end', gap:'8px', padding:'12px 16px', borderTop:'0.5px solid var(--border-subtle)', background:'var(--surface-1)', flexShrink:0 },
   composerInput:{ flex:1, background:'var(--surface-2)', border:'0.5px solid var(--border-default)', borderRadius:'12px', color:'var(--text-primary)', fontSize:'13px', fontFamily:'var(--font-sans)', padding:'8px 12px', outline:'none', resize:'none', lineHeight:1.4 },
   sendBtn:      { width:'36px', height:'36px', borderRadius:'50%', background:'var(--color-signal)', border:'none', color:'#fff', fontSize:'18px', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 },

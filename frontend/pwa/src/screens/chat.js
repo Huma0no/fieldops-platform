@@ -86,14 +86,16 @@ function renderSidebarContacts () {
   const wrap = document.getElementById('chat-contacts')
   if (!wrap) return
   wrap.innerHTML = ''
-  if (!contacts.length) {
+  const myId = JSON.parse(localStorage.getItem('technician') ?? '{}').id
+  const visible = contacts.filter(c => c.id !== myId)
+  if (!visible.length) {
     const empty = document.createElement('p')
     empty.className = 'chat-sidebar-empty'
     empty.textContent = 'No other technicians.'
     wrap.appendChild(empty)
     return
   }
-  contacts.forEach(contact => {
+  visible.forEach(contact => {
     const btn = document.createElement('button')
     btn.className = `chat-contact-row ${activeThread?.id === contact.id ? 'chat-contact-row--active' : ''}`
     btn.innerHTML = `<div class="chat-avatar">${contact.name?.charAt(0)?.toUpperCase() ?? '?'}</div><div class="chat-contact-info"><p class="chat-contact-name">${contact.name}</p><p class="chat-contact-sub">${contact.role ?? 'Technician'}</p></div>`
@@ -172,14 +174,21 @@ function buildComposer (contactId) {
 async function sendMessage (contactId, input) {
   const text = input.value.trim()
   if (!text) return
+  const optimisticId = Date.now()
+  const optimistic = { id: optimisticId, body: text, sentByMe: true, createdAt: new Date().toISOString() }
+  messages.push(optimistic)
   input.value = ''
   input.style.height = 'auto'
-  const optimistic = { id: Date.now(), body: text, sent_by_me: true, created_at: new Date().toISOString() }
-  messages.push(optimistic)
   const msgArea = document.getElementById('chat-messages')
   if (msgArea) { renderMessages(msgArea); msgArea.scrollTop = msgArea.scrollHeight }
-  try { await api.post(`/chat/direct/${contactId}`, { body: text }) }
-  catch (err) { console.error('send failed:', err) }
+  try {
+    await api.post(`/chat/direct/${contactId}`, { body: text })
+  } catch (_err) {
+    input.value = text
+    const idx = messages.findIndex(m => m.id === optimisticId)
+    if (idx !== -1) messages[idx] = { ...messages[idx], failed: true }
+    if (msgArea) { renderMessages(msgArea); msgArea.scrollTop = msgArea.scrollHeight }
+  }
 }
 
 function renderMessages (container) {
@@ -187,11 +196,13 @@ function renderMessages (container) {
   if (!messages.length) { container.innerHTML = '<p class="chat-msg-loading">No messages yet.</p>'; return }
   messages.forEach(msg => {
     const bubble = document.createElement('div')
-    bubble.className = `chat-bubble ${msg.sent_by_me ? 'chat-bubble--mine' : 'chat-bubble--theirs'}`
+    bubble.className = msg.failed
+      ? 'chat-bubble chat-bubble--failed'
+      : `chat-bubble ${msg.sentByMe ? 'chat-bubble--mine' : 'chat-bubble--theirs'}`
     bubble.textContent = msg.body
     const time = document.createElement('span')
     time.className = 'chat-bubble-time'
-    time.textContent = formatTime(msg.created_at)
+    time.textContent = msg.failed ? 'Not delivered' : formatTime(msg.createdAt)
     bubble.appendChild(time)
     container.appendChild(bubble)
   })
@@ -253,6 +264,7 @@ const screenStyles = `
   .chat-bubble { max-width:75%; padding:var(--space-2) var(--space-3); border-radius:var(--radius-lg); font-size:var(--text-base); line-height:1.4; }
   .chat-bubble--mine { background:var(--color-signal); color:#fff; align-self:flex-end; border-bottom-right-radius:4px; }
   .chat-bubble--theirs { background:var(--surface-2); color:var(--text-primary); align-self:flex-start; border-bottom-left-radius:4px; }
+  .chat-bubble--failed { background:var(--surface-2); color:var(--color-heat); opacity:0.75; align-self:flex-end; border-bottom-right-radius:4px; }
   .chat-bubble-time { display:block; font-size:9px; opacity:0.6; margin-top:3px; text-align:right; }
   .chat-composer { display:flex; align-items:flex-end; gap:var(--space-2); padding:var(--space-3) var(--space-4); padding-bottom:calc(var(--space-3) + env(safe-area-inset-bottom,0px)); border-top:0.5px solid var(--border-subtle); background:var(--surface-1); flex-shrink:0; }
   .chat-input { flex:1; background:var(--surface-2); border:0.5px solid var(--border-default); border-radius:var(--radius-lg); color:var(--text-primary); font-size:var(--text-base); font-family:var(--font-sans); padding:var(--space-2) var(--space-3); outline:none; resize:none; line-height:1.4; max-height:120px; overflow-y:auto; }

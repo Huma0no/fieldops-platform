@@ -8,7 +8,7 @@ const router = express.Router();
 function generateCode() {
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
   let code = '';
-  const bytes = crypto.randomBytes(6);
+  const bytes = crypto.randomBytes(8);
   for (const b of bytes) {
     code += chars[b % chars.length];
   }
