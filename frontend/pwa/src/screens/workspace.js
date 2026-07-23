@@ -26,9 +26,11 @@ const SECTIONS = [
   { id: 'checklist',   label: 'Checklist',  icon: '✅' },
 ]
 
-let visit         = null
-let catalogItems  = []
-let activeSection = 'service'
+let visit           = null
+let catalogItems    = []
+let linesetConfigs  = []
+let equipmentCatalog = []
+let activeSection   = 'service'
 let completedSections = new Set()
 
 export default async function mount (appEl) {
@@ -44,9 +46,11 @@ export default async function mount (appEl) {
   appEl.appendChild(loading)
 
   try {
-    ;[visit, catalogItems] = await Promise.all([
+    ;[visit, catalogItems, linesetConfigs, equipmentCatalog] = await Promise.all([
       api.get(`/visits/${visitId}`),
       getCatalog('items').then(d => d ?? []),
+      api.get('/catalog/lineset-configs').catch(() => []),
+      api.get('/catalog/equipment').catch(() => []),
     ])
     if (!visit._service) {
       visit._service = { ac: false, heat: false, prestart: false, cancel: false, driveRun: false, finish: false, temporarily: false, twoSystems: false }
@@ -306,7 +310,7 @@ function buildPriceSummary () {
   const amount = document.createElement('p')
   amount.className = 'ws-price-amount'
   amount.id = 'ws-price-amount'
-  amount.textContent = formatPrice(visit.total_price)
+  amount.textContent = formatPrice(visit.totalPrice)
   left.appendChild(lbl)
   left.appendChild(amount)
   const genBtn = document.createElement('button')
@@ -321,7 +325,7 @@ function buildPriceSummary () {
 function updatePrice (newTotal) {
   const el = document.getElementById('ws-price-amount')
   if (el) el.textContent = formatPrice(newTotal)
-  if (visit) visit.total_price = newTotal
+  if (visit) visit.totalPrice = newTotal
 }
 
 function formatPrice (val) {
@@ -402,16 +406,17 @@ async function syncService () {
   const svc = visit._service
   let serviceName = null
   if (svc.ac && svc.heat)   serviceName = 'AC & Heat'
-  else if (svc.ac)          serviceName = 'AC Startup'
-  else if (svc.heat)        serviceName = 'Heat Startup'
-  else if (svc.prestart)    serviceName = 'Prestart'
+  else if (svc.ac)          serviceName = 'AC'
+  else if (svc.heat)        serviceName = 'Heat'
+  else if (svc.prestart)    serviceName = 'Prestart System'
   else if (svc.cancel)      serviceName = 'Cancel'
   else if (svc.driveRun)    serviceName = 'Drive Run'
+  if (!serviceName) return
   try {
     const result = await api.patch(`/visits/${visit.id}/services`, {
       serviceName, isFinish: svc.finish, isTemporarily: svc.temporarily,
     })
-    if (result?.total_price !== undefined) updatePrice(result.total_price)
+    if (result?.totalPrice !== undefined) updatePrice(result.totalPrice)
   } catch (err) { console.error('Service sync failed:', err) }
 }
 
@@ -421,7 +426,7 @@ async function clearAllItems () {
   try {
     const result = await api.patch(`/visits/${visit.id}/services`, { serviceName: 'Cancel', confirmed: true })
     visit._items = []
-    if (result?.total_price !== undefined) updatePrice(result.total_price)
+    if (result?.totalPrice !== undefined) updatePrice(result.totalPrice)
     else updatePrice(0)
   } catch (err) { console.error('Clear items failed:', err) }
 }
@@ -479,8 +484,8 @@ function buildThermostatSection () {
       showQuantityModal(item, async qty => {
         try {
           const result = await api.post(`/visits/${visit.id}/items`, { itemName: item.name, category: 'thermostat', quantity: qty })
-          visit._items = [...(visit._items ?? []), result.item ?? { item_name: item.name, category: 'thermostat', quantity: qty, price: item.price }]
-          if (result.total_price !== undefined) updatePrice(result.total_price)
+          visit._items = [...(visit._items ?? []), { id: result.id, item_name: item.name, category: 'thermostat', quantity: qty, price: item.price }]
+          if (result.totalPrice !== undefined) updatePrice(result.totalPrice)
           refreshSection('thermostat')
         } catch (err) { console.error('Add thermostat failed:', err) }
       })
@@ -590,10 +595,9 @@ async function addItem (item, category, quantity, customPrice) {
     const body = { itemName: item.name, category, quantity }
     if (customPrice !== undefined) body.price = customPrice
     const result = await api.post(`/visits/${visit.id}/items`, body)
-    const newItem = result.item ?? { item_name: item.name, category, quantity, price: customPrice ?? item.price }
-    visit._items = [...(visit._items ?? []), newItem]
-    if (result.companionItems?.length) visit._items = [...visit._items, ...result.companionItems]
-    if (result.total_price !== undefined) updatePrice(result.total_price)
+    const newItem = { id: result.id, item_name: item.name, category, quantity, price: customPrice ?? item.price }
+    visit._items = [...(visit._items ?? []).filter(i => !result.removedItems?.includes(i.item_name)), newItem]
+    if (result.totalPrice !== undefined) updatePrice(result.totalPrice)
     refreshSection(category === 'accessory' ? 'accessories' : 'fixes')
   } catch (err) { console.error('Add item failed:', err) }
 }
@@ -666,30 +670,89 @@ function buildWeighInPanel (systemNum, showLabel) {
     const lbl = document.createElement('p'); lbl.className='ws-weighin-label'; lbl.textContent=`System ${systemNum}`
     panel.appendChild(lbl)
   }
-  const FIELDS = [
+
+  const NUMERIC_FIELDS = [
     ['linesetLength','Lineset length (ft)'],['adjustedOz','Adjusted oz'],['fanSpeedCfm','Fan speed CFM'],
     ['liquidLineTemp','Liquid line temp (°F)'],['suctionLineTemp','Suction line temp (°F)'],
     ['condenserSatTemp','Condenser sat temp'],['subcoolingValue','Subcooling'],
-    ['factoryLineConfig','Factory line config'],['factoryChargeUsed','Factory charge used (oz)'],
   ]
-  const keys = FIELDS.map(f => f[0])
-  FIELDS.forEach(([key, label]) => {
+  const numericKeys = NUMERIC_FIELDS.map(f => f[0])
+
+  // Detect brand from equipment catalog using the outdoor unit model for this system
+  const outdoorModel = visit.systems?.find(s => s.systemNumber === systemNum)?.outdoorModel
+  const brand = (equipmentCatalog.find(e => e.model === outdoorModel)?.brand ?? '').toLowerCase()
+
+  function getPreselect () {
+    if (brand.includes('trane')) {
+      const d = visit.scheduledTime ? new Date(visit.scheduledTime) : null
+      if (!d || isNaN(d)) return null
+      if (d < new Date('2025-05-01')) return 'TRANE-PRE-2025'
+      if (d < new Date('2026-01-01')) return 'TRANE-MID-2025'
+      return 'TRANE-2026'
+    }
+    if (brand.includes('lennox'))  return 'LENNOX-30'
+    if (brand.includes('goodman')) return 'GOODMAN'
+    if (brand.includes('daikin'))  return 'DAIKIN'
+    return null
+  }
+  const preselect = getPreselect()
+
+  async function syncWeighIn () {
+    const body = {}
+    numericKeys.forEach(k => {
+      const v = parseFloat(document.getElementById(`wi-${systemNum}-${k}`)?.value)
+      if (!isNaN(v)) body[k] = v
+    })
+    const configEl = document.getElementById(`wi-${systemNum}-config`)
+    if (configEl?.value) body.factoryLineConfig = configEl.value
+    const cfg = linesetConfigs.find(c => c.config_key === configEl?.value)
+    body.factoryChargeUsed = cfg?.revised_available
+      ? (document.getElementById(`wi-${systemNum}-charge`)?.value || 'factory')
+      : 'factory'
+    try { await api.put(`/visits/${visit.id}/weigh-in/${systemNum}`, body) }
+    catch (err) { console.error('Weigh-in sync failed:', err) }
+  }
+
+  // Numeric fields
+  NUMERIC_FIELDS.forEach(([key, label]) => {
     const row = document.createElement('div'); row.className='ws-field-row'
     const lbl = document.createElement('label'); lbl.className='ws-field-label'; lbl.textContent=label; lbl.setAttribute('for',`wi-${systemNum}-${key}`)
     const input = document.createElement('input')
     input.type='number'; input.id=`wi-${systemNum}-${key}`; input.className='ws-field-input'; input.inputMode='decimal'
-    input.addEventListener('blur', async () => {
-      const body = {}
-      keys.forEach(k => {
-        const v = parseFloat(document.getElementById(`wi-${systemNum}-${k}`)?.value)
-        if (!isNaN(v)) body[k] = v
-      })
-      try { await api.put(`/visits/${visit.id}/weigh-in/${systemNum}`, body) }
-      catch (err) { console.error('Weigh-in sync failed:', err) }
-    })
-    row.appendChild(lbl); row.appendChild(input)
-    panel.appendChild(row)
+    input.addEventListener('blur', syncWeighIn)
+    row.appendChild(lbl); row.appendChild(input); panel.appendChild(row)
   })
+
+  // Lineset config dropdown
+  const configRow = document.createElement('div'); configRow.className='ws-field-row'
+  const configLbl = document.createElement('label'); configLbl.className='ws-field-label'; configLbl.textContent='Lineset config'; configLbl.setAttribute('for',`wi-${systemNum}-config`)
+  const configSel = document.createElement('select'); configSel.id=`wi-${systemNum}-config`; configSel.className='ws-field-input'
+  const emptyOpt = document.createElement('option'); emptyOpt.value=''; emptyOpt.textContent='— select —'
+  configSel.appendChild(emptyOpt)
+  linesetConfigs.forEach(cfg => {
+    const opt = document.createElement('option'); opt.value=cfg.config_key; opt.textContent=cfg.config_key
+    if (cfg.config_key === preselect) opt.selected = true
+    configSel.appendChild(opt)
+  })
+  configRow.appendChild(configLbl); configRow.appendChild(configSel); panel.appendChild(configRow)
+
+  // Factory/revised row — only visible when selected config has revised_available=true
+  const chargeRow = document.createElement('div'); chargeRow.className='ws-field-row'
+  const chargeLbl = document.createElement('label'); chargeLbl.className='ws-field-label'; chargeLbl.textContent='Charge'; chargeLbl.setAttribute('for',`wi-${systemNum}-charge`)
+  const chargeSel = document.createElement('select'); chargeSel.id=`wi-${systemNum}-charge`; chargeSel.className='ws-field-input'
+  ;[['factory','Factory'],['revised','Revised']].forEach(([val, txt]) => {
+    const opt = document.createElement('option'); opt.value=val; opt.textContent=txt; chargeSel.appendChild(opt)
+  })
+  chargeSel.addEventListener('change', syncWeighIn)
+  chargeRow.appendChild(chargeLbl); chargeRow.appendChild(chargeSel); panel.appendChild(chargeRow)
+
+  function updateChargeVisibility (configKey) {
+    const cfg = linesetConfigs.find(c => c.config_key === configKey)
+    chargeRow.style.display = cfg?.revised_available ? '' : 'none'
+  }
+  updateChargeVisibility(preselect ?? '')
+  configSel.addEventListener('change', () => { updateChargeVisibility(configSel.value); syncWeighIn() })
+
   return panel
 }
 
@@ -736,8 +799,9 @@ async function capturePhoto (tag, btn) {
     const file = input.files[0]; if (!file) return
     btn.classList.add('ws-item-btn--active')
     const compressed = await compressImage(file)
+    const category = tag === 'SCALE' ? 'weigh_in_scale' : tag === 'FAN' ? 'fan_speed' : 'site_evidence'
     const form = new FormData()
-    form.append('photo', compressed, file.name); form.append('tag', tag)
+    form.append('photo', compressed, file.name); form.append('tag', tag); form.append('category', category)
     try {
       await api.upload(`/visits/${visit.id}/photos`, form)
       visit._photoCount = (visit._photoCount ?? 0) + 1
@@ -777,7 +841,7 @@ function openGenerateModal () {
   const summary = document.createElement('div'); summary.className='ws-modal-summary'
   const items = visit._items ?? []
   ;[['Service', getSectionSummary('service')], ['Items', items.length ? `${items.length} item${items.length!==1?'s':''}` : 'None'],
-    ['Total', formatPrice(visit.total_price)], ['Photos', String(visit._photoCount ?? 0)]
+    ['Total', formatPrice(visit.totalPrice)], ['Photos', String(visit._photoCount ?? 0)]
   ].forEach(([label, value]) => {
     const row = document.createElement('div'); row.className='ws-modal-row'
     row.innerHTML=`<span class="ws-modal-row-label">${label}</span><span class="ws-modal-row-value">${value}</span>`
@@ -825,7 +889,7 @@ function showOfflineModal () {
 }
 
 function downloadLocalReport () {
-  const payload = { visitId: visit.id, address: visit.address, service: visit._service, items: visit._items??[], total: visit.total_price, notes: visit.notes, generatedAt: new Date().toISOString(), offline: true }
+  const payload = { visitId: visit.id, address: visit.address, service: visit._service, items: visit._items??[], total: visit.totalPrice, notes: visit.notes, generatedAt: new Date().toISOString(), offline: true }
   const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' })
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a'); a.href=url; a.download=`report-${visit.id}-offline.json`; a.click()
