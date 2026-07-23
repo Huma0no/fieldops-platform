@@ -41,7 +41,7 @@ router.get('/', requireRole('owner', 'dispatcher'), async (req, res, next) => {
     const includeInactive = req.query.includeInactive === 'true';
     const query = includeInactive
       ? 'SELECT id, name, role, is_active, created_at FROM technicians ORDER BY created_at'
-      : 'SELECT id, name, role, is_active, created_at FROM technicians WHERE is_active = true ORDER BY created_at';
+      : "SELECT id, name, role, is_active, created_at FROM technicians WHERE is_active = true AND role = 'technician' ORDER BY created_at";
 
     const result = await pool.query(query);
     res.json(

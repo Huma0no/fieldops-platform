@@ -90,7 +90,8 @@ router.post('/batch/:batchId/call/:index/confirm', requireRole('owner', 'dispatc
       return res.status(404).json({ error: 'Batch not found or not in review' });
     }
 
-    const { orderNumber, address, city, state, zip, subdivision, builder, scheduledTime, workType, systemCount, notes } = req.body;
+    const { orderNumber, address, city, state, zip, subdivision, builder, scheduledTime, workType, systemCount, notes,
+            preSpecifiedThermostat, preSpecifiedThermostatQty, preIdentifiedAccessories } = req.body;
 
     const { address: foundAddress, nearMatch } = await findOrCreateAddress(pool, {
       street: address,
@@ -117,6 +118,9 @@ router.post('/batch/:batchId/call/:index/confirm', requireRole('owner', 'dispatc
       workType,
       systemCount,
       notes,
+      thermostat: preSpecifiedThermostat || null,
+      thermostatQty: parseInt(preSpecifiedThermostatQty, 10) || 1,
+      accessories: Array.isArray(preIdentifiedAccessories) ? preIdentifiedAccessories : [],
     });
 
     res.json({ created: true, visitId });
@@ -219,7 +223,11 @@ router.post('/visits/create-manual', requireRole('owner', 'dispatcher'), async (
       batchId: existingBatchId,
       orderNumber, address, city, state, zip, subdivision, builder,
       scheduledTime, workType, notes, systems, isPriority,
+      thermostat, thermostatQty: thermostatQtyRaw, accessories: accessoriesRaw,
     } = req.body;
+    const accessories = typeof accessoriesRaw === 'string'
+      ? accessoriesRaw.split(',').map(s => s.trim()).filter(Boolean)
+      : [];
 
     const { address: foundAddress, nearMatch } = await findOrCreateAddress(pool, {
       street: address, city, state, zip, subdivision, builder,
@@ -263,6 +271,9 @@ router.post('/visits/create-manual', requireRole('owner', 'dispatcher'), async (
       notes,
       systems,
       isPriority,
+      thermostat: thermostat || null,
+      thermostatQty: parseInt(thermostatQtyRaw, 10) || 1,
+      accessories,
     });
 
     await pool.query('UPDATE pdf_batches SET total_calls = total_calls + 1 WHERE id = $1', [batchId]);

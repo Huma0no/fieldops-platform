@@ -189,6 +189,41 @@ describe('POST /api/dispatch/batch/:batchId/call/:index/confirm', () => {
     expect(res.body.existingAddress.street).toBe('123 MAPLE STREET');
     expect(res.body.incomingData).toBeDefined();
   });
+
+  it('persists thermostat and accessories as visit_items', async () => {
+    const { token } = await seedDispatcherWithToken();
+    await pool.query(
+      `INSERT INTO catalog_items (item_name, category, default_price, tech_supplied)
+       VALUES ('Ecobee Smart', 'thermostat', 120, true), ('Float Switch', 'accessory', 25, true)
+       ON CONFLICT (item_name) DO NOTHING`
+    );
+    const { batchId } = await parsePdf(token);
+
+    const res = await request(app)
+      .post(`/api/dispatch/batch/${batchId}/call/1/confirm`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({
+        orderNumber: 'ORD-001',
+        address: '50 INTAKE ST',
+        city: 'Houston',
+        state: 'TX',
+        zip: '77001',
+        workType: 'AC',
+        systemCount: 1,
+        preSpecifiedThermostat: 'Ecobee Smart',
+        preSpecifiedThermostatQty: 2,
+        preIdentifiedAccessories: ['Float Switch'],
+      });
+
+    expect(res.status).toBe(200);
+    const items = await pool.query(
+      `SELECT category, item_name, quantity FROM visit_items WHERE visit_id = $1 ORDER BY category`,
+      [res.body.visitId]
+    );
+    expect(items.rows).toHaveLength(2);
+    expect(items.rows.find(r => r.category === 'thermostat')).toMatchObject({ item_name: 'Ecobee Smart', quantity: 2 });
+    expect(items.rows.find(r => r.category === 'accessory')).toMatchObject({ item_name: 'Float Switch', quantity: 1 });
+  });
 });
 
 // ── POST /api/dispatch/batch/:batchId/call/:index/skip ──────────────────────
@@ -333,5 +368,77 @@ describe('POST /api/dispatch/visits/create-manual', () => {
     expect(res.status).toBe(200);
     expect(res.body.comparisonRequired).toBe(true);
     expect(res.body.existingAddress.street).toBe('500 MANUAL ROAD');
+  });
+
+  it('persists thermostat and accessories as visit_items', async () => {
+    const { token } = await seedDispatcherWithToken();
+    await pool.query(
+      `INSERT INTO catalog_items (item_name, category, default_price, tech_supplied)
+       VALUES ('Honeywell T6', 'thermostat', 90, true), ('UV Light', 'accessory', 60, true)
+       ON CONFLICT (item_name) DO NOTHING`
+    );
+
+    const res = await request(app)
+      .post('/api/dispatch/visits/create-manual')
+      .set('Authorization', `Bearer ${token}`)
+      .send({
+        orderNumber: 'MANUAL-2',
+        address: '600 ITEMS RD',
+        city: 'Houston',
+        state: 'TX',
+        zip: '77006',
+        workType: 'AC',
+        systems: [{ indoorModel: 'IN-1', outdoorModel: 'OUT-1' }, { indoorModel: 'IN-2', outdoorModel: 'OUT-2' }],
+        thermostat: 'Honeywell T6',
+        thermostatQty: 3,
+        accessories: 'UV Light',
+      });
+
+    expect(res.status).toBe(200);
+    const items = await pool.query(
+      `SELECT category, item_name, quantity FROM visit_items WHERE visit_id = $1 ORDER BY category`,
+      [res.body.visitId]
+    );
+    expect(items.rows).toHaveLength(2);
+    expect(items.rows.find(r => r.category === 'thermostat')).toMatchObject({ item_name: 'Honeywell T6', quantity: 3 });
+    // 2 systems → accessory quantity = 2
+    expect(items.rows.find(r => r.category === 'accessory')).toMatchObject({ item_name: 'UV Light', quantity: 2 });
+  });
+
+  it('creates catalog_items entries for free-text thermostat and accessories not in catalog', async () => {
+    const { token } = await seedDispatcherWithToken();
+    // No catalog pre-seeding — names are unknown free-text
+
+    const res = await request(app)
+      .post('/api/dispatch/visits/create-manual')
+      .set('Authorization', `Bearer ${token}`)
+      .send({
+        address: '700 FREETEXT RD',
+        city: 'Houston',
+        state: 'TX',
+        zip: '77007',
+        workType: 'AC',
+        systems: [{ indoorModel: 'IN-A', outdoorModel: 'OUT-A' }],
+        thermostat: 'Brand New Tstat',
+        accessories: 'Fancy Float Switch',
+      });
+
+    expect(res.status).toBe(200);
+
+    const items = await pool.query(
+      `SELECT category, item_name, quantity FROM visit_items WHERE visit_id = $1 ORDER BY category`,
+      [res.body.visitId]
+    );
+    expect(items.rows).toHaveLength(2);
+    expect(items.rows.find(r => r.category === 'thermostat')).toMatchObject({ item_name: 'Brand New Tstat', quantity: 1 });
+    expect(items.rows.find(r => r.category === 'accessory')).toMatchObject({ item_name: 'Fancy Float Switch', quantity: 1 });
+
+    const catRows = await pool.query(
+      `SELECT item_name, category, default_price, tech_supplied FROM catalog_items WHERE item_name = ANY($1)`,
+      [['Brand New Tstat', 'Fancy Float Switch']]
+    );
+    expect(catRows.rows).toHaveLength(2);
+    expect(catRows.rows.find(r => r.item_name === 'Brand New Tstat')).toMatchObject({ category: 'thermostat', default_price: 0, tech_supplied: true });
+    expect(catRows.rows.find(r => r.item_name === 'Fancy Float Switch')).toMatchObject({ category: 'accessory', default_price: 0, tech_supplied: true });
   });
 });

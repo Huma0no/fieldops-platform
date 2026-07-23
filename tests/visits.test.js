@@ -312,6 +312,39 @@ describe('PATCH /api/dispatch/visits/:id/reassign', () => {
     expect(row.rows[0].status).toBe('assigned');
   });
 
+  it('assigns status to assigned when visit was pending_review (manual direct assign)', async () => {
+    const { token: dispToken } = await seedDispatcherWithToken();
+    const { tech, token: techToken } = await seedTechnicianWithToken();
+
+    const addrRes = await pool.query(
+      `INSERT INTO addresses (id, street, city, subdivision, builder)
+       VALUES (gen_random_uuid()::text, '1 MANUAL ST', 'Houston', 'TEST SUB', 'DR HORTON') RETURNING id`
+    );
+    const now = new Date().toISOString();
+    const visitRes = await pool.query(
+      `INSERT INTO visits (id, address_id, status, has_multiple_systems, is_deferred, scheduled_time, date, created_at, updated_at)
+       VALUES (gen_random_uuid()::text, $1, 'pending_review', false, false, '2026-07-01T09:00:00Z', '2026-07-01', $2, $2)
+       RETURNING id`,
+      [addrRes.rows[0].id, now]
+    );
+    const visitId = visitRes.rows[0].id;
+
+    const res = await request(app)
+      .patch(`/api/dispatch/visits/${visitId}/reassign`)
+      .set('Authorization', `Bearer ${dispToken}`)
+      .send({ technicianId: tech.id });
+
+    expect(res.status).toBe(200);
+    expect(res.body.status).toBe('assigned');
+
+    const row = await pool.query('SELECT status FROM visits WHERE id = $1', [visitId]);
+    expect(row.rows[0].status).toBe('assigned');
+
+    const mine = await request(app).get('/api/visits/mine').set('Authorization', `Bearer ${techToken}`);
+    expect(mine.status).toBe(200);
+    expect(mine.body.some(v => v.id === visitId)).toBe(true);
+  });
+
   it('leaves status unchanged when visit is in_progress', async () => {
     const { token: dispToken } = await seedDispatcherWithToken();
     const { tech: techA, token: tokenA } = await seedTechnicianWithToken({ name: 'Tech-A' });
