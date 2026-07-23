@@ -209,7 +209,7 @@ function renderMessages (container) {
 }
 
 function onSyncUpdate (e) {
-  const { newMessages } = e.detail ?? {}
+  const { chatMessages: newMessages } = e.detail ?? {}
   if (newMessages?.length && activeThread) {
     const relevant = newMessages.filter(m =>
       activeThread.type === 'broadcast' ? m.channel === 'broadcast'
