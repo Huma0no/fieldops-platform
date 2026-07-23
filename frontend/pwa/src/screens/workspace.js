@@ -97,7 +97,14 @@ function buildHeader () {
   supra.textContent = 'Workspace'
   const addr = document.createElement('p')
   addr.className = 'ws-header-addr'
-  addr.textContent = visit.address?.street ?? '—'
+  const addrParts = [visit.address?.street, visit.address?.city].filter(Boolean)
+  addr.textContent = addrParts.length ? addrParts.join(', ') : '—'
+  if (addrParts.length) {
+    addr.classList.add('ws-header-addr--nav')
+    addr.addEventListener('click', () => {
+      window.open('https://maps.google.com/maps?q=' + encodeURIComponent(addrParts.join(', ')), '_blank')
+    })
+  }
   info.appendChild(supra)
   info.appendChild(addr)
   el.appendChild(back)
@@ -1049,6 +1056,7 @@ function injectStyles () {
   .ws-header-info{flex:1;min-width:0;}
   .ws-header-supra{font-size:var(--text-xs);color:var(--text-disabled);text-transform:uppercase;letter-spacing:.05em;}
   .ws-header-addr{font-size:var(--text-base);font-weight:500;color:var(--text-primary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .ws-header-addr--nav{cursor:pointer;text-decoration:underline;text-decoration-style:dotted;text-underline-offset:2px;-webkit-tap-highlight-color:transparent;}
   .ws-progress-wrap{background:var(--surface-1);padding:8px 16px 10px;border-bottom:0.5px solid var(--border-subtle);flex-shrink:0;}
   .ws-progress-bar{display:flex;align-items:center;margin-bottom:6px;}
   .ws-progress-seg{flex:1;height:3px;border-radius:2px;background:var(--surface-3);transition:background var(--dur-base) var(--ease-out);}
