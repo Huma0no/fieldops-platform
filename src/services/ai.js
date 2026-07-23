@@ -11,6 +11,9 @@ async function extractCallsFromPDF(pdfBuffer) {
       scheduledTime: new Date().toISOString(),
       workType: 'AC',
       systemCount: 1,
+      preSpecifiedThermostat: null,
+      preSpecifiedThermostatQty: null,
+      preIdentifiedAccessories: [],
       notes: null,
     },
     {
@@ -24,6 +27,9 @@ async function extractCallsFromPDF(pdfBuffer) {
       scheduledTime: new Date().toISOString(),
       workType: 'Heat',
       systemCount: 2,
+      preSpecifiedThermostat: null,
+      preSpecifiedThermostatQty: null,
+      preIdentifiedAccessories: [],
       notes: null,
     },
   ];
