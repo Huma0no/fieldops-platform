@@ -22,6 +22,7 @@ visitsRouter.get('/lobby', async (req, res, next) => {
         v.order_number,
         v.scheduled_time,
         v.has_multiple_systems,
+        v.is_priority,
         v.is_deferred,
         a.street,
         a.city,
@@ -33,7 +34,7 @@ visitsRouter.get('/lobby', async (req, res, next) => {
       LEFT JOIN visit_systems vs ON vs.visit_id = v.id
       LEFT JOIN catalog_equipment ce ON ce.model IN (vs.indoor_model, vs.outdoor_model)
       WHERE v.status = 'in_lobby'
-      GROUP BY v.id, v.order_number, v.scheduled_time, v.has_multiple_systems, v.is_deferred,
+      GROUP BY v.id, v.order_number, v.scheduled_time, v.has_multiple_systems, v.is_priority, v.is_deferred,
                a.street, a.city, a.subdivision, a.builder
       ORDER BY v.scheduled_time ASC NULLS LAST
     `);
@@ -44,6 +45,7 @@ visitsRouter.get('/lobby', async (req, res, next) => {
       scheduledTime: r.scheduled_time,
       address: { street: r.street, city: r.city, subdivision: r.subdivision, builder: r.builder },
       hasMultipleSystems: r.has_multiple_systems,
+      isPriority: r.is_priority,
       isDeferred: r.is_deferred,
       tags: buildTags(r.has_multiple_systems, r.has_a2l === true),
     })));
@@ -265,7 +267,7 @@ dispatchVisitsRouter.patch('/:id/reassign', requireRole('owner', 'dispatcher'), 
     const updateResult = await pool.query(
       `UPDATE visits
        SET technician_id = $1,
-           status = CASE WHEN status = 'in_lobby' THEN 'assigned' ELSE status END,
+           status = CASE WHEN status IN ('in_lobby', 'pending_review') THEN 'assigned' ELSE status END,
            updated_at = $2
        WHERE id = $3
        RETURNING status`,

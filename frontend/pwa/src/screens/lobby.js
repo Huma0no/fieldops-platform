@@ -85,11 +85,8 @@ async function loadLobby () {
   }
 }
 
-function onSyncUpdate (e) {
-  const { lobbyVisits } = e.detail ?? {}
-  if (!lobbyVisits) return
-  visits = lobbyVisits
-  renderList()
+function onSyncUpdate () {
+  loadLobby()
 }
 
 async function claimVisit (visitId) {
@@ -139,7 +136,7 @@ function renderList () {
   }
 
   const sorted = [...available].sort(
-    (a, b) => new Date(a.scheduled_time) - new Date(b.scheduled_time)
+    (a, b) => new Date(a.scheduledTime) - new Date(b.scheduledTime)
   )
 
   sorted.forEach(visit => {
@@ -169,14 +166,14 @@ function buildLobbyCard (visit) {
 
   const sub = document.createElement('p')
   sub.className   = 'lc-sub'
-  sub.textContent = [visit.subdivision, visit.builder].filter(Boolean).join(' · ') || '—'
+  sub.textContent = [visit.address?.subdivision, visit.address?.builder].filter(Boolean).join(' · ') || '—'
 
   addrWrap.appendChild(addr)
   addrWrap.appendChild(sub)
 
   const time = document.createElement('span')
   time.className   = 'lc-time'
-  time.textContent = formatTime(visit.scheduled_time)
+  time.textContent = formatTime(visit.scheduledTime)
 
   topRow.appendChild(addrWrap)
   topRow.appendChild(time)
@@ -185,7 +182,7 @@ function buildLobbyCard (visit) {
   // Work type
   const workType = document.createElement('p')
   workType.className   = 'lc-worktype'
-  workType.textContent = formatWorkType(visit.work_type)
+  workType.textContent = formatWorkType(visit.workType)
   card.appendChild(workType)
 
   // Tags row
@@ -276,9 +273,9 @@ function buildSkeleton () {
 
 function buildTags (visit) {
   const tags = []
-  if (visit.is_urgent)            tags.push(Tag('Urgent', 'heat'))
-  if (visit.is_a2l)               tags.push(Tag('A2L', 'signal'))
-  if (visit.has_multiple_systems) tags.push(Tag('Multi-system', 'default'))
+  if (visit.isPriority)             tags.push(Tag('Priority', 'heat'))
+  if (visit.tags?.includes('a2l')) tags.push(Tag('A2L', 'signal'))
+  if (visit.hasMultipleSystems)     tags.push(Tag('Multi-system', 'default'))
   return tags
 }
 
