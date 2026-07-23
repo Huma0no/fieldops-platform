@@ -200,6 +200,55 @@ router.patch('/dispatch/corrections/:id/reject', requireRole('owner', 'dispatche
   }
 });
 
+// GET /api/dispatch/corrections/:id  (mount at /api)
+router.get('/dispatch/corrections/:id', requireRole('owner', 'dispatcher'), async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const result = await pool.query(
+      `SELECT c.id, c.visit_id, c.corrected_fields, c.reason, c.status,
+              c.requested_at, c.resolved_at, c.dispatcher_note,
+              a.street,
+              t.id AS tech_id, t.name AS tech_name
+       FROM corrections c
+       JOIN visits v ON v.id = c.visit_id
+       JOIN addresses a ON a.id = v.address_id
+       JOIN technicians t ON t.id = c.requested_by
+       WHERE c.id = $1`,
+      [id]
+    );
+    if (result.rows.length === 0) return res.status(404).json({ error: 'Correction not found' });
+    const r = result.rows[0];
+
+    const visitResult = await pool.query(
+      `SELECT order_number, notes, total_price, status, scheduled_time FROM visits WHERE id = $1`,
+      [r.visit_id]
+    );
+    const v = visitResult.rows[0];
+
+    res.json({
+      id: r.id,
+      visitId: r.visit_id,
+      address: { street: r.street },
+      requestedBy: { id: r.tech_id, name: r.tech_name },
+      correctedFields: JSON.parse(r.corrected_fields),
+      reason: r.reason,
+      status: r.status,
+      requestedAt: r.requested_at,
+      resolvedAt: r.resolved_at,
+      dispatcherNote: r.dispatcher_note,
+      visitSnapshot: v ? {
+        orderNumber: v.order_number,
+        notes: v.notes,
+        totalPrice: v.total_price,
+        status: v.status,
+        scheduledTime: v.scheduled_time,
+      } : null,
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
 // GET /api/dispatch/corrections  (mount at /api)
 router.get('/dispatch/corrections', requireRole('owner', 'dispatcher'), async (req, res, next) => {
   try {

@@ -72,11 +72,11 @@ export default function PayPeriods () {
             <tbody>
               {periods.map(p => (
                 <tr key={p.id} style={styles.tr}>
-                  <td style={styles.td}>{formatRange(p.week_start, p.week_end)}</td>
+                  <td style={styles.td}>{formatRange(p.weekStart, p.weekEnd)}</td>
                   <td style={styles.td}>
                     <StatusBadge status={p.status} />
                   </td>
-                  <td style={styles.td}>{formatPrice(p.total_gross)}</td>
+                  <td style={styles.td}>{formatPrice(p.totalGross)}</td>
                   <td style={styles.td}>
                     <button style={styles.openBtn} onClick={() => openPeriod(p)}>
                       Open
@@ -136,7 +136,7 @@ function PeriodDetail ({ period, onBack, onUpdated }) {
     <div style={styles.page}>
       <div style={styles.header}>
         <button style={styles.backBtn} onClick={onBack}>← Pay Periods</button>
-        <h2 style={styles.title}>{formatRange(period.week_start, period.week_end)}</h2>
+        <h2 style={styles.title}>{formatRange(period.weekStart, period.weekEnd)}</h2>
         <StatusBadge status={period.status} />
       </div>
 
@@ -177,14 +177,14 @@ function PeriodDetail ({ period, onBack, onUpdated }) {
             </thead>
             <tbody>
               {(period.lines ?? []).map(line => (
-                <tr key={line.technician_id} style={styles.tr}>
-                  <td style={styles.td}>{line.technician_name}</td>
-                  <td style={styles.td}>{formatPrice(line.gross)}</td>
+                <tr key={line.technicianId} style={styles.tr}>
+                  <td style={styles.td}>{line.technicianName}</td>
+                  <td style={styles.td}>{formatPrice(line.grossAmount)}</td>
                   <td style={styles.td}>
-                    {line.commission_rate === 0 ? '—' : `${(line.commission_rate * 100).toFixed(0)}%`}
+                    {formatPrice(line.commissionRetained)}
                   </td>
                   <td style={{ ...styles.td, fontWeight: 500, color: 'var(--text-primary)' }}>
-                    {formatPrice(line.net)}
+                    {formatPrice(line.netAmount)}
                   </td>
                 </tr>
               ))}

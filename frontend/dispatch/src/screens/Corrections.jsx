@@ -88,9 +88,9 @@ export default function Corrections () {
                 const s = STATUS_LABEL[c.status] ?? STATUS_LABEL.pending
                 return (
                   <tr key={c.id} style={styles.tr}>
-                    <td style={styles.td}>{c.technician_name ?? '—'}</td>
-                    <td style={styles.td}>{c.address ?? '—'}</td>
-                    <td style={styles.td}>{formatDate(c.created_at)}</td>
+                    <td style={styles.td}>{c.requestedBy?.name ?? '—'}</td>
+                    <td style={styles.td}>{c.address?.street ?? '—'}</td>
+                    <td style={styles.td}>{formatDate(c.requestedAt)}</td>
                     <td style={{ ...styles.td, maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                       {c.reason ?? '—'}
                     </td>
@@ -174,7 +174,7 @@ function CorrectionDetail ({ correction, onBack }) {
     <div style={styles.page}>
       <div style={styles.header}>
         <button style={styles.backBtn} onClick={onBack}>← Corrections</button>
-        <h2 style={styles.title}>{correction.address ?? 'Correction request'}</h2>
+        <h2 style={styles.title}>{correction.address?.street ?? 'Correction request'}</h2>
       </div>
 
       <div style={styles.detailBody}>
@@ -183,12 +183,12 @@ function CorrectionDetail ({ correction, onBack }) {
         <div style={styles.section}>
           <p style={styles.sectionTitle}>Request</p>
           <div style={styles.infoGrid}>
-            <InfoRow label="Technician" value={correction.technician_name} />
-            <InfoRow label="Date"       value={formatDate(correction.created_at)} />
+            <InfoRow label="Technician" value={correction.requestedBy?.name} />
+            <InfoRow label="Date"       value={formatDate(correction.requestedAt)} />
             <InfoRow label="Reason"     value={correction.reason} />
             <InfoRow
               label="Fields"
-              value={(correction.fields ?? []).map(f => FIELD_LABELS[f] ?? f).join(', ')}
+              value={(correction.correctedFields ?? []).map(f => FIELD_LABELS[f] ?? f).join(', ')}
             />
           </div>
         </div>
@@ -263,7 +263,7 @@ function CorrectionDetail ({ correction, onBack }) {
           <div style={styles.resolvedNote}>
             <p style={{ fontSize: '13px', color: 'var(--text-muted)' }}>
               This correction was <strong>{correction.status}</strong>.
-              {correction.dispatcher_note && ` Note: ${correction.dispatcher_note}`}
+              {correction.dispatcherNote && ` Note: ${correction.dispatcherNote}`}
             </p>
           </div>
         )}

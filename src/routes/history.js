@@ -37,7 +37,7 @@ router.get('/history', requireRole('owner', 'dispatcher'), async (req, res, next
 
     const result = await pool.query(
       `SELECT v.id, v.order_number, v.status, v.completed_at, v.total_price, v.technician_id,
-              a.street, a.city, a.subdivision, a.builder
+              v.address_id, a.street, a.city, a.subdivision, a.builder
        FROM visits v
        JOIN addresses a ON a.id = v.address_id
        ${where}
@@ -52,6 +52,7 @@ router.get('/history', requireRole('owner', 'dispatcher'), async (req, res, next
       completedAt: r.completed_at,
       totalPrice: r.total_price,
       technicianId: r.technician_id,
+      addressId: r.address_id,
       address: { street: r.street, city: r.city, subdivision: r.subdivision, builder: r.builder },
     })));
   } catch (err) {

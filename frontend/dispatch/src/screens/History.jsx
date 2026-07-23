@@ -12,8 +12,9 @@ export default function History () {
   const [selected, setSelected]   = useState(null)   // full visit detail
   const [editLog, setEditLog]     = useState([])
   const [filters, setFilters]     = useState({ dateFrom: '', dateTo: '', technician: '', builder: '' })
-  const [saving, setSaving]       = useState(false)
+  const [saving, setSaving]         = useState(false)
   const [editFields, setEditFields] = useState({})
+  const [propertyHistory, setPropertyHistory] = useState([])
 
   useEffect(() => { loadHistory() }, [])
 
@@ -35,14 +36,19 @@ export default function History () {
   }
 
   async function openVisit (visit) {
+    setPropertyHistory([])
     try {
-      const [detail, log] = await Promise.all([
+      const [detail, log, report, propHist] = await Promise.all([
         api.get(`/visits/${visit.id}`),
-        api.get(`/visits/${visit.id}/edit-log`),
+        api.get(`/dispatch/visits/${visit.id}/edit-log`),
+        api.get(`/visits/${visit.id}/download`),
+        visit.addressId ? api.get(`/dispatch/history/address/${visit.addressId}`) : Promise.resolve([]),
       ])
-      setSelected(detail)
-      setEditFields(flattenVisit(detail))
+      const merged = { ...detail, weighInData: report?.weighInData ?? [] }
+      setSelected(merged)
+      setEditFields(flattenVisit(merged))
       setEditLog(log ?? [])
+      setPropertyHistory((propHist ?? []).filter(v => v.id !== visit.id))
     } catch (err) {
       console.error('visit load failed:', err)
     }
@@ -51,11 +57,11 @@ export default function History () {
   function flattenVisit (v) {
     return {
       address:        v.address?.street ?? '',
-      orderNumber:    v.order_number ?? '',
-      builder:        v.builder ?? '',
-      workType:       v.work_type ?? '',
+      orderNumber:    v.orderNumber ?? '',
+      builder:        v.address?.builder ?? '',
+      workType:       v.workType ?? '',
       notes:          v.notes ?? '',
-      scheduledTime:  v.scheduled_time ?? '',
+      scheduledTime:  v.scheduledTime ?? '',
     }
   }
 
@@ -80,6 +86,7 @@ export default function History () {
         onSave={saveEdit}
         saving={saving}
         editLog={editLog}
+        propertyHistory={propertyHistory}
         onBack={() => setSelected(null)}
       />
     )
@@ -138,11 +145,11 @@ export default function History () {
               {visits.map(v => (
                 <tr key={v.id} style={styles.tr}>
                   <td style={styles.td}>{v.address?.street ?? '—'}</td>
-                  <td style={styles.td}>{formatDate(v.completed_at)}</td>
-                  <td style={styles.td}>{v.technician_name ?? '—'}</td>
-                  <td style={styles.td}>{v.work_type ?? '—'}</td>
+                  <td style={styles.td}>{formatDate(v.completedAt)}</td>
+                  <td style={styles.td}>{v.technicianId ?? '—'}</td>
+                  <td style={styles.td}>{v.workType ?? '—'}</td>
                   <td style={styles.td}>
-                    {formatPrice(v.total_price)}
+                    {formatPrice(v.totalPrice)}
                     {v.has_price_anomaly && <span style={styles.anomalyIcon} title="Price outside catalog range">⚠</span>}
                   </td>
                   <td style={styles.td}>
@@ -161,7 +168,42 @@ export default function History () {
   )
 }
 
-function VisitDetail ({ visit, editFields, onFieldChange, onSave, saving, editLog, onBack }) {
+function WeighInSection ({ data }) {
+  const [open, setOpen] = useState(false)
+  const LABELS = {
+    linesetLength: 'Lineset length', factoryChargeOz: 'Factory charge oz',
+    factoryLineConfig: 'Factory line config', adjustedOz: 'Adjusted oz',
+    fanSpeedCfm: 'Fan speed CFM', liquidLineTemp: 'Liquid line temp',
+    suctionLineTemp: 'Suction line temp', condenserSatTemp: 'Condenser sat temp',
+    subcoolingValue: 'Subcooling', oemSubcoolingGoal: 'OEM subcooling goal',
+    subcoolingDeviation: 'Subcooling deviation',
+  }
+  const entries = Object.entries(LABELS).filter(([k]) => data[k] != null)
+  if (entries.length === 0) return null
+  return (
+    <div style={{ borderBottom: '0.5px solid var(--border-subtle)' }}>
+      <button
+        onClick={() => setOpen(v => !v)}
+        style={{ width: '100%', display: 'flex', justifyContent: 'space-between', background: 'none', border: 'none', cursor: 'pointer', padding: '6px 0', fontSize: '12px', color: 'var(--text-muted)', fontFamily: 'var(--font-sans)' }}
+      >
+        <span>System {data.systemNumber}</span>
+        <span style={{ fontSize: '10px' }}>{open ? '▲' : '▼'}</span>
+      </button>
+      {open && (
+        <div style={{ paddingBottom: '8px', display: 'flex', flexDirection: 'column', gap: '3px' }}>
+          {entries.map(([k, label]) => (
+            <div key={k} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', padding: '2px 0' }}>
+              <span style={{ color: 'var(--text-muted)' }}>{label}</span>
+              <span style={{ color: 'var(--text-secondary)' }}>{data[k]}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function VisitDetail ({ visit, editFields, onFieldChange, onSave, saving, editLog, propertyHistory, onBack }) {
   const FIELDS = [
     { key: 'address',       label: 'Address' },
     { key: 'orderNumber',   label: 'Order #' },
@@ -182,6 +224,7 @@ function VisitDetail ({ visit, editFields, onFieldChange, onSave, saving, editLo
       </div>
 
       <div style={styles.detailBody}>
+        {/* Left — edit form + visit data */}
         <div style={styles.detailLeft}>
           <div style={styles.sectionTitle}>Edit visit</div>
           <div style={styles.fieldsCol}>
@@ -209,9 +252,77 @@ function VisitDetail ({ visit, editFields, onFieldChange, onSave, saving, editLo
             {saving ? 'Saving…' : 'Save changes'}
           </button>
           <p style={styles.catalogNote}>Changes to the catalog do not affect historical visits.</p>
+
+          {/* Services (B3) */}
+          {(visit.services ?? []).length > 0 && <>
+            <div style={styles.sectionTitle}>Services</div>
+            <div style={{ display: 'flex', flexDirection: 'column' }}>
+              {visit.services.map((s, i) => (
+                <div key={i} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', color: 'var(--text-secondary)', padding: '5px 0', borderBottom: '0.5px solid var(--border-subtle)' }}>
+                  <span>{s.serviceName}{s.isFinish ? ' · Finish' : ''}{s.isTemporarily ? ' · Temporarily' : ''}</span>
+                  {s.price != null && <span>${Number(s.price).toFixed(2)}</span>}
+                </div>
+              ))}
+            </div>
+          </>}
+
+          {/* Items (B3) */}
+          {(visit.items ?? []).length > 0 && <>
+            <div style={styles.sectionTitle}>Items</div>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
+              <tbody>
+                {visit.items.map((item, i) => (
+                  <tr key={i} style={{ borderBottom: '0.5px solid var(--border-subtle)' }}>
+                    <td style={{ padding: '4px 0', color: 'var(--text-secondary)' }}>{item.itemName}</td>
+                    <td style={{ padding: '4px 0', color: 'var(--text-muted)', textAlign: 'right', whiteSpace: 'nowrap' }}>
+                      {item.quantity} × ${Number(item.price ?? 0).toFixed(2)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </>}
+
+          {/* Weigh-in (B3) */}
+          {(visit.weighInData ?? []).length > 0 && <>
+            <div style={styles.sectionTitle}>Weigh-in</div>
+            {visit.weighInData.map(w => <WeighInSection key={w.systemNumber} data={w} />)}
+          </>}
+
+          {/* Photos (B3) */}
+          {(visit.photos ?? []).length > 0 && <>
+            <div style={styles.sectionTitle}>Photos</div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '5px' }}>
+              {visit.photos.map(p => (
+                <span key={p.id} style={{ fontSize: '11px', color: 'var(--text-muted)', background: 'var(--surface-3)', padding: '2px 8px', borderRadius: '99px', border: '0.5px solid var(--border-subtle)' }}>
+                  {[p.tag, p.category].filter(Boolean).join(' · ')}
+                </span>
+              ))}
+            </div>
+          </>}
         </div>
 
+        {/* Right — property history + edit log */}
         <div style={styles.detailRight}>
+          {/* Property history (B2) */}
+          {propertyHistory.length > 0 && <>
+            <div style={styles.sectionTitle}>Property history</div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '20px' }}>
+              {propertyHistory.map(v => (
+                <div key={v.id} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', color: 'var(--text-muted)', borderBottom: '0.5px solid var(--border-subtle)', paddingBottom: '6px' }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                    <span style={{ color: 'var(--text-secondary)' }}>{formatDate(v.completedAt ?? v.createdAt)}</span>
+                    <span>{v.technicianName ?? '—'}</span>
+                  </div>
+                  <div style={{ textAlign: 'right' }}>
+                    <span style={{ display: 'block', color: 'var(--text-secondary)' }}>{v.status}</span>
+                    <span>{v.totalPrice != null ? `$${Number(v.totalPrice).toFixed(2)}` : '—'}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </>}
+
           <div style={styles.sectionTitle}>Edit log</div>
           {editLog.length === 0 ? (
             <p style={styles.logEmpty}>No edits recorded.</p>
@@ -219,7 +330,7 @@ function VisitDetail ({ visit, editFields, onFieldChange, onSave, saving, editLo
             <div style={styles.logList}>
               {editLog.map((entry, i) => (
                 <div key={i} style={styles.logEntry}>
-                  <p style={styles.logMeta}>{formatDate(entry.created_at)} · {entry.source}</p>
+                  <p style={styles.logMeta}>{formatDate(entry.changedAt)} · {entry.source}</p>
                   <p style={styles.logSummary}>{entry.summary}</p>
                 </div>
               ))}

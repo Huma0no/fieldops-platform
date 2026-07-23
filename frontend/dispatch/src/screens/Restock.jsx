@@ -7,20 +7,33 @@ import { useState } from 'react'
 import { api } from '@shared/api.js'
 
 export default function Restock () {
-  const [report, setReport]     = useState([])
-  const [loading, setLoading]   = useState(false)
-  const [dateFrom, setDateFrom] = useState('')
-  const [dateTo, setDateTo]     = useState('')
-  const [marking, setMarking]   = useState(new Set())
-  const [marked, setMarked]     = useState(new Set())
+  const [report, setReport]         = useState([])
+  const [loading, setLoading]       = useState(false)
+  const [dateFrom, setDateFrom]     = useState('')
+  const [dateTo, setDateTo]         = useState('')
+  const [marking, setMarking]       = useState(new Set())
+  const [marked, setMarked]         = useState(new Set())
+  const [lowStockItems, setLowStock] = useState(new Set())
 
   async function loadReport () {
     if (!dateFrom || !dateTo) return
     setLoading(true)
     try {
-      const data = await api.get(`/dispatch/restock-report?dateFrom=${dateFrom}&dateTo=${dateTo}`)
-      setReport(data ?? [])
+      const [data, inv] = await Promise.all([
+        api.get(`/dispatch/restock-report?dateFrom=${dateFrom}&dateTo=${dateTo}`),
+        api.get('/dispatch/inventory').catch(() => []),
+      ])
+      setReport(data?.items ?? [])
       setMarked(new Set())
+
+      // Flag items where any tech has balance <= 0
+      const low = new Set()
+      for (const tech of (inv ?? [])) {
+        for (const item of (tech.items ?? [])) {
+          if (item.balance <= 0) low.add(item.itemName)
+        }
+      }
+      setLowStock(low)
     } catch (err) {
       console.error('restock report failed:', err)
     } finally {
@@ -80,16 +93,20 @@ export default function Restock () {
             </thead>
             <tbody>
               {report.map(row => {
-                const isDone    = marked.has(row.item_name)
-                const isMarking = marking.has(row.item_name)
+                const isDone    = marked.has(row.itemName)
+                const isMarking = marking.has(row.itemName)
+                const isLow     = lowStockItems.has(row.itemName)
                 return (
-                  <tr key={row.item_name} style={{ ...styles.tr, opacity: isDone ? 0.5 : 1 }}>
-                    <td style={styles.td}>{row.item_name}</td>
-                    <td style={styles.td}>{row.total_consumed}</td>
+                  <tr key={row.itemName} style={{ ...styles.tr, opacity: isDone ? 0.5 : 1 }}>
                     <td style={styles.td}>
-                      {row.by_technician?.map(t => (
-                        <span key={t.technician_id} style={styles.techChip}>
-                          {t.name}: {t.consumed}
+                      {row.itemName}
+                      {isLow && <span style={styles.lowTag}>low stock</span>}
+                    </td>
+                    <td style={styles.td}>{row.totalConsumed}</td>
+                    <td style={styles.td}>
+                      {row.byTechnician?.map(t => (
+                        <span key={t.technicianId} style={styles.techChip}>
+                          {t.technicianName}: {t.consumed}
                         </span>
                       ))}
                     </td>
@@ -99,7 +116,7 @@ export default function Restock () {
                       ) : (
                         <button
                           style={styles.restockBtn}
-                          onClick={() => handleRestock(row.item_name)}
+                          onClick={() => handleRestock(row.itemName)}
                           disabled={isMarking}
                         >
                           {isMarking ? '…' : 'Mark restocked'}
@@ -135,4 +152,5 @@ const styles = {
   techChip:  { display: 'inline-block', fontSize: '11px', color: 'var(--text-muted)', background: 'var(--surface-3)', padding: '2px 8px', borderRadius: '99px', marginRight: '4px', marginBottom: '2px' },
   doneTag:   { fontSize: '11px', color: '#22C55E', background: 'rgba(34,197,94,0.12)', padding: '3px 10px', borderRadius: '99px' },
   restockBtn:{ background: 'none', border: '0.5px solid var(--border-default)', borderRadius: '6px', color: 'var(--text-muted)', fontSize: '12px', padding: '4px 10px', cursor: 'pointer' },
+  lowTag:    { marginLeft: '6px', fontSize: '10px', color: 'var(--color-plasma)', background: 'var(--plasma-tint)', padding: '1px 6px', borderRadius: '99px', border: '0.5px solid var(--plasma-border)' },
 }
