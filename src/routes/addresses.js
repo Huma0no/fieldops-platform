@@ -86,6 +86,13 @@ router.post('/:id/resolve-comparison', requireRole('owner', 'dispatcher'), async
 
     const batchId = pendingVisitData.batchId || null;
 
+    const thermostat = pendingVisitData.thermostat || pendingVisitData.preSpecifiedThermostat || null;
+    const thermostatQty = parseInt(pendingVisitData.thermostatQty ?? pendingVisitData.preSpecifiedThermostatQty, 10) || 1;
+    const accessoriesRaw = pendingVisitData.accessories ?? pendingVisitData.preIdentifiedAccessories;
+    const accessories = Array.isArray(accessoriesRaw)
+      ? accessoriesRaw
+      : (typeof accessoriesRaw === 'string' ? accessoriesRaw.split(',').map(s => s.trim()).filter(Boolean) : []);
+
     const { visitId } = await createVisitWithSystems(pool, {
       addressId,
       batchId,
@@ -96,6 +103,9 @@ router.post('/:id/resolve-comparison', requireRole('owner', 'dispatcher'), async
       notes: pendingVisitData.notes || null,
       systems: pendingVisitData.systems || null,
       isPriority: pendingVisitData.isPriority || false,
+      thermostat,
+      thermostatQty,
+      accessories,
     });
 
     if (batchId) {

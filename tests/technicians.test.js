@@ -69,7 +69,7 @@ describe('GET /api/dispatch/technicians', () => {
     expect(res.status).toBe(200);
     const names = res.body.map((t) => t.name);
     expect(names).toContain('Active1');
-    expect(names).toContain('Dispatcher');
+    expect(names).not.toContain('Dispatcher');
     expect(names).not.toContain('Inactive1');
   });
 

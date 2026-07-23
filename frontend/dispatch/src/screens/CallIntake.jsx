@@ -26,7 +26,7 @@ function emptyDraft() {
   return {
     address: '', subdivision: '', builder: '',
     systems: [{ indoorModel: '', outdoorModel: '', coilModel: '' }],
-    thermostat: '', accessories: '', notes: '',
+    thermostat: '', thermostatQty: 1, accessories: '', notes: '',
     scheduledTime: '', orderNumber: '', contactName: '', contactPhone: '',
     workType: '', isPriority: false,
   }
@@ -140,8 +140,8 @@ function PdfFlow() {
     setCall(null)
     try {
       const data = await api.get(`/dispatch/batch/${batchId}/call/${index}`)
-      setCall(data)
-      setFields(flattenCall(data.extracted))
+      setCall(data.call)
+      setFields(flattenCall(data.call))
     } catch (err) {
       console.error('load call failed:', err)
     } finally {
@@ -175,7 +175,7 @@ function PdfFlow() {
         preIdentifiedAccessories: fields.preIdentifiedAccessories
           ? fields.preIdentifiedAccessories.split(',').map(s => s.trim()).filter(Boolean)
           : [],
-        systems: call?.extracted?.systems ?? [],
+        systems: call?.systems ?? [],
       }
       const result = await api.post(`/dispatch/batch/${batch.batchId}/call/${callIndex}/confirm`, body)
       if (result.comparisonRequired) {
@@ -184,7 +184,7 @@ function PdfFlow() {
           existing:  result.existingAddress,
           onResolve: async (action) => {
             setAddressModal(null)
-            await api.post(`/addresses/${result.addressId}/resolve-comparison`, { action, incomingData: body })
+            await api.post(`/addresses/${result.existingAddress.id}/resolve-comparison`, { action, incomingData: body, pendingVisitData: body })
             advanceCall()
           },
           onCancel: () => setAddressModal(null),
@@ -312,11 +312,11 @@ function PdfReviewStage({ batch, callIndex, call, loading, fields, onFieldChange
           <div style={s.loadingCall}>Loading call…</div>
         ) : (
           <>
-            {call?.extracted?.systems?.length > 0 && (
+            {call?.systems?.length > 0 && (
               <div style={s.systemsBox}>
-                {call.extracted.systems.map((sys, i) => (
+                {call.systems.map((sys, i) => (
                   <div key={i} style={s.sysRow}>
-                    {call.extracted.systems.length > 1 && <p style={s.sysLabel}>System {i + 1}</p>}
+                    {call.systems.length > 1 && <p style={s.sysLabel}>System {i + 1}</p>}
                     <p style={s.sysLine}>Indoor: {sys.indoorModel ?? '—'}</p>
                     <p style={s.sysLine}>Outdoor: {sys.outdoorModel ?? '—'}</p>
                   </div>
@@ -652,7 +652,10 @@ function ManualFlow() {
         <div style={m.row2}>
           <div>
             <label style={m.label}>Thermostat</label>
-            <input style={m.input} value={draft.thermostat} onChange={e => setDraftField('thermostat', e.target.value)} placeholder="Model or N/A" />
+            <div style={{ display: 'flex', gap: 6 }}>
+              <input style={{ ...m.input, flex: 1 }} value={draft.thermostat} onChange={e => setDraftField('thermostat', e.target.value)} placeholder="Model or N/A" />
+              <input style={{ ...m.input, width: 52 }} type="number" min="1" value={draft.thermostatQty} onChange={e => setDraftField('thermostatQty', parseInt(e.target.value, 10) || 1)} />
+            </div>
           </div>
           <div>
             <label style={m.label}>Accessories</label>
@@ -746,8 +749,9 @@ function buildBody(draft, batchId) {
       outdoorModel: sys.outdoorModel.trim() || undefined,
       coilModel:    sys.coilModel.trim()    || undefined,
     })),
-    thermostat:   draft.thermostat.trim()   || undefined,
-    accessories:  draft.accessories.trim()  || undefined,
+    thermostat:    draft.thermostat.trim()                   || undefined,
+    thermostatQty: parseInt(draft.thermostatQty, 10)         || 1,
+    accessories:   draft.accessories.trim()                  || undefined,
     notes:        draft.notes.trim()        || undefined,
     scheduledTime: draft.scheduledTime      || undefined,
     orderNumber:  draft.orderNumber.trim()  || undefined,
