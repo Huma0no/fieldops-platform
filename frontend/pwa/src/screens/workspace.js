@@ -22,6 +22,7 @@ const SECTIONS = [
   { id: 'accessories', label: 'Acc',        icon: '🔧' },
   { id: 'fixes',       label: 'Fixes',      icon: '🔩' },
   { id: 'weighin',     label: 'Weigh-in',   icon: '⚖️' },
+  { id: 'calc',        label: 'Calc',       icon: '🧮' },
   { id: 'notes',       label: 'Notes',      icon: '📝' },
   { id: 'checklist',   label: 'Checklist',  icon: '✅' },
 ]
@@ -250,6 +251,7 @@ function buildSectionContent (sectionId) {
     case 'accessories': return buildItemsSection('accessory')
     case 'fixes':       return buildItemsSection('fix')
     case 'weighin':     return buildWeighInSection()
+    case 'calc':        return buildCalcSection()
     case 'notes':       return buildNotesSection()
     case 'checklist':   return buildChecklistSection()
     default:            return document.createElement('div')
@@ -286,6 +288,7 @@ function getSectionSummary (sectionId) {
       return items.length ? `${items.length} fix${items.length !== 1 ? 'es' : ''}` : '—'
     }
     case 'weighin':   return visit._weighinDone ? 'Done' : '—'
+    case 'calc':      return '—'
     case 'notes':     return visit.notes ? visit.notes.slice(0, 30) + (visit.notes.length > 30 ? '…' : '') : '—'
     case 'checklist': return `${visit._photoCount ?? 0} photo${(visit._photoCount ?? 0) !== 1 ? 's' : ''}`
     default:          return '—'
@@ -756,6 +759,83 @@ function buildWeighInPanel (systemNum, showLabel) {
   return panel
 }
 
+function buildCalcSection () {
+  const wrap = document.createElement('div')
+  wrap.className = 'ws-section-content'
+  const count = visit._service?.twoSystems ? 2 : 1
+  for (let i = 1; i <= count; i++) wrap.appendChild(buildCalcPanel(i, count > 1))
+  const doneBtn = document.createElement('button')
+  doneBtn.className = 'ws-done-btn'; doneBtn.textContent = 'Done'
+  doneBtn.addEventListener('click', () => markSectionComplete('calc'))
+  wrap.appendChild(doneBtn)
+  return wrap
+}
+
+function buildCalcPanel (systemNum, showLabel) {
+  const panel = document.createElement('div')
+  panel.className = 'ws-weighin-panel'
+  if (showLabel) {
+    const lbl = document.createElement('p'); lbl.className='ws-weighin-label'; lbl.textContent=`System ${systemNum}`
+    panel.appendChild(lbl)
+  }
+
+  const outdoorModel = visit.systems?.find(s => s.systemNumber === systemNum)?.outdoorModel
+  const brand = (equipmentCatalog.find(e => e.model === outdoorModel)?.brand ?? '').toLowerCase()
+
+  function getPreselect () {
+    if (brand.includes('trane')) {
+      const d = visit.scheduledTime ? new Date(visit.scheduledTime) : null
+      if (!d || isNaN(d)) return null
+      if (d < new Date('2025-05-01')) return 'TRANE-PRE-2025'
+      if (d < new Date('2026-01-01')) return 'TRANE-MID-2025'
+      return 'TRANE-2026'
+    }
+    if (brand.includes('lennox'))  return 'LENNOX-30'
+    if (brand.includes('goodman')) return 'GOODMAN'
+    if (brand.includes('daikin'))  return 'DAIKIN'
+    return null
+  }
+  const preselect = getPreselect()
+
+  // Config dropdown
+  const configRow = document.createElement('div'); configRow.className='ws-field-row'
+  const configLbl = document.createElement('label'); configLbl.className='ws-field-label'; configLbl.textContent='Lineset config'; configLbl.setAttribute('for',`calc-${systemNum}-config`)
+  const configSel = document.createElement('select'); configSel.id=`calc-${systemNum}-config`; configSel.className='ws-field-input'
+  const emptyOpt = document.createElement('option'); emptyOpt.value=''; emptyOpt.textContent='— select —'; configSel.appendChild(emptyOpt)
+  linesetConfigs.forEach(cfg => {
+    const opt = document.createElement('option'); opt.value=cfg.config_key; opt.textContent=cfg.config_key
+    if (cfg.config_key === preselect) opt.selected = true
+    configSel.appendChild(opt)
+  })
+  configRow.appendChild(configLbl); configRow.appendChild(configSel); panel.appendChild(configRow)
+
+  // Actual lineset input
+  const ftRow = document.createElement('div'); ftRow.className='ws-field-row'
+  const ftLbl = document.createElement('label'); ftLbl.className='ws-field-label'; ftLbl.textContent='Actual lineset (ft)'; ftLbl.setAttribute('for',`calc-${systemNum}-ft`)
+  const ftInput = document.createElement('input')
+  ftInput.type='number'; ftInput.id=`calc-${systemNum}-ft`; ftInput.className='ws-field-input'; ftInput.inputMode='decimal'; ftInput.placeholder='ft'
+  ftRow.appendChild(ftLbl); ftRow.appendChild(ftInput); panel.appendChild(ftRow)
+
+  // Result display
+  const resultEl = document.createElement('p'); resultEl.className='ws-calc-result'; resultEl.textContent='—'
+  panel.appendChild(resultEl)
+
+  function updateResult () {
+    const cfg = linesetConfigs.find(c => c.config_key === configSel.value)
+    const actual = parseFloat(ftInput.value)
+    if (!cfg || isNaN(actual)) { resultEl.textContent = '—'; return }
+    const adj = Math.round((actual - cfg.reference_length_ft) * cfg.adjust_rate_oz_per_ft * 10) / 10
+    if (adj === 0)      resultEl.textContent = 'No adjustment needed'
+    else if (adj > 0)   resultEl.textContent = `Add ${adj.toFixed(1)} oz`
+    else                resultEl.textContent = `Remove ${Math.abs(adj).toFixed(1)} oz`
+  }
+
+  configSel.addEventListener('change', updateResult)
+  ftInput.addEventListener('input', updateResult)
+  updateResult()
+  return panel
+}
+
 function buildNotesSection () {
   const wrap = document.createElement('div'); wrap.className='ws-section-content'
   const textarea = document.createElement('textarea')
@@ -1040,6 +1120,7 @@ function injectStyles () {
   .ws-price-input{width:100%;background:var(--surface-2);border:0.5px solid var(--border-default);border-radius:var(--radius-md);color:var(--text-primary);font-size:var(--text-lg);padding:var(--space-3);text-align:center;outline:none;}
   .ws-price-input:focus{border-color:var(--color-signal);}
   .ws-empty-note{font-size:var(--text-sm);color:var(--text-muted);text-align:center;padding:var(--space-4) 0;}
+  .ws-calc-result{background:var(--surface-2);border:0.5px solid var(--border-subtle);border-radius:var(--radius-md);padding:var(--space-3);text-align:center;font-size:var(--text-lg);font-weight:500;color:var(--text-primary);}
   `
   document.head.appendChild(style)
 }
