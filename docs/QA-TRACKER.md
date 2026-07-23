@@ -19,7 +19,7 @@
 | Dispatch | Restock | ⬜ No iniciado | |
 | Dispatch | Pay Periods | ⬜ No iniciado | |
 | Dispatch | Corrections | ⬜ No iniciado | |
-| Dispatch | Chat | 🟡 En curso / bloqueado | D-03 (scoping), D-06 (envío falla silenciosamente), + idea Broadcast en backlog |
+| Dispatch | Chat | 🟡 Fix aplicado, falta verificación manual | D-03 y D-06 resueltos en commit `84c54c4` (tests pasan); idea Broadcast sigue en backlog |
 | Dispatch | Catalog | 🟢 Completo | Edit inline + persistencia confirmados, sin bugs |
 | Dispatch | Technicians | 🟡 En curso | Invite code testeado OK; Refresh/Revoke pendientes de testear |
 | Dispatch | Home | 🟡 En curso | D-02 (falta indicador de usuario logueado), D-04 (alerta de refrigerante — backlog) |
@@ -49,10 +49,11 @@ Leyenda: ⬜ no iniciado · 🟡 en curso / bloqueado · 🟢 completo
 |---|---|---|---|---|---|---|---|
 | D-01 | History | Botón "Open" no funcional | bug | **Alta** | Abierto | QA walkthrough | — |
 | D-02 | Home | Falta indicador de usuario logueado (sesión global, detectado en flujo de Chat) | missing | Media | Abierto | QA walkthrough | — |
-| D-03 | Chat | Mensajes aparecen idénticos entre distintos threads de usuario (scoping) | bug | Alta | Abierto | QA walkthrough | — |
+| D-03 | Chat | Mensajes aparecen idénticos entre distintos threads de usuario (scoping). **Resuelto (commit `84c54c4`).** Nota importante (2026-07-11): la verificación manual de PWA → Dispatcher pasó, pero por un mecanismo de recarga (cambiar de hilo dispara fetch nuevo), no por sync en tiempo real — Dispatch no tiene sync pasivo, solo fetch on-open. No es necesariamente un bug, pero es una decisión de diseño pendiente (ver CC-07). | bug | Alta | 🟢 Resuelto | Commit sin reportar (fuera de protocolo) | — |
+| D-06 | Chat | Envío de mensaje falla silenciosamente en hilo "Christian/owner". **Causa raíz encontrada y fix aplicado (2026-07-11):** mismatch de campo `newMessages`/`chatMessages` en `onSyncUpdate` (PWA). Verificado a nivel API por CC (send + sync + filtro, los 3 pasos confirman que el mensaje llega). **Pendiente confirmar en navegador real con prueba controlada** (dejar hilo abierto, sin tocar, cronometrar ~20-25s) — intento anterior no fue concluyente (usuario no cronometró el momento exacto). | bug | Alta | 🟡 Fix aplicado, esperando confirmación controlada | Chat de Dirección (2026-07-11) | — |
+| D-08 | Chat | Bug secundario confirmado visualmente (captura PWA, 2026-07-11): mensajes que llegan vía sync (no vía carga inicial de hilo) se renderizan sin hora visible y siempre con estilo "recibido" (aunque sean mensajes propios), porque el backend entrega `snake_case` (`sender_id`, `created_at`) en sync pero el frontend espera `camelCase` (`sentByMe`, `createdAt`) como en la carga inicial. No afecta la entrega del mensaje, solo su presentación. | UX / cosmético | Media | Abierto | Chat de Dirección (2026-07-11) | — |
 | D-04 | Home | Alerta de bajo refrigerante depende de cálculo que no existe (agregado por sistema/dirección + evento de reemplazo de tanque) | missing / spec pendiente | Media | Backlog — anotado, no bloquea (ship como placeholder) | Protocolo de triage | Pendiente `REFRIGERANT-ALERT-SPEC.md` |
 | D-05 | History | ~~Status inválido/truncado~~ Diagnosticado por CC (2026-07-09): `temporarily` es un status legítimo e intencional (reparación temporal, definido en schema). Dato limpio, cero riesgo para Lobby. Solo falta mapa de label en `History.jsx:149` (muestra el valor crudo sin formatear) | UX / cosmético | Baja | Abierto — trivial, diferible, sin urgencia | QA walkthrough | — |
-| D-06 | Chat | Envío de mensaje falla silenciosamente en hilo "Christian/owner" | bug | Alta | Abierto | QA walkthrough | — |
 ---
 
 ## Hallazgos — PWA técnico
@@ -71,6 +72,7 @@ Leyenda: ⬜ no iniciado · 🟡 en curso / bloqueado · 🟢 completo
 - `TROUBLESHOOTING-ENGINE-SPEC.md` (F11) — motor de troubleshooting. Especificado, spec a medias (pendiente decisión de schema para umbrales numéricos).
 - D-04 — alerta de refrigerante, pendiente `REFRIGERANT-ALERT-SPEC.md` dedicado.
 - Broadcast (Chat) — propuesta de rediseño: renombrar + botón "Acknowledge". Idea guardada, no especificada.
+- CC-07 (confirmado 2026-07-11) — Dispatch Chat **no tiene ningún mecanismo de sync pasivo**, solo `loadContacts()` al montar y `openThread()` al hacer clic o después de enviar. PWA sí tiene `startSync()` cada 20s. CC lo marca como "gap no intencional" — el diseño original parece haber previsto tiempo real para ambos, pero Dispatch nunca lo recibió. Decisión pendiente: ¿agregar polling a Dispatch (espejo de PWA) o dejarlo para un pase de diseño separado?
 - **Captura manual de llamadas + Lobby (unificados, actualizado 2026-07-09)** — decisión final: la captura manual **reutiliza el mecanismo de batch existente**, no requiere un release individual nuevo. Un batch manual puede contener 1, 3, o N llamadas — se libera con el mismo `release-to-lobby(batchId)` que ya usa PDF Intake. Esto elimina la necesidad del "Gap 1" (release de visita suelta) por completo. **Decidido:** el batch manual se abre al presionar "+ New Call" desde Home (deja de ser placeholder deshabilitado). Pendiente de diseño real en chat dedicado: (1) `create-manual` debe aceptar `batchId` como parámetro, (2) reusar el mismo flujo de revisión Confirm/Skip/Release que ya existe para PDF, (3) frontend del formulario de captura. **Ideas abiertas, no decididas — llevar a discovery:** renombrar "PDF Intake" a "Captura de Llamadas" o similar (ahora cubre ambos orígenes); acceso directo a "Nueva llamada" tipo botón/chip visible desde cualquier sección, no solo Home. El Gap 2 (reassign directo) sigue sin aplicar a este flujo — bug latente aparte, solo relevante para reasignación de visitas huérfanas. Este tema se diseña junto con Lobby, no por separado.
 
 ---
