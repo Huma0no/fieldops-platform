@@ -50,6 +50,9 @@ let linesetConfigs  = []
 let equipmentCatalog = []
 let activeSection   = 'service'
 let completedSections = new Set()
+let gps = { lat: null, lon: null, source: null, denied: false }
+let _gpsPhotosMissing = 0
+let _exifrLoaded = false
 
 export default async function mount (appEl) {
   injectStyles()
@@ -83,7 +86,10 @@ export default async function mount (appEl) {
   }
 
   appEl.innerHTML = ''
+  gps = { lat: null, lon: null, source: null, denied: false }
+  _gpsPhotosMissing = 0
   renderScreen(appEl)
+  requestGps()
 }
 
 function renderScreen (appEl) {
@@ -944,6 +950,7 @@ async function captureStartupPhoto (tag, category, btn) {
     const compressed = await compressImage(file)
     const form = new FormData()
     form.append('photo', compressed, file.name); form.append('tag', tag); form.append('category', category)
+    await appendGpsFields(form, tag, file)
     try {
       await api.upload(`/visits/${visit.id}/photos`, form)
       visit._photoCount = (visit._photoCount ?? 0) + 1
@@ -999,6 +1006,7 @@ async function capturePhoto (tag, btn) {
     const category = tag === 'SCALE' ? 'weigh_in_scale' : tag === 'FAN' ? 'fan_speed' : 'site_evidence'
     const form = new FormData()
     form.append('photo', compressed, file.name); form.append('tag', tag); form.append('category', category)
+    await appendGpsFields(form, tag, file)
     try {
       await api.upload(`/visits/${visit.id}/photos`, form)
       visit._photoCount = (visit._photoCount ?? 0) + 1
@@ -1017,7 +1025,7 @@ function addThumb (blob, tag) {
   wrap.appendChild(img); wrap.appendChild(lbl); thumbs.appendChild(wrap)
 }
 
-async function compressImage (file, maxPx=1200, quality=0.7) {
+async function compressImage (file, maxPx=1600, quality=0.8) {
   return new Promise(resolve => {
     const img = new Image(); const url = URL.createObjectURL(file)
     img.onload = () => {
@@ -1030,6 +1038,70 @@ async function compressImage (file, maxPx=1200, quality=0.7) {
     }
     img.onerror = () => resolve(file); img.src = url
   })
+}
+
+async function loadExifr () {
+  if (_exifrLoaded) return window.exifr
+  return new Promise((resolve, reject) => {
+    const s = document.createElement('script')
+    s.src = 'https://unpkg.com/exifr/dist/full.umd.cjs'
+    s.onload = () => { _exifrLoaded = true; resolve(window.exifr) }
+    s.onerror = () => reject(new Error('exifr load failed'))
+    document.head.appendChild(s)
+  })
+}
+
+async function getGpsFromPhoto (file) {
+  try {
+    const exifr = await loadExifr()
+    const result = await exifr.gps(file)
+    if (result?.latitude && result?.longitude) {
+      return { lat: result.latitude.toFixed(6), lon: result.longitude.toFixed(6) }
+    }
+  } catch {}
+  return null
+}
+
+async function appendGpsFields (form, tag, file) {
+  if (tag !== 'SCALE' && tag !== 'FAN') return
+  const fromPhoto = await getGpsFromPhoto(file)
+  const coords = fromPhoto ?? (gps.lat ? { lat: gps.lat, lon: gps.lon } : null)
+  if (coords) {
+    form.append('lat', coords.lat)
+    form.append('lon', coords.lon)
+  } else {
+    _gpsPhotosMissing++
+  }
+}
+
+function requestGps () {
+  if (!navigator.geolocation || gps.denied) return
+  showGpsPrompt()
+}
+
+function showGpsPrompt () {
+  const overlay = makeOverlay()
+  const modal = makeModal('Location Access')
+  const note = document.createElement('p'); note.className = 'ws-modal-note'
+  note.textContent = 'Location is used to embed GPS coordinates in SCALE and FAN photos for compliance records.'
+  const actions = makeActions([
+    { label: 'Skip',  cls: 'secondary', fn: () => { gps.denied = true; overlay.remove() } },
+    { label: 'Allow', cls: 'primary',   fn: () => {
+      overlay.remove()
+      navigator.geolocation.getCurrentPosition(
+        pos => {
+          gps.lat    = pos.coords.latitude.toFixed(6)
+          gps.lon    = pos.coords.longitude.toFixed(6)
+          gps.source = 'device'
+        },
+        () => { gps.denied = true },
+        { enableHighAccuracy: true, timeout: 8000 }
+      )
+    }},
+  ])
+  modal.appendChild(note); modal.appendChild(actions)
+  overlay.appendChild(modal)
+  document.getElementById('ws-screen')?.appendChild(overlay)
 }
 
 function buildChecklistAnswers () {
@@ -1081,6 +1153,11 @@ function openGenerateModalDirect () {
   })
   const note = document.createElement('p'); note.className='ws-modal-note'
   note.textContent = 'Review before submitting. Corrections require a request after submission.'
+  if (_gpsPhotosMissing > 0) {
+    const gpsWarn = document.createElement('p'); gpsWarn.className='ws-modal-note ws-modal-note--warn'
+    gpsWarn.textContent = 'GPS required for SCALE and FAN photos. Retake or enable location access.'
+    modal.appendChild(gpsWarn)
+  }
   const actions = makeActions([
     { label: 'Go back', cls: 'secondary', fn: () => overlay.remove() },
     { label: 'Submit report', cls: 'primary', fn: async (btn) => {
@@ -1097,6 +1174,10 @@ function openGenerateModalDirect () {
       }
     }},
   ])
+  if (_gpsPhotosMissing > 0) {
+    const submitBtn = actions.querySelector('.ws-modal-btn--primary')
+    if (submitBtn) submitBtn.disabled = true
+  }
   modal.appendChild(summary); modal.appendChild(note); modal.appendChild(actions)
   overlay.appendChild(modal)
   document.getElementById('ws-screen')?.appendChild(overlay)
@@ -1265,6 +1346,7 @@ function injectStyles () {
   .ws-modal-row-label{font-size:var(--text-sm);color:var(--text-muted);}
   .ws-modal-row-value{font-size:var(--text-sm);font-weight:500;color:var(--text-primary);}
   .ws-modal-note{font-size:var(--text-sm);color:var(--text-muted);line-height:1.5;}
+  .ws-modal-note--warn{color:var(--color-danger,#c0392b);font-weight:500;}
   .ws-modal-actions{display:flex;gap:var(--space-2);}
   .ws-modal-btn{flex:1;border-radius:var(--radius-md);font-size:var(--text-base);font-weight:500;padding:var(--space-3);cursor:pointer;border:none;-webkit-tap-highlight-color:transparent;}
   .ws-modal-btn--primary{background:var(--color-signal);color:#fff;}

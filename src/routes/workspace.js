@@ -3,10 +3,31 @@ const { pool } = require('../db/pool');
 const { requireRole } = require('../middleware/auth');
 const { calculateVisitPrice } = require('../services/pricing');
 const multer = require('multer');
+const piexif = require('piexifjs');
 
 const router = express.Router();
 
 const upload = multer({ storage: multer.memoryStorage() });
+
+function embedGps(buffer, lat, lon) {
+  const toDMS = (deg) => {
+    const d = Math.floor(Math.abs(deg));
+    const minFloat = (Math.abs(deg) - d) * 60;
+    const m = Math.floor(minFloat);
+    const s = Math.round((minFloat - m) * 60 * 10000) / 10000;
+    return [[d, 1], [m, 1], [Math.round(s * 10000), 10000]];
+  };
+  const dataUrl = 'data:image/jpeg;base64,' + buffer.toString('base64');
+  let exifObj;
+  try { exifObj = piexif.load(dataUrl); } catch { exifObj = { '0th': {}, Exif: {}, GPS: {} }; }
+  if (!exifObj.GPS) exifObj.GPS = {};
+  exifObj.GPS[piexif.GPSIFD.GPSLatitudeRef]  = lat >= 0 ? 'N' : 'S';
+  exifObj.GPS[piexif.GPSIFD.GPSLatitude]     = toDMS(lat);
+  exifObj.GPS[piexif.GPSIFD.GPSLongitudeRef] = lon >= 0 ? 'E' : 'W';
+  exifObj.GPS[piexif.GPSIFD.GPSLongitude]    = toDMS(lon);
+  const newDataUrl = piexif.insert(piexif.dump(exifObj), dataUrl);
+  return Buffer.from(newDataUrl.split(',')[1], 'base64');
+}
 
 const VALID_SERVICES = ['AC', 'Heat', 'AC & Heat', 'Prestart System', 'Drive Run', 'Cancel'];
 const VALID_CATEGORIES = ['accessory', 'fix', 'thermostat'];
@@ -481,7 +502,7 @@ router.post(
   upload.single('photo'),
   async (req, res, next) => {
     const { id } = req.params;
-    const { category, tag, systemNumber, label } = req.body;
+    const { category, tag, systemNumber, label, lat, lon } = req.body;
     try {
       if (!VALID_PHOTO_CATEGORIES.includes(category)) {
         return res.status(400).json({ error: 'Invalid category' });
@@ -498,6 +519,14 @@ router.post(
 
       const slugBase = `${street}_${tag}`.toUpperCase().replace(/\s+/g, '_');
       const slug = systemNumber ? `${slugBase}_SYS${systemNumber}` : slugBase;
+
+      if ((tag === 'SCALE' || tag === 'FAN') && lat && lon && req.file?.buffer) {
+        try {
+          req.file.buffer = embedGps(req.file.buffer, parseFloat(lat), parseFloat(lon));
+        } catch (gpsErr) {
+          console.warn('GPS embedding failed, saving original:', gpsErr.message);
+        }
+      }
 
       const photoRes = await pool.query(
         `INSERT INTO visit_photos (id, visit_id, system_number, slug, tag, label, category, stored_at)
