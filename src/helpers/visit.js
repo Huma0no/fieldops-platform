@@ -33,11 +33,8 @@ async function createVisitWithSystems(pool, { addressId, batchId, orderNumber, s
     }
 
     if (thermostat) {
-      await client.query(
-        `INSERT INTO catalog_items (item_name, category, default_price, tech_supplied)
-         VALUES ($1, 'thermostat', 0, true) ON CONFLICT (item_name) DO NOTHING`,
-        [thermostat]
-      );
+      // Free-text names (not in catalog_items) fall back to these defaults —
+      // they are recorded on the visit only, never written back to the catalog.
       const cat = await client.query(
         'SELECT default_price, tech_supplied FROM catalog_items WHERE item_name = $1',
         [thermostat]
@@ -45,17 +42,12 @@ async function createVisitWithSystems(pool, { addressId, batchId, orderNumber, s
       await client.query(
         `INSERT INTO visit_items (visit_id, item_name, category, quantity, price, tech_supplied)
          VALUES ($1, $2, 'thermostat', $3, $4, $5)`,
-        [visitId, thermostat, resolvedThermostatQty, cat.rows[0].default_price ?? 0, cat.rows[0].tech_supplied]
+        [visitId, thermostat, resolvedThermostatQty, cat.rows[0]?.default_price ?? 0, cat.rows[0]?.tech_supplied ?? true]
       );
     }
 
     const resolvedAccessories = Array.isArray(accessories) ? accessories : [];
     for (const itemName of resolvedAccessories) {
-      await client.query(
-        `INSERT INTO catalog_items (item_name, category, default_price, tech_supplied)
-         VALUES ($1, 'accessory', 0, true) ON CONFLICT (item_name) DO NOTHING`,
-        [itemName]
-      );
       const cat = await client.query(
         'SELECT default_price, tech_supplied FROM catalog_items WHERE item_name = $1',
         [itemName]
@@ -63,7 +55,7 @@ async function createVisitWithSystems(pool, { addressId, batchId, orderNumber, s
       await client.query(
         `INSERT INTO visit_items (visit_id, item_name, category, quantity, price, tech_supplied)
          VALUES ($1, $2, 'accessory', $3, $4, $5)`,
-        [visitId, itemName, systemList.length, cat.rows[0].default_price ?? 0, cat.rows[0].tech_supplied]
+        [visitId, itemName, systemList.length, cat.rows[0]?.default_price ?? 0, cat.rows[0]?.tech_supplied ?? true]
       );
     }
 
