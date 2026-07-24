@@ -147,7 +147,7 @@ function buildReportCard (visit) {
   left.appendChild(meta)
 
   const rightWrap = document.createElement('div')
-  rightWrap.style.cssText = 'display:flex;align-items:center;gap:8px;'
+  rightWrap.className = 'rc-card-right'
 
   const statusIcon = buildStatusIcon(isPending, isDownloaded)
   rightWrap.appendChild(statusIcon)
@@ -169,21 +169,20 @@ function buildReportCard (visit) {
 
   // Status label
   const statusLabel = document.createElement('p')
-  statusLabel.className = 'rc-status'
-  if (isPending)         { statusLabel.textContent = 'Pending send — will retry when online'; statusLabel.style.color = 'var(--color-plasma)' }
-  else if (isDownloaded) { statusLabel.textContent = 'Downloaded locally — not sent'; statusLabel.style.color = 'var(--color-static)' }
-  else                   { statusLabel.textContent = 'Sent'; statusLabel.style.color = '#22C55E' }
+  if (isPending)         { statusLabel.textContent = 'Pending send — will retry when online'; statusLabel.className = 'rc-status rc-status--pending' }
+  else if (isDownloaded) { statusLabel.textContent = 'Downloaded locally — not sent'; statusLabel.className = 'rc-status rc-status--downloaded' }
+  else                   { statusLabel.textContent = 'Sent'; statusLabel.className = 'rc-status rc-status--sent' }
   card.appendChild(statusLabel)
 
   // Correction badge
   if (correctionStatus) {
     const badge = document.createElement('p')
     badge.className = 'rc-correction-badge'
-    if (correctionStatus === 'pending')  { badge.textContent = 'Correction pending'; badge.style.color = 'var(--color-plasma)' }
-    if (correctionStatus === 'approved') { badge.textContent = 'Correction approved'; badge.style.color = '#22C55E' }
+    if (correctionStatus === 'pending')  { badge.textContent = 'Correction pending'; badge.classList.add('rc-correction-badge--pending') }
+    if (correctionStatus === 'approved') { badge.textContent = 'Correction approved'; badge.classList.add('rc-correction-badge--approved') }
     if (correctionStatus === 'rejected') {
       badge.textContent = 'Correction rejected'
-      badge.style.color = 'var(--color-heat)'
+      badge.classList.add('rc-correction-badge--rejected')
       if (visit.correction_dispatcher_note) {
         const note = document.createElement('button')
         note.className   = 'rc-note-link'
@@ -273,10 +272,10 @@ function buildStatusIcon (isPending, isDownloaded) {
   } else if (isDownloaded) {
     wrap.textContent = '↓'
     wrap.title = 'Downloaded, not sent'
-    wrap.style.color = 'var(--color-static)'
+    wrap.classList.add('rc-status-icon--downloaded')
   } else {
     wrap.textContent = '✓'
-    wrap.style.color = '#22C55E'
+    wrap.classList.add('rc-status-icon--sent')
     wrap.title = 'Sent'
   }
   return wrap
@@ -404,7 +403,13 @@ const screenStyles = `
   .rc-address { font-size:var(--text-base); font-weight:500; color:var(--text-primary); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
   .rc-meta { font-size:var(--text-sm); color:var(--text-muted); }
   .rc-status-icon { font-size:18px; flex-shrink:0; }
+  .rc-status-icon--downloaded { color: var(--color-static); }
+  .rc-status-icon--sent { color: var(--badge-text-completed); }
   .rc-status { font-size:var(--text-sm); }
+  .rc-status--pending { color: var(--color-plasma); }
+  .rc-status--downloaded { color: var(--color-static); }
+  .rc-status--sent { color: var(--badge-text-completed); }
+  .rc-card-right { display:flex; align-items:center; gap:8px; }
   .rc-actions { display:flex; gap:var(--space-2); margin-top:var(--space-1); }
   .rc-btn { border-radius:var(--radius-md); font-size:var(--text-sm); font-weight:500; padding:var(--space-2) var(--space-3); cursor:pointer; border:none; -webkit-tap-highlight-color:transparent; }
   .rc-btn--secondary { background:var(--surface-3); color:var(--text-secondary); }
@@ -419,6 +424,9 @@ const screenStyles = `
 
   .rc-menu-btn { background:none; border:none; color:var(--text-muted); font-size:18px; cursor:pointer; padding:0 2px; letter-spacing:1px; line-height:1; -webkit-tap-highlight-color:transparent; }
   .rc-correction-badge { font-size:var(--text-sm); margin-top:2px; }
+  .rc-correction-badge--pending  { color: var(--color-plasma); }
+  .rc-correction-badge--approved { color: var(--badge-text-completed); }
+  .rc-correction-badge--rejected { color: var(--color-heat); }
   .rc-note-link { background:none; border:none; color:var(--color-signal); font-size:var(--text-sm); cursor:pointer; padding:0; }
   .rc-context-menu { position:fixed; background:var(--surface-2); border:0.5px solid var(--border-default); border-radius:var(--radius-md); padding:var(--space-2) 0; min-width:180px; z-index:100; box-shadow:0 8px 24px rgba(0,0,0,0.4); }
   .rc-context-item { display:block; width:100%; background:none; border:none; text-align:left; font-size:var(--text-base); color:var(--text-secondary); padding:var(--space-3) var(--space-4); cursor:pointer; }

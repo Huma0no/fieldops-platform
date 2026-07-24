@@ -160,7 +160,7 @@ function buildProgressBar () {
     bar.appendChild(seg)
     if (i < SECTIONS.length - 1) {
       const gap = document.createElement('div')
-      gap.style.width = '3px'
+      gap.className = 'ws-progress-gap'
       bar.appendChild(gap)
     }
   })
@@ -222,9 +222,8 @@ function buildAccordion (sec) {
     tRight.appendChild(speakBtn)
   }
   const chevron = document.createElement('span')
-  chevron.className = 'ws-acc-chevron'
+  chevron.className = `ws-acc-chevron${isActive ? ' ws-acc-chevron--open' : ''}`
   chevron.textContent = '›'
-  chevron.style.transform = isActive ? 'rotate(90deg)' : ''
   tRight.appendChild(chevron)
   trigger.appendChild(tLeft)
   trigger.appendChild(tRight)
@@ -258,7 +257,7 @@ function toggleSection (sectionId) {
         else tRight.appendChild(summary)
       }
       const chevron = tRight.querySelector('.ws-acc-chevron')
-      if (chevron) chevron.style.transform = ''
+      if (chevron) chevron.classList.remove('ws-acc-chevron--open')
     }
   }
   activeSection = sectionId
@@ -278,7 +277,7 @@ function toggleSection (sectionId) {
       else newTRight.appendChild(speakBtn)
     }
     const chevron = newTRight.querySelector('.ws-acc-chevron')
-    if (chevron) chevron.style.transform = 'rotate(90deg)'
+    if (chevron) chevron.classList.add('ws-acc-chevron--open')
   }
   if (newContent) {
     newContent.appendChild(buildSectionContent(sectionId))
@@ -570,10 +569,10 @@ function showQuantityModal (item, onConfirm) {
   modal.appendChild(note)
   let qty = 1
   const qtyWrap = document.createElement('div')
-  qtyWrap.style.cssText = 'display:flex;align-items:center;justify-content:center;gap:16px;margin:8px 0;'
-  const minus = makeModalBtn('−', 'secondary'); minus.style.width='44px'
+  qtyWrap.className = 'ws-qty-wrap'
+  const minus = makeModalBtn('−', 'secondary'); minus.classList.add('ws-qty-btn')
   const display = document.createElement('span'); display.className='ws-price-amount'; display.textContent='1'
-  const plus = makeModalBtn('+', 'secondary'); plus.style.width='44px'
+  const plus = makeModalBtn('+', 'secondary'); plus.classList.add('ws-qty-btn')
   minus.addEventListener('click', () => { if (qty > 1) { qty--; display.textContent = qty } })
   plus.addEventListener('click',  () => { qty++; display.textContent = qty })
   qtyWrap.appendChild(minus); qtyWrap.appendChild(display); qtyWrap.appendChild(plus)
@@ -798,7 +797,7 @@ function buildWeighInPanel (systemNum, showLabel) {
 
   function updateChargeVisibility (configKey) {
     const cfg = linesetConfigs.find(c => c.config_key === configKey)
-    chargeRow.style.display = cfg?.revised_available ? '' : 'none'
+    chargeRow.classList.toggle('hidden', !cfg?.revised_available)
   }
   updateChargeVisibility(preselect ?? '')
   configSel.addEventListener('change', () => { updateChargeVisibility(configSel.value); syncWeighIn() })
@@ -1311,6 +1310,8 @@ function injectStyles () {
   .ws-acc-trigger-right{display:flex;align-items:center;gap:var(--space-2);flex-shrink:0;}
   .ws-acc-summary{font-size:var(--text-sm);color:var(--color-signal);font-weight:500;}
   .ws-acc-chevron{font-size:16px;color:var(--text-disabled);transition:transform var(--dur-fast) var(--ease-out);line-height:1;}
+  .ws-acc-chevron--open{transform:rotate(90deg);}
+  .ws-progress-gap{width:3px;}
   .ws-speak-btn{background:none;border:0.5px solid var(--signal-border);border-radius:var(--radius-md);color:var(--color-signal);font-size:var(--text-sm);padding:4px 8px;cursor:pointer;-webkit-tap-highlight-color:transparent;}
   .ws-acc-content{overflow:hidden;}
   .ws-section-content{padding:0 12px 14px;display:flex;flex-direction:column;gap:var(--space-3);}
@@ -1352,6 +1353,8 @@ function injectStyles () {
   .ws-modal{width:100%;background:var(--surface-1);border-radius:var(--radius-lg) var(--radius-lg) 0 0;padding:var(--space-5);display:flex;flex-direction:column;gap:var(--space-3);padding-bottom:calc(var(--space-5) + env(safe-area-inset-bottom,0px));}
   .ws-modal-title{font-size:var(--text-md);font-weight:500;color:var(--text-primary);}
   .ws-modal-summary{background:var(--surface-2);border-radius:var(--radius-md);padding:var(--space-3);display:flex;flex-direction:column;gap:var(--space-2);border:0.5px solid var(--border-subtle);}
+  .ws-qty-wrap{display:flex;align-items:center;justify-content:center;gap:16px;margin:8px 0;}
+  .ws-qty-btn{width:44px;}
   .ws-modal-row{display:flex;justify-content:space-between;align-items:center;}
   .ws-modal-row-label{font-size:var(--text-sm);color:var(--text-muted);}
   .ws-modal-row-value{font-size:var(--text-sm);font-weight:500;color:var(--text-primary);}

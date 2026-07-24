@@ -107,7 +107,7 @@ async function accept (transferId, street) {
     if (listEl) {
       listEl.innerHTML = `
         <div class="ti-success">
-          <p style="font-size:32px">✓</p>
+          <p class="ti-success-icon">✓</p>
           <p class="ti-success-title">Transfer accepted</p>
           <p class="ti-success-sub">${street} is now in your queue.</p>
         </div>
@@ -238,6 +238,7 @@ const screenStyles = `
   .ti-btn--accept { background:var(--color-signal); color:#fff; }
 
   .ti-success { display:flex; flex-direction:column; align-items:center; gap:var(--space-3); padding:var(--space-8) 0; text-align:center; }
+  .ti-success-icon { font-size:32px; }
   .ti-success-title { font-size:var(--text-md); font-weight:500; color:var(--text-primary); }
   .ti-success-sub   { font-size:var(--text-sm); color:var(--text-muted); }
 `

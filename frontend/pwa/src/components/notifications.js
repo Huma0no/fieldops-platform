@@ -31,7 +31,7 @@ function onSyncUpdate (e) {
 
 export function NotificationBell (onNavigate) {
   const wrap = document.createElement('div')
-  wrap.style.position = 'relative'
+  wrap.className = 'notif-bell-wrap'
 
   bellEl = document.createElement('button')
   bellEl.className = 'header-bell'
@@ -173,6 +173,7 @@ function formatTime (iso) {
 }
 
 export const notificationStyles = `
+  .notif-bell-wrap { position:relative; }
   .notif-badge { position:absolute; top:-4px; right:-4px; background:var(--color-heat); color:#fff; font-size:9px; font-weight:600; min-width:16px; height:16px; border-radius:99px; display:flex; align-items:center; justify-content:center; padding:0 4px; pointer-events:none; }
   .notif-badge.hidden { display:none; }
 

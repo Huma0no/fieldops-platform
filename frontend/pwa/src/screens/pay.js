@@ -92,9 +92,7 @@ function buildHeader () {
   const header = document.createElement('div')
   header.className = 'screen-header'
   const left = document.createElement('div')
-  left.style.display = 'flex'
-  left.style.alignItems = 'center'
-  left.style.gap = '12px'
+  left.className = 'pay-header-left'
   const back = document.createElement('button')
   back.className = 'pay-back-btn'
   back.textContent = '←'
@@ -124,6 +122,7 @@ function formatPrice (val) {
 const screenStyles = `
   .screen { display:flex; flex-direction:column; height:100dvh; background:var(--surface-base); overflow:hidden; }
   .screen-header { display:flex; justify-content:space-between; align-items:center; padding:calc(var(--space-5) + env(safe-area-inset-top,0px)) var(--space-5) var(--space-3); background:var(--surface-1); border-bottom:0.5px solid var(--border-subtle); flex-shrink:0; }
+  .pay-header-left { display:flex; align-items:center; gap:12px; }
   .screen-title { font-size:var(--text-lg); font-weight:500; color:var(--text-primary); letter-spacing:-0.01em; }
   .scroll-area { flex:1; overflow-y:auto; -webkit-overflow-scrolling:touch; overscroll-behavior:contain; }
 

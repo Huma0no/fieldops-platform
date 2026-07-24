@@ -89,7 +89,7 @@ export function CorrectionModal ({ visitId, onSubmit, onCancel }) {
   evidenceInput.type = 'file'
   evidenceInput.accept = 'image/*'
   evidenceInput.capture = 'environment'
-  evidenceInput.style.display = 'none'
+  evidenceInput.className = 'hidden'
   evidenceInput.addEventListener('change', () => {
     const file = evidenceInput.files?.[0]
     if (file) {

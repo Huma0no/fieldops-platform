@@ -254,3 +254,7 @@
   font-size: 13px;
   line-height: 1;
 }
+
+/* ── Generic utilities (shared across PWA screens/components) ── */
+
+.hidden { display: none; }

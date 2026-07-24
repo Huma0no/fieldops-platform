@@ -12,7 +12,7 @@
 
 import { api }                          from '../../../shared/api.js'
 import { NavBar, navBarStyles }         from '../components/nav-bar.js'
-import { Tag }                          from '../components/badge.js'
+import { Tag, badgeStyles }             from '../components/badge.js'
 import { startSync }                    from '../lib/sync.js'
 
 // ── Styles ─────────────────────────────────────────────────
@@ -23,7 +23,7 @@ function injectStyles () {
   if (document.getElementById(STYLES_ID)) return
   const style = document.createElement('style')
   style.id = STYLES_ID
-  style.textContent = screenStyles + navBarStyles
+  style.textContent = screenStyles + navBarStyles + badgeStyles
   document.head.appendChild(style)
 }
 
@@ -223,9 +223,7 @@ function buildHeader () {
   header.className = 'screen-header'
 
   const left = document.createElement('div')
-  left.style.display    = 'flex'
-  left.style.alignItems = 'baseline'
-  left.style.gap        = '8px'
+  left.className = 'lobby-header-left'
 
   const title = document.createElement('h1')
   title.className   = 'screen-title'
@@ -403,6 +401,12 @@ const screenStyles = `
     font-size: var(--text-sm);
     color: var(--text-disabled);
     font-style: italic;
+  }
+
+  .lobby-header-left {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
   }
 
   .screen-header {

@@ -37,11 +37,26 @@ const CONFIG = {
 }
 
 export function Badge (status) {
-  const cfg = CONFIG[status] ?? { label: status, bg: 'var(--surface-3)', color: 'var(--text-muted)' }
+  const modifier = CONFIG[status] ? status : 'default'
+  const cfg = CONFIG[status] ?? { label: status }
   const el  = document.createElement('span')
-  el.className   = 'badge'
+  el.className   = `badge badge--${modifier}`
   el.textContent = cfg.label
-  el.style.cssText = `
+  return el
+}
+
+const TAG_VARIANTS = ['default', 'signal', 'plasma', 'heat']
+
+export function Tag (label, variant = 'default') {
+  const v  = TAG_VARIANTS.includes(variant) ? variant : 'default'
+  const el = document.createElement('span')
+  el.className   = `tag tag--${v}`
+  el.textContent = label
+  return el
+}
+
+export const badgeStyles = `
+  .badge {
     display: inline-block;
     font-size: var(--text-xs);
     font-weight: 500;
@@ -49,32 +64,25 @@ export function Badge (status) {
     text-transform: uppercase;
     padding: 2px 8px;
     border-radius: var(--radius-pill);
-    background: ${cfg.bg};
-    color: ${cfg.color};
     white-space: nowrap;
-  `
-  return el
-}
-
-export function Tag (label, variant = 'default') {
-  const variants = {
-    default: { bg: 'var(--surface-3)',    color: 'var(--text-muted)',    border: 'var(--border-subtle)' },
-    signal:  { bg: 'var(--signal-tint)',  color: 'var(--color-signal)',  border: 'var(--signal-border)' },
-    plasma:  { bg: 'var(--plasma-tint)',  color: 'var(--color-plasma)',  border: 'var(--plasma-border)' },
-    heat:    { bg: 'var(--heat-tint)',    color: 'var(--color-heat)',    border: 'var(--heat-border)'   },
   }
-  const v  = variants[variant] ?? variants.default
-  const el = document.createElement('span')
-  el.textContent = label
-  el.style.cssText = `
+  .badge--assigned    { background: var(--badge-assigned);    color: var(--badge-text-assigned); }
+  .badge--in_progress { background: var(--badge-in-progress); color: var(--badge-text-in-progress); }
+  .badge--deferred    { background: var(--badge-deferred);    color: var(--badge-text-deferred); }
+  .badge--temporarily { background: var(--plasma-tint);       color: var(--color-plasma); }
+  .badge--completed   { background: var(--badge-completed);   color: var(--badge-text-completed); }
+  .badge--default     { background: var(--surface-3);         color: var(--text-muted); }
+
+  .tag {
     display: inline-block;
     font-size: var(--text-xs);
     padding: 2px 8px;
     border-radius: var(--radius-pill);
-    background: ${v.bg};
-    color: ${v.color};
-    border: 0.5px solid ${v.border};
     white-space: nowrap;
-  `
-  return el
-}
+    border: 0.5px solid;
+  }
+  .tag--default { background: var(--surface-3);   color: var(--text-muted);   border-color: var(--border-subtle); }
+  .tag--signal  { background: var(--signal-tint); color: var(--color-signal); border-color: var(--signal-border); }
+  .tag--plasma  { background: var(--plasma-tint); color: var(--color-plasma); border-color: var(--plasma-border); }
+  .tag--heat    { background: var(--heat-tint);   color: var(--color-heat);   border-color: var(--heat-border); }
+`

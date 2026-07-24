@@ -43,9 +43,8 @@ export default async function mount (appEl, { preselectedVisitId } = {}) {
   screen.appendChild(header)
 
   const body = document.createElement('div')
-  body.className = 'scroll-area'
+  body.className = 'scroll-area tr-body'
   body.id = 'transfer-body'
-  body.style.padding = 'var(--space-4)'
   screen.appendChild(body)
 
   screen.appendChild(NavBar({
@@ -59,7 +58,7 @@ export default async function mount (appEl, { preselectedVisitId } = {}) {
 }
 
 async function buildTransferForm (container, preselectedVisitId) {
-  container.innerHTML = '<p style="color:var(--text-muted);font-size:var(--text-sm)">Loading…</p>'
+  container.innerHTML = '<p class="tr-loading">Loading…</p>'
 
   try {
     const [myVisits, technicians] = await Promise.all([
@@ -194,7 +193,7 @@ async function buildTransferForm (container, preselectedVisitId) {
         })
         container.innerHTML = `
           <div class="tr-success">
-            <p style="font-size:32px">✓</p>
+            <p class="tr-success-icon">✓</p>
             <p class="tr-success-title">Transfer requested</p>
             <p class="tr-success-sub">${selectedTech.name} will be notified.</p>
           </div>
@@ -228,6 +227,8 @@ const screenStyles = `
   .screen-header { display:flex; align-items:center; gap:var(--space-3); padding:calc(var(--space-5) + env(safe-area-inset-top,0px)) var(--space-5) var(--space-3); background:var(--surface-1); border-bottom:0.5px solid var(--border-subtle); flex-shrink:0; }
   .screen-title { font-size:var(--text-lg); font-weight:500; color:var(--text-primary); letter-spacing:-0.01em; }
   .scroll-area { flex:1; overflow-y:auto; -webkit-overflow-scrolling:touch; overscroll-behavior:contain; }
+  .tr-body { padding: var(--space-4); }
+  .tr-loading { color: var(--text-muted); font-size: var(--text-sm); }
 
   .tr-back-btn { background:none; border:none; color:var(--text-muted); font-size:20px; cursor:pointer; padding:var(--space-2); line-height:1; -webkit-tap-highlight-color:transparent; }
 
@@ -249,6 +250,7 @@ const screenStyles = `
 
   .tr-empty { font-size:var(--text-sm); color:var(--text-muted); }
   .tr-success { display:flex; flex-direction:column; align-items:center; gap:var(--space-3); padding:var(--space-8) 0; text-align:center; }
+  .tr-success-icon { font-size:32px; }
   .tr-success-title { font-size:var(--text-md); font-weight:500; color:var(--text-primary); }
   .tr-success-sub   { font-size:var(--text-sm); color:var(--text-muted); }
 `
