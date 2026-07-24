@@ -90,4 +90,167 @@
   --badge-text-in-progress: var(--color-signal);
   --badge-text-deferred:    var(--color-plasma);
   --badge-text-completed:   #22C55E;
+
+  /* ── Manual light surface (Intake Manual flow — monochrome, ─ */
+  /*    the one intentionally light form in an otherwise dark app) */
+  --surface-manual-bg:     #EAEAE6;
+  --surface-manual-card:   #F4F4F1;
+  --text-manual-primary:   #141414;
+  --text-manual-muted:     #5A5A5A;
+  --text-manual-disabled:  #999999;
+  --border-manual-default: #141414;
+  --border-manual-subtle:  #DDDDDD;
+}
+
+/* ── Intake catalog-driven select / chips (CallIntake.jsx) ─── */
+/*    Two variants: dark (PDF review flow) and -light (Manual flow) */
+
+.intake-select-wrap { position: relative; }
+
+.intake-select-input {
+  width: 100%;
+  box-sizing: border-box;
+  background: var(--surface-2);
+  border: 0.5px solid var(--border-default);
+  border-radius: 6px;
+  color: var(--text-primary);
+  font-size: 13px;
+  padding: 6px 10px;
+  outline: none;
+  font-family: var(--font-sans);
+}
+
+.intake-select-dropdown {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  background: var(--surface-2);
+  border: 0.5px solid var(--border-default);
+  border-radius: 6px;
+  margin-top: 2px;
+  max-height: 220px;
+  overflow-y: auto;
+  z-index: 20;
+}
+
+.intake-select-dropdown-item {
+  padding: 6px 10px;
+  font-size: 13px;
+  color: var(--text-primary);
+  cursor: pointer;
+}
+
+.intake-select-add-new {
+  padding: 6px 10px;
+  font-size: 12px;
+  color: var(--color-signal);
+  cursor: pointer;
+  border-top: 0.5px solid var(--border-subtle);
+}
+
+.intake-select-empty {
+  padding: 6px 10px;
+  font-size: 12px;
+  color: var(--text-disabled);
+}
+
+.intake-select-chips-wrap {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 6px;
+}
+
+.intake-select-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: var(--surface-3);
+  border-radius: 4px;
+  padding: 3px 8px;
+  font-size: 12px;
+  color: var(--text-primary);
+}
+
+.intake-select-chip-remove {
+  cursor: pointer;
+  color: var(--text-muted);
+  font-size: 13px;
+  line-height: 1;
+}
+
+.intake-select-input-light {
+  width: 100%;
+  box-sizing: border-box;
+  font-size: 13px;
+  border: 1px solid var(--border-manual-default);
+  padding: 8px 10px;
+  background: var(--surface-manual-bg);
+  color: var(--text-manual-primary);
+  font-family: inherit;
+  outline: none;
+}
+
+.intake-select-input-light-sm {
+  width: 100%;
+  box-sizing: border-box;
+  font-size: 12px;
+  border: 1px solid var(--border-manual-default);
+  padding: 7px 8px;
+  background: var(--surface-manual-bg);
+  color: var(--text-manual-primary);
+  font-family: inherit;
+  outline: none;
+}
+
+.intake-select-dropdown-light {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 100%;
+  border: 1px solid var(--border-manual-default);
+  border-top: none;
+  background: var(--surface-manual-bg);
+  z-index: 10;
+  max-height: 220px;
+  overflow-y: auto;
+}
+
+.intake-select-dropdown-item-light {
+  padding: 7px 10px;
+  font-size: 12px;
+  border-bottom: 1px solid var(--border-manual-subtle);
+  cursor: pointer;
+}
+
+.intake-select-add-new-light {
+  padding: 7px 10px;
+  font-size: 11px;
+  color: var(--text-manual-muted);
+  cursor: pointer;
+  font-style: italic;
+}
+
+.intake-select-empty-light {
+  padding: 7px 10px;
+  font-size: 11px;
+  color: var(--text-manual-disabled);
+}
+
+.intake-select-chip-light {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border: 1px solid var(--border-manual-default);
+  padding: 3px 8px;
+  font-size: 11px;
+  background: var(--surface-manual-card);
+}
+
+.intake-select-chip-remove-light {
+  cursor: pointer;
+  color: var(--text-manual-disabled);
+  font-size: 13px;
+  line-height: 1;
 }

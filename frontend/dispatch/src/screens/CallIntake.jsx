@@ -56,6 +56,142 @@ function saveToStorage(session, draft) {
   } catch {}
 }
 
+// ── Catalog-driven pickers ──────────────────────────────────
+// GET /catalog/items and /catalog/equipment return the full table with no
+// filtering support — fetched once per flow mount and filtered client-side.
+
+function useCatalogLists() {
+  const [items, setItems]         = useState([])
+  const [equipment, setEquipment] = useState([])
+
+  useEffect(() => {
+    api.get('/catalog/items').then(setItems).catch(() => setItems([]))
+    api.get('/catalog/equipment').then(setEquipment).catch(() => setEquipment([]))
+  }, [])
+
+  return {
+    thermostats:     items.filter(i => i.category === 'thermostat'),
+    accessories:     items.filter(i => i.category === 'accessory'),
+    // catalog_equipment has no indoor/outdoor field — derived from unit_type
+    indoorEquipment:  equipment.filter(e => e.unit_type === 'furnace' || e.unit_type === 'air_handler'),
+    outdoorEquipment: equipment.filter(e => e.unit_type === 'condenser' || e.unit_type === 'heat_pump'),
+  }
+}
+
+function itemOptions(list) {
+  return list.map(i => ({ value: i.item_name, label: i.item_name }))
+}
+
+function equipmentOptions(list) {
+  return list.map(e => ({ value: e.model, label: `${e.brand} ${e.model}` }))
+}
+
+// Single-value typeahead with a "+ Add new" free-text escape for values not
+// in the catalog. `options`: [{ value, label }]. `classes`: CSS class names
+// from tokens.css (see .intake-select-* / .intake-select-*-light).
+function SearchableSelect({ value, onChange, options, placeholder, classes }) {
+  const [query, setQuery] = useState(value || '')
+  const [open, setOpen]   = useState(false)
+
+  useEffect(() => { if (!open) setQuery(value || '') }, [value, open])
+
+  const filtered    = query ? options.filter(o => o.label.toLowerCase().includes(query.toLowerCase())) : options
+  const exactMatch   = options.some(o => o.value.toLowerCase() === query.trim().toLowerCase())
+  const showAddNew   = query.trim() && !exactMatch
+
+  function commit(val) {
+    onChange(val)
+    setQuery(val)
+    setOpen(false)
+  }
+
+  return (
+    <div className="intake-select-wrap">
+      <input
+        className={classes.input}
+        value={query}
+        placeholder={placeholder}
+        onFocus={() => setOpen(true)}
+        onChange={e => { setQuery(e.target.value); setOpen(true) }}
+        onBlur={() => setTimeout(() => { setOpen(false); setQuery(value || '') }, 150)}
+      />
+      {open && (
+        <div className={classes.dropdown}>
+          {filtered.map(o => (
+            <div key={o.value} className={classes.dropdownItem} onMouseDown={() => commit(o.value)}>{o.label}</div>
+          ))}
+          {filtered.length === 0 && !showAddNew && <div className={classes.empty}>No matches</div>}
+          {showAddNew && (
+            <div className={classes.addNewItem} onMouseDown={() => commit(query.trim())}>
+              + Add new: "{query.trim()}"
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// Multi-select chip picker over a comma-separated string value, same
+// "+ Add new" escape as SearchableSelect. `options`: [{ value, label }].
+function MultiSelectChips({ value, onChange, options, placeholder, classes }) {
+  const selected = value ? value.split(',').map(s => s.trim()).filter(Boolean) : []
+  const [query, setQuery] = useState('')
+  const [open, setOpen]   = useState(false)
+
+  const filtered  = options.filter(o => !selected.includes(o.value) && o.label.toLowerCase().includes(query.toLowerCase()))
+  const exactMatch = options.some(o => o.value.toLowerCase() === query.trim().toLowerCase())
+  const showAddNew = query.trim() && !exactMatch && !selected.includes(query.trim())
+
+  function addChip(name) {
+    if (selected.includes(name)) return
+    onChange([...selected, name].join(', '))
+    setQuery('')
+  }
+
+  function removeChip(name) {
+    onChange(selected.filter(s => s !== name).join(', '))
+  }
+
+  return (
+    <div>
+      {selected.length > 0 && (
+        <div className={classes.chipsWrap}>
+          {selected.map(name => (
+            <span key={name} className={classes.chip}>
+              {name}
+              <span className={classes.chipRemove} onMouseDown={() => removeChip(name)}>×</span>
+            </span>
+          ))}
+        </div>
+      )}
+      <div className="intake-select-wrap">
+        <input
+          className={classes.input}
+          value={query}
+          placeholder={placeholder}
+          onFocus={() => setOpen(true)}
+          onChange={e => { setQuery(e.target.value); setOpen(true) }}
+          onBlur={() => setTimeout(() => { setOpen(false); setQuery('') }, 150)}
+        />
+        {open && (
+          <div className={classes.dropdown}>
+            {filtered.map(o => (
+              <div key={o.value} className={classes.dropdownItem} onMouseDown={() => addChip(o.value)}>{o.label}</div>
+            ))}
+            {filtered.length === 0 && !showAddNew && <div className={classes.empty}>No matches</div>}
+            {showAddNew && (
+              <div className={classes.addNewItem} onMouseDown={() => addChip(query.trim())}>
+                + Add new: "{query.trim()}"
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
 // ── Root ───────────────────────────────────────────────────
 
 export default function CallIntake() {
@@ -99,9 +235,15 @@ function PdfFlow() {
   const [releaseResult, setReleaseResult] = useState(null)
   const [addressModal, setAddressModal]   = useState(null)
   const [fields, setFields]           = useState({})
+  const [editedSystems, setEditedSystems] = useState([])
   const [pdfUrl, setPdfUrl]           = useState(null)
   const fileInputRef = useRef(null)
   const dropRef      = useRef(null)
+  const catalog = useCatalogLists()
+  const thermostatOptions = itemOptions(catalog.thermostats)
+  const accessoryOptions  = itemOptions(catalog.accessories)
+  const indoorOptions     = equipmentOptions(catalog.indoorEquipment)
+  const outdoorOptions    = equipmentOptions(catalog.outdoorEquipment)
 
   useEffect(() => {
     return () => { if (pdfUrl) URL.revokeObjectURL(pdfUrl) }
@@ -142,11 +284,20 @@ function PdfFlow() {
       const data = await api.get(`/dispatch/batch/${batchId}/call/${index}`)
       setCall(data.call)
       setFields(flattenCall(data.call))
+      setEditedSystems((data.call?.systems ?? []).map(sys => ({ ...sys })))
     } catch (err) {
       console.error('load call failed:', err)
     } finally {
       setLoadingCall(false)
     }
+  }
+
+  function updateEditedSystem(i, key, val) {
+    setEditedSystems(systems => {
+      const next = [...systems]
+      next[i] = { ...next[i], [key]: val }
+      return next
+    })
   }
 
   function flattenCall(extracted) {
@@ -175,7 +326,7 @@ function PdfFlow() {
         preIdentifiedAccessories: fields.preIdentifiedAccessories
           ? fields.preIdentifiedAccessories.split(',').map(s => s.trim()).filter(Boolean)
           : [],
-        systems: call?.systems ?? [],
+        systems: editedSystems,
       }
       const result = await api.post(`/dispatch/batch/${batch.batchId}/call/${callIndex}/confirm`, body)
       if (result.comparisonRequired) {
@@ -250,6 +401,9 @@ function PdfFlow() {
         <PdfReviewStage
           batch={batch} callIndex={callIndex} call={call} loading={loadingCall}
           fields={fields} onFieldChange={(k, v) => setFields(f => ({ ...f, [k]: v }))}
+          editedSystems={editedSystems} onSystemChange={updateEditedSystem}
+          thermostatOptions={thermostatOptions} accessoryOptions={accessoryOptions}
+          indoorOptions={indoorOptions} outdoorOptions={outdoorOptions}
           onConfirm={handleConfirm} onSkip={handleSkip}
           confirming={confirming} skipping={skipping} pdfUrl={pdfUrl}
         />
@@ -295,7 +449,7 @@ function PdfUploadStage({ uploading, error, dropRef, fileInputRef, onDrop, onDra
   )
 }
 
-function PdfReviewStage({ batch, callIndex, call, loading, fields, onFieldChange, onConfirm, onSkip, confirming, skipping, pdfUrl }) {
+function PdfReviewStage({ batch, callIndex, call, loading, fields, onFieldChange, editedSystems, onSystemChange, thermostatOptions, accessoryOptions, indoorOptions, outdoorOptions, onConfirm, onSkip, confirming, skipping, pdfUrl }) {
   const pct = Math.round(((callIndex - 1) / batch.totalCalls) * 100)
   return (
     <div style={s.reviewLayout}>
@@ -312,19 +466,26 @@ function PdfReviewStage({ batch, callIndex, call, loading, fields, onFieldChange
           <div style={s.loadingCall}>Loading call…</div>
         ) : (
           <>
-            {call?.systems?.length > 0 && (
+            {editedSystems.length > 0 && (
               <div style={s.systemsBox}>
-                {call.systems.map((sys, i) => (
+                {editedSystems.map((sys, i) => (
                   <div key={i} style={s.sysRow}>
-                    {call.systems.length > 1 && <p style={s.sysLabel}>System {i + 1}</p>}
-                    <p style={s.sysLine}>Indoor: {sys.indoorModel ?? '—'}</p>
-                    <p style={s.sysLine}>Outdoor: {sys.outdoorModel ?? '—'}</p>
+                    {editedSystems.length > 1 && <p style={s.sysLabel}>System {i + 1}</p>}
+                    <SearchableSelect
+                      value={sys.indoorModel ?? ''} onChange={v => onSystemChange(i, 'indoorModel', v)}
+                      options={indoorOptions} placeholder="Indoor model" classes={s.selectClasses}
+                    />
+                    <SearchableSelect
+                      value={sys.outdoorModel ?? ''} onChange={v => onSystemChange(i, 'outdoorModel', v)}
+                      options={outdoorOptions} placeholder="Outdoor model" classes={s.selectClasses}
+                    />
+                    <input style={s.fieldInput} value={sys.coilModel ?? ''} onChange={e => onSystemChange(i, 'coilModel', e.target.value)} placeholder="Coil model" />
                   </div>
                 ))}
               </div>
             )}
             <div style={s.fieldsGrid}>
-              {Object.entries(PDF_FIELD_LABELS).map(([key, label]) => (
+              {Object.entries(PDF_FIELD_LABELS).filter(([key]) => key !== 'preSpecifiedThermostat').map(([key, label]) => (
                 <div key={key} style={s.fieldRow}>
                   <label style={s.fieldLabel}>{label}</label>
                   {key === 'companyNotes' ? (
@@ -335,8 +496,18 @@ function PdfReviewStage({ batch, callIndex, call, loading, fields, onFieldChange
                 </div>
               ))}
               <div style={s.fieldRow}>
+                <label style={s.fieldLabel}>{PDF_FIELD_LABELS.preSpecifiedThermostat}</label>
+                <SearchableSelect
+                  value={fields.preSpecifiedThermostat ?? ''} onChange={v => onFieldChange('preSpecifiedThermostat', v)}
+                  options={thermostatOptions} placeholder="Model or N/A" classes={s.selectClasses}
+                />
+              </div>
+              <div style={s.fieldRow}>
                 <label style={s.fieldLabel}>Accessories</label>
-                <input style={s.fieldInput} value={fields.preIdentifiedAccessories ?? ''} onChange={e => onFieldChange('preIdentifiedAccessories', e.target.value)} placeholder="Comma-separated" />
+                <MultiSelectChips
+                  value={fields.preIdentifiedAccessories ?? ''} onChange={v => onFieldChange('preIdentifiedAccessories', v)}
+                  options={accessoryOptions} placeholder="Search accessories…" classes={s.selectClasses}
+                />
               </div>
             </div>
             <div style={s.reviewActions}>
@@ -402,6 +573,11 @@ function ManualFlow() {
   const [releaseResult, setReleaseResult] = useState(null)
   const searchTimer = useRef(null)
   const addressRef  = useRef(null)
+  const catalog = useCatalogLists()
+  const thermostatOptions = itemOptions(catalog.thermostats)
+  const accessoryOptions  = itemOptions(catalog.accessories)
+  const indoorOptions     = equipmentOptions(catalog.indoorEquipment)
+  const outdoorOptions    = equipmentOptions(catalog.outdoorEquipment)
 
   useEffect(() => {
     saveToStorage(session, draft)
@@ -640,8 +816,14 @@ function ManualFlow() {
               )}
             </div>
             <div style={m.sysRow}>
-              <input style={m.inputSm} placeholder="Indoor model" value={sys.indoorModel} onChange={e => updateSystem(i, 'indoorModel', e.target.value)} />
-              <input style={m.inputSm} placeholder="Outdoor model" value={sys.outdoorModel} onChange={e => updateSystem(i, 'outdoorModel', e.target.value)} />
+              <SearchableSelect
+                value={sys.indoorModel} onChange={v => updateSystem(i, 'indoorModel', v)}
+                options={indoorOptions} placeholder="Indoor model" classes={m.selectClassesSm}
+              />
+              <SearchableSelect
+                value={sys.outdoorModel} onChange={v => updateSystem(i, 'outdoorModel', v)}
+                options={outdoorOptions} placeholder="Outdoor model" classes={m.selectClassesSm}
+              />
               <input style={m.inputSm} placeholder="Coil model" value={sys.coilModel} onChange={e => updateSystem(i, 'coilModel', e.target.value)} />
             </div>
           </div>
@@ -653,13 +835,21 @@ function ManualFlow() {
           <div>
             <label style={m.label}>Thermostat</label>
             <div style={{ display: 'flex', gap: 6 }}>
-              <input style={{ ...m.input, flex: 1 }} value={draft.thermostat} onChange={e => setDraftField('thermostat', e.target.value)} placeholder="Model or N/A" />
+              <div style={{ flex: 1 }}>
+                <SearchableSelect
+                  value={draft.thermostat} onChange={v => setDraftField('thermostat', v)}
+                  options={thermostatOptions} placeholder="Model or N/A" classes={m.selectClasses}
+                />
+              </div>
               <input style={{ ...m.input, width: 52 }} type="number" min="1" value={draft.thermostatQty} onChange={e => setDraftField('thermostatQty', parseInt(e.target.value, 10) || 1)} />
             </div>
           </div>
           <div>
             <label style={m.label}>Accessories</label>
-            <input style={m.input} value={draft.accessories} onChange={e => setDraftField('accessories', e.target.value)} placeholder="Comma-separated" />
+            <MultiSelectChips
+              value={draft.accessories} onChange={v => setDraftField('accessories', v)}
+              options={accessoryOptions} placeholder="Search accessories…" classes={m.selectClasses}
+            />
           </div>
         </div>
 
@@ -812,6 +1002,18 @@ const s = {
   releaseBtn: { marginTop: '8px', background: 'var(--color-signal)', color: '#fff', border: 'none', borderRadius: '8px', fontSize: '14px', fontWeight: 500, padding: '12px 32px', cursor: 'pointer' },
 }
 
+// CSS classes defined in shared/tokens.css (.intake-select-*)
+s.selectClasses = {
+  input:        'intake-select-input',
+  dropdown:     'intake-select-dropdown',
+  dropdownItem: 'intake-select-dropdown-item',
+  addNewItem:   'intake-select-add-new',
+  empty:        'intake-select-empty',
+  chipsWrap:    'intake-select-chips-wrap',
+  chip:         'intake-select-chip',
+  chipRemove:   'intake-select-chip-remove',
+}
+
 // ── Manual styles (monochrome light — per mockup) ──────────
 
 const m = {
@@ -844,3 +1046,17 @@ const m = {
   btnGhost:  { border: '1px solid #999', color: '#5A5A5A', padding: '9px 18px', fontSize: '12px', letterSpacing: '0.3px', background: 'none', cursor: 'pointer', fontFamily: 'inherit' },
   btnSolid:  { border: '2px solid #141414', padding: '9px 18px', fontSize: '12px', letterSpacing: '0.3px', background: 'none', color: '#141414', cursor: 'pointer', fontFamily: 'inherit' },
 }
+
+// CSS classes defined in shared/tokens.css (.intake-select-*-light)
+m.selectClasses = {
+  input:        'intake-select-input-light',
+  dropdown:     'intake-select-dropdown-light',
+  dropdownItem: 'intake-select-dropdown-item-light',
+  addNewItem:   'intake-select-add-new-light',
+  empty:        'intake-select-empty-light',
+  chipsWrap:    'intake-select-chips-wrap',
+  chip:         'intake-select-chip-light',
+  chipRemove:   'intake-select-chip-remove-light',
+}
+
+m.selectClassesSm = { ...m.selectClasses, input: 'intake-select-input-light-sm' }
