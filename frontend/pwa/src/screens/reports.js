@@ -249,9 +249,9 @@ function showCardMenu (anchorEl, visit, correctionStatus) {
 function openCorrectionModal (visit) {
   const modal = CorrectionModal({
     visitId: visit.id,
-    onSubmit: async ({ visitId, fields, reason }) => {
+    onSubmit: async ({ visitId, fields, reason, hasEvidence, evidencePhotoId }) => {
       try {
-        await api.post(`/visits/${visitId}/request-correction`, { correctedFields: fields, reason })
+        await api.post(`/visits/${visitId}/request-correction`, { correctedFields: fields, reason, hasEvidence, evidencePhotoId })
         visit.correction_status = 'pending'
         modal.remove()
         renderList()

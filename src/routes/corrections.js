@@ -30,7 +30,7 @@ async function notifyDispatchers(db, type, message) {
 router.post('/visits/:id/request-correction', requireRole('technician'), async (req, res, next) => {
   try {
     const { id: visitId } = req.params;
-    const { correctedFields, reason } = req.body;
+    const { correctedFields, reason, hasEvidence, evidencePhotoId } = req.body;
     const techId = req.technician.id;
 
     const vResult = await pool.query(
@@ -62,9 +62,11 @@ router.post('/visits/:id/request-correction', requireRole('technician'), async (
     const now = new Date().toISOString();
     await pool.query(
       `INSERT INTO corrections
-         (id, visit_id, requested_by, corrected_fields, reason, status, requested_at, resolved_at, dispatcher_note)
-       VALUES ($1, $2, $3, $4, $5, 'pending', $6, null, null)`,
-      [corrId, visitId, techId, JSON.stringify(correctedFields), reason ?? null, now]
+         (id, visit_id, requested_by, corrected_fields, reason, status, requested_at,
+          resolved_at, dispatcher_note, has_evidence, evidence_photo_id)
+       VALUES ($1, $2, $3, $4, $5, 'pending', $6, null, null, $7, $8)`,
+      [corrId, visitId, techId, JSON.stringify(correctedFields), reason ?? null, now,
+       hasEvidence ? true : false, evidencePhotoId ?? null]
     );
 
     const message = `${req.technician.name} requested a correction for ${visit.street}`;
@@ -92,7 +94,7 @@ router.patch('/dispatch/corrections/:id/approve', requireRole('owner', 'dispatch
     if (cResult.rows.length === 0) return res.status(404).json({ error: 'Correction not found' });
     const corr = cResult.rows[0];
 
-    if (corr.status !== 'pending') {
+    if (!['pending', 'needs_evidence'].includes(corr.status)) {
       return res.status(400).json({ error: 'Correction is not pending' });
     }
 
@@ -177,7 +179,7 @@ router.patch('/dispatch/corrections/:id/reject', requireRole('owner', 'dispatche
     if (cResult.rows.length === 0) return res.status(404).json({ error: 'Correction not found' });
     const corr = cResult.rows[0];
 
-    if (corr.status !== 'pending') {
+    if (!['pending', 'needs_evidence'].includes(corr.status)) {
       return res.status(400).json({ error: 'Correction is not pending' });
     }
 
@@ -200,6 +202,30 @@ router.patch('/dispatch/corrections/:id/reject', requireRole('owner', 'dispatche
   }
 });
 
+// PATCH /api/dispatch/corrections/:id/flag-evidence  (mount at /api)
+router.patch('/dispatch/corrections/:id/flag-evidence', requireRole('owner', 'dispatcher'), async (req, res, next) => {
+  try {
+    const { id: corrId } = req.params;
+    const { dispatcherNote } = req.body ?? {};
+
+    const cResult = await pool.query('SELECT status FROM corrections WHERE id = $1', [corrId]);
+    if (cResult.rows.length === 0) return res.status(404).json({ error: 'Correction not found' });
+
+    if (cResult.rows[0].status !== 'pending') {
+      return res.status(400).json({ error: 'Correction is not pending' });
+    }
+
+    await pool.query(
+      `UPDATE corrections SET status = 'needs_evidence', dispatcher_note = $1 WHERE id = $2`,
+      [dispatcherNote ?? null, corrId]
+    );
+
+    res.json({ correctionId: corrId, status: 'needs_evidence' });
+  } catch (err) {
+    next(err);
+  }
+});
+
 // GET /api/dispatch/corrections/:id  (mount at /api)
 router.get('/dispatch/corrections/:id', requireRole('owner', 'dispatcher'), async (req, res, next) => {
   try {
@@ -207,12 +233,15 @@ router.get('/dispatch/corrections/:id', requireRole('owner', 'dispatcher'), asyn
     const result = await pool.query(
       `SELECT c.id, c.visit_id, c.corrected_fields, c.reason, c.status,
               c.requested_at, c.resolved_at, c.dispatcher_note,
+              c.has_evidence, c.evidence_photo_id,
+              vp.slug AS evidence_photo_slug,
               a.street,
               t.id AS tech_id, t.name AS tech_name
        FROM corrections c
        JOIN visits v ON v.id = c.visit_id
        JOIN addresses a ON a.id = v.address_id
        JOIN technicians t ON t.id = c.requested_by
+       LEFT JOIN visit_photos vp ON vp.id = c.evidence_photo_id
        WHERE c.id = $1`,
       [id]
     );
@@ -236,6 +265,10 @@ router.get('/dispatch/corrections/:id', requireRole('owner', 'dispatcher'), asyn
       requestedAt: r.requested_at,
       resolvedAt: r.resolved_at,
       dispatcherNote: r.dispatcher_note,
+      hasEvidence: r.has_evidence,
+      evidencePhoto: r.evidence_photo_id
+        ? { id: r.evidence_photo_id, slug: r.evidence_photo_slug }
+        : null,
       visitSnapshot: v ? {
         orderNumber: v.order_number,
         notes: v.notes,
@@ -263,7 +296,7 @@ router.get('/dispatch/corrections', requireRole('owner', 'dispatcher'), async (r
 
     const result = await pool.query(
       `SELECT c.id, c.visit_id, c.corrected_fields, c.reason, c.status,
-              c.requested_at, c.resolved_at, c.dispatcher_note,
+              c.requested_at, c.resolved_at, c.dispatcher_note, c.has_evidence,
               a.street,
               t.id AS tech_id, t.name AS tech_name
        FROM corrections c
@@ -271,7 +304,11 @@ router.get('/dispatch/corrections', requireRole('owner', 'dispatcher'), async (r
        JOIN addresses a ON a.id = v.address_id
        JOIN technicians t ON t.id = c.requested_by
        ${where}
-       ORDER BY CASE WHEN c.status = 'pending' THEN 0 ELSE 1 END, c.requested_at DESC`,
+       ORDER BY
+         CASE WHEN c.status = 'pending' THEN 0
+              WHEN c.status = 'needs_evidence' THEN 1
+              ELSE 2 END,
+         c.requested_at DESC`,
       params
     );
 
@@ -286,6 +323,7 @@ router.get('/dispatch/corrections', requireRole('owner', 'dispatcher'), async (r
       requestedAt: r.requested_at,
       resolvedAt: r.resolved_at,
       dispatcherNote: r.dispatcher_note,
+      hasEvidence: r.has_evidence,
     })));
   } catch (err) {
     next(err);

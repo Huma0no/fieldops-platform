@@ -254,7 +254,7 @@ CREATE TABLE visit_photos (
   slug          text NOT NULL,
   tag           text NOT NULL,
   label         text,
-  category      text NOT NULL CHECK (category IN ('weigh_in_scale', 'fan_speed', 'site_evidence')),
+  category      text NOT NULL CHECK (category IN ('weigh_in_scale', 'fan_speed', 'site_evidence', 'correction_evidence')),
   stored_at     text
 );
 
@@ -359,10 +359,12 @@ CREATE TABLE corrections (
   requested_by     text NOT NULL REFERENCES technicians(id),
   corrected_fields text NOT NULL,
   reason           text,
-  status           text NOT NULL CHECK (status IN ('pending', 'approved', 'rejected')),
-  requested_at     text NOT NULL,
-  resolved_at      text,
-  dispatcher_note  text
+  status            text NOT NULL CHECK (status IN ('pending', 'approved', 'rejected', 'needs_evidence')),
+  requested_at      text NOT NULL,
+  resolved_at       text,
+  dispatcher_note   text,
+  has_evidence      boolean NOT NULL DEFAULT false,
+  evidence_photo_id text REFERENCES visit_photos(id)
 );
 
 -- 27. edit_log

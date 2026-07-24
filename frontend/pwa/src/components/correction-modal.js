@@ -3,6 +3,8 @@
  * Modal for technician to submit a correction request on a completed visit.
  */
 
+import { api } from '../../../shared/api.js'
+
 const CORRECTABLE_FIELDS = [
   { key: 'service',     label: 'Service' },
   { key: 'thermostat',  label: 'Thermostat' },
@@ -72,6 +74,41 @@ export function CorrectionModal ({ visitId, onSubmit, onCancel }) {
   reason.rows = 4
   modal.appendChild(reason)
 
+  // Evidence photo prompt (optional)
+  const evidenceSection = document.createElement('div')
+  evidenceSection.className = 'cm-evidence'
+
+  const evidenceHint = document.createElement('p')
+  evidenceHint.className = 'cm-evidence-hint'
+  evidenceHint.textContent = 'Adding a photo helps the dispatcher approve this faster.'
+  evidenceSection.appendChild(evidenceHint)
+
+  let evidenceFile = null
+
+  const evidenceInput = document.createElement('input')
+  evidenceInput.type = 'file'
+  evidenceInput.accept = 'image/*'
+  evidenceInput.capture = 'environment'
+  evidenceInput.style.display = 'none'
+  evidenceInput.addEventListener('change', () => {
+    const file = evidenceInput.files?.[0]
+    if (file) {
+      evidenceFile = file
+      evidenceBtn.textContent = `📷 ${file.name}`
+      evidenceBtn.classList.add('cm-evidence-btn--selected')
+    }
+  })
+
+  const evidenceBtn = document.createElement('button')
+  evidenceBtn.type = 'button'
+  evidenceBtn.className = 'cm-evidence-btn'
+  evidenceBtn.textContent = '📷 Attach photo (optional)'
+  evidenceBtn.addEventListener('click', () => evidenceInput.click())
+
+  evidenceSection.appendChild(evidenceInput)
+  evidenceSection.appendChild(evidenceBtn)
+  modal.appendChild(evidenceSection)
+
   // Error
   const error = document.createElement('p')
   error.className = 'cm-error'
@@ -102,10 +139,27 @@ export function CorrectionModal ({ visitId, onSubmit, onCancel }) {
     submitBtn.disabled = true
     submitBtn.textContent = 'Submitting…'
     error.textContent = ''
+
+    let evidencePhotoId = null
+    if (evidenceFile) {
+      try {
+        const form = new FormData()
+        form.append('photo', evidenceFile, evidenceFile.name)
+        form.append('category', 'correction_evidence')
+        form.append('tag', 'CORRECTION')
+        const result = await api.upload(`/visits/${visitId}/photos`, form)
+        evidencePhotoId = result?.photoId ?? null
+      } catch (uploadErr) {
+        console.warn('evidence photo upload failed:', uploadErr)
+      }
+    }
+
     await onSubmit({
       visitId,
       fields: [...selectedFields],
       reason: reason.value.trim(),
+      hasEvidence: !!evidencePhotoId,
+      evidencePhotoId,
     })
   })
 
@@ -225,4 +279,37 @@ export const correctionModalStyles = `
   .cm-btn--primary   { background: var(--color-signal); color: #fff; }
   .cm-btn--secondary { background: var(--surface-3); color: var(--text-secondary); }
   .cm-btn:disabled   { opacity: 0.6; cursor: not-allowed; }
+
+  .cm-evidence {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+  }
+
+  .cm-evidence-hint {
+    font-size: var(--text-sm);
+    color: var(--text-disabled);
+    margin: 0;
+  }
+
+  .cm-evidence-btn {
+    align-self: flex-start;
+    background: var(--surface-2);
+    border: 0.5px solid var(--border-default);
+    border-radius: var(--radius-md);
+    color: var(--text-muted);
+    font-size: var(--text-sm);
+    padding: var(--space-2) var(--space-3);
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .cm-evidence-btn--selected {
+    border-color: var(--color-signal);
+    color: var(--color-signal);
+  }
 `
