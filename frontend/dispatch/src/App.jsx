@@ -18,6 +18,7 @@ import Chat              from './screens/Chat.jsx'
 import CatalogEditor     from './screens/CatalogEditor.jsx'
 import TechnicianManager from './screens/TechnicianManager.jsx'
 import Lobby             from './screens/Lobby.jsx'
+import Reports           from './screens/Reports.jsx'
 
 function useCompletionToasts (active) {
   const [toasts, setToasts] = useState([])
@@ -87,6 +88,7 @@ const SCREENS = {
   chat:        Chat,
   catalog:     CatalogEditor,
   technicians: TechnicianManager,
+  reports:     Reports,
 }
 
 function AppRoutes () {

@@ -15,6 +15,7 @@ const TABS = [
   { id: 'chat',        label: 'Chat',         icon: '💬' },
   { id: 'catalog',     label: 'Catalog',      icon: '🗂️' },
   { id: 'technicians', label: 'Technicians',  icon: '👥' },
+  { id: 'reports',     label: 'Reports',      icon: '📊' },
 ]
 
 export default function NavBar ({ active, onNavigate }) {
