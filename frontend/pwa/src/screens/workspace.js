@@ -74,7 +74,17 @@ export default async function mount (appEl) {
       api.get('/catalog/equipment').catch(() => []),
     ])
     if (!visit._service) {
-      visit._service = { ac: false, heat: false, prestart: false, cancel: false, driveRun: false, finish: false, temporarily: false, twoSystems: false }
+      const svc = (visit.services ?? [])[0]
+      visit._service = {
+        ac:          svc?.serviceName === 'AC' || svc?.serviceName === 'AC & Heat',
+        heat:        svc?.serviceName === 'Heat' || svc?.serviceName === 'AC & Heat',
+        prestart:    svc?.serviceName === 'Prestart',
+        cancel:      svc?.serviceName === 'Cancel',
+        driveRun:    svc?.serviceName === 'Drive Run',
+        finish:      svc?.isFinish ?? false,
+        temporarily: svc?.isTemporarily ?? false,
+        twoSystems:  visit.hasMultipleSystems ?? false,
+      }
     }
     if (!visit._items) visit._items = []
     if (!visit._checklist) visit._checklist = {}
