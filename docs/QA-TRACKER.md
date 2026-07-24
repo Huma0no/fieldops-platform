@@ -88,7 +88,11 @@ Leyenda: ⬜ no iniciado · 🟡 en curso / bloqueado · 🟢 completo
 - Pay Periods list: falta `totalGross` en la respuesta del backend.
 - Integración con Google Drive — decidida, no construida.
 - Extracción de PDF — sigue en stub, pendiente configurar IA en Settings (ver fila PDF Intake en "Estado general").
-- ~~Catalog: falta seed data~~ **Resuelto (verificado 2026-07-24, sin cambios en DB):** `catalog_services`/`catalog_items`/`catalog_equipment`/`catalog_item_relations` ya están poblados en dev — 49/288/286/11 filas respectivamente, todas por encima de lo que trae `scripts/seed-catalog.sql` (6/40/144/10), vía el Catalog Editor de Dispatch. **No se corrió el seed**: hacerlo hoy hubiera truncado esas filas extra y cascadeado sobre `visit_items`/`visit_services` (22/3 filas reales). `scripts/seed-catalog.sql` queda como referencia de valores canónicos, no como fuente activa — la DB ya divergió de él.
+- ~~Catalog: falta seed data~~ **Resuelto (2026-07-24):** la nota original (misma fecha) reportaba `catalog_items`/`catalog_equipment` con más filas que `scripts/seed-catalog.sql` (288/286 vs. 40/144) — investigado y confirmado que el exceso era contaminación de datos fabricados, no catálogo real. Limpieza completa realizada:
+  - `catalog_equipment`: eliminadas 142 filas fabricadas (`Carrier` ×16, `TEST` ×10, `TestBrand` ×116, alguna con `unit_type = 'hacked'`) — quedan 144, igual al seed.
+  - `catalog_items`: eliminadas 248 filas fabricadas (`ITEM-<hex>` ×226, `TEST-*`, y nombres sueltos tipo `acc1`/`ACC2`/`T10`/`TSTATMODEL`) — quedan 40, igual al seed. 14 filas de `visit_items` y 4 de `visit_systems` referenciaban parte de esos nombres, todas sobre 4 visitas fabricadas (técnico `Tech-technician`, direcciones tipo "TEST ADDRESS") — esas 4 visitas y su `catalog_item_relations` asociada (`TEST-PARENT`/`TEST-COMPANION`) se borraron también.
+  - **Causa raíz corregida (commit `e28bc89`):** `src/helpers/visit.js` (`createVisitWithSystems`) hacía upsert de cualquier thermostat/accessory de texto libre ingresado en Intake directamente a `catalog_items` (`ON CONFLICT DO NOTHING`) — cada nombre no catalogado se volvía una fila de catálogo permanente. Eliminado el upsert; el lookup de precio ahora usa fallback (`price 0`, `tech_supplied true`) sin escribir en `catalog_items`. Texto libre vive solo en `visit_items`, nunca en el catálogo. 359/359 tests pasando tras el fix.
+  - `scripts/seed-catalog.sql` ahora sí refleja el estado real de la DB — ambas tablas exactas al seed.
 
 ---
 
