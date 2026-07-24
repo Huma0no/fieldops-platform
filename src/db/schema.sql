@@ -16,6 +16,7 @@ DROP TABLE IF EXISTS corrections CASCADE;
 DROP TABLE IF EXISTS notifications CASCADE;
 DROP TABLE IF EXISTS chat_reads CASCADE;
 DROP TABLE IF EXISTS chat_messages CASCADE;
+DROP TABLE IF EXISTS pay_period_adjustments CASCADE;
 DROP TABLE IF EXISTS pay_period_lines CASCADE;
 DROP TABLE IF EXISTS pay_periods CASCADE;
 DROP TABLE IF EXISTS restock_records CASCADE;
@@ -299,9 +300,10 @@ CREATE TABLE pay_periods (
   week_start   text NOT NULL,
   week_end     text NOT NULL,
   status       text NOT NULL CHECK (status IN ('open', 'closed', 'paid')),
-  gross_total  real,
-  tax_amount   real,
-  paid_at      text
+  gross_total      real,
+  tax_amount       real,
+  paid_at          text,
+  ghost_deduction  real
 );
 
 -- 22. pay_period_lines
@@ -406,6 +408,17 @@ CREATE INDEX edit_log_visit_id_idx ON edit_log (visit_id);
 
 CREATE INDEX pay_period_lines_period_id_idx ON pay_period_lines (period_id);
 CREATE INDEX pay_period_lines_technician_id_idx ON pay_period_lines (technician_id);
+
+-- 23. pay_period_adjustments
+CREATE TABLE pay_period_adjustments (
+  id             text PRIMARY KEY DEFAULT gen_random_uuid()::text,
+  pay_period_id  text NOT NULL REFERENCES pay_periods(id),
+  technician_id  text NOT NULL REFERENCES technicians(id),
+  amount         real NOT NULL,
+  note           text,
+  created_at     text NOT NULL
+);
+CREATE INDEX pay_period_adjustments_period_idx ON pay_period_adjustments (pay_period_id);
 
 CREATE INDEX inventory_assignments_technician_id_idx ON inventory_assignments (technician_id);
 CREATE INDEX device_tokens_technician_id_idx ON device_tokens (technician_id);

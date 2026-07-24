@@ -32,6 +32,7 @@ app.use(authenticate);
 
 app.use('/api/dispatch/technicians', require('./routes/technicians'));
 app.use('/api/dispatch', require('./routes/dispatch'));
+app.use('/api/dispatch', require('./routes/reports'));
 app.use('/api/notifications', require('./routes/notifications'));
 app.use('/api/sync', require('./routes/sync'));
 app.use('/api/addresses', require('./routes/addresses'));
@@ -67,6 +68,9 @@ if (require.main === module) {
   app.listen(PORT, () => {
     console.log(`FieldOps server listening on port ${PORT}`);
   });
+  const { autoClosePeriods } = require('./services/autoClose');
+  autoClosePeriods();
+  setInterval(autoClosePeriods, 24 * 60 * 60 * 1000);
 }
 
 module.exports = app;

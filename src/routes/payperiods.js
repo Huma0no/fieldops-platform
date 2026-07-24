@@ -31,15 +31,52 @@ async function fetchPeriodWithLines(periodId) {
   if (pResult.rows.length === 0) return null;
   const period = pResult.rows[0];
 
-  const lResult = await pool.query(
-    `SELECT ppl.*, t.name AS technician_name
-     FROM pay_period_lines ppl
-     JOIN technicians t ON t.id = ppl.technician_id
-     WHERE ppl.period_id = $1`,
-    [periodId]
-  );
+  const [lResult, adjResult, tgResult] = await Promise.all([
+    pool.query(
+      `SELECT ppl.*, t.name AS technician_name
+       FROM pay_period_lines ppl
+       JOIN technicians t ON t.id = ppl.technician_id
+       WHERE ppl.period_id = $1`,
+      [periodId]
+    ),
+    pool.query(
+      'SELECT * FROM pay_period_adjustments WHERE pay_period_id = $1 ORDER BY created_at',
+      [periodId]
+    ),
+    pool.query(
+      `SELECT COALESCE(SUM(v.total_price), 0) AS total_generated
+       FROM visits v
+       WHERE v.status IN ('completed', 'temporarily')
+         AND v.completed_at >= $1 AND v.completed_at <= $2`,
+      [period.week_start, period.week_end]
+    ),
+  ]);
 
-  return { ...periodShape(period), lines: lResult.rows.map(lineShape) };
+  const adjByTech = {};
+  for (const a of adjResult.rows) {
+    if (!adjByTech[a.technician_id]) adjByTech[a.technician_id] = [];
+    adjByTech[a.technician_id].push({ id: a.id, amount: Number(a.amount), note: a.note, createdAt: a.created_at });
+  }
+
+  const lines = lResult.rows.map(row => {
+    const adjs = adjByTech[row.technician_id] ?? [];
+    const adjustmentSum = adjs.reduce((s, a) => s + a.amount, 0);
+    return {
+      technicianId:       row.technician_id,
+      technicianName:     row.technician_name,
+      grossAmount:        row.gross_amount,
+      commissionRetained: row.commission_retained,
+      netAmount:          row.net_amount + adjustmentSum,
+      adjustments:        adjs,
+    };
+  });
+
+  return {
+    ...periodShape(period),
+    ghostDeduction: period.ghost_deduction != null ? Number(period.ghost_deduction) : null,
+    totalGenerated: Number(tgResult.rows[0].total_generated),
+    lines,
+  };
 }
 
 // GET /api/dispatch/pay-periods
@@ -154,6 +191,51 @@ router.patch('/pay-periods/:id/mark-paid', requireRole('owner', 'dispatcher'), a
     );
 
     res.json({ id, status: 'paid', paidAt: now });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// POST /api/dispatch/pay-periods/:id/adjustments
+router.post('/pay-periods/:id/adjustments', requireRole('owner', 'dispatcher'), async (req, res, next) => {
+  const { id } = req.params;
+  const { technicianId, amount, note } = req.body;
+  if (!technicianId || amount == null) {
+    return res.status(400).json({ error: 'technicianId and amount are required' });
+  }
+  try {
+    const pResult = await pool.query('SELECT status FROM pay_periods WHERE id = $1', [id]);
+    if (pResult.rows.length === 0) return res.status(404).json({ error: 'Pay period not found' });
+    if (pResult.rows[0].status !== 'open') {
+      return res.status(400).json({ error: 'Adjustments can only be added to open pay periods' });
+    }
+    const now = new Date().toISOString();
+    await pool.query(
+      `INSERT INTO pay_period_adjustments (id, pay_period_id, technician_id, amount, note, created_at)
+       VALUES ($1, $2, $3, $4, $5, $6)`,
+      [crypto.randomUUID(), id, technicianId, amount, note ?? null, now]
+    );
+    const data = await fetchPeriodWithLines(id);
+    res.status(201).json(data);
+  } catch (err) {
+    next(err);
+  }
+});
+
+// POST /api/dispatch/pay-periods/:id/ghost-deduction
+router.post('/pay-periods/:id/ghost-deduction', requireRole('owner', 'dispatcher'), async (req, res, next) => {
+  const { id } = req.params;
+  const { amount } = req.body;
+  if (amount == null) return res.status(400).json({ error: 'amount is required' });
+  try {
+    const pResult = await pool.query('SELECT status FROM pay_periods WHERE id = $1', [id]);
+    if (pResult.rows.length === 0) return res.status(404).json({ error: 'Pay period not found' });
+    if (pResult.rows[0].status !== 'closed') {
+      return res.status(400).json({ error: 'Ghost deduction can only be set on closed pay periods' });
+    }
+    await pool.query('UPDATE pay_periods SET ghost_deduction = $1 WHERE id = $2', [amount, id]);
+    const data = await fetchPeriodWithLines(id);
+    res.json(data);
   } catch (err) {
     next(err);
   }
