@@ -201,7 +201,7 @@ describe('GET /api/visits/:id/report-preview', () => {
 
     expect(res.status).toBe(200);
     expect(typeof res.body.reportText).toBe('string');
-    expect(res.body.reportText.split(',')).toHaveLength(10);
+    expect(res.body.reportText.split(',')).toHaveLength(11);
   });
 
   it('allows dispatcher to access report-preview', async () => {

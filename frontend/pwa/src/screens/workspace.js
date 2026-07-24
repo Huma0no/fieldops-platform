@@ -16,11 +16,28 @@
 import { api }        from '../../../shared/api.js'
 import { getCatalog } from '../lib/db.js'
 
+const CHECKLIST_ITEMS = [
+  { key: 'pdrain_ecoil',   label: 'P-drain [eCoil]',            reportText: 'No/Incomplete pdrain at ecoil' },
+  { key: 'pdrain_disch',   label: 'P-drain [Discharge]',         reportText: 'No/Incomplete pdrain' },
+  { key: 'media_filter',   label: 'Media Filter',                 reportText: 'Media filter missing' },
+  { key: 'electric_meter', label: 'Electric Meter',               reportText: 'No electric meter' },
+  { key: 'breaker_cond',   label: 'Breaker — Condenser',          reportText: 'Disconnect missing at Cond' },
+  { key: 'breaker_ah',     label: 'Breaker — Air Handler',        reportText: 'No breakers in the main breaker panel' },
+  { key: 'disconnect_box', label: 'Disconnect box',               reportText: 'Disconnect box missing' },
+  { key: 'whip_220v',      label: 'Whip 220v',                    reportText: '220v not connected/Missing at cond' },
+  { key: 'furnace_switch', label: 'Furnace disconnect switch',    reportText: 'Furnace disconnect switch missing' },
+  { key: 'cable_110v',     label: '110v cable',                   reportText: '110v cable to furnace not connected' },
+  { key: 'gas_meter',      label: 'Gas Meter',                    reportText: 'gas meter closed/missing' },
+  { key: 'gas_pipes',      label: 'Gas Pipes/Tubing at Furnace',  reportText: 'Gas pipes/Tubing at furnace missing' },
+  { key: 'gas_valve',      label: 'Gas Valve',                    reportText: null },
+]
+
 const SECTIONS = [
   { id: 'service',     label: 'Service',    icon: '⚡' },
   { id: 'thermostat',  label: 'Thermostat', icon: '🌡' },
   { id: 'accessories', label: 'Acc',        icon: '🔧' },
   { id: 'fixes',       label: 'Fixes',      icon: '🔩' },
+  { id: 'startup',     label: 'Check',      icon: '✓'  },
   { id: 'weighin',     label: 'Weigh-in',   icon: '⚖️' },
   { id: 'calc',        label: 'Calc',       icon: '🧮' },
   { id: 'notes',       label: 'Notes',      icon: '📝' },
@@ -57,6 +74,8 @@ export default async function mount (appEl) {
       visit._service = { ac: false, heat: false, prestart: false, cancel: false, driveRun: false, finish: false, temporarily: false, twoSystems: false }
     }
     if (!visit._items) visit._items = []
+    if (!visit._checklist) visit._checklist = {}
+    if (!visit._checklistPhotoCounts) visit._checklistPhotoCounts = {}
   } catch (err) {
     console.error('Workspace load failed:', err)
     navigateBack()
@@ -257,6 +276,7 @@ function buildSectionContent (sectionId) {
     case 'thermostat':  return buildThermostatSection()
     case 'accessories': return buildItemsSection('accessory')
     case 'fixes':       return buildItemsSection('fix')
+    case 'startup':     return buildStartupChecklistSection()
     case 'weighin':     return buildWeighInSection()
     case 'calc':        return buildCalcSection()
     case 'notes':       return buildNotesSection()
@@ -293,6 +313,10 @@ function getSectionSummary (sectionId) {
     case 'fixes': {
       const items = (visit._items ?? []).filter(i => i.category === 'fix')
       return items.length ? `${items.length} fix${items.length !== 1 ? 'es' : ''}` : '—'
+    }
+    case 'startup': {
+      const answered = CHECKLIST_ITEMS.filter(i => visit._checklist?.[i.key] != null).length
+      return answered ? `${answered}/${CHECKLIST_ITEMS.length}` : '—'
     }
     case 'weighin':   return visit._weighinDone ? 'Done' : '—'
     case 'calc':      return '—'
@@ -843,6 +867,92 @@ function buildCalcPanel (systemNum, showLabel) {
   return panel
 }
 
+function buildStartupChecklistSection () {
+  const wrap = document.createElement('div'); wrap.className='ws-section-content'
+  CHECKLIST_ITEMS.forEach(item => wrap.appendChild(buildChecklistItemRow(item)))
+  const sep = document.createElement('p'); sep.className='ws-weighin-label'; sep.textContent='Compliance Photos'
+  wrap.appendChild(sep)
+  const grid = document.createElement('div'); grid.className='ws-btn-grid'
+  ;[['SCALE', 'site_evidence'], ['FAN', 'site_evidence']].forEach(([tag, cat]) => {
+    const btn = document.createElement('button'); btn.className='ws-item-btn'; btn.textContent=tag
+    btn.addEventListener('click', () => captureStartupPhoto(tag, cat, btn))
+    grid.appendChild(btn)
+  })
+  wrap.appendChild(grid)
+  const doneBtn = document.createElement('button')
+  doneBtn.className='ws-done-btn'; doneBtn.textContent='Done'
+  doneBtn.addEventListener('click', () => markSectionComplete('startup'))
+  wrap.appendChild(doneBtn)
+  return wrap
+}
+
+function buildChecklistItemRow (item) {
+  const answer = visit._checklist?.[item.key] ?? null
+  const wrap = document.createElement('div'); wrap.className='ws-check-item'
+  const row = document.createElement('div'); row.className='ws-check-row'
+  const lbl = document.createElement('span'); lbl.className='ws-check-label'; lbl.textContent=item.label
+  const btnGroup = document.createElement('div'); btnGroup.className='ws-check-btns'
+  ;[['yes','Yes'],['no','No']].forEach(([val, txt]) => {
+    const btn = document.createElement('button')
+    btn.className = `ws-check-btn${answer === val ? ' ws-check-btn--active' : ''}`
+    btn.textContent = txt
+    btn.addEventListener('click', () => {
+      visit._checklist = visit._checklist ?? {}
+      visit._checklist[item.key] = visit._checklist[item.key] === val ? null : val
+      refreshSection('startup')
+    })
+    btnGroup.appendChild(btn)
+  })
+  row.appendChild(lbl); row.appendChild(btnGroup); wrap.appendChild(row)
+  if (answer === 'no') {
+    const photoRow = document.createElement('div'); photoRow.className='ws-check-photo-row'
+    const photoBtn = document.createElement('button'); photoBtn.className='ws-check-photo-btn'
+    const count = visit._checklistPhotoCounts?.[item.key] ?? 0
+    photoBtn.textContent = count > 0 ? `📷 ${count} photo${count !== 1 ? 's' : ''}` : '📷 Add photo'
+    photoBtn.addEventListener('click', () => captureStartupItemPhoto(item.key, photoBtn))
+    photoRow.appendChild(photoBtn); wrap.appendChild(photoRow)
+  }
+  return wrap
+}
+
+async function captureStartupItemPhoto (itemKey, btn) {
+  const input = document.createElement('input')
+  input.type='file'; input.accept='image/*'; input.capture='environment'
+  input.addEventListener('change', async () => {
+    const file = input.files[0]; if (!file) return
+    const compressed = await compressImage(file)
+    const form = new FormData()
+    form.append('photo', compressed, file.name); form.append('tag', itemKey.toUpperCase()); form.append('category', 'site_evidence')
+    try {
+      await api.upload(`/visits/${visit.id}/photos`, form)
+      visit._checklistPhotoCounts = visit._checklistPhotoCounts ?? {}
+      visit._checklistPhotoCounts[itemKey] = (visit._checklistPhotoCounts[itemKey] ?? 0) + 1
+      visit._photoCount = (visit._photoCount ?? 0) + 1
+      const count = visit._checklistPhotoCounts[itemKey]
+      btn.textContent = `📷 ${count} photo${count !== 1 ? 's' : ''}`
+    } catch (err) { console.error('Checklist photo failed:', err) }
+  })
+  input.click()
+}
+
+async function captureStartupPhoto (tag, category, btn) {
+  const input = document.createElement('input')
+  input.type='file'; input.accept='image/*'; input.capture='environment'
+  input.addEventListener('change', async () => {
+    const file = input.files[0]; if (!file) return
+    btn.classList.add('ws-item-btn--active')
+    const compressed = await compressImage(file)
+    const form = new FormData()
+    form.append('photo', compressed, file.name); form.append('tag', tag); form.append('category', category)
+    try {
+      await api.upload(`/visits/${visit.id}/photos`, form)
+      visit._photoCount = (visit._photoCount ?? 0) + 1
+      addThumb(compressed, tag)
+    } catch (err) { btn.classList.remove('ws-item-btn--active') }
+  })
+  input.click()
+}
+
 function buildNotesSection () {
   const wrap = document.createElement('div'); wrap.className='ws-section-content'
   const textarea = document.createElement('textarea')
@@ -922,7 +1032,42 @@ async function compressImage (file, maxPx=1200, quality=0.7) {
   })
 }
 
+function buildChecklistAnswers () {
+  return CHECKLIST_ITEMS
+    .filter(item => visit._checklist?.[item.key] != null)
+    .map(item => ({
+      item: item.key,
+      answer: visit._checklist[item.key],
+      photoCount: visit._checklistPhotoCounts?.[item.key] ?? 0,
+      reportText: visit._checklist[item.key] === 'no' ? item.reportText : null,
+    }))
+}
+
 function openGenerateModal () {
+  const pdrain1 = visit._checklist?.pdrain_ecoil
+  const pdrain2 = visit._checklist?.pdrain_disch
+  if (pdrain1 !== 'yes' || pdrain2 !== 'yes') {
+    showPdrainAdvisory()
+    return
+  }
+  openGenerateModalDirect()
+}
+
+function showPdrainAdvisory () {
+  const overlay = makeOverlay()
+  const modal = makeModal('P-drain Review')
+  const note = document.createElement('p'); note.className='ws-modal-note'
+  note.textContent = 'Reviewing the P-drain before completing is recommended.'
+  const actions = makeActions([
+    { label: 'Close',      cls: 'secondary', fn: () => overlay.remove() },
+    { label: 'Understood', cls: 'primary',   fn: () => { overlay.remove(); openGenerateModalDirect() } },
+  ])
+  modal.appendChild(note); modal.appendChild(actions)
+  overlay.appendChild(modal)
+  document.getElementById('ws-screen')?.appendChild(overlay)
+}
+
+function openGenerateModalDirect () {
   const overlay = makeOverlay()
   const modal = makeModal('Generate Report')
   const summary = document.createElement('div'); summary.className='ws-modal-summary'
@@ -941,7 +1086,7 @@ function openGenerateModal () {
     { label: 'Submit report', cls: 'primary', fn: async (btn) => {
       btn.disabled=true; btn.textContent='Submitting…'
       try {
-        await api.post(`/visits/${visit.id}/complete`)
+        await api.post(`/visits/${visit.id}/complete`, { checklistAnswers: buildChecklistAnswers() })
         overlay.remove()
         sessionStorage.removeItem('workspace:visitId')
         window.dispatchEvent(new CustomEvent('app:navigate', { detail: { route: '/reports' } }))
@@ -1129,6 +1274,14 @@ function injectStyles () {
   .ws-price-input:focus{border-color:var(--color-signal);}
   .ws-empty-note{font-size:var(--text-sm);color:var(--text-muted);text-align:center;padding:var(--space-4) 0;}
   .ws-calc-result{background:var(--surface-2);border:0.5px solid var(--border-subtle);border-radius:var(--radius-md);padding:var(--space-3);text-align:center;font-size:var(--text-lg);font-weight:500;color:var(--text-primary);}
+  .ws-check-item{display:flex;flex-direction:column;gap:6px;}
+  .ws-check-row{display:flex;align-items:center;justify-content:space-between;gap:var(--space-3);}
+  .ws-check-label{font-size:var(--text-sm);color:var(--text-secondary);flex:1;line-height:1.3;}
+  .ws-check-btns{display:flex;gap:4px;flex-shrink:0;}
+  .ws-check-btn{padding:5px 14px;border-radius:var(--radius-md);border:0.5px solid var(--border-default);background:var(--surface-3);color:var(--text-muted);font-size:var(--text-sm);font-weight:500;cursor:pointer;-webkit-tap-highlight-color:transparent;}
+  .ws-check-btn--active{background:var(--void2,#161920);color:var(--text-primary);border-color:var(--color-signal);}
+  .ws-check-photo-row{padding-left:2px;}
+  .ws-check-photo-btn{background:none;border:0.5px dashed var(--border-default);border-radius:var(--radius-md);color:var(--text-muted);font-size:var(--text-sm);padding:4px 10px;cursor:pointer;-webkit-tap-highlight-color:transparent;}
   `
   document.head.appendChild(style)
 }

@@ -1,0 +1,1 @@
+ALTER TABLE visits ADD COLUMN IF NOT EXISTS checklist_answers JSONB;

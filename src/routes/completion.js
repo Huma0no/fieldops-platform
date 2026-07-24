@@ -52,14 +52,15 @@ router.post('/:id/complete', requireRole('technician'), async (req, res, next) =
       finalStatus = 'completed';
     }
 
+    const { checklistAnswers } = req.body ?? {};
     const now = new Date().toISOString();
     const client = await pool.connect();
     let expiredRows = [];
     try {
       await client.query('BEGIN');
       await client.query(
-        `UPDATE visits SET status = $1, completed_at = $2, updated_at = $2 WHERE id = $3`,
-        [finalStatus, now, id]
+        `UPDATE visits SET status = $1, completed_at = $2, updated_at = $2, checklist_answers = $4 WHERE id = $3`,
+        [finalStatus, now, id, checklistAnswers ? JSON.stringify(checklistAnswers) : null]
       );
       const expiredResult = await client.query(
         `UPDATE transfers SET status = 'expired', resolved_at = $1

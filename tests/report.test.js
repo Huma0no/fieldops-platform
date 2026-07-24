@@ -30,7 +30,7 @@ describe('generateReportText', () => {
     const text = await generateReportText(pool, visitId);
     const parts = text.split(',');
 
-    expect(parts).toHaveLength(10);
+    expect(parts).toHaveLength(11);
     expect(parts[3]).toBe('DR HORTON');   // builder
     expect(parts[4]).toBe('AC');           // serviceName
     expect(parts[5]).toBe('false');        // isFinish

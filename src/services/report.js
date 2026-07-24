@@ -1,7 +1,7 @@
 async function generateReportText(db, visitId) {
   const [visitRow, serviceRows, systemRows] = await Promise.all([
     db.query(
-      `SELECT v.order_number, v.total_price, v.completed_at,
+      `SELECT v.order_number, v.total_price, v.completed_at, v.notes, v.checklist_answers,
               a.street, a.subdivision, a.builder
        FROM visits v
        JOIN addresses a ON a.id = v.address_id
@@ -22,6 +22,13 @@ async function generateReportText(db, visitId) {
   const svc = serviceRows.rows[0] || {};
   const systemCount = parseInt(systemRows.rows[0].count, 10);
 
+  const noChecklistItems = (v.checklist_answers ?? [])
+    .filter(a => a.answer === 'no' && a.reportText)
+    .map(a => a.reportText);
+  const combinedNotes = noChecklistItems.length
+    ? `${v.notes ?? ''} | ${noChecklistItems.join(', ')}`
+    : (v.notes ?? '');
+
   return [
     v.order_number,
     v.street,
@@ -33,6 +40,7 @@ async function generateReportText(db, visitId) {
     systemCount,
     v.total_price,
     v.completed_at,
+    combinedNotes,
   ].join(',');
 }
 
