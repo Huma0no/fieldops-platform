@@ -99,6 +99,12 @@ visitsRouter.post('/:id/claim', requireRole('technician'), async (req, res, next
       );
       const a = addrResult.rows[0];
 
+      await createNotification(pool, {
+        recipientId: req.technician.id,
+        type: 'visit_assigned',
+        message: `You have been assigned to ${a.street}`,
+      });
+
       res.json({
         id: v.id,
         orderNumber: v.order_number,
