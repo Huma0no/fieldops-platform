@@ -511,11 +511,11 @@ function buildThermostatSection () {
   grid.className = 'ws-btn-grid'
 
   tstatItems.forEach(item => {
-    const isActive = selected?.item_name === item.name
-    const isPre    = !isActive && preSpec === item.name
+    const isActive = selected?.item_name === item.item_name
+    const isPre    = !isActive && preSpec === item.item_name
     const btn = document.createElement('button')
     btn.className = `ws-item-btn${isActive ? ' ws-item-btn--active' : ''}${isPre ? ' ws-item-btn--pre' : ''}`
-    btn.innerHTML = isPre ? `${item.name}<span class="ws-pre-label">suggested</span>` : item.name
+    btn.innerHTML = isPre ? `${item.item_name}<span class="ws-pre-label">suggested</span>` : item.item_name
     btn.addEventListener('click', async () => {
       if (isActive) {
         const existing = (visit._items ?? []).find(i => i.category === 'thermostat')
@@ -533,8 +533,8 @@ function buildThermostatSection () {
       }
       showQuantityModal(item, async qty => {
         try {
-          const result = await api.post(`/visits/${visit.id}/items`, { itemName: item.name, category: 'thermostat', quantity: qty })
-          visit._items = [...(visit._items ?? []), { id: result.id, item_name: item.name, category: 'thermostat', quantity: qty, price: item.price }]
+          const result = await api.post(`/visits/${visit.id}/items`, { itemName: item.item_name, category: 'thermostat', quantity: qty })
+          visit._items = [...(visit._items ?? []), { id: result.id, item_name: item.item_name, category: 'thermostat', quantity: qty, price: item.default_price }]
           if (result.totalPrice !== undefined) updatePrice(result.totalPrice)
           refreshSection('thermostat')
         } catch (err) { console.error('Add thermostat failed:', err) }
@@ -563,7 +563,7 @@ function buildThermostatSection () {
 
 function showQuantityModal (item, onConfirm) {
   const overlay = makeOverlay()
-  const modal = makeModal(item.name)
+  const modal = makeModal(item.item_name)
   const note = document.createElement('p')
   note.className = 'ws-modal-note'
   note.textContent = 'How many?'
@@ -600,15 +600,15 @@ function buildItemsSection (category) {
   grid.className = 'ws-btn-grid'
 
   items.forEach(item => {
-    const isActive = activeItems.some(a => a.item_name === item.name)
-    const isPre    = !isActive && preIds.includes(item.name)
+    const isActive = activeItems.some(a => a.item_name === item.item_name)
+    const isPre    = !isActive && preIds.includes(item.item_name)
     const btn = document.createElement('button')
     btn.className = `ws-item-btn${isActive ? ' ws-item-btn--active' : ''}${isPre ? ' ws-item-btn--pre' : ''}`
     btn.disabled  = !!isCancelled
-    btn.innerHTML = isPre ? `${item.name}<span class="ws-pre-label">suggested</span>` : item.name
+    btn.innerHTML = isPre ? `${item.item_name}<span class="ws-pre-label">suggested</span>` : item.item_name
     btn.addEventListener('click', async () => {
       if (isActive) {
-        const existing = activeItems.find(a => a.item_name === item.name)
+        const existing = activeItems.find(a => a.item_name === item.item_name)
         if (existing) {
           await api.delete(`/visits/${visit.id}/items/${existing.id}`)
           visit._items = (visit._items ?? []).filter(i => i.id !== existing.id)
@@ -617,7 +617,7 @@ function buildItemsSection (category) {
         return
       }
       if (item.custom_price) { showCustomPriceModal(item, price => addItem(item, category, 1, price)); return }
-      if (category === 'fix' && (item.name === 'Fixed Leaks' || item.name === 'Extended Wire')) {
+      if (category === 'fix' && (item.item_name === 'Fixed Leaks' || item.item_name === 'Extended Wire')) {
         showSubOptionsModal(item, category); return
       }
       await addItem(item, category, 1)
@@ -642,10 +642,10 @@ function buildItemsSection (category) {
 
 async function addItem (item, category, quantity, customPrice) {
   try {
-    const body = { itemName: item.name, category, quantity }
+    const body = { itemName: item.item_name, category, quantity }
     if (customPrice !== undefined) body.price = customPrice
     const result = await api.post(`/visits/${visit.id}/items`, body)
-    const newItem = { id: result.id, item_name: item.name, category, quantity, price: customPrice ?? item.price }
+    const newItem = { id: result.id, item_name: item.item_name, category, quantity, price: customPrice ?? item.default_price }
     visit._items = [...(visit._items ?? []).filter(i => !result.removedItems?.includes(i.item_name)), newItem]
     if (result.totalPrice !== undefined) updatePrice(result.totalPrice)
     refreshSection(category === 'accessory' ? 'accessories' : 'fixes')
@@ -654,7 +654,7 @@ async function addItem (item, category, quantity, customPrice) {
 
 function showCustomPriceModal (item, onConfirm) {
   const overlay = makeOverlay()
-  const modal = makeModal(item.name)
+  const modal = makeModal(item.item_name)
   const input = document.createElement('input')
   input.type = 'number'; input.min = '0'; input.step = '0.01'
   input.placeholder = 'Enter price'; input.className = 'ws-price-input'
@@ -675,9 +675,9 @@ function showCustomPriceModal (item, onConfirm) {
 
 function showSubOptionsModal (item, category) {
   const SUB_OPTIONS = { 'Fixed Leaks': ['cunit','ecoil','wall'], 'Extended Wire': ['cunit','furnace'] }
-  const options = SUB_OPTIONS[item.name] ?? []
+  const options = SUB_OPTIONS[item.item_name] ?? []
   const overlay = makeOverlay()
-  const modal = makeModal(item.name)
+  const modal = makeModal(item.item_name)
   const note = document.createElement('p'); note.className='ws-modal-note'; note.textContent='Select all that apply'
   modal.appendChild(note)
   const selected = new Set()

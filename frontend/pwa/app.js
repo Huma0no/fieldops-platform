@@ -5,7 +5,11 @@
 
 import { AuthScreen, authStyles } from './src/screens/auth.js'
 import { api }                   from './shared/api.js'
-import { setCatalog }            from './src/lib/db.js'
+import { setCatalog, getCatalog } from './src/lib/db.js'
+
+// Bump when catalog data changes server-side (e.g. after a DB cleanup) so
+// cached IndexedDB catalog data on already-installed clients gets replaced.
+const CATALOG_VERSION = 'v2'
 
 // ── Register service worker ────────────────────────────────
 if ('serviceWorker' in navigator) {
@@ -100,22 +104,32 @@ function boot () {
 
   const session = getSession()
   if (session) {
+    preloadCatalog()
     navigate('/')
   } else {
     showAuth()
   }
 }
 
-function preloadCatalog () {
-  Promise.all([
-    api.get('/catalog/items'),
-    api.get('/catalog/equipment'),
-    api.get('/catalog/lineset-configs'),
-  ]).then(([items, equipment, linesetConfigs]) => {
-    setCatalog('items', items).catch(() => {})
-    setCatalog('equipment', equipment).catch(() => {})
-    setCatalog('lineset-configs', linesetConfigs).catch(() => {})
-  }).catch(() => {})
+async function preloadCatalog () {
+  try {
+    const storedVersion = await getCatalog('version')
+    if (storedVersion === CATALOG_VERSION) return
+
+    const [items, equipment, linesetConfigs] = await Promise.all([
+      api.get('/catalog/items'),
+      api.get('/catalog/equipment'),
+      api.get('/catalog/lineset-configs'),
+    ])
+    await Promise.all([
+      setCatalog('items', items),
+      setCatalog('equipment', equipment),
+      setCatalog('lineset-configs', linesetConfigs),
+    ])
+    await setCatalog('version', CATALOG_VERSION)
+  } catch (_) {
+    // Offline or fetch failed — keep whatever's already cached and retry next load.
+  }
 }
 
 function showAuth () {
