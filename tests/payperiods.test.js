@@ -395,3 +395,191 @@ describe('GET /api/pay/mine', () => {
     expect(res.status).toBe(403);
   });
 });
+
+// ── POST /api/dispatch/pay-periods/:id/adjustments ────────────────────────────
+
+describe('POST /api/dispatch/pay-periods/:id/adjustments', () => {
+  it('creates adjustment and returns updated period with adjusted netAmount', async () => {
+    const { token } = await seedDispatcherWithToken();
+    const { tech } = await seedTechnicianWithToken();
+    const periodId = await seedPayPeriod('2026-06-23', '2026-06-29');
+
+    await pool.query(
+      `INSERT INTO pay_period_lines (id, period_id, technician_id, gross_amount, commission_retained, net_amount)
+       VALUES (gen_random_uuid()::text, $1, $2, 300, 60, 240)`,
+      [periodId, tech.id]
+    );
+
+    const res = await request(app)
+      .post(`/api/dispatch/pay-periods/${periodId}/adjustments`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ technicianId: tech.id, amount: -50, note: 'Late deduction' });
+
+    expect(res.status).toBe(201);
+    expect(res.body.id).toBe(periodId);
+    const line = res.body.lines.find(l => l.technicianId === tech.id);
+    expect(line).toBeDefined();
+    expect(line.netAmount).toBeCloseTo(190);
+    expect(line.adjustments).toHaveLength(1);
+    expect(line.adjustments[0].amount).toBeCloseTo(-50);
+    expect(line.adjustments[0].note).toBe('Late deduction');
+  });
+
+  it('sums multiple adjustments correctly', async () => {
+    const { token } = await seedDispatcherWithToken();
+    const { tech } = await seedTechnicianWithToken();
+    const periodId = await seedPayPeriod('2026-06-23', '2026-06-29');
+
+    await pool.query(
+      `INSERT INTO pay_period_lines (id, period_id, technician_id, gross_amount, commission_retained, net_amount)
+       VALUES (gen_random_uuid()::text, $1, $2, 300, 60, 240)`,
+      [periodId, tech.id]
+    );
+
+    await request(app)
+      .post(`/api/dispatch/pay-periods/${periodId}/adjustments`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ technicianId: tech.id, amount: 100, note: 'Bonus' });
+
+    const res = await request(app)
+      .post(`/api/dispatch/pay-periods/${periodId}/adjustments`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ technicianId: tech.id, amount: -25, note: 'Deduction' });
+
+    expect(res.status).toBe(201);
+    const line = res.body.lines.find(l => l.technicianId === tech.id);
+    expect(line.netAmount).toBeCloseTo(315);
+    expect(line.adjustments).toHaveLength(2);
+  });
+
+  it('returns 400 when period is not open', async () => {
+    const { token } = await seedDispatcherWithToken();
+    const { tech } = await seedTechnicianWithToken();
+    const periodId = await seedPayPeriod('2026-06-23', '2026-06-29');
+    await pool.query(`UPDATE pay_periods SET status = 'closed' WHERE id = $1`, [periodId]);
+
+    const res = await request(app)
+      .post(`/api/dispatch/pay-periods/${periodId}/adjustments`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ technicianId: tech.id, amount: -50 });
+
+    expect(res.status).toBe(400);
+  });
+
+  it('returns 400 when technicianId or amount is missing', async () => {
+    const { token } = await seedDispatcherWithToken();
+    const periodId = await seedPayPeriod('2026-06-23', '2026-06-29');
+
+    const res = await request(app)
+      .post(`/api/dispatch/pay-periods/${periodId}/adjustments`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ amount: -50 });
+
+    expect(res.status).toBe(400);
+  });
+
+  it('returns 404 for unknown period', async () => {
+    const { token } = await seedDispatcherWithToken();
+    const res = await request(app)
+      .post('/api/dispatch/pay-periods/nonexistent/adjustments')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ technicianId: 'any', amount: -10 });
+    expect(res.status).toBe(404);
+  });
+
+  it('returns 403 for technician role', async () => {
+    const { token } = await seedTechnicianWithToken();
+    const res = await request(app)
+      .post('/api/dispatch/pay-periods/any-id/adjustments')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ technicianId: 'any', amount: -10 });
+    expect(res.status).toBe(403);
+  });
+});
+
+// ── GET /:id includes adjustments + totalGenerated + ghostDeduction ───────────
+
+describe('GET /api/dispatch/pay-periods/:id (extended fields)', () => {
+  it('includes adjustments array (empty) and totalGenerated on lines', async () => {
+    const { token } = await seedDispatcherWithToken();
+    const { tech } = await seedTechnicianWithToken();
+    const periodId = await seedPayPeriod('2026-06-23', '2026-06-29');
+
+    await pool.query(
+      `INSERT INTO pay_period_lines (id, period_id, technician_id, gross_amount, commission_retained, net_amount)
+       VALUES (gen_random_uuid()::text, $1, $2, 300, 60, 240)`,
+      [periodId, tech.id]
+    );
+
+    const res = await request(app)
+      .get(`/api/dispatch/pay-periods/${periodId}`)
+      .set('Authorization', `Bearer ${token}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveProperty('totalGenerated');
+    expect(res.body).toHaveProperty('ghostDeduction');
+    expect(res.body.lines[0]).toHaveProperty('adjustments');
+    expect(res.body.lines[0].adjustments).toEqual([]);
+  });
+});
+
+// ── POST /api/dispatch/pay-periods/:id/ghost-deduction ───────────────────────
+
+describe('POST /api/dispatch/pay-periods/:id/ghost-deduction', () => {
+  it('sets ghost deduction on a closed period and returns updated period', async () => {
+    const { token } = await seedDispatcherWithToken();
+    const periodId = await seedPayPeriod('2026-06-23', '2026-06-29');
+    await pool.query(`UPDATE pay_periods SET status = 'closed' WHERE id = $1`, [periodId]);
+
+    const res = await request(app)
+      .post(`/api/dispatch/pay-periods/${periodId}/ghost-deduction`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ amount: 150 });
+
+    expect(res.status).toBe(200);
+    expect(res.body.ghostDeduction).toBeCloseTo(150);
+  });
+
+  it('returns 400 when period is not closed', async () => {
+    const { token } = await seedDispatcherWithToken();
+    const periodId = await seedPayPeriod('2026-06-23', '2026-06-29');
+
+    const res = await request(app)
+      .post(`/api/dispatch/pay-periods/${periodId}/ghost-deduction`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ amount: 100 });
+
+    expect(res.status).toBe(400);
+  });
+
+  it('returns 400 when amount is missing', async () => {
+    const { token } = await seedDispatcherWithToken();
+    const periodId = await seedPayPeriod('2026-06-23', '2026-06-29');
+    await pool.query(`UPDATE pay_periods SET status = 'closed' WHERE id = $1`, [periodId]);
+
+    const res = await request(app)
+      .post(`/api/dispatch/pay-periods/${periodId}/ghost-deduction`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({});
+
+    expect(res.status).toBe(400);
+  });
+
+  it('returns 404 for unknown period', async () => {
+    const { token } = await seedDispatcherWithToken();
+    const res = await request(app)
+      .post('/api/dispatch/pay-periods/nonexistent/ghost-deduction')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ amount: 100 });
+    expect(res.status).toBe(404);
+  });
+
+  it('returns 403 for technician role', async () => {
+    const { token } = await seedTechnicianWithToken();
+    const res = await request(app)
+      .post('/api/dispatch/pay-periods/any-id/ghost-deduction')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ amount: 100 });
+    expect(res.status).toBe(403);
+  });
+});

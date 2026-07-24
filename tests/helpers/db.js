@@ -20,6 +20,7 @@ async function truncateTables() {
     DELETE FROM visit_services;
     DELETE FROM visit_systems;
     DELETE FROM transfers;
+    DELETE FROM pay_period_adjustments;
     DELETE FROM pay_period_lines;
     DELETE FROM pay_periods;
     DELETE FROM restock_records;
