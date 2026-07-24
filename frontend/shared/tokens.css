@@ -258,3 +258,45 @@
 /* ── Generic utilities (shared across PWA screens/components) ── */
 
 .hidden { display: none; }
+
+/* ===== FieldOps Neomorphic =====
+ * Token values sourced exactly from docs/fieldops-startup-checklist.html.
+ * PWA-only — do not use these in Dispatch, and do not reuse the
+ * unprefixed --panel/--ink/etc. names from that mockup here (collision
+ * risk with the shared tokens above); everything below is --fo- prefixed.
+ */
+
+:root {
+  /* Surface colors */
+  --fo-panel:    #e7e4df;
+  --fo-panel-hi: #f7f5f1;
+  --fo-panel-lo: #c3bfb8;
+  --fo-well:     #dcd9d3;
+  --fo-tile:     #faf9f6;
+
+  /* Ink */
+  --fo-ink:      #1a1714;
+  --fo-ink-soft: #6b665f;
+
+  /* Accent / state */
+  --fo-accent:      #b5641e;
+  --fo-accent-deep: #8a4a13;
+  --fo-ok:          #3d6b3f;
+  --fo-no:          #9e2b1e;
+
+  /* Border radius */
+  --fo-radius:    20px;
+  --fo-radius-md: 14px;
+  --fo-radius-sm: 11px;
+
+  /* Shadows */
+  --fo-shadow-raised: -3px -3px 6px var(--fo-panel-hi), 3px 4px 8px var(--fo-panel-lo);
+  --fo-shadow-inset:  inset 3px 3px 6px var(--fo-panel-lo), inset -3px -3px 6px var(--fo-panel-hi);
+  --fo-shadow-well:   inset 4px 4px 9px var(--fo-panel-lo), inset -4px -4px 9px var(--fo-panel-hi);
+  --fo-shadow-card:   -4px -4px 8px var(--fo-panel-hi), 4px 5px 10px var(--fo-panel-lo);
+  --fo-shadow-subtle: -3px -3px 7px var(--fo-panel-hi), 4px 5px 10px var(--fo-panel-lo);
+
+  /* Fonts */
+  --fo-font-body: 'Archivo', system-ui, sans-serif;
+  --fo-font-mono: 'Azeret Mono', monospace;
+}
