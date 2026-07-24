@@ -88,7 +88,7 @@ Leyenda: ⬜ no iniciado · 🟡 en curso / bloqueado · 🟢 completo
 - Pay Periods list: falta `totalGross` en la respuesta del backend.
 - Integración con Google Drive — decidida, no construida.
 - Extracción de PDF — sigue en stub, pendiente configurar IA en Settings (ver fila PDF Intake en "Estado general").
-- Catalog: falta seed data.
+- ~~Catalog: falta seed data~~ **Resuelto (verificado 2026-07-24, sin cambios en DB):** `catalog_services`/`catalog_items`/`catalog_equipment`/`catalog_item_relations` ya están poblados en dev — 49/288/286/11 filas respectivamente, todas por encima de lo que trae `scripts/seed-catalog.sql` (6/40/144/10), vía el Catalog Editor de Dispatch. **No se corrió el seed**: hacerlo hoy hubiera truncado esas filas extra y cascadeado sobre `visit_items`/`visit_services` (22/3 filas reales). `scripts/seed-catalog.sql` queda como referencia de valores canónicos, no como fuente activa — la DB ya divergió de él.
 
 ---
 
