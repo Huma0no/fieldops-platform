@@ -32,6 +32,16 @@ const TABS = [
             </svg>`,
   },
   {
+    id:    'transfers',
+    label: 'Transfers',
+    route: '/transfers/incoming',
+    icon:  `<svg width="22" height="22" viewBox="0 0 24 24" fill="none"
+              stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
+              <path d="M7 16V4m0 0L3 8m4-4l4 4"/>
+              <path d="M17 8v12m0 0l4-4m-4 4l-4-4"/>
+            </svg>`,
+  },
+  {
     id:    'reports',
     label: 'Reports',
     route: '/reports',

@@ -8,7 +8,7 @@ import { api } from '../../../shared/api.js'
 
 const NOTIFICATION_ROUTES = {
   assignment:          '/',
-  transfer_request:    '/transfers',
+  transfer_request:    '/transfers/incoming',
   transfer_accepted:   '/',
   transfer_rejected:   '/',
   message:             '/chat',
