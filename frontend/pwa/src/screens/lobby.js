@@ -246,7 +246,7 @@ function buildEmptyState () {
   el.className = 'empty-state'
   el.innerHTML = `
     <svg width="48" height="48" viewBox="0 0 24 24" fill="none"
-         stroke="var(--text-disabled)" stroke-width="1.2" stroke-linecap="round">
+         stroke="var(--fo-ink-soft)" stroke-width="1.2" stroke-linecap="round">
       <circle cx="12" cy="12" r="9"/>
       <polyline points="12 8 12 12 14 14"/>
     </svg>
@@ -305,26 +305,38 @@ function navigate (route) {
 // ── Styles ─────────────────────────────────────────────────
 
 const screenStyles = `
+  .screen {
+    display: flex;
+    flex-direction: column;
+    height: 100dvh;
+    overflow: hidden;
+    background: radial-gradient(120% 80% at 50% -10%, var(--fo-panel-hi) 0%, var(--fo-panel-lo) 100%);
+  }
+
   .lobby-count-badge {
-    font-size: var(--text-sm);
-    color: var(--text-disabled);
-    font-weight: 400;
+    font-family: var(--fo-font-mono);
+    font-size: 10px;
+    letter-spacing: 0.06em;
+    color: var(--fo-ink-soft);
+    font-weight: 600;
   }
 
   .lobby-card {
-    background: var(--surface-1);
-    border-radius: var(--radius-lg);
-    border: 0.5px solid var(--border-subtle);
+    background: var(--fo-panel);
+    border-radius: var(--fo-radius);
+    border: none;
     padding: var(--space-4);
     display: flex;
     flex-direction: column;
     gap: var(--space-2);
+    box-shadow: var(--fo-shadow-raised);
     transition: opacity var(--dur-fast) var(--ease-out);
   }
 
   .lobby-card--gone {
     opacity: 0.45;
     pointer-events: none;
+    box-shadow: var(--fo-shadow-inset);
   }
 
   .lc-top {
@@ -343,28 +355,39 @@ const screenStyles = `
   }
 
   .lc-address {
-    font-size: var(--text-base);
-    font-weight: 500;
-    color: var(--text-primary);
+    font-family: var(--fo-font-body);
+    font-size: 13.5px;
+    font-weight: 600;
+    color: var(--fo-ink);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
   }
 
   .lc-sub {
-    font-size: var(--text-sm);
-    color: var(--text-muted);
+    font-family: var(--fo-font-mono);
+    font-size: 10.5px;
+    letter-spacing: 0.06em;
+    color: var(--fo-ink-soft);
   }
 
   .lc-time {
-    font-size: var(--text-sm);
-    color: var(--text-disabled);
     flex-shrink: 0;
+    font-family: var(--fo-font-mono);
+    font-size: 9px;
+    letter-spacing: 0.05em;
+    color: var(--fo-ink-soft);
+    background: var(--fo-well);
+    box-shadow: var(--fo-shadow-well);
+    border-radius: var(--fo-radius-sm);
+    padding: 4px 9px;
   }
 
   .lc-worktype {
-    font-size: var(--text-sm);
-    color: var(--text-secondary);
+    font-family: var(--fo-font-body);
+    font-size: 11.5px;
+    font-weight: 600;
+    color: var(--fo-ink-soft);
   }
 
   .lc-tags {
@@ -373,6 +396,22 @@ const screenStyles = `
     flex-wrap: wrap;
   }
 
+  .lc-tags .tag {
+    font-family: var(--fo-font-mono);
+    font-size: 8px;
+    letter-spacing: 0.11em;
+    padding: 2px 6px;
+    border: none;
+    border-radius: 20px;
+    background: var(--fo-panel);
+    color: var(--fo-ink-soft);
+    box-shadow: var(--fo-shadow-subtle);
+  }
+
+  .lc-tags .tag--heat    { color: var(--fo-no); }
+  .lc-tags .tag--signal  { color: var(--fo-ink-soft); }
+  .lc-tags .tag--default { color: var(--fo-ink-soft); }
+
   .lc-actions {
     display: flex;
     justify-content: flex-end;
@@ -380,27 +419,36 @@ const screenStyles = `
   }
 
   .lc-claim-btn {
-    background: var(--color-signal);
-    color: #fff;
+    background: var(--fo-panel);
+    color: var(--fo-ink);
     border: none;
-    border-radius: var(--radius-md);
-    font-size: var(--text-base);
-    font-weight: 500;
-    padding: var(--space-2) var(--space-5);
+    border-radius: var(--fo-radius-sm);
+    font-family: var(--fo-font-mono);
+    font-weight: 700;
+    font-size: 12px;
+    letter-spacing: 0.04em;
+    padding: var(--space-3) var(--space-6);
     cursor: pointer;
-    transition: opacity var(--dur-fast) var(--ease-out);
+    box-shadow: var(--fo-shadow-raised);
+    transition: transform 0.08s ease, opacity var(--dur-fast) var(--ease-out);
     -webkit-tap-highlight-color: transparent;
+  }
+
+  .lc-claim-btn:active {
+    transform: translateY(1px);
   }
 
   .lc-claim-btn--loading {
     opacity: 0.6;
     cursor: not-allowed;
+    box-shadow: var(--fo-shadow-inset);
   }
 
   .lc-gone-label {
-    font-size: var(--text-sm);
-    color: var(--text-disabled);
-    font-style: italic;
+    font-family: var(--fo-font-mono);
+    font-size: 10px;
+    letter-spacing: 0.05em;
+    color: var(--fo-ink-soft);
   }
 
   .lobby-header-left {
@@ -414,16 +462,17 @@ const screenStyles = `
     justify-content: space-between;
     align-items: center;
     padding: calc(var(--space-5) + env(safe-area-inset-top, 0px)) var(--space-5) var(--space-3);
-    background: var(--surface-1);
-    border-bottom: 0.5px solid var(--border-subtle);
+    background: transparent;
     flex-shrink: 0;
   }
 
   .screen-title {
-    font-size: var(--text-lg);
-    font-weight: 500;
-    color: var(--text-primary);
-    letter-spacing: -0.01em;
+    font-family: var(--fo-font-mono);
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--fo-ink-soft);
   }
 
   .scroll-area {
@@ -450,14 +499,19 @@ const screenStyles = `
   }
 
   .empty-title {
-    font-size: var(--text-base);
-    font-weight: 500;
-    color: var(--text-muted);
+    font-family: var(--fo-font-mono);
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    color: var(--fo-ink-soft);
   }
 
   .empty-sub {
-    font-size: var(--text-sm);
-    color: var(--text-disabled);
+    font-family: var(--fo-font-mono);
+    font-size: 10px;
+    letter-spacing: 0.02em;
+    color: var(--fo-ink-soft);
+    opacity: 0.75;
   }
 
   .skeleton-wrap {
@@ -469,8 +523,9 @@ const screenStyles = `
 
   .skeleton-card {
     height: 110px;
-    border-radius: var(--radius-lg);
-    background: var(--surface-1);
+    border-radius: var(--fo-radius);
+    background: var(--fo-panel);
+    box-shadow: var(--fo-shadow-raised);
     animation: shimmer 1.4s ease-in-out infinite;
   }
 
