@@ -187,8 +187,8 @@ export function JobCard ({ visit, onStart, onOpenWorkspace, onNavigate }) {
           row.appendChild(label)
         }
 
-        row.appendChild(detailRow('Indoor',  sys.indoor_model  ?? '—'))
-        row.appendChild(detailRow('Outdoor', sys.outdoor_model ?? '—'))
+        row.appendChild(detailRow('Indoor',  sys.indoor_model  ?? '—', 'jc-detail-value--chip'))
+        row.appendChild(detailRow('Outdoor', sys.outdoor_model ?? '—', 'jc-detail-value--chip'))
         if (sys.refrigerant) {
           row.appendChild(detailRow('Refrigerant', sys.refrigerant))
         }
@@ -301,7 +301,7 @@ function showContextMenu (anchorEl, visit) {
 
 // ── Helpers ───────────────────────────────────────────────
 
-function detailRow (label, value) {
+function detailRow (label, value, valueClass) {
   const row = document.createElement('div')
   row.className = 'jc-detail-row'
 
@@ -310,7 +310,7 @@ function detailRow (label, value) {
   lbl.textContent = label
 
   const val = document.createElement('span')
-  val.className   = 'jc-detail-value'
+  val.className   = `jc-detail-value${valueClass ? ' ' + valueClass : ''}`
   val.textContent = value
 
   row.appendChild(lbl)
@@ -353,15 +353,16 @@ function formatTime (iso) {
 
 export const jobCardStyles = `
   .job-card {
-    background: var(--surface-1);
-    border-radius: var(--radius-lg);
-    border: 0.5px solid var(--border-subtle);
+    background: var(--fo-panel);
+    border-radius: var(--fo-radius);
+    border: none;
     overflow: hidden;
-    transition: border-color var(--dur-fast) var(--ease-out);
+    box-shadow: var(--fo-shadow-raised);
+    transition: box-shadow var(--dur-fast) var(--ease-out);
   }
 
   .job-card--deferred {
-    border-color: var(--plasma-border);
+    border: 1px solid var(--fo-accent);
   }
 
   .jc-header {
@@ -390,32 +391,49 @@ export const jobCardStyles = `
     flex-shrink: 0;
   }
 
+  .jc-header-left .badge {
+    font-family: var(--fo-font-mono);
+    border-radius: 20px;
+    background: var(--fo-panel);
+    color: var(--fo-ink-soft);
+    box-shadow: var(--fo-shadow-subtle);
+  }
+
   .jc-address {
-    font-size: var(--text-base);
-    font-weight: 500;
-    color: var(--text-primary);
+    font-family: var(--fo-font-body);
+    font-size: 16px;
+    font-weight: 800;
+    color: var(--fo-ink);
+    letter-spacing: -0.01em;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
   }
 
   .jc-meta {
-    font-size: var(--text-sm);
-    color: var(--text-muted);
+    font-family: var(--fo-font-mono);
+    font-size: 10px;
+    letter-spacing: 0.03em;
+    color: var(--fo-ink-soft);
   }
 
   .jc-time {
-    font-size: var(--text-sm);
-    color: var(--text-disabled);
+    font-family: var(--fo-font-mono);
+    font-size: 10px;
+    letter-spacing: 0.03em;
+    color: var(--fo-ink-soft);
   }
 
   .jc-menu-btn {
-    background: none;
+    background: var(--fo-panel);
     border: none;
-    color: var(--text-muted);
-    font-size: 18px;
+    color: var(--fo-ink-soft);
+    font-size: 16px;
     cursor: pointer;
-    padding: 0 2px;
+    width: 28px;
+    height: 28px;
+    border-radius: var(--fo-radius-sm);
+    box-shadow: var(--fo-shadow-subtle);
     letter-spacing: 1px;
     line-height: 1;
     -webkit-tap-highlight-color: transparent;
@@ -428,13 +446,30 @@ export const jobCardStyles = `
     flex-wrap: wrap;
   }
 
+  .jc-tags .tag {
+    font-family: var(--fo-font-mono);
+    font-size: 8px;
+    letter-spacing: 0.11em;
+    padding: 2px 6px;
+    border: none;
+    border-radius: 20px;
+    background: var(--fo-panel);
+    color: var(--fo-ink-soft);
+    box-shadow: var(--fo-shadow-subtle);
+  }
+
+  .jc-tags .tag--heat    { color: var(--fo-no); }
+  .jc-tags .tag--signal  { color: var(--fo-ink-soft); }
+  .jc-tags .tag--default { color: var(--fo-ink-soft); }
+
   .jc-body {
     padding: 0 var(--space-4) var(--space-3);
   }
 
   .jc-spinner {
-    font-size: var(--text-sm);
-    color: var(--text-muted);
+    font-family: var(--fo-font-mono);
+    font-size: 11px;
+    color: var(--fo-ink-soft);
     padding: var(--space-3) 0;
     text-align: center;
   }
@@ -443,8 +478,9 @@ export const jobCardStyles = `
     display: flex;
     flex-direction: column;
     gap: var(--space-1);
-    background: var(--surface-2);
-    border-radius: var(--radius-md);
+    background: var(--fo-well);
+    box-shadow: var(--fo-shadow-well);
+    border-radius: var(--fo-radius-md);
     padding: var(--space-3) var(--space-3);
   }
 
@@ -455,17 +491,18 @@ export const jobCardStyles = `
   }
 
   .jc-detail-group + .jc-detail-group {
-    border-top: 0.5px solid var(--border-subtle);
+    border-top: 0.5px solid var(--fo-panel-lo);
     padding-top: var(--space-2);
     margin-top: var(--space-1);
   }
 
   .jc-section-label {
-    font-size: var(--text-xs);
-    font-weight: 500;
-    color: var(--text-disabled);
+    font-family: var(--fo-font-mono);
+    font-size: 9px;
+    font-weight: 600;
+    color: var(--fo-ink-soft);
     text-transform: uppercase;
-    letter-spacing: 0.06em;
+    letter-spacing: 0.1em;
     margin-bottom: var(--space-1);
   }
 
@@ -477,34 +514,52 @@ export const jobCardStyles = `
   }
 
   .jc-detail-label {
-    font-size: var(--text-sm);
-    color: var(--text-muted);
+    font-family: var(--fo-font-mono);
+    font-size: 10px;
+    letter-spacing: 0.03em;
+    color: var(--fo-ink-soft);
     flex-shrink: 0;
   }
 
   .jc-detail-value {
-    font-size: var(--text-sm);
-    color: var(--text-secondary);
+    font-family: var(--fo-font-body);
+    font-size: 12.5px;
+    font-weight: 600;
+    color: var(--fo-ink);
     text-align: right;
   }
 
+  .jc-detail-value--chip {
+    font-family: var(--fo-font-mono);
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    color: var(--fo-ink-soft);
+    background: var(--fo-tile);
+    box-shadow: var(--fo-shadow-subtle);
+    border-radius: var(--fo-radius-sm);
+    padding: 3px 9px;
+  }
+
   .jc-contact-link {
-    color: var(--color-signal);
+    color: var(--fo-accent-deep);
     text-decoration: none;
-    font-size: var(--text-sm);
+    font-family: var(--fo-font-body);
+    font-size: 12.5px;
+    font-weight: 600;
   }
 
   .jc-notes-ref {
-    font-size: var(--text-sm);
-    color: var(--text-muted);
+    font-family: var(--fo-font-body);
+    font-size: 12px;
+    color: var(--fo-ink-soft);
     font-style: italic;
-    border-top: 0.5px solid var(--border-subtle);
+    line-height: 1.5;
     padding-top: var(--space-2);
     margin-top: var(--space-1);
   }
 
   .jc-weigh-ref {
-    border-top: 0.5px solid var(--border-subtle);
     padding-top: var(--space-2);
     margin-top: var(--space-1);
   }
@@ -518,13 +573,19 @@ export const jobCardStyles = `
   .jc-btn {
     flex: 1;
     border: none;
-    border-radius: var(--radius-md);
-    font-size: var(--text-base);
-    font-weight: 500;
+    border-radius: var(--fo-radius-sm);
+    font-family: var(--fo-font-body);
+    font-weight: 800;
+    font-size: 14px;
+    letter-spacing: 0.02em;
     padding: var(--space-3) var(--space-4);
     cursor: pointer;
-    transition: opacity var(--dur-fast) var(--ease-out);
+    transition: transform 0.08s ease, opacity var(--dur-fast) var(--ease-out);
     -webkit-tap-highlight-color: transparent;
+  }
+
+  .jc-btn:active {
+    transform: translateY(1px);
   }
 
   .jc-btn:disabled {
@@ -533,30 +594,37 @@ export const jobCardStyles = `
   }
 
   .jc-btn--primary {
-    background: var(--color-signal);
-    color: #fff;
+    background: var(--fo-panel);
+    color: var(--fo-accent-deep);
+    box-shadow: var(--fo-shadow-raised);
+  }
+
+  .jc-btn--primary:active {
+    box-shadow: var(--fo-shadow-inset);
   }
 
   .jc-btn--secondary {
-    background: var(--surface-3);
-    color: var(--text-secondary);
+    background: var(--fo-well);
+    color: var(--fo-ink-soft);
+    box-shadow: var(--fo-shadow-well);
   }
 
   /* Context menu */
   .jc-context-menu {
     position: fixed;
-    background: var(--surface-2);
-    border: 0.5px solid var(--border-default);
-    border-radius: var(--radius-md);
+    background: var(--fo-panel);
+    border: none;
+    border-radius: var(--fo-radius-md);
     padding: var(--space-2) 0;
     min-width: 160px;
     z-index: 100;
-    box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+    box-shadow: var(--fo-shadow-card);
   }
 
   .jc-context-empty {
-    font-size: var(--text-sm);
-    color: var(--text-disabled);
+    font-family: var(--fo-font-mono);
+    font-size: 10px;
+    color: var(--fo-ink-soft);
     padding: var(--space-3) var(--space-4);
     text-align: center;
   }
@@ -567,17 +635,18 @@ export const jobCardStyles = `
     background: none;
     border: none;
     text-align: left;
-    font-size: var(--text-base);
-    color: var(--text-secondary);
+    font-family: var(--fo-font-mono);
+    font-size: 11px;
+    color: var(--fo-ink);
     padding: var(--space-3) var(--space-4);
     cursor: pointer;
   }
 
   .jc-context-item:active {
-    background: var(--surface-3);
+    background: var(--fo-well);
   }
 
   .jc-context-item--destructive {
-    color: var(--color-heat);
+    color: var(--fo-no);
   }
 `

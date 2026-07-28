@@ -217,7 +217,7 @@ function buildEmptyState () {
   el.className = 'empty-state'
   el.innerHTML = `
     <svg width="48" height="48" viewBox="0 0 24 24" fill="none"
-         stroke="var(--text-disabled)" stroke-width="1.2" stroke-linecap="round">
+         stroke="var(--fo-ink-soft)" stroke-width="1.2" stroke-linecap="round">
       <rect x="3" y="4" width="18" height="16" rx="2"/>
       <line x1="3" y1="9" x2="21" y2="9"/>
     </svg>
@@ -252,7 +252,7 @@ const screenStyles = `
     display: flex;
     flex-direction: column;
     height: 100dvh;
-    background: var(--surface-base);
+    background: var(--fo-panel);
     overflow: hidden;
   }
 
@@ -261,25 +261,28 @@ const screenStyles = `
     justify-content: space-between;
     align-items: center;
     padding: calc(var(--space-5) + env(safe-area-inset-top, 0px)) var(--space-5) var(--space-3);
-    background: var(--surface-1);
-    border-bottom: 0.5px solid var(--border-subtle);
+    background: var(--fo-panel);
+    box-shadow: var(--fo-shadow-raised);
+    position: relative;
+    z-index: 2;
     flex-shrink: 0;
   }
 
   .screen-title {
-    font-size: var(--text-lg);
-    font-weight: 500;
-    color: var(--text-primary);
+    font-family: var(--fo-font-body);
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--fo-ink);
     letter-spacing: -0.01em;
   }
 
   .header-bell {
     background: none;
     border: none;
-    color: var(--text-muted);
+    color: var(--fo-ink-soft);
     cursor: pointer;
     padding: var(--space-2);
-    border-radius: var(--radius-md);
+    border-radius: var(--fo-radius-sm);
     -webkit-tap-highlight-color: transparent;
   }
 
@@ -308,14 +311,19 @@ const screenStyles = `
   }
 
   .empty-title {
-    font-size: var(--text-base);
-    font-weight: 500;
-    color: var(--text-muted);
+    font-family: var(--fo-font-mono);
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    color: var(--fo-ink-soft);
   }
 
   .empty-sub {
-    font-size: var(--text-sm);
-    color: var(--text-disabled);
+    font-family: var(--fo-font-mono);
+    font-size: 10px;
+    letter-spacing: 0.02em;
+    color: var(--fo-ink-soft);
+    opacity: 0.75;
   }
 
   .skeleton-wrap {
@@ -327,8 +335,9 @@ const screenStyles = `
 
   .skeleton-card {
     height: 88px;
-    border-radius: var(--radius-lg);
-    background: var(--surface-1);
+    border-radius: var(--fo-radius);
+    background: var(--fo-well);
+    box-shadow: var(--fo-shadow-well);
     animation: shimmer 1.4s ease-in-out infinite;
   }
 
