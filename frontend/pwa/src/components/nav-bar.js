@@ -122,9 +122,11 @@ export function updateChatBadge (navEl, count) {
 export const navBarStyles = `
   .nav-bar {
     display: flex;
-    background: var(--surface-1);
-    border-top: 0.5px solid var(--border-subtle);
+    background: var(--fo-panel);
+    box-shadow: inset 0 1px 0 var(--fo-panel-hi), 0 -4px 9px var(--fo-panel-lo);
     padding-bottom: env(safe-area-inset-bottom, 0px);
+    position: relative;
+    z-index: 6;
     flex-shrink: 0;
   }
 
@@ -133,23 +135,48 @@ export const navBarStyles = `
     display: flex;
     flex-direction: column;
     align-items: center;
+    justify-content: center;
     gap: 3px;
+    height: 56px;
     padding: 10px 4px;
     background: none;
     border: none;
     cursor: pointer;
-    color: var(--text-disabled);
+    color: var(--fo-ink-soft);
     position: relative;
-    transition: color var(--dur-fast) var(--ease-out);
+    transition: color 0.12s ease;
     -webkit-tap-highlight-color: transparent;
   }
 
+  .nav-tab + .nav-tab::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 16px;
+    bottom: 16px;
+    width: 1px;
+    background: var(--fo-panel-lo);
+  }
+
   .nav-tab--active {
-    color: var(--color-signal);
+    color: var(--fo-accent-deep);
+  }
+
+  .nav-tab--active::after {
+    content: '';
+    position: absolute;
+    top: 6px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 14px;
+    height: 2px;
+    border-radius: 2px;
+    background: var(--fo-accent-deep);
+    box-shadow: var(--fo-shadow-inset);
   }
 
   .nav-tab:not(.nav-tab--active):active {
-    color: var(--text-muted);
+    color: var(--fo-accent-deep);
   }
 
   .nav-icon {
@@ -160,31 +187,34 @@ export const navBarStyles = `
     height: 24px;
   }
 
-  .nav-label {
-    font-size: 10px;
-    font-weight: 400;
-    letter-spacing: 0.01em;
-    white-space: nowrap;
+  .nav-icon svg {
+    stroke: currentColor;
   }
 
-  .nav-tab--active .nav-label {
-    font-weight: 500;
+  .nav-label {
+    font-family: var(--fo-font-mono);
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    white-space: nowrap;
   }
 
   .nav-badge {
     position: absolute;
     top: 6px;
     right: calc(50% - 18px);
-    background: var(--color-heat);
-    color: #fff;
+    background: var(--fo-accent);
+    color: var(--fo-panel-hi);
+    font-family: var(--fo-font-mono);
     font-size: 9px;
-    font-weight: 600;
+    font-weight: 700;
     min-width: 16px;
     height: 16px;
-    border-radius: var(--radius-pill);
+    border-radius: 9px;
     display: flex;
     align-items: center;
     justify-content: center;
     padding: 0 4px;
+    box-shadow: var(--fo-shadow-subtle);
   }
 `
