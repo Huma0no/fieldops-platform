@@ -9,14 +9,14 @@
  *
  * Usage:
  *   import { JobCard } from '../components/job-card.js'
- *   const card = JobCard({ visit, onStart, onOpenWorkspace, onNavigate })
+ *   const card = JobCard({ visit, onStart, onOpenWorkspace, onNavigate, onItemsLoaded })
  *   listEl.appendChild(card)
  */
 
 import { api } from '../../../shared/api.js'
 import { Badge, Tag } from './badge.js'
 
-export function JobCard ({ visit, onStart, onOpenWorkspace, onNavigate }) {
+export function JobCard ({ visit, onStart, onOpenWorkspace, onNavigate, onItemsLoaded }) {
   let expanded  = false
   let fullVisit = null   // loaded on first expand
   let loading   = false
@@ -58,6 +58,21 @@ export function JobCard ({ visit, onStart, onOpenWorkspace, onNavigate }) {
     time.textContent = formatTime(visit.scheduled_time)
     right.appendChild(time)
 
+    const iconRow = document.createElement('div')
+    iconRow.className = 'jc-header-icons'
+
+    // Navigate button — opens the device's default maps app
+    const navBtn = document.createElement('button')
+    navBtn.className = 'jc-nav-btn'
+    navBtn.innerHTML  = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11l19-9-9 19-2-8-8-2z"/></svg>'
+    navBtn.setAttribute('aria-label', 'Navigate to address')
+    navBtn.addEventListener('click', e => {
+      e.stopPropagation()
+      const addrParts = [visit.address?.street, visit.address?.city].filter(Boolean)
+      window.open('https://maps.google.com/maps?q=' + encodeURIComponent(addrParts.join(', ')), '_blank')
+    })
+    iconRow.appendChild(navBtn)
+
     // Three-dot menu button — reserved for low-frequency actions
     const menuBtn = document.createElement('button')
     menuBtn.className   = 'jc-menu-btn'
@@ -67,7 +82,9 @@ export function JobCard ({ visit, onStart, onOpenWorkspace, onNavigate }) {
       e.stopPropagation()
       showContextMenu(menuBtn, visit)
     })
-    right.appendChild(menuBtn)
+    iconRow.appendChild(menuBtn)
+
+    right.appendChild(iconRow)
 
     header.appendChild(left)
     header.appendChild(right)
@@ -151,6 +168,10 @@ export function JobCard ({ visit, onStart, onOpenWorkspace, onNavigate }) {
       render()
       try {
         fullVisit = await api.get(`/visits/${visit.id}`)
+        // Expose loaded items on the shared visit object so My Calls can
+        // aggregate them into the Load Sheet Summary without a second fetch.
+        visit.items = fullVisit.items
+        onItemsLoaded?.()
         // Also fetch weigh-in reference if address exists
         if (fullVisit.address_id) {
           try {
@@ -436,6 +457,26 @@ export const jobCardStyles = `
     box-shadow: var(--fo-shadow-subtle);
     letter-spacing: 1px;
     line-height: 1;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .jc-header-icons {
+    display: flex;
+    gap: var(--space-1);
+  }
+
+  .jc-nav-btn {
+    background: var(--fo-panel);
+    border: none;
+    color: var(--fo-accent-deep);
+    cursor: pointer;
+    width: 28px;
+    height: 28px;
+    border-radius: var(--fo-radius-sm);
+    box-shadow: var(--fo-shadow-subtle);
+    display: flex;
+    align-items: center;
+    justify-content: center;
     -webkit-tap-highlight-color: transparent;
   }
 

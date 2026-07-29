@@ -30,10 +30,11 @@ function injectStyles () {
 
 // ── State ─────────────────────────────────────────────────
 
-let visits     = []
-let isLoading  = true
-let isPulling  = false
-let screenEl   = null
+let visits        = []
+let isLoading     = true
+let isPulling     = false
+let screenEl      = null
+let loadSheetOpen = false
 
 // ── Mount ──────────────────────────────────────────────────
 
@@ -54,6 +55,11 @@ export default function mount (appEl) {
   listWrap.className = 'visit-list'
   listWrap.id = 'visit-list'
   scrollArea.appendChild(listWrap)
+
+  const loadSheetWrap = document.createElement('div')
+  loadSheetWrap.className = 'load-sheet-wrap'
+  loadSheetWrap.id = 'load-sheet-wrap'
+  scrollArea.appendChild(loadSheetWrap)
 
   screenEl.appendChild(scrollArea)
 
@@ -82,6 +88,7 @@ export default function mount (appEl) {
 async function loadVisits () {
   isLoading = true
   renderList()
+  renderLoadSheet()
 
   try {
     visits = await api.get('/visits/mine')
@@ -91,6 +98,7 @@ async function loadVisits () {
   } finally {
     isLoading = false
     renderList()
+    renderLoadSheet()
   }
 }
 
@@ -114,6 +122,7 @@ function onSyncUpdate (e) {
   }
 
   renderList()
+  renderLoadSheet()
 }
 
 // ── Render ─────────────────────────────────────────────────
@@ -151,9 +160,115 @@ function renderList () {
       onStart:         () => loadVisits(),   // reload after start
       onOpenWorkspace: id  => navigateTo(`/workspace?id=${id}`),
       onNavigate:      route => navigateTo(route),
+      onItemsLoaded:   () => renderLoadSheet(),
     })
     listEl.appendChild(card)
   })
+}
+
+// ── Load Sheet Summary ──────────────────────────────────────
+
+function aggregateLoadSheet () {
+  const activeVisits = visits.filter(
+    v => ['assigned', 'in_progress', 'temporarily'].includes(v.status) || v.is_deferred
+  )
+
+  const totals = new Map()   // itemName -> qty
+  let allLoaded = true
+
+  activeVisits.forEach(v => {
+    if (!v.items) { allLoaded = false; return }
+    v.items
+      .filter(i => i.category === 'thermostat' || i.category === 'accessory')
+      .forEach(i => {
+        totals.set(i.itemName, (totals.get(i.itemName) ?? 0) + (i.quantity ?? 0))
+      })
+  })
+
+  const rows = [...totals.entries()]
+    .map(([name, qty]) => ({ name, qty }))
+    .sort((a, b) => a.name.localeCompare(b.name))
+  const totalCount = rows.reduce((sum, r) => sum + r.qty, 0)
+
+  return { rows, totalCount, allLoaded, activeCount: activeVisits.length }
+}
+
+function renderLoadSheet () {
+  const wrap = document.getElementById('load-sheet-wrap')
+  if (!wrap) return
+  wrap.innerHTML = ''
+
+  if (isLoading) return
+
+  const { rows, totalCount, allLoaded, activeCount } = aggregateLoadSheet()
+  if (!activeCount) return
+
+  const panel = document.createElement('div')
+  panel.className = `load-sheet${loadSheetOpen ? ' load-sheet--open' : ''}`
+
+  const head = document.createElement('div')
+  head.className = 'ls-head'
+  head.addEventListener('click', () => {
+    loadSheetOpen = !loadSheetOpen
+    renderLoadSheet()
+  })
+
+  const title = document.createElement('div')
+  title.className   = 'ls-title'
+  title.textContent = 'Load Sheet Summary'
+
+  const count = document.createElement('span')
+  count.className   = 'ls-count'
+  count.textContent = `${totalCount} pcs`
+
+  const chev = document.createElement('span')
+  chev.className = 'ls-chev'
+  chev.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>'
+
+  head.appendChild(title)
+  head.appendChild(count)
+  head.appendChild(chev)
+  panel.appendChild(head)
+
+  if (loadSheetOpen) {
+    const body = document.createElement('div')
+    body.className = 'ls-body'
+
+    if (!rows.length) {
+      const empty = document.createElement('p')
+      empty.className   = 'ls-empty'
+      empty.textContent = 'No thermostats or accessories loaded yet.'
+      body.appendChild(empty)
+    } else {
+      rows.forEach(r => {
+        const row = document.createElement('div')
+        row.className = 'ls-row'
+
+        const name = document.createElement('span')
+        name.className   = 'ls-item-name'
+        name.textContent = r.name
+
+        const qty = document.createElement('span')
+        qty.className   = 'ls-qty'
+        qty.textContent = `${r.qty}×`
+
+        row.appendChild(name)
+        row.appendChild(qty)
+        body.appendChild(row)
+      })
+    }
+
+    if (!allLoaded) {
+      const hint = document.createElement('p')
+      hint.className   = 'ls-hint'
+      hint.textContent = 'Expand cards to load all items'
+      body.appendChild(hint)
+    }
+
+    panel.appendChild(body)
+  }
+
+  wrap.appendChild(panel)
 }
 
 // ── Header ─────────────────────────────────────────────────
@@ -344,5 +459,105 @@ const screenStyles = `
   @keyframes shimmer {
     0%, 100% { opacity: 0.5; }
     50%       { opacity: 1;   }
+  }
+
+  .load-sheet-wrap {
+    padding: 0 var(--space-4) var(--space-6);
+  }
+
+  .load-sheet {
+    background: var(--fo-panel);
+    border-radius: var(--fo-radius);
+    box-shadow: var(--fo-shadow-raised);
+    overflow: hidden;
+  }
+
+  .ls-head {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    padding: var(--space-3) var(--space-4);
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .ls-title {
+    flex: 1;
+    font-family: var(--fo-font-body);
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--fo-ink);
+  }
+
+  .ls-count {
+    font-family: var(--fo-font-mono);
+    font-size: 10px;
+    font-weight: 700;
+    color: var(--fo-accent-deep);
+    background: var(--fo-well);
+    box-shadow: var(--fo-shadow-well);
+    border-radius: 20px;
+    padding: 3px 10px;
+    flex-shrink: 0;
+  }
+
+  .ls-chev {
+    display: flex;
+    color: var(--fo-ink-soft);
+    opacity: 0.6;
+    transition: transform var(--dur-fast) var(--ease-out);
+    flex-shrink: 0;
+  }
+
+  .load-sheet--open .ls-chev {
+    transform: rotate(180deg);
+  }
+
+  .ls-body {
+    padding: 0 var(--space-4) var(--space-4);
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+  }
+
+  .ls-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-3);
+  }
+
+  .ls-item-name {
+    font-family: var(--fo-font-body);
+    font-size: 12.5px;
+    font-weight: 600;
+    color: var(--fo-ink);
+  }
+
+  .ls-qty {
+    font-family: var(--fo-font-mono);
+    font-size: 10px;
+    font-weight: 700;
+    color: var(--fo-ink-soft);
+    background: var(--fo-panel);
+    box-shadow: var(--fo-shadow-subtle);
+    border-radius: 20px;
+    padding: 2px 8px;
+    flex-shrink: 0;
+  }
+
+  .ls-empty {
+    font-family: var(--fo-font-mono);
+    font-size: 10px;
+    color: var(--fo-ink-soft);
+  }
+
+  .ls-hint {
+    font-family: var(--fo-font-mono);
+    font-size: 9px;
+    letter-spacing: 0.04em;
+    color: var(--fo-ink-soft);
+    opacity: 0.75;
+    margin-top: var(--space-1);
   }
 `
