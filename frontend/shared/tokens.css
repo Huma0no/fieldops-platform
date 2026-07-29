@@ -283,6 +283,9 @@
   --fo-accent-deep: #8a4a13;
   --fo-ok:          #3d6b3f;
   --fo-no:          #9e2b1e;
+  --fo-blue:        #2563eb;
+  --fo-blue-glow:   rgba(37, 99, 235, 0.18);
+  --fo-red-glow:    rgba(158, 43, 30, 0.18);
 
   /* Border radius */
   --fo-radius:    20px;

@@ -32,23 +32,33 @@ const CHECKLIST_ITEMS = [
   { key: 'gas_valve',      label: 'Gas Valve',                    reportText: null },
 ]
 
-const SECTIONS = [
-  { id: 'service',     label: 'Service',    icon: '⚡' },
-  { id: 'thermostat',  label: 'Thermostat', icon: '🌡' },
-  { id: 'accessories', label: 'Acc',        icon: '🔧' },
-  { id: 'fixes',       label: 'Fixes',      icon: '🔩' },
-  { id: 'startup',     label: 'Check',      icon: '✓'  },
-  { id: 'weighin',     label: 'Weigh-in',   icon: '⚖️' },
-  { id: 'calc',        label: 'Calc',       icon: '🧮' },
-  { id: 'notes',       label: 'Notes',      icon: '📝' },
-  { id: 'checklist',   label: 'Checklist',  icon: '✅' },
+// 5-step linear rail. 'calc' is intentionally not included — buildCalcSection()
+// stays intact as a standalone utility panel, to be wired to the bottom strip
+// in a later pass.
+const STEPS = [
+  { id: 'service',     label: 'Srv+T', icon: '⚡' },
+  { id: 'accessories', label: 'Acc',   icon: '🔧' },
+  { id: 'fixes',       label: 'Fix',   icon: '🔩' },
+  { id: 'weighin',     label: 'Wght',  icon: '⚖️' },
+  { id: 'notes',       label: 'Notes', icon: '📝' },
 ]
+
+// Maps the ids used internally by the (unchanged) content-builder functions —
+// some of which pre-date the merge (e.g. 'thermostat', 'startup') — to the
+// step they now live under, for refreshSection()'s targeted re-render.
+const SECTION_TO_STEP = {
+  service: 'service', thermostat: 'service',
+  accessories: 'accessories',
+  fixes: 'fixes',
+  weighin: 'weighin',
+  startup: 'notes', notes: 'notes', checklist: 'notes',
+}
 
 let visit           = null
 let catalogItems    = []
 let linesetConfigs  = []
 let equipmentCatalog = []
-let activeSection   = 'service'
+let activeStep       = 'service'
 let completedSections = new Set()
 let gps = { lat: null, lon: null, source: null, denied: false }
 let _gpsPhotosMissing = 0
@@ -107,14 +117,13 @@ function renderScreen (appEl) {
   screen.className = 'ws-screen'
   screen.id = 'ws-screen'
   screen.appendChild(buildHeader())
-  screen.appendChild(buildProgressBar())
   const body = document.createElement('div')
   body.className = 'ws-body'
   body.id = 'ws-body'
-  SECTIONS.forEach(sec => body.appendChild(buildAccordion(sec)))
   screen.appendChild(body)
   screen.appendChild(buildPriceSummary())
   appEl.appendChild(screen)
+  renderBody()
 }
 
 function buildHeader () {
@@ -147,157 +156,129 @@ function buildHeader () {
   return el
 }
 
-function buildProgressBar () {
+// ── Step rail + linear navigation ───────────────────────────
+//
+// Replaces the old vertical accordion. Only the active step's content is
+// rendered into #ws-body; Back/Next move between STEPS, and the rail itself
+// can jump to any step directly. Completion marks reuse the same
+// completedSections Set / markSectionComplete() the accordion used.
+
+function renderBody () {
+  const body = document.getElementById('ws-body')
+  if (!body) return
+  body.innerHTML = ''
+  body.appendChild(buildStepRail())
+  const stepIndex = STEPS.findIndex(s => s.id === activeStep)
+  const content = buildStepContent(activeStep)
+  content.id = 'ws-step-content'
+  body.appendChild(content)
+  body.appendChild(buildStepFooter(stepIndex))
+}
+
+function goToStep (stepId) {
+  if (stepId === activeStep) return
+  activeStep = stepId
+  renderBody()
+  document.getElementById('ws-step-content')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+}
+
+function buildStepRail () {
   const wrap = document.createElement('div')
-  wrap.className = 'ws-progress-wrap'
-  wrap.id = 'ws-progress'
-  const bar = document.createElement('div')
-  bar.className = 'ws-progress-bar'
-  SECTIONS.forEach((sec, i) => {
-    const seg = document.createElement('div')
-    seg.className = `ws-progress-seg${completedSections.has(sec.id) ? ' ws-progress-seg--done' : ''}`
-    seg.dataset.section = sec.id
-    bar.appendChild(seg)
-    if (i < SECTIONS.length - 1) {
-      const gap = document.createElement('div')
-      gap.className = 'ws-progress-gap'
-      bar.appendChild(gap)
-    }
-  })
-  const labels = document.createElement('div')
-  labels.className = 'ws-progress-labels'
-  SECTIONS.forEach(sec => {
+  wrap.className = 'ws-rail-wrap'
+  const rail = document.createElement('div')
+  rail.className = 'ws-rail'
+  STEPS.forEach(step => {
+    const isActive = step.id === activeStep
+    const isDone   = completedSections.has(step.id)
+    const btn = document.createElement('button')
+    btn.className = `ws-rail-step${isActive ? ' ws-rail-step--active' : ''}${isDone ? ' ws-rail-step--done' : ''}`
+    const icon = document.createElement('span')
+    icon.className = 'ws-rail-icon'
+    icon.textContent = step.icon
     const lbl = document.createElement('span')
-    lbl.className = `ws-progress-label${completedSections.has(sec.id) ? ' ws-progress-label--done' : ''}`
-    lbl.textContent = sec.label
-    lbl.dataset.section = sec.id
-    labels.appendChild(lbl)
+    lbl.className = 'ws-rail-label'
+    lbl.textContent = step.label
+    btn.appendChild(icon)
+    btn.appendChild(lbl)
+    btn.addEventListener('click', () => goToStep(step.id))
+    rail.appendChild(btn)
   })
-  wrap.appendChild(bar)
-  wrap.appendChild(labels)
+  wrap.appendChild(rail)
   return wrap
 }
 
-function updateProgressBar () {
-  SECTIONS.forEach(sec => {
-    document.querySelector(`.ws-progress-seg[data-section="${sec.id}"]`)
-      ?.classList.toggle('ws-progress-seg--done', completedSections.has(sec.id))
-    document.querySelector(`.ws-progress-label[data-section="${sec.id}"]`)
-      ?.classList.toggle('ws-progress-label--done', completedSections.has(sec.id))
+function buildStepFooter (stepIndex) {
+  const footer = document.createElement('div')
+  footer.className = 'ws-step-footer'
+
+  const backBtn = document.createElement('button')
+  backBtn.className = 'ws-step-back-btn'
+  backBtn.textContent = '← Back'
+  backBtn.disabled = stepIndex <= 0
+  backBtn.addEventListener('click', () => goToStep(STEPS[stepIndex - 1].id))
+  footer.appendChild(backBtn)
+
+  const isLast = stepIndex === STEPS.length - 1
+  const nextBtn = document.createElement('button')
+  nextBtn.className = `ws-done-btn${isLast ? ' ws-done-btn--generate' : ''}`
+  nextBtn.textContent = isLast ? 'Generate Report' : 'Next →'
+  nextBtn.addEventListener('click', () => {
+    if (isLast) {
+      openGenerateModal()
+    } else {
+      markSectionComplete(STEPS[stepIndex].id)
+      goToStep(STEPS[stepIndex + 1].id)
+    }
   })
+  footer.appendChild(nextBtn)
+
+  return footer
 }
 
-function buildAccordion (sec) {
-  const isActive    = sec.id === activeSection
-  const isCompleted = completedSections.has(sec.id)
-  const wrap = document.createElement('div')
-  wrap.className = `ws-accordion${isActive ? ' ws-accordion--active' : ''}`
-  wrap.id = `acc-${sec.id}`
-  const trigger = document.createElement('div')
-  trigger.className = 'ws-acc-trigger'
-  const tLeft = document.createElement('div')
-  tLeft.className = 'ws-acc-trigger-left'
-  const icon = document.createElement('span')
-  icon.className = 'ws-acc-icon'
-  icon.textContent = sec.icon
-  const lbl = document.createElement('span')
-  lbl.className = 'ws-acc-label'
-  lbl.textContent = sec.label
-  tLeft.appendChild(icon)
-  tLeft.appendChild(lbl)
-  const tRight = document.createElement('div')
-  tRight.className = 'ws-acc-trigger-right'
-  if (isCompleted && !isActive) {
-    const summary = document.createElement('span')
-    summary.className = 'ws-acc-summary'
-    summary.id = `summary-${sec.id}`
-    summary.textContent = getSectionSummary(sec.id)
-    tRight.appendChild(summary)
-  }
-  if (isActive) {
-    const speakBtn = document.createElement('button')
-    speakBtn.className = 'ws-speak-btn'
-    speakBtn.textContent = '🎤 Speak'
-    speakBtn.addEventListener('click', e => e.stopPropagation())
-    tRight.appendChild(speakBtn)
-  }
-  const chevron = document.createElement('span')
-  chevron.className = `ws-acc-chevron${isActive ? ' ws-acc-chevron--open' : ''}`
-  chevron.textContent = '›'
-  tRight.appendChild(chevron)
-  trigger.appendChild(tLeft)
-  trigger.appendChild(tRight)
-  trigger.addEventListener('click', () => toggleSection(sec.id))
-  wrap.appendChild(trigger)
-  const content = document.createElement('div')
-  content.className = 'ws-acc-content'
-  content.id = `content-${sec.id}`
-  if (isActive) content.appendChild(buildSectionContent(sec.id))
-  wrap.appendChild(content)
-  return wrap
-}
-
-function toggleSection (sectionId) {
-  if (activeSection === sectionId) return
-  const prevAcc = document.getElementById(`acc-${activeSection}`)
-  const prevContent = document.getElementById(`content-${activeSection}`)
-  if (prevAcc) prevAcc.classList.remove('ws-accordion--active')
-  if (prevContent) {
-    prevContent.innerHTML = ''
-    const tRight = prevAcc?.querySelector('.ws-acc-trigger-right')
-    if (tRight) {
-      tRight.querySelector('.ws-speak-btn')?.remove()
-      if (!tRight.querySelector('.ws-acc-summary')) {
-        const summary = document.createElement('span')
-        summary.className = 'ws-acc-summary'
-        summary.id = `summary-${activeSection}`
-        summary.textContent = getSectionSummary(activeSection)
-        const chevron = tRight.querySelector('.ws-acc-chevron')
-        if (chevron) tRight.insertBefore(summary, chevron)
-        else tRight.appendChild(summary)
-      }
-      const chevron = tRight.querySelector('.ws-acc-chevron')
-      if (chevron) chevron.classList.remove('ws-acc-chevron--open')
-    }
-  }
-  activeSection = sectionId
-  const newAcc = document.getElementById(`acc-${sectionId}`)
-  const newContent = document.getElementById(`content-${sectionId}`)
-  if (newAcc) newAcc.classList.add('ws-accordion--active')
-  const newTRight = newAcc?.querySelector('.ws-acc-trigger-right')
-  if (newTRight) {
-    newTRight.querySelector('.ws-acc-summary')?.remove()
-    if (!newTRight.querySelector('.ws-speak-btn')) {
-      const speakBtn = document.createElement('button')
-      speakBtn.className = 'ws-speak-btn'
-      speakBtn.textContent = '🎤 Speak'
-      speakBtn.addEventListener('click', e => e.stopPropagation())
-      const chevron = newTRight.querySelector('.ws-acc-chevron')
-      if (chevron) newTRight.insertBefore(speakBtn, chevron)
-      else newTRight.appendChild(speakBtn)
-    }
-    const chevron = newTRight.querySelector('.ws-acc-chevron')
-    if (chevron) chevron.classList.add('ws-acc-chevron--open')
-  }
-  if (newContent) {
-    newContent.appendChild(buildSectionContent(sectionId))
-    newContent.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
-  }
-}
-
-function buildSectionContent (sectionId) {
-  switch (sectionId) {
-    case 'service':     return buildServiceSection()
-    case 'thermostat':  return buildThermostatSection()
-    case 'accessories': return buildItemsSection('accessory')
-    case 'fixes':       return buildItemsSection('fix')
-    case 'startup':     return buildStartupChecklistSection()
-    case 'weighin':     return buildWeighInSection()
-    case 'calc':        return buildCalcSection()
-    case 'notes':       return buildNotesSection()
-    case 'checklist':   return buildChecklistSection()
+function buildStepContent (stepId) {
+  switch (stepId) {
+    case 'service':     return buildServiceStepContent()
+    case 'accessories': return stripTrailingButton(buildItemsSection('accessory'))
+    case 'fixes':       return stripTrailingButton(buildItemsSection('fix'))
+    case 'weighin':     return stripTrailingButton(buildWeighInSection())
+    case 'notes':       return buildNotesStepContent()
     default:            return document.createElement('div')
   }
+}
+
+// Removes the trailing Done/Skip/Generate button a content-builder function
+// appends for the old accordion flow — navigation is now handled by the
+// step-level footer instead. The builder functions themselves are untouched;
+// this only trims what they return.
+function stripTrailingButton (el) {
+  if (el.lastElementChild?.classList.contains('ws-done-btn')) {
+    el.lastElementChild.remove()
+  }
+  return el
+}
+
+// Step 1: Service + Thermostat, merged into one content block.
+function buildServiceStepContent () {
+  const wrap = document.createElement('div')
+  wrap.className = 'ws-section-content'
+  const svcEl    = stripTrailingButton(buildServiceSection())
+  const tstatEl  = stripTrailingButton(buildThermostatSection())
+  ;[...svcEl.children].forEach(c => wrap.appendChild(c))
+  ;[...tstatEl.children].forEach(c => wrap.appendChild(c))
+  return wrap
+}
+
+// Step 5: Startup checklist (incl. compliance photos) at top, notes below.
+function buildNotesStepContent () {
+  const wrap = document.createElement('div')
+  wrap.className = 'ws-section-content'
+  const startupEl   = stripTrailingButton(buildStartupChecklistSection())
+  const checklistEl = stripTrailingButton(buildChecklistSection())
+  const notesEl      = stripTrailingButton(buildNotesSection())
+  ;[...startupEl.children].forEach(c => wrap.appendChild(c))
+  ;[...checklistEl.children].forEach(c => wrap.appendChild(c))
+  ;[...notesEl.children].forEach(c => wrap.appendChild(c))
+  return wrap
 }
 
 function getSectionSummary (sectionId) {
@@ -341,12 +322,10 @@ function getSectionSummary (sectionId) {
   }
 }
 
+// Advancing to the next step is now the step-footer's job (see
+// buildStepFooter) — this just records completion, same Set as before.
 function markSectionComplete (sectionId) {
   completedSections.add(sectionId)
-  updateProgressBar()
-  const idx  = SECTIONS.findIndex(s => s.id === sectionId)
-  const next = SECTIONS[idx + 1]
-  if (next) toggleSection(next.id)
 }
 
 function buildPriceSummary () {
@@ -362,12 +341,7 @@ function buildPriceSummary () {
   amount.textContent = formatPrice(visit.totalPrice)
   left.appendChild(lbl)
   left.appendChild(amount)
-  const genBtn = document.createElement('button')
-  genBtn.className = 'ws-gen-btn'
-  genBtn.textContent = 'Generate Report'
-  genBtn.addEventListener('click', openGenerateModal)
   el.appendChild(left)
-  el.appendChild(genBtn)
   return el
 }
 
@@ -1240,9 +1214,12 @@ function buildItemChip (item) {
   return chip
 }
 
+// Called by the (unchanged) content-builder functions after a data change.
+// sectionId may be a pre-merge id (e.g. 'thermostat', 'startup') — map it to
+// the step that now owns it and re-render if that step is the one showing.
 function refreshSection (sectionId) {
-  const content = document.getElementById(`content-${sectionId}`); if (!content) return
-  content.innerHTML = ''; content.appendChild(buildSectionContent(sectionId))
+  const stepId = SECTION_TO_STEP[sectionId] ?? sectionId
+  if (stepId === activeStep) renderBody()
 }
 
 function navigateBack () {
@@ -1284,99 +1261,90 @@ function injectStyles () {
   if (document.getElementById(STYLES_ID)) return
   const style = document.createElement('style'); style.id=STYLES_ID
   style.textContent = `
-  .ws-screen{display:flex;flex-direction:column;height:100dvh;background:var(--surface-base);overflow:hidden;position:relative;}
-  .ws-loading{display:flex;align-items:center;justify-content:center;height:100dvh;font-size:var(--text-base);color:var(--text-muted);}
-  .ws-header{display:flex;align-items:center;gap:var(--space-3);padding:calc(var(--space-5) + env(safe-area-inset-top,0px)) var(--space-4) var(--space-3);background:var(--surface-1);border-bottom:0.5px solid var(--border-subtle);flex-shrink:0;}
-  .ws-back-btn{background:none;border:none;color:var(--text-muted);font-size:20px;cursor:pointer;padding:var(--space-2);border-radius:var(--radius-md);line-height:1;-webkit-tap-highlight-color:transparent;flex-shrink:0;}
+  .ws-screen{display:flex;flex-direction:column;height:100dvh;background:var(--fo-panel);overflow:hidden;position:relative;font-family:var(--fo-font-body);}
+  .ws-loading{display:flex;align-items:center;justify-content:center;height:100dvh;font-size:var(--text-base);color:var(--fo-ink-soft);background:var(--fo-panel);}
+  .ws-header{display:flex;align-items:center;gap:var(--space-3);padding:calc(var(--space-5) + env(safe-area-inset-top,0px)) var(--space-4) var(--space-3);background:var(--fo-panel);flex-shrink:0;}
+  .ws-back-btn{background:var(--fo-panel);box-shadow:var(--fo-shadow-raised);border:none;color:var(--fo-ink-soft);font-size:18px;cursor:pointer;padding:var(--space-2);border-radius:var(--fo-radius-sm);line-height:1;-webkit-tap-highlight-color:transparent;flex-shrink:0;}
   .ws-header-info{flex:1;min-width:0;}
-  .ws-header-supra{font-size:var(--text-xs);color:var(--text-disabled);text-transform:uppercase;letter-spacing:.05em;}
-  .ws-header-addr{font-size:var(--text-base);font-weight:500;color:var(--text-primary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-  .ws-header-addr--nav{cursor:pointer;text-decoration:underline;text-decoration-style:dotted;text-underline-offset:2px;-webkit-tap-highlight-color:transparent;}
-  .ws-progress-wrap{background:var(--surface-1);padding:8px 16px 10px;border-bottom:0.5px solid var(--border-subtle);flex-shrink:0;}
-  .ws-progress-bar{display:flex;align-items:center;margin-bottom:6px;}
-  .ws-progress-seg{flex:1;height:3px;border-radius:2px;background:var(--surface-3);transition:background var(--dur-base) var(--ease-out);}
-  .ws-progress-seg--done{background:var(--color-signal);}
-  .ws-progress-labels{display:flex;justify-content:space-between;}
-  .ws-progress-label{font-size:9px;color:var(--text-disabled);flex:1;text-align:center;transition:color var(--dur-base) var(--ease-out);}
-  .ws-progress-label--done{color:var(--color-signal);}
+  .ws-header-supra{font-size:var(--text-xs);color:var(--fo-ink-soft);font-family:var(--fo-font-mono);text-transform:uppercase;letter-spacing:.05em;}
+  .ws-header-addr{font-size:var(--text-base);font-weight:600;color:var(--fo-ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .ws-header-addr--nav{cursor:pointer;color:var(--fo-accent-deep);text-decoration:underline;text-decoration-style:dotted;text-underline-offset:2px;-webkit-tap-highlight-color:transparent;}
   .ws-body{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;padding:var(--space-2) var(--space-3) var(--space-4);display:flex;flex-direction:column;gap:var(--space-2);}
-  .ws-accordion{background:var(--surface-1);border-radius:var(--radius-lg);border:0.5px solid var(--border-subtle);overflow:hidden;transition:border-color var(--dur-fast) var(--ease-out);}
-  .ws-accordion--active{border-color:var(--signal-border);}
-  .ws-acc-trigger{display:flex;align-items:center;justify-content:space-between;padding:12px 14px;cursor:pointer;-webkit-tap-highlight-color:transparent;gap:var(--space-2);}
-  .ws-acc-trigger-left{display:flex;align-items:center;gap:var(--space-2);}
-  .ws-acc-icon{font-size:14px;}
-  .ws-acc-label{font-size:var(--text-base);font-weight:500;color:var(--text-secondary);}
-  .ws-accordion--active .ws-acc-label{color:var(--text-primary);}
-  .ws-acc-trigger-right{display:flex;align-items:center;gap:var(--space-2);flex-shrink:0;}
-  .ws-acc-summary{font-size:var(--text-sm);color:var(--color-signal);font-weight:500;}
-  .ws-acc-chevron{font-size:16px;color:var(--text-disabled);transition:transform var(--dur-fast) var(--ease-out);line-height:1;}
-  .ws-acc-chevron--open{transform:rotate(90deg);}
-  .ws-progress-gap{width:3px;}
-  .ws-speak-btn{background:none;border:0.5px solid var(--signal-border);border-radius:var(--radius-md);color:var(--color-signal);font-size:var(--text-sm);padding:4px 8px;cursor:pointer;-webkit-tap-highlight-color:transparent;}
-  .ws-acc-content{overflow:hidden;}
-  .ws-section-content{padding:0 12px 14px;display:flex;flex-direction:column;gap:var(--space-3);}
-  .ws-btn-grid{display:flex;flex-wrap:wrap;gap:6px;}
+  .ws-rail-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;flex-shrink:0;}
+  .ws-rail{display:flex;padding:6px 2px;gap:8px;}
+  .ws-rail-step{flex:0 0 auto;min-width:60px;display:flex;flex-direction:column;align-items:center;gap:2px;padding:8px 10px;border-radius:var(--fo-radius-sm);border:none;background:var(--fo-panel);box-shadow:var(--fo-shadow-raised);color:var(--fo-ink-soft);cursor:pointer;position:relative;-webkit-tap-highlight-color:transparent;}
+  .ws-rail-icon{font-size:14px;}
+  .ws-rail-label{font-size:9px;color:var(--fo-ink-soft);font-family:var(--fo-font-mono);font-weight:500;white-space:nowrap;}
+  .ws-rail-step--done::after{content:'';position:absolute;top:4px;right:4px;width:6px;height:6px;border-radius:50%;background:var(--fo-ok);}
+  .ws-rail-step--active{box-shadow:var(--fo-shadow-inset);}
+  .ws-rail-step--active .ws-rail-label{color:var(--fo-accent-deep);}
+  .ws-step-footer{display:flex;gap:var(--space-2);}
+  .ws-step-back-btn{flex:0 0 auto;background:var(--fo-panel);box-shadow:var(--fo-shadow-raised);border:none;border-radius:var(--fo-radius-sm);color:var(--fo-ink-soft);font-size:var(--text-sm);font-weight:500;padding:var(--space-3) var(--space-4);cursor:pointer;-webkit-tap-highlight-color:transparent;}
+  .ws-step-back-btn:disabled{opacity:.35;cursor:not-allowed;box-shadow:none;}
+  .ws-section-content{background:var(--fo-panel);box-shadow:var(--fo-shadow-raised);border-radius:var(--fo-radius);padding:16px 14px;display:flex;flex-direction:column;gap:var(--space-3);}
+  .ws-btn-grid{display:flex;flex-wrap:wrap;gap:8px;}
   .ws-btn-grid--modifiers{margin-top:-4px;}
-  .ws-item-btn{flex:1;min-width:72px;padding:9px 10px;border-radius:var(--radius-md);border:0.5px solid var(--border-default);background:var(--surface-3);color:var(--text-secondary);font-size:var(--text-sm);font-weight:500;cursor:pointer;text-align:center;position:relative;overflow:hidden;transition:background var(--dur-fast),color var(--dur-fast);-webkit-tap-highlight-color:transparent;display:flex;flex-direction:column;align-items:center;gap:2px;}
+  .ws-item-btn{flex:1;min-width:72px;padding:10px;border-radius:var(--fo-radius-sm);border:none;background:var(--fo-tile);box-shadow:var(--fo-shadow-raised);color:var(--fo-ink);font-family:var(--fo-font-mono);font-size:var(--text-sm);font-weight:500;cursor:pointer;text-align:center;position:relative;overflow:hidden;-webkit-tap-highlight-color:transparent;display:flex;flex-direction:column;align-items:center;gap:2px;}
   .ws-item-btn:disabled{opacity:.35;cursor:not-allowed;}
-  .ws-item-btn--active{background:var(--void2,#161920);color:var(--text-primary);border:1.5px solid var(--color-signal);}
-  .ws-item-btn--ac{background:#eff6ff;color:#1d4ed8;border:1.5px solid #1d4ed8;}
-  .ws-item-btn--heat{background:#fff7ed;color:#c2410c;border:1.5px solid #c2410c;}
-  .ws-item-btn--pre{border-color:var(--plasma-border);}
-  .ws-pre-label{font-size:9px;color:var(--color-plasma);font-weight:400;letter-spacing:.02em;}
+  .ws-item-btn--active{box-shadow:var(--fo-shadow-inset);color:var(--fo-accent-deep);}
+  .ws-item-btn--ac{box-shadow:var(--fo-shadow-inset),0 0 0 2px var(--fo-blue-glow);color:var(--fo-blue);}
+  .ws-item-btn--heat{box-shadow:var(--fo-shadow-inset),0 0 0 2px var(--fo-red-glow);color:var(--fo-no);}
+  .ws-item-btn--pre{color:var(--fo-accent);}
+  .ws-pre-label{font-size:9px;color:var(--fo-accent);font-family:var(--fo-font-mono);font-weight:400;letter-spacing:.02em;}
   .ws-btn--modifier{font-size:var(--text-xs);}
   .ws-items-list{display:flex;flex-direction:column;gap:var(--space-2);}
-  .ws-item-chip{display:flex;justify-content:space-between;align-items:center;background:var(--surface-2);border-radius:var(--radius-md);padding:var(--space-2) var(--space-3);border:0.5px solid var(--border-subtle);}
-  .ws-chip-name{font-size:var(--text-sm);font-weight:500;color:var(--text-primary);}
+  .ws-item-chip{display:flex;justify-content:space-between;align-items:center;background:var(--fo-panel);box-shadow:var(--fo-shadow-inset);border-radius:var(--fo-radius-sm);padding:var(--space-2) var(--space-3);}
+  .ws-chip-name{font-size:var(--text-sm);font-weight:600;color:var(--fo-ink);}
   .ws-chip-right{display:flex;align-items:center;gap:var(--space-2);}
-  .ws-chip-price{font-size:var(--text-sm);color:var(--text-muted);}
-  .ws-chip-del{background:none;border:none;color:var(--color-heat);font-size:18px;cursor:pointer;padding:0 2px;line-height:1;-webkit-tap-highlight-color:transparent;}
-  .ws-done-btn{width:100%;background:var(--color-signal);color:#fff;border:none;border-radius:var(--radius-md);font-size:var(--text-base);font-weight:500;padding:var(--space-3);cursor:pointer;-webkit-tap-highlight-color:transparent;margin-top:var(--space-1);}
-  .ws-done-btn--generate{background:#22C55E;}
+  .ws-chip-price{font-size:var(--text-sm);color:var(--fo-ink-soft);font-family:var(--fo-font-mono);}
+  .ws-chip-del{background:none;border:none;color:var(--fo-no);font-size:18px;cursor:pointer;padding:0 2px;line-height:1;-webkit-tap-highlight-color:transparent;}
+  .ws-done-btn{flex:1;background:var(--fo-panel);box-shadow:var(--fo-shadow-raised);color:var(--fo-accent-deep);border:none;border-radius:var(--fo-radius-sm);font-family:var(--fo-font-body);font-size:var(--text-base);font-weight:800;padding:var(--space-3);cursor:pointer;-webkit-tap-highlight-color:transparent;}
+  .ws-done-btn--generate{color:var(--fo-ok);}
   .ws-weighin-panel{display:flex;flex-direction:column;gap:var(--space-2);}
-  .ws-weighin-label{font-size:var(--text-xs);color:var(--text-disabled);text-transform:uppercase;letter-spacing:.06em;font-weight:500;margin-bottom:var(--space-1);}
+  .ws-weighin-label{font-size:var(--text-xs);color:var(--fo-ink-soft);font-family:var(--fo-font-mono);text-transform:uppercase;letter-spacing:.06em;font-weight:500;margin-bottom:var(--space-1);}
   .ws-field-row{display:flex;justify-content:space-between;align-items:center;gap:var(--space-3);}
-  .ws-field-label{font-size:var(--text-sm);color:var(--text-muted);flex:1;}
-  .ws-field-input{background:var(--surface-2);border:0.5px solid var(--border-default);border-radius:var(--radius-md);color:var(--text-primary);font-size:var(--text-base);padding:var(--space-2) var(--space-3);width:100px;text-align:right;outline:none;}
-  .ws-field-input:focus{border-color:var(--color-signal);}
-  .ws-notes-input{width:100%;background:var(--surface-2);border:0.5px solid var(--border-default);border-radius:var(--radius-md);color:var(--text-primary);font-size:var(--text-base);font-family:var(--font-sans);padding:var(--space-3);resize:none;outline:none;line-height:1.5;}
-  .ws-notes-input:focus{border-color:var(--color-signal);}
+  .ws-field-label{font-size:var(--text-sm);color:var(--fo-ink-soft);flex:1;}
+  .ws-field-input{background:var(--fo-well);box-shadow:var(--fo-shadow-well);border:none;border-radius:var(--fo-radius-sm);color:var(--fo-ink);font-family:var(--fo-font-mono);font-size:var(--text-base);padding:var(--space-2) var(--space-3);width:100px;text-align:right;outline:none;appearance:none;}
+  .ws-field-input:focus{color:var(--fo-accent-deep);}
+  .ws-notes-input{width:100%;background:var(--fo-well);box-shadow:var(--fo-shadow-well);border:none;border-radius:var(--fo-radius-sm);color:var(--fo-ink);font-size:var(--text-base);font-family:var(--fo-font-body);padding:var(--space-3);resize:none;outline:none;line-height:1.5;}
+  .ws-notes-input:focus{color:var(--fo-ink);}
   .ws-thumbs{display:flex;flex-wrap:wrap;gap:var(--space-2);}
-  .ws-thumb{width:64px;height:64px;border-radius:var(--radius-md);overflow:hidden;position:relative;border:0.5px solid var(--border-subtle);}
+  .ws-thumb{width:64px;height:64px;border-radius:var(--fo-radius-sm);overflow:hidden;position:relative;box-shadow:var(--fo-shadow-raised);}
   .ws-thumb img{width:100%;height:100%;object-fit:cover;}
-  .ws-thumb-label{position:absolute;bottom:0;left:0;right:0;background:rgba(0,0,0,.6);color:#fff;font-size:8px;text-align:center;padding:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-  .ws-price-bar{background:var(--surface-1);border-top:0.5px solid var(--border-subtle);padding:var(--space-3) var(--space-4);padding-bottom:calc(var(--space-3) + env(safe-area-inset-bottom,0px));display:flex;align-items:center;justify-content:space-between;gap:var(--space-3);flex-shrink:0;}
-  .ws-price-label{font-size:var(--text-xs);color:var(--text-disabled);text-transform:uppercase;letter-spacing:.05em;}
-  .ws-price-amount{font-size:20px;font-weight:500;color:var(--text-primary);}
-  .ws-gen-btn{background:var(--color-signal);color:#fff;border:none;border-radius:var(--radius-md);font-size:var(--text-sm);font-weight:500;padding:var(--space-3) var(--space-4);cursor:pointer;white-space:nowrap;-webkit-tap-highlight-color:transparent;}
+  .ws-thumb-label{position:absolute;bottom:0;left:0;right:0;background:rgba(0,0,0,.6);color:var(--fo-tile);font-size:8px;text-align:center;padding:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .ws-price-bar{background:var(--fo-panel);box-shadow:var(--fo-shadow-card);padding:var(--space-3) var(--space-4);padding-bottom:calc(var(--space-3) + env(safe-area-inset-bottom,0px));display:flex;align-items:center;justify-content:space-between;gap:var(--space-3);flex-shrink:0;position:relative;z-index:1;}
+  .ws-price-label{font-size:var(--text-xs);color:var(--fo-ink-soft);font-family:var(--fo-font-mono);text-transform:uppercase;letter-spacing:.05em;}
+  .ws-price-amount{font-size:20px;font-weight:800;font-family:var(--fo-font-mono);color:var(--fo-accent-deep);}
   .ws-modal-overlay{position:absolute;inset:0;background:rgba(0,0,0,.6);display:flex;align-items:flex-end;z-index:50;}
-  .ws-modal{width:100%;background:var(--surface-1);border-radius:var(--radius-lg) var(--radius-lg) 0 0;padding:var(--space-5);display:flex;flex-direction:column;gap:var(--space-3);padding-bottom:calc(var(--space-5) + env(safe-area-inset-bottom,0px));}
-  .ws-modal-title{font-size:var(--text-md);font-weight:500;color:var(--text-primary);}
-  .ws-modal-summary{background:var(--surface-2);border-radius:var(--radius-md);padding:var(--space-3);display:flex;flex-direction:column;gap:var(--space-2);border:0.5px solid var(--border-subtle);}
+  .ws-modal{width:100%;background:var(--fo-panel);box-shadow:var(--fo-shadow-card);border-radius:var(--fo-radius) var(--fo-radius) 0 0;padding:var(--space-5);display:flex;flex-direction:column;gap:var(--space-3);padding-bottom:calc(var(--space-5) + env(safe-area-inset-bottom,0px));}
+  .ws-modal-title{font-size:var(--text-md);font-weight:700;color:var(--fo-ink);}
+  .ws-modal-summary{background:var(--fo-well);box-shadow:var(--fo-shadow-well);border-radius:var(--fo-radius-sm);padding:var(--space-3);display:flex;flex-direction:column;gap:var(--space-2);}
   .ws-qty-wrap{display:flex;align-items:center;justify-content:center;gap:16px;margin:8px 0;}
-  .ws-qty-btn{width:44px;}
+  .ws-qty-btn{width:44px;background:var(--fo-tile);box-shadow:var(--fo-shadow-raised);color:var(--fo-accent-deep);}
+  .ws-qty-btn:active{box-shadow:var(--fo-shadow-inset);}
   .ws-modal-row{display:flex;justify-content:space-between;align-items:center;}
-  .ws-modal-row-label{font-size:var(--text-sm);color:var(--text-muted);}
-  .ws-modal-row-value{font-size:var(--text-sm);font-weight:500;color:var(--text-primary);}
-  .ws-modal-note{font-size:var(--text-sm);color:var(--text-muted);line-height:1.5;}
-  .ws-modal-note--warn{color:var(--color-danger,#c0392b);font-weight:500;}
+  .ws-modal-row-label{font-size:var(--text-sm);color:var(--fo-ink-soft);}
+  .ws-modal-row-value{font-size:var(--text-sm);font-weight:600;color:var(--fo-ink);}
+  .ws-modal-note{font-size:var(--text-sm);color:var(--fo-ink-soft);line-height:1.5;}
+  .ws-modal-note--warn{color:var(--fo-no);font-weight:500;}
   .ws-modal-actions{display:flex;gap:var(--space-2);}
-  .ws-modal-btn{flex:1;border-radius:var(--radius-md);font-size:var(--text-base);font-weight:500;padding:var(--space-3);cursor:pointer;border:none;-webkit-tap-highlight-color:transparent;}
-  .ws-modal-btn--primary{background:var(--color-signal);color:#fff;}
-  .ws-modal-btn--secondary{background:var(--surface-3);color:var(--text-secondary);}
-  .ws-modal-btn--heat{background:var(--color-heat);color:#fff;}
-  .ws-price-input{width:100%;background:var(--surface-2);border:0.5px solid var(--border-default);border-radius:var(--radius-md);color:var(--text-primary);font-size:var(--text-lg);padding:var(--space-3);text-align:center;outline:none;}
-  .ws-price-input:focus{border-color:var(--color-signal);}
-  .ws-empty-note{font-size:var(--text-sm);color:var(--text-muted);text-align:center;padding:var(--space-4) 0;}
-  .ws-calc-result{background:var(--surface-2);border:0.5px solid var(--border-subtle);border-radius:var(--radius-md);padding:var(--space-3);text-align:center;font-size:var(--text-lg);font-weight:500;color:var(--text-primary);}
+  .ws-modal-btn{flex:1;background:var(--fo-panel);box-shadow:var(--fo-shadow-raised);border-radius:var(--fo-radius-sm);font-size:var(--text-base);font-weight:600;padding:var(--space-3);cursor:pointer;border:none;-webkit-tap-highlight-color:transparent;}
+  .ws-modal-btn--primary{color:var(--fo-accent-deep);}
+  .ws-modal-btn--secondary{color:var(--fo-ink-soft);}
+  .ws-modal-btn--heat{color:var(--fo-no);}
+  .ws-price-input{width:100%;background:var(--fo-well);box-shadow:var(--fo-shadow-well);border:none;border-radius:var(--fo-radius-sm);color:var(--fo-ink);font-size:var(--text-lg);padding:var(--space-3);text-align:center;outline:none;}
+  .ws-empty-note{font-size:var(--text-sm);color:var(--fo-ink-soft);text-align:center;padding:var(--space-4) 0;}
+  .ws-calc-result{background:var(--fo-well);box-shadow:var(--fo-shadow-well);border-radius:var(--fo-radius-sm);padding:var(--space-3);text-align:center;font-size:var(--text-lg);font-weight:700;color:var(--fo-accent-deep);}
   .ws-check-item{display:flex;flex-direction:column;gap:6px;}
   .ws-check-row{display:flex;align-items:center;justify-content:space-between;gap:var(--space-3);}
-  .ws-check-label{font-size:var(--text-sm);color:var(--text-secondary);flex:1;line-height:1.3;}
-  .ws-check-btns{display:flex;gap:4px;flex-shrink:0;}
-  .ws-check-btn{padding:5px 14px;border-radius:var(--radius-md);border:0.5px solid var(--border-default);background:var(--surface-3);color:var(--text-muted);font-size:var(--text-sm);font-weight:500;cursor:pointer;-webkit-tap-highlight-color:transparent;}
-  .ws-check-btn--active{background:var(--void2,#161920);color:var(--text-primary);border-color:var(--color-signal);}
+  .ws-check-label{font-size:var(--text-sm);color:var(--fo-ink);flex:1;line-height:1.3;}
+  .ws-check-btns{display:flex;gap:6px;flex-shrink:0;}
+  .ws-check-btn{padding:5px 14px;border-radius:var(--fo-radius-sm);border:none;background:var(--fo-tile);box-shadow:var(--fo-shadow-raised);color:var(--fo-ink-soft);font-size:var(--text-sm);font-weight:500;cursor:pointer;-webkit-tap-highlight-color:transparent;}
+  .ws-check-btn--active{box-shadow:var(--fo-shadow-inset);}
+  .ws-check-btns .ws-check-btn--active:first-child{color:var(--fo-ok);}
+  .ws-check-btns .ws-check-btn--active:last-child{color:var(--fo-no);}
   .ws-check-photo-row{padding-left:2px;}
-  .ws-check-photo-btn{background:none;border:0.5px dashed var(--border-default);border-radius:var(--radius-md);color:var(--text-muted);font-size:var(--text-sm);padding:4px 10px;cursor:pointer;-webkit-tap-highlight-color:transparent;}
+  .ws-check-photo-btn{background:var(--fo-well);box-shadow:var(--fo-shadow-well);border:none;border-radius:var(--fo-radius-sm);color:var(--fo-no);font-size:var(--text-sm);padding:4px 10px;cursor:pointer;-webkit-tap-highlight-color:transparent;}
   `
   document.head.appendChild(style)
 }
