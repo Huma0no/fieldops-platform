@@ -390,8 +390,7 @@ function buildServiceSection () {
         svc.cancel = false; svc.driveRun = false
       }
       await syncService()
-      const content = document.getElementById('content-service')
-      if (content) { content.innerHTML = ''; content.appendChild(buildServiceSection()) }
+      refreshSection('service')
     })
     baseRow.appendChild(btn)
   })
@@ -407,8 +406,7 @@ function buildServiceSection () {
       btn.addEventListener('click', async () => {
         svc[key] = !svc[key]
         await syncService()
-        const content = document.getElementById('content-service')
-        if (content) { content.innerHTML = ''; content.appendChild(buildServiceSection()) }
+        refreshSection('service')
       })
       modRow.appendChild(btn)
     })
