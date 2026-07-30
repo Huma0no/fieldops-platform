@@ -60,6 +60,7 @@ let linesetConfigs  = []
 let equipmentCatalog = []
 let activeStep       = 'service'
 let completedSections = new Set()
+const GPS_STORAGE_KEY = 'fo_gps_state'
 let gps = { lat: null, lon: null, source: null, denied: false }
 let _gpsPhotosMissing = 0
 let _exifrLoaded = false
@@ -106,10 +107,10 @@ export default async function mount (appEl) {
   }
 
   appEl.innerHTML = ''
-  gps = { lat: null, lon: null, source: null, denied: false }
+  gps = loadGpsState() ?? { lat: null, lon: null, source: null, denied: false }
   _gpsPhotosMissing = 0
   renderScreen(appEl)
-  requestGps()
+  if (!(gps.lat && gps.lon)) requestGps()
 }
 
 function renderScreen (appEl) {
@@ -365,7 +366,7 @@ function buildServiceSection () {
 
   const baseServices = [
     { key: 'ac', label: 'AC' }, { key: 'heat', label: 'Heat' },
-    { key: 'prestart', label: 'Prestart' }, { key: 'cancel', label: 'Cancel' },
+    { key: 'prestart', label: 'Prestart' },
     { key: 'driveRun', label: 'Drive Run' },
   ]
 
@@ -399,7 +400,7 @@ function buildServiceSection () {
   if (svc.ac || svc.heat) {
     const modRow = document.createElement('div')
     modRow.className = 'ws-btn-grid ws-btn-grid--modifiers'
-    ;[['finish','Finish'],['temporarily','Temporarily'],['twoSystems','2 Systems']].forEach(([key,label]) => {
+    ;[['finish','Finish'],['temporarily','Temporarily']].forEach(([key,label]) => {
       const btn = document.createElement('button')
       btn.className = `ws-item-btn ws-btn--modifier${svc[key] ? ' ws-item-btn--active' : ''}`
       btn.textContent = label
@@ -1057,6 +1058,17 @@ async function appendGpsFields (form, tag, file) {
   }
 }
 
+function loadGpsState () {
+  try {
+    const raw = sessionStorage.getItem(GPS_STORAGE_KEY)
+    return raw ? JSON.parse(raw) : null
+  } catch { return null }
+}
+
+function saveGpsState () {
+  try { sessionStorage.setItem(GPS_STORAGE_KEY, JSON.stringify(gps)) } catch {}
+}
+
 function requestGps () {
   if (!navigator.geolocation || gps.denied) return
   showGpsPrompt()
@@ -1068,7 +1080,7 @@ function showGpsPrompt () {
   const note = document.createElement('p'); note.className = 'ws-modal-note'
   note.textContent = 'Location is used to embed GPS coordinates in SCALE and FAN photos for compliance records.'
   const actions = makeActions([
-    { label: 'Skip',  cls: 'secondary', fn: () => { gps.denied = true; overlay.remove() } },
+    { label: 'Skip',  cls: 'secondary', fn: () => { gps.denied = true; saveGpsState(); overlay.remove() } },
     { label: 'Allow', cls: 'primary',   fn: () => {
       overlay.remove()
       navigator.geolocation.getCurrentPosition(
@@ -1076,8 +1088,9 @@ function showGpsPrompt () {
           gps.lat    = pos.coords.latitude.toFixed(6)
           gps.lon    = pos.coords.longitude.toFixed(6)
           gps.source = 'device'
+          saveGpsState()
         },
-        () => { gps.denied = true },
+        () => { gps.denied = true; saveGpsState() },
         { enableHighAccuracy: true, timeout: 8000 }
       )
     }},
