@@ -1,0 +1,445 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FieldOps · Dispatch — History / Properties · pass 2</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/tabler-icons/2.44.0/iconfont/tabler-icons.min.css">
+<style>
+  :root{
+    --paper:#C6C4BC;
+    --panel:#E3E1D9;
+    --plate:#F2F1EB;
+    --ink:#101010;
+    --dim:#6E6E68;
+    --line:#A9A79F;
+    --stencil:'Arial Narrow','Helvetica Neue Condensed',Helvetica,Arial,sans-serif;
+    --body:-apple-system,'Helvetica Neue',Helvetica,Arial,sans-serif;
+    --data:'Courier New',Courier,monospace;
+  }
+  *{box-sizing:border-box;}
+  body{background:var(--paper);margin:0;padding:40px 24px 90px;font-family:var(--body);color:var(--ink);
+       background-image:repeating-linear-gradient(0deg,rgba(16,16,16,.035) 0 1px,transparent 1px 4px);}
+
+  /* ---------- scaffolding ---------- */
+  .screen{max-width:1040px;margin:0 auto 60px;}
+  .screen-tag{display:flex;align-items:center;gap:10px;margin-bottom:10px;}
+  .screen-tag b{font-family:var(--data);font-weight:700;font-size:12px;background:var(--ink);color:var(--plate);padding:3px 7px;}
+  .screen-tag span{font-family:var(--stencil);text-transform:uppercase;letter-spacing:2px;font-size:11px;color:var(--dim);}
+  .rack{position:relative;background:var(--panel);border:3px solid var(--ink);padding:22px 26px 26px;
+        box-shadow:7px 7px 0 rgba(16,16,16,.22);}
+  .screw{position:absolute;width:11px;height:11px;border-radius:50%;background:var(--plate);
+         border:1.5px solid var(--ink);box-shadow:inset 0 -1px 0 rgba(16,16,16,.35);}
+  .screw::after{content:'';position:absolute;left:1px;right:1px;top:3.5px;height:1.5px;background:var(--ink);transform:rotate(35deg);}
+  .screw.tl{top:7px;left:7px;} .screw.tr{top:7px;right:7px;}
+  .screw.bl{bottom:7px;left:7px;} .screw.br{bottom:7px;right:7px;}
+
+  /* ---------- masthead + global search ---------- */
+  .masthead{display:flex;justify-content:space-between;align-items:flex-end;
+            border-bottom:3px solid var(--ink);padding-bottom:12px;margin-bottom:12px;}
+  .brand{font-family:Georgia,'Times New Roman',serif;font-size:23px;letter-spacing:.4px;}
+  .meta{display:flex;align-items:center;gap:14px;}
+  .meta .who{font-size:12px;}
+  .meta .clock{font-family:var(--data);font-weight:700;font-size:12px;background:var(--ink);color:var(--plate);padding:4px 8px;}
+  .gsearch{display:flex;align-items:center;gap:8px;flex:1;max-width:360px;margin:0 22px;padding:0 10px;
+           border:2px solid var(--ink);background:var(--panel);box-shadow:inset 2px 2px 0 rgba(16,16,16,.14);}
+  .gsearch i{font-size:14px;color:var(--dim);}
+  .gsearch input{border:none;background:transparent;box-shadow:none;padding:9px 0;font-size:12px;}
+  .gsearch .goto{font-family:var(--stencil);text-transform:uppercase;letter-spacing:1.2px;font-size:9px;
+                 color:var(--plate);background:var(--ink);padding:3px 5px;white-space:nowrap;}
+
+  /* ---------- nav ---------- */
+  .fnrow{display:flex;flex-wrap:wrap;border:2px solid var(--ink);margin-bottom:22px;background:var(--plate);}
+  .fkey{display:flex;align-items:center;gap:7px;padding:8px 11px;font-family:var(--stencil);text-transform:uppercase;
+        letter-spacing:1.2px;font-size:11px;color:var(--dim);border-right:1px solid var(--line);}
+  .fkey:last-child{border-right:none;}
+  .fkey .led{width:7px;height:7px;border:1.5px solid var(--dim);flex:none;}
+  .fkey.on{background:var(--ink);color:var(--plate);}
+  .fkey.on .led{background:var(--plate);border-color:var(--plate);}
+  .fkey.tbd{color:#9C9A93;background-image:repeating-linear-gradient(45deg,rgba(16,16,16,.05) 0 3px,transparent 3px 6px);}
+  .fkey.tbd .led{border-color:#B5B3AC;}
+
+  /* ---------- units ---------- */
+  .unit{border:2px solid var(--ink);background:var(--plate);margin-bottom:20px;}
+  .unit:last-child{margin-bottom:0;}
+  .unit-head{display:flex;align-items:center;gap:12px;border-bottom:2px solid var(--ink);padding:9px 14px;background:var(--panel);}
+  .unit-id{font-family:var(--data);font-weight:700;font-size:11px;background:var(--ink);color:var(--plate);padding:2px 6px;}
+  .unit-name{font-family:var(--stencil);text-transform:uppercase;letter-spacing:2px;font-size:12px;font-weight:700;}
+  .unit-note{margin-left:auto;font-family:var(--stencil);text-transform:uppercase;letter-spacing:1.2px;font-size:10px;color:var(--dim);}
+  .unit-body{padding:18px;}
+  .knurl{height:12px;background-image:repeating-linear-gradient(45deg,var(--ink) 0 1px,transparent 1px 4px);
+         border-bottom:2px solid var(--ink);opacity:.5;}
+  .cols-2{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
+
+  /* ---------- type ---------- */
+  .stencil{font-family:var(--stencil);text-transform:uppercase;letter-spacing:1.6px;font-size:10px;color:var(--dim);}
+  .mono{font-family:var(--data);font-weight:700;}
+  .hint{font-size:11px;color:var(--dim);line-height:1.5;}
+  h4.sub{font-family:var(--stencil);text-transform:uppercase;letter-spacing:2px;font-size:11px;margin:0 0 9px;color:var(--dim);
+         border-bottom:1px solid var(--line);padding-bottom:5px;}
+
+  /* ---------- controls ---------- */
+  .key{display:inline-flex;align-items:center;justify-content:center;gap:7px;border:2px solid var(--ink);
+       background:var(--panel);box-shadow:0 4px 0 var(--ink);padding:12px 18px;font-family:var(--stencil);
+       text-transform:uppercase;letter-spacing:1.6px;font-size:12px;font-weight:700;cursor:default;}
+  .key.dark{background:var(--ink);color:var(--plate);box-shadow:0 4px 0 #55534E;}
+  .key.sm{padding:7px 11px;font-size:10px;box-shadow:0 3px 0 var(--ink);}
+  input{width:100%;border:2px solid var(--ink);background:var(--panel);color:var(--ink);
+        font-family:var(--body);font-size:13px;padding:9px 10px;box-shadow:inset 2px 2px 0 rgba(16,16,16,.12);}
+
+  /* ---------- readouts ---------- */
+  .readout{background:var(--panel);border:2px solid var(--ink);box-shadow:inset 2px 2px 0 rgba(16,16,16,.14);padding:12px 14px;}
+  .readout .num{font-family:var(--data);font-weight:700;font-size:34px;line-height:1;}
+  .readout .cap{font-family:var(--stencil);text-transform:uppercase;letter-spacing:1.4px;font-size:10px;color:var(--dim);margin-top:6px;}
+
+  /* ---------- tables ---------- */
+  table{width:100%;border-collapse:collapse;font-size:12px;}
+  th{font-family:var(--stencil);text-transform:uppercase;letter-spacing:1.3px;font-size:10px;color:var(--dim);
+     text-align:left;border-bottom:2px solid var(--ink);padding:7px 8px;}
+  td{border-bottom:1px solid var(--line);padding:9px 8px;vertical-align:middle;}
+  tr:last-child td{border-bottom:none;}
+  td.num{font-family:var(--data);font-weight:700;}
+  td.addr{font-size:13px;font-weight:600;}
+  td.acts{text-align:right;white-space:nowrap;}
+  td.acts .key{padding:6px 8px;margin-left:5px;}
+  td.acts .key i{font-size:14px;}
+  tr.open-row td{border-bottom:2px solid var(--ink);}
+
+  /* ---------- detail ---------- */
+  .bar{display:flex;align-items:center;gap:14px;}
+  .detail{border:2px solid var(--ink);border-top:none;background:var(--panel);padding:16px;}
+  .detail-head{display:flex;align-items:center;gap:10px;margin-bottom:14px;}
+  .tape{font-family:var(--data);font-size:12px;line-height:1.65;white-space:pre-wrap;background:var(--plate);
+        border:2px solid var(--ink);box-shadow:inset 2px 2px 0 rgba(16,16,16,.14);padding:14px 16px;}
+  .fold{display:flex;align-items:center;gap:10px;border:2px solid var(--ink);background:var(--plate);
+        padding:9px 12px;margin-top:14px;box-shadow:0 3px 0 var(--ink);}
+  .fold .unit-name{letter-spacing:2px;}
+  .fold.open{box-shadow:none;background:var(--ink);color:var(--plate);}
+  .fold.open .unit-note{color:#B5B3AC;}
+  .fold-body{border:2px solid var(--ink);border-top:none;background:var(--plate);padding:14px 16px;}
+  .wi-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:9px 18px;}
+  .wi-grid div{display:flex;justify-content:space-between;align-items:baseline;gap:8px;
+               border-bottom:1px solid var(--line);padding-bottom:5px;font-size:13px;}
+  .total-bar{display:flex;justify-content:space-between;align-items:center;margin-top:16px;
+             border-top:2px solid var(--ink);padding-top:12px;}
+  .summary{display:grid;grid-template-columns:repeat(4,1fr) auto;gap:12px;align-items:stretch;}
+  .summary .readout{display:flex;flex-direction:column;justify-content:center;}
+  .more{display:flex;justify-content:center;margin-top:18px;}
+
+  @media (max-width:820px){
+    .cols-2{grid-template-columns:1fr;}
+    .summary{grid-template-columns:1fr 1fr;}
+    .wi-grid{grid-template-columns:1fr 1fr;}
+    .gsearch{max-width:none;margin:10px 0;}
+    .masthead{flex-wrap:wrap;}
+  }
+</style>
+</head>
+<body>
+
+<!-- ============================ 04 · HISTORY ============================ -->
+<section class="screen">
+  <div class="screen-tag"><b>04</b><span>History · every visit, newest first</span></div>
+  <div class="rack">
+    <span class="screw tl"></span><span class="screw tr"></span><span class="screw bl"></span><span class="screw br"></span>
+
+    <div class="masthead">
+      <div class="brand">FieldOps · Dispatch</div>
+      <div class="gsearch"><i class="ti ti-search"></i><input type="text" placeholder="Address, subdivision, builder, technician…"><span class="goto">Go to</span></div>
+      <div class="meta"><span class="stencil">Operator</span><span class="who">Kristo</span><span class="clock">THU · JUL 16 · 2026</span></div>
+    </div>
+
+    <nav class="fnrow">
+      <div class="fkey"><span class="led"></span>Home</div>
+      <div class="fkey"><span class="led"></span>Intake</div>
+      <div class="fkey"><span class="led"></span>Lobby</div>
+      <div class="fkey"><span class="led"></span>Transfer</div>
+      <div class="fkey on"><span class="led"></span>History</div>
+      <div class="fkey"><span class="led"></span>Reports</div>
+      <div class="fkey"><span class="led"></span>Inventory</div>
+      <div class="fkey"><span class="led"></span>Chat</div>
+      <div class="fkey tbd"><span class="led"></span>Catalog</div>
+      <div class="fkey"><span class="led"></span>Properties</div>
+      <div class="fkey tbd"><span class="led"></span>Technicians</div>
+      <div class="fkey tbd"><span class="led"></span>Payments</div>
+      <div class="fkey tbd"><span class="led"></span>Pay periods</div>
+      <div class="fkey tbd"><span class="led"></span>Corrections</div>
+    </nav>
+
+    <div class="unit">
+      <div class="unit-head">
+        <span class="unit-id">HST</span><span class="unit-name">Records</span>
+        <span class="unit-note">All technicians · one feed</span>
+      </div>
+      <div class="knurl"></div>
+      <div class="unit-body">
+
+        <div class="bar">
+          <div class="readout" style="padding:8px 12px;">
+            <span class="num" style="font-size:22px;">30</span>
+            <span class="cap" style="display:inline;margin-left:8px;">loaded · through <span class="mono">JUL 02</span></span>
+          </div>
+        </div>
+
+        <table style="margin-top:16px;">
+          <thead>
+            <tr><th style="width:82px;">Date</th><th>Address</th><th style="width:120px;">Technician</th><th style="width:170px;">Work</th><th style="width:104px;text-align:right;">Row</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td class="num">JUL 16</td>
+              <td class="addr">2727 Russell Meadows Ln<div class="hint">Cross Creek Ranch · Highland</div></td>
+              <td>M. Reyes</td><td>Finish Start Up</td>
+              <td class="acts">
+                <span class="key sm" title="Detail"><i class="ti ti-file-description"></i></span>
+                <span class="key sm" title="Property"><i class="ti ti-home"></i></span>
+              </td>
+            </tr>
+            <tr class="open-row">
+              <td class="num">JUL 16</td>
+              <td class="addr">118 Blanco Trail<div class="hint">Jordan Ranch · Perry</div></td>
+              <td>J. Ortiz</td><td>AC Startup</td>
+              <td class="acts">
+                <span class="key sm dark" title="Detail"><i class="ti ti-file-description"></i></span>
+                <span class="key sm" title="Property"><i class="ti ti-home"></i></span>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+
+        <!-- opened detail -->
+        <div class="detail">
+          <div class="detail-head">
+            <span class="mono" style="font-size:13px;">JUL 16 · 2026</span>
+            <span class="stencil">118 Blanco Trail · J. Ortiz · AC Startup</span>
+          </div>
+
+          <h4 class="sub">Completion — as the report generated it</h4>
+          <div class="tape">118 BLANCO TRAIL
+No pdrain (upstairs system)
+Wires jammed at the air handler
+
+AC Startup
+Float switch
+Pan tablet
+Duct strap (4)
+R-32  25oz</div>
+
+          <div class="fold">
+            <span class="mono" style="font-size:13px;">+</span>
+            <span class="unit-name" style="font-size:11px;">Weigh-in data</span>
+            <span class="unit-note">Closed by default</span>
+          </div>
+
+          <div class="total-bar"><span class="stencil">Total</span><span class="mono" style="font-size:20px;">$412.00</span></div>
+        </div>
+
+        <table style="margin-top:0;">
+          <tbody>
+            <tr>
+              <td class="num" style="width:82px;">JUL 15</td>
+              <td class="addr">902 Larkspur Ct<div class="hint">Meritage · Perry</div></td>
+              <td style="width:120px;">R. Delgado</td><td style="width:170px;">AC &amp; Heating Startup</td>
+              <td class="acts" style="width:104px;">
+                <span class="key sm" title="Detail"><i class="ti ti-file-description"></i></span>
+                <span class="key sm" title="Property"><i class="ti ti-home"></i></span>
+              </td>
+            </tr>
+            <tr>
+              <td class="num">JUL 15</td>
+              <td class="addr">44 Cedar Hollow<div class="hint">Meritage · Perry</div></td>
+              <td>M. Reyes</td><td>Finish Start Up</td>
+              <td class="acts">
+                <span class="key sm" title="Detail"><i class="ti ti-file-description"></i></span>
+                <span class="key sm" title="Property"><i class="ti ti-home"></i></span>
+              </td>
+            </tr>
+            <tr>
+              <td class="num">JUL 14</td>
+              <td class="addr">315 Prairie Bend<div class="hint">Jordan Ranch · Highland</div></td>
+              <td>J. Ortiz</td><td>AC Startup</td>
+              <td class="acts">
+                <span class="key sm" title="Detail"><i class="ti ti-file-description"></i></span>
+                <span class="key sm" title="Property"><i class="ti ti-home"></i></span>
+              </td>
+            </tr>
+            <tr>
+              <td class="num">JUL 14</td>
+              <td class="addr">4735 North Star Trail<div class="hint">Jordan Ranch · Highland</div></td>
+              <td>R. Delgado</td><td>Finish Start Up</td>
+              <td class="acts">
+                <span class="key sm" title="Detail"><i class="ti ti-file-description"></i></span>
+                <span class="key sm" title="Property"><i class="ti ti-home"></i></span>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+
+        <div class="more"><span class="key"><i class="ti ti-chevron-down"></i>Load 30 more</span></div>
+
+        <div class="hint" style="margin-top:16px;">
+          Loaded the moment you walk in — no panel to open. Two doors per row: the report, or the house.
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================ 09 · PROPERTIES ============================ -->
+<section class="screen">
+  <div class="screen-tag"><b>09</b><span>Properties · the address record</span></div>
+  <div class="rack">
+    <span class="screw tl"></span><span class="screw tr"></span><span class="screw bl"></span><span class="screw br"></span>
+
+    <div class="masthead">
+      <div class="brand">FieldOps · Dispatch</div>
+      <div class="gsearch"><i class="ti ti-search"></i><input type="text" value="2727 Russell Meadows Ln"><span class="goto">Go to</span></div>
+      <div class="meta"><span class="stencil">Operator</span><span class="who">Kristo</span><span class="clock">THU · JUL 16 · 2026</span></div>
+    </div>
+
+    <nav class="fnrow">
+      <div class="fkey"><span class="led"></span>Home</div>
+      <div class="fkey"><span class="led"></span>Intake</div>
+      <div class="fkey"><span class="led"></span>Lobby</div>
+      <div class="fkey"><span class="led"></span>Transfer</div>
+      <div class="fkey"><span class="led"></span>History</div>
+      <div class="fkey"><span class="led"></span>Reports</div>
+      <div class="fkey"><span class="led"></span>Inventory</div>
+      <div class="fkey"><span class="led"></span>Chat</div>
+      <div class="fkey tbd"><span class="led"></span>Catalog</div>
+      <div class="fkey on"><span class="led"></span>Properties</div>
+      <div class="fkey tbd"><span class="led"></span>Technicians</div>
+      <div class="fkey tbd"><span class="led"></span>Payments</div>
+      <div class="fkey tbd"><span class="led"></span>Pay periods</div>
+      <div class="fkey tbd"><span class="led"></span>Corrections</div>
+    </nav>
+
+    <div class="unit">
+      <div class="unit-head">
+        <span class="unit-id">PRP</span><span class="unit-name">2727 Russell Meadows Ln</span>
+        <span class="unit-note">Cross Creek Ranch · Highland</span>
+      </div>
+      <div class="knurl"></div>
+      <div class="unit-body">
+
+        <div class="summary">
+          <div class="readout"><div class="num">07</div><div class="cap">visits</div></div>
+          <div class="readout"><div class="num" style="font-size:22px;">JUL 16</div><div class="cap">last visit</div></div>
+          <div class="readout"><div class="num" style="font-size:26px;">$2,940</div><div class="cap">revenue</div></div>
+          <div class="readout"><div class="num" style="font-size:20px;">M. REYES</div><div class="cap">last technician</div></div>
+          <span class="key dark" style="align-self:stretch;"><i class="ti ti-phone-plus"></i>New call</span>
+        </div>
+
+        <div class="cols-2" style="margin-top:18px;">
+          <div class="readout">
+            <div class="stencil">System 1</div>
+            <div class="mono" style="font-size:15px;margin-top:6px;">S9V2C080U4PSAA</div>
+            <div class="mono" style="font-size:15px;">R4A5S24AKAWA</div>
+            <div class="cap">indoor · outdoor</div>
+          </div>
+          <div class="readout">
+            <div class="stencil">System 2</div>
+            <div class="mono" style="font-size:15px;margin-top:6px;">S9V2B060U3PSAA</div>
+            <div class="mono" style="font-size:15px;">R4A3S18AKAWA</div>
+            <div class="cap">indoor · outdoor</div>
+          </div>
+        </div>
+        <div class="hint" style="margin-top:8px;">New call opens Intake with the address, subdivision and builder already in.</div>
+      </div>
+    </div>
+
+    <div class="unit">
+      <div class="unit-head">
+        <span class="unit-id">VST</span><span class="unit-name">Visits at this address</span>
+        <span class="unit-note">Newest first · can span technicians</span>
+      </div>
+      <div class="unit-body">
+        <table>
+          <thead>
+            <tr><th style="width:82px;">Date</th><th style="width:140px;">Technician</th><th>Work</th><th style="width:60px;"></th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td class="num">JUL 16</td><td>M. Reyes</td><td>Finish Start Up</td>
+              <td class="acts"><span class="key sm" title="Detail"><i class="ti ti-file-description"></i></span></td>
+            </tr>
+            <tr class="open-row">
+              <td class="num">JUL 02</td><td>R. Delgado</td><td>AC Startup</td>
+              <td class="acts"><span class="key sm dark" title="Detail"><i class="ti ti-file-description"></i></span></td>
+            </tr>
+          </tbody>
+        </table>
+
+        <!-- opened detail, weigh-in shown expanded so the plate is visible -->
+        <div class="detail">
+          <div class="detail-head">
+            <span class="mono" style="font-size:13px;">JUL 02 · 2026</span>
+            <span class="stencil">R. Delgado · AC Startup</span>
+          </div>
+
+          <h4 class="sub">Completion — as the report generated it</h4>
+          <div class="tape">2727 RUSSELL MEADOWS LN
+Coil sweating, wrapped
+Return plenum short by 2"
+
+AC Startup
+Float switch
+Pan tablet
+R-454B  4lb 02oz</div>
+
+          <div class="fold open">
+            <span class="mono" style="font-size:13px;">−</span>
+            <span class="unit-name" style="font-size:11px;">Weigh-in data</span>
+            <span class="unit-note">Shown open here — it opens closed</span>
+          </div>
+          <div class="fold-body">
+            <div class="stencil" style="margin-bottom:8px;">System 1</div>
+            <div class="wi-grid">
+              <div><span class="stencil">Lineset</span><span class="mono">25 ft</span></div>
+              <div><span class="stencil">Factory charge</span><span class="mono">6lb 08oz</span></div>
+              <div><span class="stencil">Line config</span><span class="mono">3/8 · 15ft</span></div>
+              <div><span class="stencil">Approx adjust</span><span class="mono">+0lb 10oz</span></div>
+              <div><span class="stencil">Adjusted</span><span class="mono">7lb 02oz</span></div>
+              <div><span class="stencil">Fan speed</span><span class="mono">MED-HI</span></div>
+              <div><span class="stencil">Liquid temp</span><span class="mono">82.4°</span></div>
+              <div><span class="stencil">Suction temp</span><span class="mono">58.1°</span></div>
+              <div><span class="stencil">Condenser sat</span><span class="mono">92.0°</span></div>
+              <div><span class="stencil">Subcooling</span><span class="mono">9.6</span></div>
+              <div><span class="stencil">OEM SC goal</span><span class="mono">10.0</span></div>
+              <div><span class="stencil">SC deviation</span><span class="mono">-0.4</span></div>
+            </div>
+
+            <div class="stencil" style="margin:16px 0 8px;border-top:1px solid var(--line);padding-top:12px;">System 2</div>
+            <div class="wi-grid">
+              <div><span class="stencil">Lineset</span><span class="mono">18 ft</span></div>
+              <div><span class="stencil">Factory charge</span><span class="mono">5lb 00oz</span></div>
+              <div><span class="stencil">Line config</span><span class="mono">3/8 · 15ft</span></div>
+              <div><span class="stencil">Approx adjust</span><span class="mono">+0lb 02oz</span></div>
+              <div><span class="stencil">Adjusted</span><span class="mono">5lb 02oz</span></div>
+              <div><span class="stencil">Fan speed</span><span class="mono">MED</span></div>
+              <div><span class="stencil">Liquid temp</span><span class="mono">79.8°</span></div>
+              <div><span class="stencil">Suction temp</span><span class="mono">57.2°</span></div>
+              <div><span class="stencil">Condenser sat</span><span class="mono">90.1°</span></div>
+              <div><span class="stencil">Subcooling</span><span class="mono">10.3</span></div>
+              <div><span class="stencil">OEM SC goal</span><span class="mono">10.0</span></div>
+              <div><span class="stencil">SC deviation</span><span class="mono">+0.3</span></div>
+            </div>
+          </div>
+
+          <div class="total-bar"><span class="stencil">Total</span><span class="mono" style="font-size:20px;">$412.00</span></div>
+        </div>
+
+        <table style="margin-top:0;">
+          <tbody>
+            <tr><td class="num" style="width:82px;">JUN 18</td><td style="width:140px;">M. Reyes</td><td>Finish Start Up</td><td class="acts" style="width:60px;"><span class="key sm" title="Detail"><i class="ti ti-file-description"></i></span></td></tr>
+            <tr><td class="num">JUN 04</td><td>J. Ortiz</td><td>AC Startup</td><td class="acts"><span class="key sm" title="Detail"><i class="ti ti-file-description"></i></span></td></tr>
+            <tr><td class="num">MAY 27</td><td>R. Delgado</td><td>AC Startup</td><td class="acts"><span class="key sm" title="Detail"><i class="ti ti-file-description"></i></span></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</section>
+
+</body>
+</html>

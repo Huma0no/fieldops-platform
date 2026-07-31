@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, viewport-fit=cover">
+<title>FieldOps · My Calls</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700;800&family=Azeret+Mono:wght@500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    /* ONE material — background and cards share this base */
+    --panel:#eceae5;
+    --hi:#ffffff;          /* light source */
+    --sh:#c8c4bc;          /* defined soft shadow (present, not a faint glow) */
+    --well:#e3e0da;        /* pressed-in areas */
+    --tile:#f5f3ef;        /* raised bright tiles */
+    --ink:#221e19;--ink-soft:#7d776e;
+    --accent:#b5641e;--accent-deep:#8a4a13;--ok:#3d6b3f;
+    --sat:env(safe-area-inset-top,0px);--sab:env(safe-area-inset-bottom,0px);
+  }
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+  html,body{height:100%}
+  /* unified surface: background IS the panel color */
+  body{font-family:'Archivo',system-ui,sans-serif;color:var(--ink);width:100dvw;height:100dvh;overflow:hidden;
+    display:flex;flex-direction:column;background:var(--panel)}
+
+  /* ===== TOP NAV — raised ledge, same material ===== */
+  .topnav{flex:0 0 auto;padding-top:var(--sat);background:var(--panel);position:relative;z-index:6;
+    box-shadow:inset 0 1px 0 var(--hi), 0 4px 9px var(--sh)}
+  .tabs{display:flex;height:40px;padding:0 6px}
+  .tab{flex:1;border:0;background:transparent;cursor:pointer;position:relative;margin:5px 3px;border-radius:11px;
+    font-family:'Archivo';font-weight:700;font-size:13px;color:var(--ink-soft);display:flex;align-items:center;justify-content:center;gap:5px;transition:color .14s ease}
+  .tab .tb{font-family:'Azeret Mono';font-size:9px;color:var(--accent-deep)}
+  .tab.on{color:var(--accent-deep);box-shadow:inset 2px 2px 4px var(--sh),inset -2px -2px 4px var(--hi)}
+
+  .scroll{flex:1;overflow-y:auto;padding:16px 15px 10px}
+  .scroll::-webkit-scrollbar{width:0}
+  .list-lbl{font-family:'Azeret Mono';font-size:9px;letter-spacing:.18em;color:var(--ink-soft);margin:2px 2px 14px;display:flex;align-items:center;gap:8px}
+  .list-lbl::after{content:'';flex:1;height:1px;background:var(--sh)}
+  .list{display:flex;flex-direction:column;gap:15px}
+
+  /* ===== CARD — defined raised box, extruded from the same surface ===== */
+  .card{background:var(--panel);border-radius:20px;cursor:pointer;transition:transform .12s ease,box-shadow .18s ease,opacity .18s ease;
+    box-shadow:-6px -6px 12px var(--hi), 6px 7px 14px var(--sh)}
+  .card.sunk{opacity:.6;box-shadow:inset 3px 3px 7px var(--sh),inset -3px -3px 7px var(--hi)}
+  .card.expanded{cursor:default;box-shadow:-7px -7px 14px var(--hi), 8px 9px 18px var(--sh)}
+  .c-head{padding:16px 16px 8px}
+  .c-main{display:flex;align-items:center;gap:12px}
+  .c-body{flex:1;min-width:0}
+  .c-addr{font-size:17px;font-weight:800;letter-spacing:-.01em;line-height:1.15}
+  .c-meta{font-family:'Azeret Mono';font-size:10px;color:var(--ink-soft);letter-spacing:.03em;margin-top:5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .nav-btn{flex:0 0 auto;width:48px;height:48px;border:0;border-radius:14px;background:var(--panel);cursor:pointer;display:flex;align-items:center;justify-content:center;
+    box-shadow:-3px -3px 7px var(--hi),4px 4px 9px var(--sh)}
+  .nav-btn:active{transform:translateY(1px);box-shadow:inset 3px 3px 6px var(--sh),inset -3px -3px 6px var(--hi)}
+  .nav-btn svg{stroke:var(--accent-deep)}
+  .chev{display:flex;justify-content:center;padding:7px 0 12px;color:var(--ink-soft);opacity:.45;transition:transform .2s ease}
+  .card.expanded .chev{transform:rotate(180deg)}
+
+  .c-expand{padding:0 16px 16px;display:none}
+  .card.expanded .c-expand{display:block}
+  .worktype{display:inline-flex;align-items:center;gap:7px;margin:2px 0 12px;font-family:'Azeret Mono';font-size:11px;font-weight:700;letter-spacing:.05em;color:var(--ink)}
+  .worktype .d{width:7px;height:7px;border-radius:50%;background:var(--accent)}
+  .chips{display:flex;flex-wrap:wrap;gap:7px;margin-bottom:12px}
+  .chip{font-family:'Azeret Mono';font-size:9.5px;letter-spacing:.04em;font-weight:600;padding:6px 11px;border-radius:20px;color:var(--ink-soft);background:var(--well);
+    box-shadow:inset 2px 2px 4px var(--sh),inset -2px -2px 4px var(--hi)}
+  .chip.sys{color:var(--accent-deep)}
+  .notes{font-size:12px;color:var(--ink-soft);line-height:1.5;font-style:italic;padding:0 2px 15px;border-bottom:1px solid var(--sh);margin-bottom:15px}
+
+  .sys{background:var(--well);border-radius:16px;padding:14px;margin-bottom:12px;box-shadow:inset 4px 4px 9px var(--sh),inset -4px -4px 9px var(--hi)}
+  .sys-head{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:13px}
+  .sys-head .sn{font-family:'Azeret Mono';font-weight:700;font-size:11px;letter-spacing:.14em;color:var(--ink)}
+  .sys-head .sm{font-family:'Azeret Mono';font-size:9.5px;letter-spacing:.05em;color:var(--accent-deep)}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:9px}
+  .cell{background:var(--tile);border-radius:12px;padding:9px 11px;box-shadow:-3px -3px 6px var(--hi),3px 4px 7px var(--sh)}
+  .cell .cl{font-family:'Azeret Mono';font-size:7.5px;letter-spacing:.14em;color:var(--ink-soft);margin-bottom:3px}
+  .cell .cv{font-family:'Azeret Mono';font-weight:700;font-size:13px;color:var(--ink);letter-spacing:.01em;word-break:break-all}
+  .cell .cv.small{font-size:11px}
+  .cell .cv.dim{color:var(--ink-soft);font-weight:600}
+  .cell .cv.rev{color:var(--accent)}
+  .overcharge{font-family:'Azeret Mono';font-size:9px;letter-spacing:.04em;color:var(--ink-soft);text-align:right;margin-top:9px}
+  .overcharge b{color:var(--accent-deep)}
+  .sys-tools{display:flex;gap:8px;margin-top:12px}
+  .tool{flex:1;border:0;border-radius:12px;background:var(--panel);cursor:pointer;height:42px;display:flex;align-items:center;justify-content:center;gap:7px;
+    box-shadow:-3px -3px 7px var(--hi),4px 4px 9px var(--sh)}
+  .tool:active{transform:translateY(1px);box-shadow:inset 3px 3px 6px var(--sh),inset -3px -3px 6px var(--hi)}
+  .tool svg{stroke:var(--accent-deep)}
+  .tool .tl{font-family:'Azeret Mono';font-weight:700;font-size:10px;letter-spacing:.06em;color:var(--ink)}
+  .start{width:100%;border:0;border-radius:15px;background:var(--panel);cursor:pointer;margin-top:5px;font-family:'Archivo';font-weight:800;font-size:15px;letter-spacing:.03em;color:var(--accent-deep);padding:18px 0;display:flex;align-items:center;justify-content:center;gap:9px;
+    box-shadow:-4px -4px 9px var(--hi),5px 5px 12px var(--sh)}
+  .start:active{transform:translateY(1px);box-shadow:inset 4px 4px 8px var(--sh),inset -4px -4px 8px var(--hi)}
+  .start svg{stroke:var(--accent-deep)}
+
+  /* LOAD SHEET — pressed-in tray */
+  .loadsheet{margin-top:18px;background:var(--well);border-radius:18px;box-shadow:inset 4px 4px 9px var(--sh),inset -4px -4px 9px var(--hi);overflow:hidden}
+  .ls-head{display:flex;align-items:center;gap:11px;padding:15px 15px;cursor:pointer}
+  .ls-ic{width:32px;height:32px;flex:0 0 auto;border-radius:10px;background:var(--panel);display:flex;align-items:center;justify-content:center;box-shadow:-3px -3px 6px var(--hi),3px 3px 7px var(--sh)}
+  .ls-ic svg{stroke:var(--accent-deep)}
+  .ls-title{flex:1;min-width:0}
+  .ls-title .t{font-weight:800;font-size:14px;letter-spacing:-.01em}
+  .ls-title .s{font-family:'Azeret Mono';font-size:9px;letter-spacing:.06em;color:var(--ink-soft);margin-top:2px}
+  .ls-count{font-family:'Azeret Mono';font-weight:700;font-size:10px;color:var(--accent-deep);padding:4px 10px;border-radius:20px;background:var(--panel);box-shadow:-2px -2px 5px var(--hi),3px 3px 6px var(--sh)}
+  .ls-chev{color:var(--ink-soft);opacity:.6;transition:transform .2s ease;display:flex}
+  .loadsheet.open .ls-chev{transform:rotate(180deg)}
+  .ls-body{display:none;padding:0 15px 17px}
+  .loadsheet.open .ls-body{display:block}
+  .ls-chips{display:flex;flex-wrap:wrap;gap:9px}
+  .ls-chip{display:inline-flex;align-items:center;gap:6px;background:var(--tile);border-radius:20px;padding:9px 13px;box-shadow:-3px -3px 6px var(--hi),3px 4px 7px var(--sh)}
+  .ls-chip .q{font-family:'Azeret Mono';font-weight:700;font-size:12px;color:var(--accent)}
+  .ls-chip .nm{font-family:'Archivo';font-weight:600;font-size:12.5px;color:var(--ink)}
+  .ls-note{font-family:'Azeret Mono';font-size:8.5px;letter-spacing:.04em;color:var(--ink-soft);margin-top:13px;opacity:.8}
+
+  /* ===== BOTTOM STRIP — raised ledge ===== */
+  .strip{flex:0 0 auto;display:flex;padding-bottom:var(--sab);background:var(--panel);position:relative;z-index:6;
+    box-shadow:inset 0 1px 0 var(--hi), 0 -4px 9px var(--sh)}
+  .util{flex:1;border:0;background:transparent;cursor:pointer;position:relative;height:56px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;color:var(--ink-soft);transition:color .12s ease}
+  .util:active{color:var(--accent-deep)}
+  .util svg{stroke:currentColor}
+  .util .ul{font-family:'Azeret Mono';font-weight:700;font-size:8px;letter-spacing:.06em}
+  .util .bdg{position:absolute;top:9px;right:calc(50% - 20px);min-width:15px;height:15px;padding:0 4px;border-radius:9px;background:var(--accent);color:#fff;font-family:'Azeret Mono';font-weight:700;font-size:8px;display:flex;align-items:center;justify-content:center;box-shadow:1px 1px 3px rgba(0,0,0,.15)}
+  .util + .util::before{content:'';position:absolute;left:0;top:16px;bottom:16px;width:1px;background:var(--sh)}
+  @media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+  <div class="topnav"><div class="tabs">
+    <button class="tab">Lobby</button><button class="tab on">My Calls <span class="tb">3</span></button><button class="tab">Reports</button>
+  </div></div>
+
+  <div class="scroll">
+    <div class="list-lbl">MY JOBS · 3</div>
+    <div class="list" id="list"></div>
+
+    <div class="loadsheet" id="ls">
+      <div class="ls-head" id="lsHead">
+        <div class="ls-ic"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7l9-4 9 4v10l-9 4-9-4z"/><path d="M3 7l9 4 9-4M12 11v10"/></svg></div>
+        <div class="ls-title"><div class="t">Load Sheet Summary</div><div class="s">ALL JOBS</div></div>
+        <span class="ls-count" id="lsCount">7 pcs</span>
+        <span class="ls-chev"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg></span>
+      </div>
+      <div class="ls-body">
+        <div class="ls-chips" id="lsChips"></div>
+        <div class="ls-note">SUM OF THERMOSTATS &amp; ACCESSORIES ACROSS 3 JOBS · TO LOAD ON THE TRUCK</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="strip">
+    <button class="util"><svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg><span class="ul">SETTINGS</span></button>
+    <button class="util"><span class="bdg">2</span><svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M7 4L3 8l4 4"/><path d="M3 8h13a4 4 0 0 1 4 4"/><path d="M17 20l4-4-4-4"/><path d="M21 16H8a4 4 0 0 1-4-4"/></svg><span class="ul">TRANSFERS</span></button>
+    <button class="util"><span class="bdg">5</span><svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H8l-4 4V5a2 2 0 0 1 2-2h13a2 2 0 0 1 2 2z"/></svg><span class="ul">CHAT</span></button>
+    <button class="util"><svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="2" width="14" height="20" rx="2"/><line x1="9" y1="6" x2="15" y2="6"/></svg><span class="ul">CALC</span></button>
+  </div>
+
+<script>
+  var NAV='<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11l19-9-9 19-2-8-8-2z"/></svg>';
+  var CHV='<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>';
+  var LVIC='<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h10l3 3v7H4z"/><path d="M8 7V4h8l3 3"/></svg>';
+  var BLIC='<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 9c-2-4 1-6 3-5-1 2 0 4-3 5zM15 12c4-2 6 1 5 3-2-1-4 0-5-3zM12 15c2 4-1 6-3 5 1-2 0-4 3-5zM9 12c-4 2-6-1-5-3 2 1 4 0 5 3z"/></svg>';
+
+  var JOBS=[
+    {addr:'2416 Sable Ridge Ln',sub:'CADENCE AT BROOKWOOD',bld:'LENNAR',wt:'AC + Heat Startup',
+     chips:['2x Ecobee','HZ322','Bypass'],notes:'finish 07/22/26, prestart, float switch $5, weigh-in data $10',
+     systems:[
+      {n:'SYSTEM 1',ton:'4.0 TON',esp:'ESP ~1" WC',ind:'ML180UH090E60C',indt:'Furnace',out:'ML14KC1-059',outt:'Condenser',fac:'152 oz (9.5 lb)',rev:'161 oz (10.1 lb)',ref:'R-454B',sub:'—',cmax:'1967',cmin:'1672',over:'170 oz'},
+      {n:'SYSTEM 2',ton:'2.5 TON',esp:'ESP ~0.6" WC',ind:'ML96UH070E36B',indt:'Furnace',out:'ML14XC1-030',outt:'Condenser',fac:'104 oz (6.5 lb)',rev:'—',ref:'R-410A',sub:'—',cmax:'1200',cmin:'1000',over:'120 oz'}
+     ]},
+    {addr:'1109 Marlow Crossing',sub:'THE MEADOWS',bld:'PERRY HOMES',wt:'AC + Heat Startup',
+     chips:['Daikin One','Float Switch'],notes:'finish AM',
+     systems:[
+      {n:'SYSTEM 1',ton:'3.0 TON',esp:'ESP ~0.8" WC',ind:'DM96VC0603BN',indt:'Furnace',out:'DX4SA0361K',outt:'Condenser',fac:'116 oz (7.25 lb)',rev:'—',ref:'R-410A',sub:'8°',cmax:'1400',cmin:'1150',over:'130 oz'}
+     ]},
+    {addr:'738 Coppervine Dr',sub:'HARMONY GLEN',bld:'DR HORTON',wt:'Heat Startup',
+     chips:['T-6'],notes:'no pdrain, no gas meter',
+     systems:[
+      {n:'SYSTEM 1',ton:'3.5 TON',esp:'ESP ~0.9" WC',ind:'GM9S960603BN',indt:'Furnace',out:'GSXH503610',outt:'Condenser',fac:'124 oz (7.75 lb)',rev:'—',ref:'R-454B',sub:'—',cmax:'1500',cmin:'1250',over:'140 oz'}
+     ]}
+  ];
+
+  var expanded=0;
+  var list=document.getElementById('list');
+  function cell(l,v,cls){return '<div class="cell"><div class="cl">'+l+'</div><div class="cv '+(cls||'')+'">'+v+'</div></div>';}
+  function sysBlock(s){
+    var revCls=s.rev==='—'?'dim':'rev';
+    return '<div class="sys"><div class="sys-head"><span class="sn">'+s.n+'</span><span class="sm">'+s.ton+' · '+s.esp+'</span></div>'+
+      '<div class="grid">'+
+        cell('INDOOR',s.ind,'small')+cell('OUTDOOR',s.out,'small')+
+        cell('TYPE',s.indt,'dim small')+cell('TYPE',s.outt,'dim small')+
+        cell('FACTORY',s.fac,'small')+cell('REVISED',s.rev,revCls+' small')+
+        cell('REFRIGERANT',s.ref)+cell('SUBCOOLING',s.sub,(s.sub==='—'?'dim':''))+
+        cell('CFM MAX',s.cmax)+cell('CFM MIN',s.cmin)+
+      '</div>'+
+      '<div class="overcharge">Overcharge limit: <b>'+s.over+'</b></div>'+
+      '<div class="sys-tools"><button class="tool" onclick="event.stopPropagation()">'+LVIC+'<span class="tl">LV</span></button>'+
+      '<button class="tool" onclick="event.stopPropagation()">'+BLIC+'<span class="tl">BLOWER</span></button></div></div>';
+  }
+  function render(){
+    list.innerHTML=JOBS.map(function(j,i){
+      var isExp=i===expanded,anyExp=expanded!==null;
+      var cls='card'+(isExp?' expanded':(anyExp?' sunk':''));
+      var head='<div class="c-head"><div class="c-main"><div class="c-body"><div class="c-addr">'+j.addr+'</div><div class="c-meta">'+j.sub+' · '+j.bld+'</div></div><button class="nav-btn" onclick="event.stopPropagation()">'+NAV+'</button></div></div>';
+      var expand='';
+      if(isExp){
+        var chips=j.chips.map(function(c){return '<span class="chip">'+c+'</span>';}).join('')+'<span class="chip sys">'+j.systems.length+' SYSTEM'+(j.systems.length>1?'S':'')+'</span>';
+        expand='<div class="c-expand"><div class="worktype"><span class="d"></span>'+j.wt+'</div><div class="chips">'+chips+'</div><div class="notes">'+j.notes+'</div>'+
+          j.systems.map(sysBlock).join('')+
+          '<button class="start" onclick="event.stopPropagation()"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M9 15l2 2 4-4"/></svg>Start Report</button></div>';
+      }
+      return '<div class="'+cls+'" data-i="'+i+'">'+head+(isExp?expand:'')+'<div class="chev">'+CHV+'</div></div>';
+    }).join('');
+    list.querySelectorAll('.card').forEach(function(c){c.addEventListener('click',function(){var i=+c.getAttribute('data-i');expanded=(expanded===i)?null:i;render();});});
+  }
+  render();
+
+  var LOAD=[{q:2,nm:'Ecobee'},{q:1,nm:'Daikin One'},{q:1,nm:'T-6'},{q:1,nm:'HZ322'},{q:1,nm:'Bypass'},{q:1,nm:'Float Switch'}];
+  document.getElementById('lsChips').innerHTML=LOAD.map(function(x){return '<span class="ls-chip"><span class="q">'+x.q+'×</span><span class="nm">'+x.nm+'</span></span>';}).join('');
+  document.getElementById('lsCount').textContent=LOAD.reduce(function(a,x){return a+x.q;},0)+' pcs';
+  document.getElementById('lsHead').addEventListener('click',function(){document.getElementById('ls').classList.toggle('open');});
+</script>
+</body>
+</html>

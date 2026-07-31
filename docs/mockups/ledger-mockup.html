@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FieldOps · Dispatch — Ledger</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/tabler-icons/2.44.0/iconfont/tabler-icons.min.css">
+<style>
+  :root{
+    --paper:#C6C4BC; --panel:#E3E1D9; --plate:#F2F1EB; --ink:#101010;
+    --dim:#6E6E68; --line:#A9A79F; --mute:#9C9A93;
+    --stencil:'Arial Narrow','Helvetica Neue Condensed',Helvetica,Arial,sans-serif;
+    --body:-apple-system,'Helvetica Neue',Helvetica,Arial,sans-serif;
+    --data:'Courier New',Courier,monospace;
+  }
+  *{box-sizing:border-box;}
+  body{background:var(--paper);margin:0;padding:40px 24px 90px;font-family:var(--body);color:var(--ink);
+       background-image:repeating-linear-gradient(0deg,rgba(16,16,16,.035) 0 1px,transparent 1px 4px);}
+  .screen{max-width:1040px;margin:0 auto 60px;}
+  .screen-tag{display:flex;align-items:center;gap:10px;margin-bottom:10px;}
+  .screen-tag b{font-family:var(--data);font-weight:700;font-size:12px;background:var(--ink);color:var(--plate);padding:3px 7px;}
+  .screen-tag span{font-family:var(--stencil);text-transform:uppercase;letter-spacing:2px;font-size:11px;color:var(--dim);}
+  .rack{position:relative;background:var(--panel);border:3px solid var(--ink);padding:22px 26px 26px;box-shadow:7px 7px 0 rgba(16,16,16,.22);}
+  .screw{position:absolute;width:11px;height:11px;border-radius:50%;background:var(--plate);border:1.5px solid var(--ink);box-shadow:inset 0 -1px 0 rgba(16,16,16,.35);}
+  .screw::after{content:'';position:absolute;left:1px;right:1px;top:3.5px;height:1.5px;background:var(--ink);transform:rotate(35deg);}
+  .screw.tl{top:7px;left:7px;} .screw.tr{top:7px;right:7px;} .screw.bl{bottom:7px;left:7px;} .screw.br{bottom:7px;right:7px;}
+  .masthead{display:flex;justify-content:space-between;align-items:flex-end;border-bottom:3px solid var(--ink);padding-bottom:12px;margin-bottom:12px;}
+  .brand{font-family:Georgia,'Times New Roman',serif;font-size:23px;letter-spacing:.4px;}
+  .meta{display:flex;align-items:center;gap:14px;} .meta .who{font-size:12px;}
+  .meta .clock{font-family:var(--data);font-weight:700;font-size:12px;background:var(--ink);color:var(--plate);padding:4px 8px;}
+  .gsearch{display:flex;align-items:center;gap:8px;flex:1;max-width:340px;margin:0 22px;padding:0 10px;border:2px solid var(--ink);background:var(--panel);box-shadow:inset 2px 2px 0 rgba(16,16,16,.14);}
+  .gsearch i{font-size:14px;color:var(--dim);}
+  .gsearch input{border:none;background:transparent;box-shadow:none;padding:9px 0;font-size:12px;}
+  .gsearch .goto{font-family:var(--stencil);text-transform:uppercase;letter-spacing:1.2px;font-size:9px;color:var(--plate);background:var(--ink);padding:3px 5px;white-space:nowrap;}
+  .fnrow{display:flex;flex-wrap:wrap;border:2px solid var(--ink);margin-bottom:22px;background:var(--plate);}
+  .fkey{display:flex;align-items:center;gap:7px;padding:8px 11px;font-family:var(--stencil);text-transform:uppercase;letter-spacing:1.2px;font-size:11px;color:var(--dim);border-right:1px solid var(--line);}
+  .fkey:last-child{border-right:none;}
+  .fkey .led{width:7px;height:7px;border:1.5px solid var(--dim);flex:none;}
+  .fkey.on{background:var(--ink);color:var(--plate);} .fkey.on .led{background:var(--plate);border-color:var(--plate);}
+  .fkey.tbd{color:var(--mute);background-image:repeating-linear-gradient(45deg,rgba(16,16,16,.05) 0 3px,transparent 3px 6px);}
+  .fkey.tbd .led{border-color:#B5B3AC;}
+  .unit{border:2px solid var(--ink);background:var(--plate);margin-bottom:20px;}
+  .unit:last-child{margin-bottom:0;}
+  .unit-head{display:flex;align-items:center;gap:12px;border-bottom:2px solid var(--ink);padding:9px 14px;background:var(--panel);}
+  .unit-id{font-family:var(--data);font-weight:700;font-size:11px;background:var(--ink);color:var(--plate);padding:2px 6px;}
+  .unit-name{font-family:var(--stencil);text-transform:uppercase;letter-spacing:2px;font-size:12px;font-weight:700;}
+  .unit-note{margin-left:auto;font-family:var(--stencil);text-transform:uppercase;letter-spacing:1.2px;font-size:10px;color:var(--dim);}
+  .unit-body{padding:18px;}
+  .knurl{height:12px;background-image:repeating-linear-gradient(45deg,var(--ink) 0 1px,transparent 1px 4px);border-bottom:2px solid var(--ink);opacity:.5;}
+  .cols-2{display:grid;grid-template-columns:1fr 1fr;gap:20px;}
+  .stencil{font-family:var(--stencil);text-transform:uppercase;letter-spacing:1.6px;font-size:10px;color:var(--dim);}
+  .mono{font-family:var(--data);font-weight:700;}
+  .hint{font-size:11px;color:var(--dim);line-height:1.5;}
+  h4.sub{font-family:var(--stencil);text-transform:uppercase;letter-spacing:2px;font-size:11px;margin:0 0 12px;color:var(--dim);border-bottom:1px solid var(--line);padding-bottom:5px;display:flex;align-items:baseline;gap:8px;}
+  h4.sub .r{margin-left:auto;}
+  .key{display:inline-flex;align-items:center;justify-content:center;gap:7px;border:2px solid var(--ink);background:var(--panel);box-shadow:0 4px 0 var(--ink);padding:12px 18px;font-family:var(--stencil);text-transform:uppercase;letter-spacing:1.6px;font-size:12px;font-weight:700;cursor:default;}
+  .key.dark{background:var(--ink);color:var(--plate);box-shadow:0 4px 0 #55534E;}
+  .key.sm{padding:7px 11px;font-size:10px;box-shadow:0 3px 0 var(--ink);}
+  label{display:block;font-family:var(--stencil);text-transform:uppercase;letter-spacing:1.3px;font-size:10px;color:var(--dim);margin-bottom:4px;}
+  input,select{width:100%;border:2px solid var(--ink);background:var(--panel);color:var(--ink);font-family:var(--body);font-size:13px;padding:8px 10px;box-shadow:inset 2px 2px 0 rgba(16,16,16,.12);}
+  input.data{font-family:var(--data);font-weight:700;}
+  .cb-h{width:15px;height:15px;border:2px solid var(--plate);background:transparent;flex:none;}
+  .cb-h.on{background:var(--plate);}
+  .rail{display:grid;grid-template-columns:1fr 30px 1fr 30px 1fr;align-items:stretch;}
+  .stp{border:2px solid var(--ink);background:var(--plate);padding:13px 14px;}
+  .stp .sn{display:flex;align-items:center;gap:8px;}
+  .stp .sname{font-family:var(--stencil);text-transform:uppercase;letter-spacing:2.4px;font-size:14px;font-weight:700;}
+  .stp .tick{font-family:var(--data);font-weight:700;font-size:12px;margin-left:auto;}
+  .stp .sdate{font-family:var(--data);font-weight:700;font-size:15px;margin-top:9px;}
+  .stp .swhat{font-size:11px;color:var(--dim);margin-top:5px;line-height:1.45;}
+  .stp.done{background:var(--ink);color:var(--plate);} .stp.done .swhat{color:#B5B3AC;}
+  .stp.now{background:var(--ink);color:var(--plate);box-shadow:0 0 0 3px var(--panel),0 0 0 6px var(--ink);z-index:1;} .stp.now .swhat{color:#B5B3AC;}
+  .stp.next{border-color:var(--mute);color:var(--mute);background-image:repeating-linear-gradient(45deg,rgba(16,16,16,.07) 0 3px,transparent 3px 7px);} .stp.next .swhat{color:var(--mute);}
+  .arrow{display:flex;align-items:center;justify-content:center;font-family:var(--data);font-weight:700;color:var(--dim);}
+  .big{background:var(--panel);border:2px solid var(--ink);box-shadow:inset 2px 2px 0 rgba(16,16,16,.14);padding:16px;}
+  .big .amt{font-family:var(--data);font-weight:700;font-size:38px;line-height:1;}
+  .big .cap{font-family:var(--stencil);text-transform:uppercase;letter-spacing:1.6px;font-size:10px;color:var(--dim);margin-top:8px;}
+  .mline{display:flex;align-items:baseline;gap:12px;border-bottom:1px solid var(--line);padding:11px 0;}
+  .mline:last-child{border-bottom:none;} .mline .ml{font-size:13px;} .mline .mr{margin-left:auto;font-family:var(--data);font-weight:700;font-size:16px;}
+  .sub-line{display:flex;align-items:baseline;gap:10px;padding:5px 0 5px 14px;font-size:12px;color:var(--dim);}
+  .sub-line .sr{margin-left:auto;font-family:var(--data);font-weight:700;font-size:13px;color:var(--ink);}
+  .badge{display:inline-block;font-family:var(--stencil);text-transform:uppercase;letter-spacing:1.4px;font-size:9px;border:1.5px solid var(--ink);padding:2px 6px;}
+  .badge.hatch{color:var(--mute);border-color:var(--mute);background-image:repeating-linear-gradient(45deg,rgba(16,16,16,.14) 0 2px,transparent 2px 5px);}
+  .tot-line{display:flex;align-items:baseline;gap:12px;border-top:3px solid var(--ink);margin-top:12px;padding-top:12px;}
+  .tot-line .tl{font-family:var(--stencil);text-transform:uppercase;letter-spacing:2px;font-size:11px;font-weight:700;}
+  .tot-line .tr{margin-left:auto;font-family:var(--data);font-weight:700;font-size:22px;}
+  .tbd-line{display:flex;align-items:center;gap:12px;border:2px dashed var(--mute);padding:11px 12px;margin-top:12px;color:var(--mute);}
+  .tbd-line .tr{margin-left:auto;font-family:var(--data);font-weight:700;font-size:13px;}
+  .ghost-strip{display:grid;grid-template-columns:1fr 30px 1fr 30px 1fr;align-items:stretch;}
+  .gcell{border:2px solid var(--ink);background:var(--panel);padding:13px 14px;box-shadow:inset 2px 2px 0 rgba(16,16,16,.12);}
+  .gcell .gl{font-family:var(--stencil);text-transform:uppercase;letter-spacing:1.4px;font-size:10px;color:var(--dim);}
+  .gcell .gv{font-family:var(--data);font-weight:700;font-size:24px;margin-top:7px;}
+  .gcell .gn{font-size:10px;color:var(--dim);margin-top:8px;line-height:1.4;}
+  .gcell.edit{background:var(--plate);box-shadow:none;}
+  .gcell.edit input.data{margin-top:5px;font-size:22px;padding:5px 8px;text-align:left;}
+  .gcell.derived{background:var(--ink);color:var(--plate);box-shadow:none;}
+  .gcell.derived .gl{color:#B5B3AC;}
+  .gcell.derived .gn{color:#B5B3AC;}
+  .gop{display:flex;align-items:center;justify-content:center;font-family:var(--data);font-weight:700;font-size:20px;color:var(--dim);}
+  .tcard{margin-top:16px;}
+  .thdr{display:flex;align-items:center;gap:10px;background:var(--ink);color:var(--plate);padding:7px 11px;}
+  .thdr .tn{font-size:14px;font-weight:600;}
+  .thdr .tg{margin-left:auto;font-family:var(--data);font-weight:700;font-size:11px;background:var(--plate);color:var(--ink);padding:1px 6px;}
+  .thdr.out{background:var(--plate);color:var(--mute);border:2px solid var(--mute);background-image:repeating-linear-gradient(45deg,rgba(16,16,16,.07) 0 3px,transparent 3px 7px);}
+  .thdr.out .cb-h{border-color:var(--mute);} .thdr.out .tg{background:var(--mute);color:var(--plate);}
+  .tbody{border:2px solid var(--ink);border-top:none;background:var(--plate);padding:14px;}
+  .tbody.out{border-color:var(--mute);color:var(--mute);}
+  .calc{display:flex;align-items:baseline;gap:12px;border:2px solid var(--ink);background:var(--panel);padding:10px 13px;box-shadow:inset 2px 2px 0 rgba(16,16,16,.12);}
+  .calc .cl{font-family:var(--stencil);text-transform:uppercase;letter-spacing:1.4px;font-size:10px;color:var(--dim);}
+  .calc .csub{font-size:11px;color:var(--dim);margin-left:6px;}
+  .calc .cr{margin-left:auto;font-family:var(--data);font-weight:700;font-size:20px;}
+  .adj{margin-top:14px;}
+  .adj-h{display:flex;align-items:center;gap:10px;margin-bottom:8px;}
+  .adj-h .al{font-family:var(--stencil);text-transform:uppercase;letter-spacing:2px;font-size:11px;font-weight:700;}
+  .adj-h .as{font-family:var(--data);font-weight:700;font-size:12px;color:var(--dim);}
+  .adj-h .ak{margin-left:auto;}
+  .arow{display:grid;grid-template-columns:1fr 120px 26px;gap:8px;align-items:center;margin-bottom:7px;padding-left:14px;}
+  .arow input.data{text-align:right;}
+  .arow .sign{position:relative;}
+  .arow .sign::before{content:'+';position:absolute;left:-14px;top:9px;font-family:var(--data);font-weight:700;color:var(--dim);}
+  .arow.neg .sign::before{content:'\2212';}
+  .rm{font-family:var(--data);font-weight:700;font-size:12px;border:1.5px solid var(--dim);color:var(--dim);padding:3px 0;text-align:center;}
+  .payout{display:flex;align-items:baseline;gap:12px;border-top:3px solid var(--ink);margin-top:16px;padding-top:14px;}
+  .payout .pl{font-family:var(--stencil);text-transform:uppercase;letter-spacing:2px;font-size:12px;font-weight:700;}
+  .payout .pf{font-family:var(--data);font-size:11px;color:var(--dim);margin-left:4px;}
+  .payout .pr{margin-left:auto;font-family:var(--data);font-weight:700;font-size:24px;}
+  .fastbar{display:flex;align-items:flex-end;gap:12px;flex-wrap:wrap;}
+  .fastbar .fb{flex:1;min-width:130px;}
+  @media (max-width:880px){
+    .cols-2,.rail,.ghost-strip{grid-template-columns:1fr;}
+    .rail .arrow,.ghost-strip .gop{transform:rotate(90deg);padding:6px 0;}
+    .gsearch{max-width:none;margin:10px 0;}
+    .masthead{flex-wrap:wrap;}
+  }
+</style>
+</head>
+<body>
+
+<section class="screen">
+  <div class="screen-tag"><b>11a</b><span>Ledger &middot; the period</span></div>
+  <div class="rack">
+    <span class="screw tl"></span><span class="screw tr"></span><span class="screw bl"></span><span class="screw br"></span>
+    <div class="masthead">
+      <div class="brand">FieldOps &middot; Dispatch</div>
+      <div class="gsearch"><i class="ti ti-search"></i><input type="text" placeholder="Address, subdivision, builder, technician&hellip;"><span class="goto">Go to</span></div>
+      <div class="meta"><span class="stencil">Operator</span><span class="who">Kristo</span><span class="clock">FRI &middot; JUL 17 &middot; 2026</span></div>
+    </div>
+    <nav class="fnrow">
+      <div class="fkey"><span class="led"></span>Home</div>
+      <div class="fkey"><span class="led"></span>Intake</div>
+      <div class="fkey"><span class="led"></span>Lobby</div>
+      <div class="fkey"><span class="led"></span>Transfer</div>
+      <div class="fkey"><span class="led"></span>History</div>
+      <div class="fkey"><span class="led"></span>Reports</div>
+      <div class="fkey"><span class="led"></span>Inventory</div>
+      <div class="fkey"><span class="led"></span>Chat</div>
+      <div class="fkey tbd"><span class="led"></span>Catalog</div>
+      <div class="fkey"><span class="led"></span>Properties</div>
+      <div class="fkey tbd"><span class="led"></span>Technicians</div>
+      <div class="fkey on"><span class="led"></span>Ledger</div>
+      <div class="fkey tbd"><span class="led"></span>Corrections</div>
+    </nav>
+
+    <div class="unit">
+      <div class="unit-head"><span class="unit-id">CYC</span><span class="unit-name">Period JUL 06 &mdash; JUL 12</span><span class="unit-note">Mon to Sun &middot; worked and reported</span></div>
+      <div class="knurl"></div>
+      <div class="unit-body">
+        <div class="rail">
+          <div class="stp done"><div class="sn"><span class="sname">Open</span><span class="tick">&check;</span></div><div class="sdate">JUL 06 &mdash; JUL 12</div><div class="swhat">The week ran. Work landed as it was reported.</div></div>
+          <div class="arrow">&rarr;</div>
+          <div class="stp now"><div class="sn"><span class="sname">Closed</span><span class="tick">NOW</span></div><div class="sdate">WED JUL 15</div><div class="swhat">Closed itself. Totals calculated. Check lands Friday.</div></div>
+          <div class="arrow">&rarr;</div>
+          <div class="stp next"><div class="sn"><span class="sname">Paid</span><span class="tick">&mdash;</span></div><div class="sdate">BY SUN JUL 19</div><div class="swhat">Within 48h of the check. Not there yet.</div></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="cols-2">
+      <div class="unit" style="margin:0;">
+        <div class="unit-head"><span class="unit-id">IN</span><span class="unit-name">Money in</span></div>
+        <div class="unit-body">
+          <div class="big"><div class="amt">$10,000.00</div><div class="cap">Company payment &middot; gross check</div></div>
+          <div class="hint" style="margin-top:12px;">One check for the period, every technician in it. This is the whole of what came in.</div>
+        </div>
+      </div>
+      <div class="unit" style="margin:0;">
+        <div class="unit-head"><span class="unit-id">OUT</span><span class="unit-name">Money out</span></div>
+        <div class="unit-body">
+          <div class="mline"><span class="ml">Technician compensation</span><span class="mr">$5,320.00</span></div>
+          <div class="sub-line"><span>M. Reyes &middot; 80% &plusmn; his lines</span><span class="sr">$2,022.00</span></div>
+          <div class="sub-line"><span>J. Ortiz &middot; 80%</span><span class="sr">$1,568.00</span></div>
+          <div class="sub-line"><span>R. Delgado &middot; 80% &plusmn; his lines</span><span class="sr">$1,730.00</span></div>
+          <div class="mline" style="border-top:1px solid var(--line);"><span class="ml">Taxes <span class="badge hatch" style="margin-left:4px;">Reference only</span></span><span class="mr">$950.40</span></div>
+          <div class="sub-line"><span>Your gross</span><span class="sr">$3,490.00</span></div>
+          <div class="sub-line"><span>Commission kept &middot; 20% of theirs</span><span class="sr">$1,312.00</span></div>
+          <div class="sub-line"><span>Less ghost deduction</span><span class="sr">&minus;$50.00</span></div>
+          <div class="sub-line"><span>Taxable</span><span class="sr">$4,752.00</span></div>
+          <div class="sub-line"><span>20% of $4,752.00</span><span class="sr">$950.40</span></div>
+          <div class="tbd-line"><span class="stencil" style="color:var(--mute);">Deductible expenses</span><span class="hint" style="color:var(--mute);">gas &middot; tools &middot; vehicle</span><span class="tr">TBD</span></div>
+          <div class="tot-line"><span class="tl">Actually leaves</span><span class="tr">$5,320.00</span></div>
+          <div class="hint" style="margin-top:8px;">Taxes aren't paid from this screen &mdash; they're here so the number never surprises you. Only technician compensation actually leaves.</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="unit" style="margin-top:20px;">
+      <div class="unit-head"><span class="unit-id">GHD</span><span class="unit-name">Ghost deduction</span><span class="unit-note">Yours only &middot; explains your own gap &middot; touches no technician</span></div>
+      <div class="unit-body">
+        <div class="ghost-strip">
+          <div class="gcell"><div class="gl">Calculated</div><div class="gv">$10,050.00</div><div class="gn">total generated &mdash; every technician's gross plus your own, summed</div></div>
+          <div class="gop">&minus;</div>
+          <div class="gcell edit"><div class="gl">Actual received</div><input type="text" class="data" value="$10,000.00"><div class="gn">the one number you enter &mdash; the whole check total</div></div>
+          <div class="gop">=</div>
+          <div class="gcell derived"><div class="gl">Ghost deduction</div><div class="gv">$50.00</div><div class="gn">figured for you &middot; not editable</div></div>
+        </div>
+        <div class="hint" style="margin-top:10px;">One subtraction. Calculated is the whole period &mdash; everyone's work, yours included, the same figure that backs Money In. You type what the check actually was, and the gap names itself. It lands only on your side: technician payouts stay fixed at their gross &times; 80% &plusmn; their own lines, untouched by this number.</div>
+      </div>
+    </div>
+
+    <div class="unit" style="margin-top:20px;">
+      <div class="unit-body" style="display:flex;align-items:center;gap:14px;">
+        <span class="stencil">The period is closed &mdash; the compensation report is ready</span>
+        <span class="key dark" style="margin-left:auto;"><i class="ti ti-file-dollar"></i>Open compensation report</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="screen">
+  <div class="screen-tag"><b>11b</b><span>Ledger &middot; compensation report</span></div>
+  <div class="rack">
+    <span class="screw tl"></span><span class="screw tr"></span><span class="screw bl"></span><span class="screw br"></span>
+    <div class="masthead">
+      <div class="brand">FieldOps &middot; Dispatch</div>
+      <div class="gsearch"><i class="ti ti-search"></i><input type="text" placeholder="Address, subdivision, builder, technician&hellip;"><span class="goto">Go to</span></div>
+      <div class="meta"><span class="stencil">Operator</span><span class="who">Kristo</span><span class="clock">FRI &middot; JUL 17 &middot; 2026</span></div>
+    </div>
+    <nav class="fnrow">
+      <div class="fkey"><span class="led"></span>Home</div>
+      <div class="fkey"><span class="led"></span>Intake</div>
+      <div class="fkey"><span class="led"></span>Lobby</div>
+      <div class="fkey"><span class="led"></span>Transfer</div>
+      <div class="fkey"><span class="led"></span>History</div>
+      <div class="fkey"><span class="led"></span>Reports</div>
+      <div class="fkey"><span class="led"></span>Inventory</div>
+      <div class="fkey"><span class="led"></span>Chat</div>
+      <div class="fkey tbd"><span class="led"></span>Catalog</div>
+      <div class="fkey"><span class="led"></span>Properties</div>
+      <div class="fkey tbd"><span class="led"></span>Technicians</div>
+      <div class="fkey on"><span class="led"></span>Ledger</div>
+      <div class="fkey tbd"><span class="led"></span>Corrections</div>
+    </nav>
+
+    <div class="unit">
+      <div class="unit-head"><span class="unit-id">CMP</span><span class="unit-name">Compensation report</span><span class="unit-note">Internal &middot; nothing here is sent to a technician</span></div>
+      <div class="knurl"></div>
+      <div class="unit-body">
+        <h4 class="sub">Range <span class="r">the week, or whatever you need</span></h4>
+        <div class="fastbar">
+          <span class="key dark"><i class="ti ti-calendar"></i>This week &middot; Mon&ndash;Sun</span>
+          <div class="fb"><label>From</label><input type="text" class="data" value="JUL 06 2026"></div>
+          <div class="fb"><label>To</label><input type="text" class="data" value="JUL 12 2026"></div>
+        </div>
+
+        <h4 class="sub" style="margin-top:26px;">Technicians <span class="r">active are checked &middot; uncheck to leave one out</span></h4>
+
+        <div class="tcard">
+          <div class="thdr"><span class="cb-h on"></span><span class="tn">M. Reyes</span><span class="tg">GROSS $2,480.00</span></div>
+          <div class="tbody">
+            <div class="calc"><span class="cl">Calculated</span><span class="csub">80% of gross</span><span class="cr">$1,984.00</span></div>
+            <div class="adj">
+              <div class="adj-h"><span class="al">Add</span><span class="as">+ $78.00</span><span class="ak"><span class="key sm"><i class="ti ti-plus"></i>Add line</span></span></div>
+              <div class="arow"><span class="sign"><input type="text" value="Fuel &mdash; Katy run"></span><input type="text" class="data" value="18.00"><span class="rm">&times;</span></div>
+              <div class="arow"><span class="sign"><input type="text" value="Helped on 44 Cedar Hollow"></span><input type="text" class="data" value="60.00"><span class="rm">&times;</span></div>
+            </div>
+            <div class="adj">
+              <div class="adj-h"><span class="al">Deduct</span><span class="as">&minus; $40.00</span><span class="ak"><span class="key sm"><i class="ti ti-plus"></i>Add line</span></span></div>
+              <div class="arow neg"><span class="sign"><input type="text" value="Gauge set advance"></span><input type="text" class="data" value="40.00"><span class="rm">&times;</span></div>
+            </div>
+            <div class="payout"><span class="pl">Payout</span><span class="pf">1,984 + 78 &minus; 40</span><span class="pr">$2,022.00</span></div>
+          </div>
+        </div>
+
+        <div class="tcard">
+          <div class="thdr"><span class="cb-h on"></span><span class="tn">J. Ortiz</span><span class="tg">GROSS $1,960.00</span></div>
+          <div class="tbody">
+            <div class="calc"><span class="cl">Calculated</span><span class="csub">80% of gross</span><span class="cr">$1,568.00</span></div>
+            <div class="adj"><div class="adj-h"><span class="al">Add</span><span class="as">+ $0.00</span><span class="ak"><span class="key sm"><i class="ti ti-plus"></i>Add line</span></span></div><div class="hint" style="padding-left:14px;">Nothing this period.</div></div>
+            <div class="adj"><div class="adj-h"><span class="al">Deduct</span><span class="as">&minus; $0.00</span><span class="ak"><span class="key sm"><i class="ti ti-plus"></i>Add line</span></span></div><div class="hint" style="padding-left:14px;">Nothing this period.</div></div>
+            <div class="payout"><span class="pl">Payout</span><span class="pf">1,568 flat</span><span class="pr">$1,568.00</span></div>
+          </div>
+        </div>
+
+        <div class="tcard">
+          <div class="thdr"><span class="cb-h on"></span><span class="tn">R. Delgado</span><span class="tg">GROSS $2,120.00</span></div>
+          <div class="tbody">
+            <div class="calc"><span class="cl">Calculated</span><span class="csub">80% of gross</span><span class="cr">$1,696.00</span></div>
+            <div class="adj">
+              <div class="adj-h"><span class="al">Add</span><span class="as">+ $85.00</span><span class="ak"><span class="key sm"><i class="ti ti-plus"></i>Add line</span></span></div>
+              <div class="arow"><span class="sign"><input type="text" value="Saturday callback &mdash; Meritage"></span><input type="text" class="data" value="85.00"><span class="rm">&times;</span></div>
+            </div>
+            <div class="adj">
+              <div class="adj-h"><span class="al">Deduct</span><span class="as">&minus; $51.00</span><span class="ak"><span class="key sm"><i class="ti ti-plus"></i>Add line</span></span></div>
+              <div class="arow neg"><span class="sign"><input type="text" value="Cordless impact &mdash; split 3 ways"></span><input type="text" class="data" value="51.00"><span class="rm">&times;</span></div>
+            </div>
+            <div class="payout"><span class="pl">Payout</span><span class="pf">1,696 + 85 &minus; 51</span><span class="pr">$1,730.00</span></div>
+          </div>
+        </div>
+
+        <div class="tcard">
+          <div class="thdr out"><span class="cb-h"></span><span class="tn">L. Ibarra</span><span class="tg">NOT IN THIS RUN</span></div>
+          <div class="tbody out"><div class="hint" style="color:var(--mute);">Left out of this run. Still on the panel &mdash; check the box on the bar and he comes back in with his numbers.</div></div>
+        </div>
+
+        <div class="hint" style="margin-top:18px;border-top:2px solid var(--ink);padding-top:12px;">Payout = Calculated &plusmn; the technician's own lines. No shortfall, no received-real, no standing deduction &mdash; a technician is paid their full calculated share, adjusted only by what you enter here.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+</body>
+</html>

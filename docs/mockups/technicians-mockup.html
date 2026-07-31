@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FieldOps · Dispatch — Technicians</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/tabler-icons/2.44.0/iconfont/tabler-icons.min.css">
+<style>
+  :root{
+    --paper:#C6C4BC; --panel:#E3E1D9; --plate:#F2F1EB; --ink:#101010;
+    --dim:#6E6E68; --line:#A9A79F; --mute:#9C9A93;
+    --stencil:'Arial Narrow','Helvetica Neue Condensed',Helvetica,Arial,sans-serif;
+    --body:-apple-system,'Helvetica Neue',Helvetica,Arial,sans-serif;
+    --data:'Courier New',Courier,monospace;
+  }
+  *{box-sizing:border-box;}
+  body{background:var(--paper);margin:0;padding:40px 24px 90px;font-family:var(--body);color:var(--ink);
+       background-image:repeating-linear-gradient(0deg,rgba(16,16,16,.035) 0 1px,transparent 1px 4px);}
+  .screen{max-width:1040px;margin:0 auto 60px;}
+  .screen-tag{display:flex;align-items:center;gap:10px;margin-bottom:10px;}
+  .screen-tag b{font-family:var(--data);font-weight:700;font-size:12px;background:var(--ink);color:var(--plate);padding:3px 7px;}
+  .screen-tag span{font-family:var(--stencil);text-transform:uppercase;letter-spacing:2px;font-size:11px;color:var(--dim);}
+  .rack{position:relative;background:var(--panel);border:3px solid var(--ink);padding:22px 26px 26px;box-shadow:7px 7px 0 rgba(16,16,16,.22);}
+  .screw{position:absolute;width:11px;height:11px;border-radius:50%;background:var(--plate);border:1.5px solid var(--ink);box-shadow:inset 0 -1px 0 rgba(16,16,16,.35);}
+  .screw::after{content:'';position:absolute;left:1px;right:1px;top:3.5px;height:1.5px;background:var(--ink);transform:rotate(35deg);}
+  .screw.tl{top:7px;left:7px;} .screw.tr{top:7px;right:7px;} .screw.bl{bottom:7px;left:7px;} .screw.br{bottom:7px;right:7px;}
+  .masthead{display:flex;justify-content:space-between;align-items:flex-end;border-bottom:3px solid var(--ink);padding-bottom:12px;margin-bottom:12px;}
+  .brand{font-family:Georgia,'Times New Roman',serif;font-size:23px;letter-spacing:.4px;}
+  .meta{display:flex;align-items:center;gap:14px;} .meta .who{font-size:12px;}
+  .meta .clock{font-family:var(--data);font-weight:700;font-size:12px;background:var(--ink);color:var(--plate);padding:4px 8px;}
+  .gsearch{display:flex;align-items:center;gap:8px;flex:1;max-width:340px;margin:0 22px;padding:0 10px;border:2px solid var(--ink);background:var(--panel);box-shadow:inset 2px 2px 0 rgba(16,16,16,.14);}
+  .gsearch i{font-size:14px;color:var(--dim);}
+  .gsearch input{border:none;background:transparent;box-shadow:none;padding:9px 0;font-size:12px;}
+  .gsearch .goto{font-family:var(--stencil);text-transform:uppercase;letter-spacing:1.2px;font-size:9px;color:var(--plate);background:var(--ink);padding:3px 5px;white-space:nowrap;}
+  .fnrow{display:flex;flex-wrap:wrap;border:2px solid var(--ink);margin-bottom:22px;background:var(--plate);}
+  .fkey{display:flex;align-items:center;gap:7px;padding:8px 11px;font-family:var(--stencil);text-transform:uppercase;letter-spacing:1.2px;font-size:11px;color:var(--dim);border-right:1px solid var(--line);}
+  .fkey:last-child{border-right:none;}
+  .fkey .led{width:7px;height:7px;border:1.5px solid var(--dim);flex:none;}
+  .fkey.on{background:var(--ink);color:var(--plate);} .fkey.on .led{background:var(--plate);border-color:var(--plate);}
+  .fkey.tbd{color:var(--mute);background-image:repeating-linear-gradient(45deg,rgba(16,16,16,.05) 0 3px,transparent 3px 6px);}
+  .fkey.tbd .led{border-color:#B5B3AC;}
+  .unit{border:2px solid var(--ink);background:var(--plate);margin-bottom:20px;}
+  .unit:last-child{margin-bottom:0;}
+  .unit-head{display:flex;align-items:center;gap:12px;border-bottom:2px solid var(--ink);padding:9px 14px;background:var(--panel);}
+  .unit-id{font-family:var(--data);font-weight:700;font-size:11px;background:var(--ink);color:var(--plate);padding:2px 6px;}
+  .unit-name{font-family:var(--stencil);text-transform:uppercase;letter-spacing:2px;font-size:12px;font-weight:700;}
+  .unit-note{margin-left:auto;font-family:var(--stencil);text-transform:uppercase;letter-spacing:1.2px;font-size:10px;color:var(--dim);}
+  .unit-body{padding:18px;}
+  .knurl{height:12px;background-image:repeating-linear-gradient(45deg,var(--ink) 0 1px,transparent 1px 4px);border-bottom:2px solid var(--ink);opacity:.5;}
+  .cols-2{display:grid;grid-template-columns:1fr 1fr;gap:18px;}
+  .stencil{font-family:var(--stencil);text-transform:uppercase;letter-spacing:1.6px;font-size:10px;color:var(--dim);}
+  .mono{font-family:var(--data);font-weight:700;}
+  .hint{font-size:11px;color:var(--dim);line-height:1.5;}
+  h4.sub{font-family:var(--stencil);text-transform:uppercase;letter-spacing:2px;font-size:11px;margin:0 0 12px;color:var(--dim);border-bottom:1px solid var(--line);padding-bottom:5px;display:flex;align-items:baseline;gap:8px;}
+  h4.sub .r{margin-left:auto;}
+  .key{display:inline-flex;align-items:center;justify-content:center;gap:7px;border:2px solid var(--ink);background:var(--panel);box-shadow:0 4px 0 var(--ink);padding:12px 18px;font-family:var(--stencil);text-transform:uppercase;letter-spacing:1.6px;font-size:12px;font-weight:700;cursor:default;}
+  .key.dark{background:var(--ink);color:var(--plate);box-shadow:0 4px 0 #55534E;}
+  .key.sm{padding:7px 11px;font-size:10px;box-shadow:0 3px 0 var(--ink);}
+  .key.off{color:var(--mute);border-color:var(--mute);box-shadow:0 4px 0 var(--mute);background:var(--plate);}
+  label{display:block;font-family:var(--stencil);text-transform:uppercase;letter-spacing:1.3px;font-size:10px;color:var(--dim);margin-bottom:4px;}
+  input{width:100%;border:2px solid var(--ink);background:var(--panel);color:var(--ink);font-family:var(--body);font-size:13px;padding:9px 10px;box-shadow:inset 2px 2px 0 rgba(16,16,16,.12);}
+  input.data{font-family:var(--data);font-weight:700;}
+  .field{margin-bottom:13px;}
+  /* roster table */
+  table{width:100%;border-collapse:collapse;font-size:12px;}
+  th{font-family:var(--stencil);text-transform:uppercase;letter-spacing:1.3px;font-size:10px;color:var(--dim);text-align:left;border-bottom:2px solid var(--ink);padding:8px;}
+  td{border-bottom:1px solid var(--line);padding:11px 8px;vertical-align:middle;}
+  tr:last-child td{border-bottom:none;}
+  td.nm{font-size:13px;font-weight:600;}
+  td.data{font-family:var(--data);font-weight:700;}
+  th.n,td.n{text-align:right;}
+  tr.open-row td{border-bottom:2px solid var(--ink);}
+  tr.inact td{color:var(--mute);}
+  .stat{display:inline-flex;align-items:center;gap:7px;font-family:var(--stencil);text-transform:uppercase;letter-spacing:1.3px;font-size:9px;}
+  .lamp{width:9px;height:9px;border:2px solid var(--ink);flex:none;}
+  .lamp.on{background:var(--ink);}
+  .lamp.off{background:var(--plate);border-color:var(--mute);}
+  .stat.off{color:var(--mute);}
+  /* toggle */
+  .toggle{display:inline-flex;align-items:center;gap:9px;font-family:var(--stencil);text-transform:uppercase;letter-spacing:1.3px;font-size:11px;}
+  .toggle i.sw{width:34px;height:16px;border:2px solid var(--ink);background:var(--plate);position:relative;flex:none;}
+  .toggle i.sw::after{content:'';position:absolute;top:0;left:0;width:15px;height:12px;background:var(--ink);}
+  .toggle.on i.sw::after{left:auto;right:0;}
+  .toggle.off{color:var(--dim);}
+  /* record */
+  .rechead{display:flex;align-items:center;gap:12px;background:var(--ink);color:var(--plate);padding:9px 13px;}
+  .rechead .rn{font-size:16px;font-weight:600;}
+  .rechead .rstat{margin-left:auto;display:inline-flex;align-items:center;gap:7px;font-family:var(--stencil);text-transform:uppercase;letter-spacing:1.3px;font-size:10px;}
+  .rechead .rstat .lamp{border-color:var(--plate);} .rechead .rstat .lamp.on{background:var(--plate);}
+  .recbody{border:2px solid var(--ink);border-top:none;background:var(--plate);padding:18px;}
+  /* commission dial */
+  .comm{display:flex;align-items:center;gap:14px;border:2px solid var(--ink);background:var(--panel);padding:12px 14px;box-shadow:inset 2px 2px 0 rgba(16,16,16,.12);}
+  .comm .cbig{font-family:var(--data);font-weight:700;font-size:34px;line-height:1;width:120px;}
+  .comm .cbig .u{font-size:18px;}
+  .comm .cin{width:90px;}
+  .comm .cin input{font-family:var(--data);font-weight:700;font-size:18px;text-align:right;padding:6px 8px;}
+  .comm .cnote{font-size:11px;color:var(--dim);line-height:1.5;}
+  /* invite */
+  .invite{border:2px solid var(--ink);background:var(--panel);padding:0;}
+  .inv-code{display:flex;align-items:center;gap:12px;padding:14px;background:var(--plate);border-bottom:2px solid var(--ink);}
+  .inv-code .cd{font-family:var(--data);font-weight:700;font-size:24px;letter-spacing:4px;}
+  .inv-code .st{margin-left:auto;font-family:var(--stencil);text-transform:uppercase;letter-spacing:1.3px;font-size:9px;border:1.5px solid var(--ink);padding:2px 6px;}
+  .inv-meta{display:flex;gap:20px;padding:11px 14px;font-size:11px;color:var(--dim);}
+  .inv-meta .m .mv{font-family:var(--data);font-weight:700;font-size:12px;color:var(--ink);margin-top:2px;}
+  .inv-actions{display:flex;gap:9px;flex-wrap:wrap;padding:12px 14px;border-top:2px solid var(--ink);background:var(--plate);}
+  .linkout{display:flex;align-items:center;gap:12px;border:2px solid var(--ink);background:var(--panel);padding:12px 14px;}
+  .linkout .lt{font-size:13px;}
+  .linkout .lk{margin-left:auto;}
+  .q{border-left:4px solid var(--ink);padding:2px 0 2px 10px;font-size:11px;color:var(--dim);margin-top:16px;line-height:1.5;}
+  .q b{font-family:var(--stencil);letter-spacing:1.4px;font-size:10px;color:var(--ink);text-transform:uppercase;}
+  @media (max-width:880px){ .cols-2{grid-template-columns:1fr;} .gsearch{max-width:none;margin:10px 0;} .masthead{flex-wrap:wrap;} }
+</style>
+</head>
+<body>
+
+<!-- ============================ 10a · ROSTER ============================ -->
+<section class="screen">
+  <div class="screen-tag"><b>10a</b><span>Technicians &middot; the roster</span></div>
+  <div class="rack">
+    <span class="screw tl"></span><span class="screw tr"></span><span class="screw bl"></span><span class="screw br"></span>
+    <div class="masthead">
+      <div class="brand">FieldOps &middot; Dispatch</div>
+      <div class="gsearch"><i class="ti ti-search"></i><input type="text" placeholder="Address, subdivision, builder, technician&hellip;"><span class="goto">Go to</span></div>
+      <div class="meta"><span class="stencil">Operator</span><span class="who">Kristo</span><span class="clock">FRI &middot; JUL 17 &middot; 2026</span></div>
+    </div>
+    <nav class="fnrow">
+      <div class="fkey"><span class="led"></span>Home</div>
+      <div class="fkey"><span class="led"></span>Intake</div>
+      <div class="fkey"><span class="led"></span>Lobby</div>
+      <div class="fkey"><span class="led"></span>Transfer</div>
+      <div class="fkey"><span class="led"></span>History</div>
+      <div class="fkey"><span class="led"></span>Reports</div>
+      <div class="fkey"><span class="led"></span>Inventory</div>
+      <div class="fkey"><span class="led"></span>Chat</div>
+      <div class="fkey tbd"><span class="led"></span>Catalog</div>
+      <div class="fkey"><span class="led"></span>Properties</div>
+      <div class="fkey on"><span class="led"></span>Technicians</div>
+      <div class="fkey"><span class="led"></span>Ledger</div>
+      <div class="fkey tbd"><span class="led"></span>Corrections</div>
+    </nav>
+
+    <div class="unit">
+      <div class="unit-head">
+        <span class="unit-id">RST</span><span class="unit-name">Roster</span>
+        <span class="unit-note">The source list every other section reads</span>
+      </div>
+      <div class="knurl"></div>
+      <div class="unit-body">
+        <div style="display:flex;align-items:center;gap:14px;margin-bottom:16px;">
+          <span class="stencil"><span class="mono">3</span> active &middot; <span class="mono">1</span> inactive</span>
+          <span class="key sm" style="margin-left:auto;"><i class="ti ti-user-plus"></i>Add technician</span>
+        </div>
+        <table>
+          <thead>
+            <tr><th style="width:150px;">Status</th><th>Name</th><th style="width:170px;">Contact</th><th class="n" style="width:110px;">Commission</th><th style="width:80px;"></th></tr>
+          </thead>
+          <tbody>
+            <tr class="open-row">
+              <td><span class="stat"><span class="lamp on"></span>Active</span></td>
+              <td class="nm">M. Reyes</td>
+              <td class="data">(281) 555&middot;0142</td>
+              <td class="n data">80%</td>
+              <td style="text-align:right;"><span class="key sm dark">Open</span></td>
+            </tr>
+            <tr>
+              <td><span class="stat"><span class="lamp on"></span>Active</span></td>
+              <td class="nm">J. Ortiz</td>
+              <td class="data">(281) 555&middot;0188</td>
+              <td class="n data">80%</td>
+              <td style="text-align:right;"><span class="key sm">Open</span></td>
+            </tr>
+            <tr>
+              <td><span class="stat"><span class="lamp on"></span>Active</span></td>
+              <td class="nm">R. Delgado</td>
+              <td class="data">(832) 555&middot;0119</td>
+              <td class="n data">75%</td>
+              <td style="text-align:right;"><span class="key sm">Open</span></td>
+            </tr>
+            <tr class="inact">
+              <td><span class="stat off"><span class="lamp off"></span>Inactive</span></td>
+              <td class="nm">L. Ibarra</td>
+              <td class="data">(713) 555&middot;0160</td>
+              <td class="n data">80%</td>
+              <td style="text-align:right;"><span class="key sm">Open</span></td>
+            </tr>
+          </tbody>
+        </table>
+        <div class="hint" style="margin-top:12px;">
+          Active technicians are the ones checked by default in Restock, Reports and the compensation report. Flip someone inactive here and they drop out of those defaults &mdash; their records stay.
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================ 10b · TECHNICIAN RECORD ============================ -->
+<section class="screen">
+  <div class="screen-tag"><b>10b</b><span>Technicians &middot; one record</span></div>
+  <div class="rack">
+    <span class="screw tl"></span><span class="screw tr"></span><span class="screw bl"></span><span class="screw br"></span>
+    <div class="masthead">
+      <div class="brand">FieldOps &middot; Dispatch</div>
+      <div class="gsearch"><i class="ti ti-search"></i><input type="text" placeholder="Address, subdivision, builder, technician&hellip;"><span class="goto">Go to</span></div>
+      <div class="meta"><span class="stencil">Operator</span><span class="who">Kristo</span><span class="clock">FRI &middot; JUL 17 &middot; 2026</span></div>
+    </div>
+    <nav class="fnrow">
+      <div class="fkey"><span class="led"></span>Home</div>
+      <div class="fkey"><span class="led"></span>Intake</div>
+      <div class="fkey"><span class="led"></span>Lobby</div>
+      <div class="fkey"><span class="led"></span>Transfer</div>
+      <div class="fkey"><span class="led"></span>History</div>
+      <div class="fkey"><span class="led"></span>Reports</div>
+      <div class="fkey"><span class="led"></span>Inventory</div>
+      <div class="fkey"><span class="led"></span>Chat</div>
+      <div class="fkey tbd"><span class="led"></span>Catalog</div>
+      <div class="fkey"><span class="led"></span>Properties</div>
+      <div class="fkey on"><span class="led"></span>Technicians</div>
+      <div class="fkey"><span class="led"></span>Ledger</div>
+      <div class="fkey tbd"><span class="led"></span>Corrections</div>
+    </nav>
+
+    <div class="unit">
+      <div class="rechead">
+        <span class="rn">M. Reyes</span>
+        <span class="rstat"><span class="lamp on"></span>Active <span class="toggle on" style="margin-left:10px;"><i class="sw"></i></span></span>
+      </div>
+      <div class="recbody">
+
+        <div class="cols-2" style="align-items:start;">
+          <div>
+            <h4 class="sub">Who and how to reach him</h4>
+            <div class="field"><label>Name</label><input type="text" value="M. Reyes"></div>
+            <div class="field"><label>Phone &middot; direct</label><input type="text" class="data" value="(281) 555-0142"></div>
+            <div class="hint">Stored on the technician, not on a call &mdash; he needs to be reachable directly, not only through whatever job he's on.</div>
+
+            <h4 class="sub" style="margin-top:22px;">Commission</h4>
+            <div class="comm">
+              <div class="cbig">80<span class="u">%</span></div>
+              <div class="cin"><label>Set</label><input type="text" class="data" value="80"></div>
+              <div class="cnote">His rate, not a house rule. Ledger reads this number for him &mdash; change it and next period's split follows. Others keep their own.</div>
+            </div>
+          </div>
+
+          <div>
+            <h4 class="sub">Invite code <span class="r">the device this record pairs to</span></h4>
+            <div class="invite">
+              <div class="inv-code">
+                <span class="cd">7F&middot;K2Q9</span>
+                <span class="st">Active</span>
+              </div>
+              <div class="inv-meta">
+                <div class="m"><div class="stencil">Issued</div><div class="mv">JUL 02 2026</div></div>
+                <div class="m"><div class="stencil">Paired device</div><div class="mv">1</div></div>
+              </div>
+              <div class="inv-actions">
+                <span class="key sm"><i class="ti ti-plus"></i>Generate new</span>
+                <span class="key sm"><i class="ti ti-refresh"></i>Refresh</span>
+                <span class="key sm off"><i class="ti ti-ban"></i>Revoke</span>
+              </div>
+            </div>
+            <div class="hint" style="margin-top:8px;">Generate hands out a fresh code, Refresh rolls it while keeping him paired, Revoke cuts the device off. The token machinery lives in the back &mdash; this is just the face of it.</div>
+
+            <h4 class="sub" style="margin-top:22px;">Compensation history</h4>
+            <div class="linkout">
+              <i class="ti ti-file-dollar" style="font-size:18px;"></i>
+              <span class="lt">His pay, period by period &mdash; kept in Ledger.</span>
+              <span class="lk"><span class="key sm"><i class="ti ti-arrow-right"></i>Open in Ledger</span></span>
+            </div>
+            <div class="hint" style="margin-top:8px;">A link out, not a copy. The numbers live in Ledger; this just walks you there for him.</div>
+          </div>
+        </div>
+
+        <div class="q"><b>Note</b> &mdash; his current jobs aren't shown here on purpose; that already lives in Lobby and History filtered to him. Say the word and I'll add a second link-out ("See his active visits") next to the Ledger one &mdash; still a link, no duplication.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+</body>
+</html>

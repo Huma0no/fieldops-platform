@@ -1,0 +1,859 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FieldOps · Dispatch — Mockup Pass 01</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/tabler-icons/2.44.0/iconfont/tabler-icons.min.css">
+<style>
+  :root{
+    --paper:#C6C4BC;
+    --panel:#E3E1D9;
+    --plate:#F2F1EB;
+    --ink:#101010;
+    --dim:#6E6E68;
+    --line:#A9A79F;
+    --stencil:'Arial Narrow','Helvetica Neue Condensed',Helvetica,Arial,sans-serif;
+    --body:-apple-system,'Helvetica Neue',Helvetica,Arial,sans-serif;
+    --data:'Courier New',Courier,monospace;
+  }
+  *{box-sizing:border-box;}
+  body{background:var(--paper);margin:0;padding:40px 24px 90px;font-family:var(--body);color:var(--ink);
+       background-image:repeating-linear-gradient(0deg,rgba(16,16,16,.035) 0 1px,transparent 1px 4px);}
+
+  /* ---------- screen scaffolding ---------- */
+  .screen{max-width:1040px;margin:0 auto 60px;}
+  .screen-tag{display:flex;align-items:center;gap:10px;margin-bottom:10px;}
+  .screen-tag b{font-family:var(--data);font-weight:700;font-size:12px;background:var(--ink);color:var(--plate);padding:3px 7px;}
+  .screen-tag span{font-family:var(--stencil);text-transform:uppercase;letter-spacing:2px;font-size:11px;color:var(--dim);}
+
+  .rack{position:relative;background:var(--panel);border:3px solid var(--ink);padding:22px 26px 26px;
+        box-shadow:7px 7px 0 rgba(16,16,16,.22);}
+  .screw{position:absolute;width:11px;height:11px;border-radius:50%;background:var(--plate);
+         border:1.5px solid var(--ink);box-shadow:inset 0 -1px 0 rgba(16,16,16,.35);}
+  .screw::after{content:'';position:absolute;left:1px;right:1px;top:3.5px;height:1.5px;background:var(--ink);
+                transform:rotate(35deg);}
+  .screw.tl{top:7px;left:7px;} .screw.tr{top:7px;right:7px;}
+  .screw.bl{bottom:7px;left:7px;} .screw.br{bottom:7px;right:7px;}
+
+  /* ---------- masthead ---------- */
+  .masthead{display:flex;justify-content:space-between;align-items:flex-end;
+            border-bottom:3px solid var(--ink);padding-bottom:12px;margin-bottom:12px;}
+  .brand{font-family:Georgia,'Times New Roman',serif;font-size:23px;letter-spacing:.4px;}
+  .meta{display:flex;align-items:center;gap:14px;}
+  .meta .who{font-size:12px;}
+  .meta .clock{font-family:var(--data);font-weight:700;font-size:12px;background:var(--ink);color:var(--plate);padding:4px 8px;}
+
+  /* ---------- nav / function keys ---------- */
+  .fnrow{display:flex;flex-wrap:wrap;border:2px solid var(--ink);margin-bottom:22px;background:var(--plate);}
+  .fkey{display:flex;align-items:center;gap:7px;padding:8px 11px;font-family:var(--stencil);text-transform:uppercase;
+        letter-spacing:1.2px;font-size:11px;color:var(--dim);border-right:1px solid var(--line);}
+  .fkey:last-child{border-right:none;}
+  .fkey .led{width:7px;height:7px;border:1.5px solid var(--dim);flex:none;}
+  .fkey.on{background:var(--ink);color:var(--plate);}
+  .fkey.on .led{background:var(--plate);border-color:var(--plate);}
+  .fkey.tbd{color:#9C9A93;background-image:repeating-linear-gradient(45deg,rgba(16,16,16,.05) 0 3px,transparent 3px 6px);}
+  .fkey.tbd .led{border-color:#B5B3AC;}
+
+  /* ---------- units ---------- */
+  .unit{border:2px solid var(--ink);background:var(--plate);margin-bottom:20px;}
+  .unit:last-child{margin-bottom:0;}
+  .unit-head{display:flex;align-items:center;gap:12px;border-bottom:2px solid var(--ink);padding:9px 14px;background:var(--panel);}
+  .unit-id{font-family:var(--data);font-weight:700;font-size:11px;background:var(--ink);color:var(--plate);padding:2px 6px;}
+  .unit-name{font-family:var(--stencil);text-transform:uppercase;letter-spacing:2px;font-size:12px;font-weight:700;}
+  .unit-note{margin-left:auto;font-family:var(--stencil);text-transform:uppercase;letter-spacing:1.2px;font-size:10px;color:var(--dim);}
+  .unit-body{padding:18px;}
+  .knurl{height:12px;background-image:repeating-linear-gradient(45deg,var(--ink) 0 1px,transparent 1px 4px);
+         border-bottom:2px solid var(--ink);opacity:.5;}
+
+  .cols{display:grid;grid-template-columns:250px 1fr;gap:18px;}
+  .cols-2{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
+  .cols-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;}
+
+  /* ---------- type ---------- */
+  .stencil{font-family:var(--stencil);text-transform:uppercase;letter-spacing:1.6px;font-size:10px;color:var(--dim);}
+  .mono{font-family:var(--data);font-weight:700;}
+  .hint{font-size:11px;color:var(--dim);line-height:1.5;}
+  h4.sub{font-family:var(--stencil);text-transform:uppercase;letter-spacing:2px;font-size:11px;margin:0 0 9px;color:var(--dim);
+         border-bottom:1px solid var(--line);padding-bottom:5px;}
+
+  /* ---------- controls ---------- */
+  .key{display:inline-flex;align-items:center;justify-content:center;gap:7px;border:2px solid var(--ink);
+       background:var(--panel);box-shadow:0 4px 0 var(--ink);padding:12px 18px;font-family:var(--stencil);
+       text-transform:uppercase;letter-spacing:1.6px;font-size:12px;font-weight:700;cursor:default;}
+  .key.dark{background:var(--ink);color:var(--plate);box-shadow:0 4px 0 #55534E;}
+  .key.sm{padding:7px 11px;font-size:10px;box-shadow:0 3px 0 var(--ink);}
+  .key.wide{width:100%;}
+  .key.off{color:#9C9A93;border-color:#9C9A93;box-shadow:0 4px 0 #9C9A93;}
+
+  .rocker{display:inline-flex;border:2px solid var(--ink);box-shadow:0 3px 0 var(--ink);}
+  .rocker span{padding:8px 14px;font-family:var(--stencil);text-transform:uppercase;letter-spacing:1.4px;font-size:11px;
+               background:var(--panel);border-right:2px solid var(--ink);}
+  .rocker span:last-child{border-right:none;}
+  .rocker span.on{background:var(--ink);color:var(--plate);}
+
+  .toggle{display:flex;align-items:center;gap:9px;font-family:var(--stencil);text-transform:uppercase;letter-spacing:1.3px;font-size:11px;}
+  .toggle i.sw{width:34px;height:16px;border:2px solid var(--ink);background:var(--plate);position:relative;flex:none;}
+  .toggle i.sw::after{content:'';position:absolute;top:0;left:0;width:15px;height:12px;background:var(--ink);}
+  .toggle.on i.sw::after{left:auto;right:0;}
+  .toggle.on{color:var(--ink);}
+  .toggle.off{color:var(--dim);}
+
+  label{display:block;font-family:var(--stencil);text-transform:uppercase;letter-spacing:1.3px;font-size:10px;color:var(--dim);margin-bottom:4px;}
+  input,select,textarea{width:100%;border:2px solid var(--ink);background:var(--panel);color:var(--ink);
+        font-family:var(--body);font-size:13px;padding:9px 10px;box-shadow:inset 2px 2px 0 rgba(16,16,16,.12);}
+  input.data,select.data{font-family:var(--data);font-weight:700;}
+  .field{margin-bottom:13px;}
+  .catalog-field{position:relative;}
+  .catalog-field::after{content:'CATALOG';position:absolute;right:2px;top:22px;font-family:var(--stencil);font-size:9px;
+        letter-spacing:1px;background:var(--ink);color:var(--plate);padding:3px 5px;}
+  .free-field::after{content:'FREE TEXT';position:absolute;right:2px;top:22px;font-family:var(--stencil);font-size:9px;
+        letter-spacing:1px;border:1px solid var(--ink);color:var(--dim);padding:2px 5px;background:var(--plate);}
+  .typeahead{border:2px solid var(--ink);border-top:none;background:var(--panel);}
+  .typeahead div{padding:8px 10px;font-size:12px;border-bottom:1px solid var(--line);}
+  .typeahead div:last-child{border-bottom:none;}
+
+  /* ---------- readouts & plates ---------- */
+  .readout{background:var(--panel);border:2px solid var(--ink);box-shadow:inset 2px 2px 0 rgba(16,16,16,.14);padding:12px 14px;}
+  .readout .num{font-family:var(--data);font-weight:700;font-size:34px;line-height:1;}
+  .readout .cap{font-family:var(--stencil);text-transform:uppercase;letter-spacing:1.4px;font-size:10px;color:var(--dim);margin-top:6px;}
+  .badge{display:inline-block;font-family:var(--stencil);text-transform:uppercase;letter-spacing:1.4px;font-size:9px;
+         border:1.5px solid var(--ink);padding:2px 6px;}
+  .badge.solid{background:var(--ink);color:var(--plate);}
+  .badge.hatch{background-image:repeating-linear-gradient(45deg,rgba(16,16,16,.16) 0 2px,transparent 2px 5px);}
+
+  /* ---------- tables ---------- */
+  table{width:100%;border-collapse:collapse;font-size:12px;}
+  th{font-family:var(--stencil);text-transform:uppercase;letter-spacing:1.3px;font-size:10px;color:var(--dim);
+     text-align:left;border-bottom:2px solid var(--ink);padding:7px 8px;}
+  td{border-bottom:1px solid var(--line);padding:9px 8px;vertical-align:middle;}
+  tr:last-child td{border-bottom:none;}
+  td.num{font-family:var(--data);font-weight:700;}
+
+  /* ---------- directory (overview) ---------- */
+  .dir td.slug{font-family:var(--stencil);text-transform:uppercase;letter-spacing:1.6px;font-size:12px;font-weight:700;}
+  .dir tr.dead td{color:#9C9A93;}
+  .dir tr.dead td.slug{text-decoration:line-through;}
+
+  /* ---------- lobby ---------- */
+  .group{margin-bottom:18px;}
+  .group:last-child{margin-bottom:0;}
+  .group-bar{display:flex;align-items:center;gap:10px;background:var(--ink);color:var(--plate);padding:5px 10px;margin-bottom:10px;}
+  .group-bar .g-name{font-family:var(--stencil);text-transform:uppercase;letter-spacing:2px;font-size:11px;font-weight:700;}
+  .group-bar .g-count{font-family:var(--data);font-weight:700;font-size:11px;margin-left:auto;}
+  .card{border:2px solid var(--ink);background:var(--panel);padding:12px 14px;}
+  .card.prio{box-shadow:inset 6px 0 0 var(--ink);padding-left:20px;}
+  .card .addr{font-size:14px;font-weight:600;}
+  .card .sub{font-size:11px;color:var(--dim);margin-top:3px;}
+  .card .tags{display:flex;gap:5px;flex-wrap:wrap;margin-top:9px;}
+  .card .foot{display:flex;justify-content:space-between;align-items:center;margin-top:11px;}
+
+  /* ---------- transfer ---------- */
+  .handshake{display:grid;grid-template-columns:1fr 90px 1fr;align-items:center;gap:10px;}
+  .party{border:2px solid var(--ink);background:var(--panel);padding:11px 13px;text-align:center;}
+  .party .role{font-family:var(--stencil);text-transform:uppercase;letter-spacing:1.4px;font-size:9px;color:var(--dim);}
+  .party .name{font-size:14px;font-weight:600;margin-top:4px;}
+  .party .state{font-family:var(--data);font-weight:700;font-size:10px;margin-top:6px;}
+  .arrow{text-align:center;font-family:var(--data);font-weight:700;font-size:11px;color:var(--dim);
+         border-top:2px dashed var(--ink);padding-top:6px;}
+
+  /* ---------- misc ---------- */
+  .alert{display:flex;align-items:center;gap:12px;border:2px solid var(--ink);background:var(--panel);padding:10px 14px;
+         background-image:repeating-linear-gradient(45deg,rgba(16,16,16,.07) 0 4px,transparent 4px 9px);}
+  .alert .txt{font-size:12px;}
+  .alert .x{margin-left:auto;font-family:var(--stencil);font-size:10px;letter-spacing:1.2px;color:var(--dim);}
+  .placeholder{border:2px dashed var(--line);padding:26px;text-align:center;}
+  .row-end{display:flex;justify-content:flex-end;gap:10px;margin-top:6px;}
+  .divider{height:2px;background:var(--ink);margin:18px 0;}
+  .q{border-left:4px solid var(--ink);padding:2px 0 2px 10px;font-size:11px;color:var(--dim);margin-top:12px;line-height:1.5;}
+  .q b{font-family:var(--stencil);letter-spacing:1.4px;font-size:10px;color:var(--ink);text-transform:uppercase;}
+  @media (max-width:820px){
+    .cols,.cols-2,.cols-3,.handshake{grid-template-columns:1fr;}
+  }
+</style>
+</head>
+<body>
+
+<!-- ============================ 00 · SHELL / OVERVIEW ============================ -->
+<section class="screen">
+  <div class="screen-tag"><b>00</b><span>Shell · section directory</span></div>
+  <div class="rack">
+    <span class="screw tl"></span><span class="screw tr"></span><span class="screw bl"></span><span class="screw br"></span>
+
+    <div class="masthead">
+      <div class="brand">FieldOps · Dispatch</div>
+      <div class="meta">
+        <span class="stencil">Operator</span><span class="who">Kristo</span>
+        <span class="clock">THU · JUL 16 · 2026</span>
+      </div>
+    </div>
+
+    <nav class="fnrow">
+      <div class="fkey on"><span class="led"></span>Home</div>
+      <div class="fkey"><span class="led"></span>Intake</div>
+      <div class="fkey"><span class="led"></span>Lobby</div>
+      <div class="fkey"><span class="led"></span>Transfer</div>
+      <div class="fkey"><span class="led"></span>History</div>
+      <div class="fkey"><span class="led"></span>Reports</div>
+      <div class="fkey"><span class="led"></span>Inventory</div>
+      <div class="fkey"><span class="led"></span>Chat</div>
+      <div class="fkey tbd"><span class="led"></span>Catalog</div>
+      <div class="fkey tbd"><span class="led"></span>Properties</div>
+      <div class="fkey tbd"><span class="led"></span>Technicians</div>
+      <div class="fkey tbd"><span class="led"></span>Payments</div>
+      <div class="fkey tbd"><span class="led"></span>Pay periods</div>
+      <div class="fkey tbd"><span class="led"></span>Corrections</div>
+    </nav>
+
+    <div class="unit">
+      <div class="unit-head">
+        <span class="unit-id">DIR</span><span class="unit-name">Section directory</span>
+        <span class="unit-note">Hatched keys = plate not cut yet</span>
+      </div>
+      <div class="knurl"></div>
+      <div class="unit-body">
+        <table class="dir">
+          <thead><tr><th style="width:44px;">#</th><th>Section</th><th>What it does</th><th style="width:150px;">State</th></tr></thead>
+          <tbody>
+            <tr><td class="num">00</td><td class="slug">Home</td><td>Action required, quick actions, last services</td><td><span class="badge solid">Built</span></td></tr>
+            <tr><td class="num">01</td><td class="slug">Intake</td><td>PDF drop or manual entry → visit at pending review</td><td><span class="badge solid">Specced</span></td></tr>
+            <tr><td class="num">02</td><td class="slug">Lobby</td><td>Published, unassigned visits by subdivision</td><td><span class="badge solid">Specced</span></td></tr>
+            <tr><td class="num">03</td><td class="slug">Transfer</td><td>Tech-to-tech handshake log</td><td><span class="badge solid">Specced</span></td></tr>
+            <tr><td class="num">04</td><td class="slug">History</td><td>Address record and its full visit history</td><td><span class="badge solid">Specced</span></td></tr>
+            <tr><td class="num">05</td><td class="slug">Reports</td><td>Usage, refrigerant, income — sheet / PDF / CSV</td><td><span class="badge solid">Specced</span></td></tr>
+            <tr><td class="num">06</td><td class="slug">Inventory / Restock</td><td>Stock table, refrigerant, restock round-trip</td><td><span class="badge solid">Specced</span></td></tr>
+            <tr><td class="num">07</td><td class="slug">Chat</td><td>Broadcast · Dispatch↔Tech · Tech↔Tech</td><td><span class="badge">Redesign, separate</span></td></tr>
+            <tr><td class="num">08</td><td class="slug">Catalog</td><td>—</td><td><span class="badge hatch">TBD</span></td></tr>
+            <tr><td class="num">09</td><td class="slug">Properties</td><td>—</td><td><span class="badge hatch">TBD</span></td></tr>
+            <tr><td class="num">10</td><td class="slug">Technicians</td><td>—</td><td><span class="badge hatch">TBD</span></td></tr>
+            <tr><td class="num">11</td><td class="slug">Payments</td><td>—</td><td><span class="badge hatch">TBD</span></td></tr>
+            <tr><td class="num">12</td><td class="slug">Pay periods</td><td>—</td><td><span class="badge hatch">TBD</span></td></tr>
+            <tr><td class="num">13</td><td class="slug">Corrections</td><td>—</td><td><span class="badge hatch">TBD</span></td></tr>
+            <tr class="dead"><td class="num">—</td><td class="slug">Job board</td><td>Redundant with Lobby + Home</td><td><span class="badge">Discarded</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="unit">
+      <div class="unit-head"><span class="unit-id">TBD</span><span class="unit-name">Placeholder screen</span>
+        <span class="unit-note">Same plate for sections 08–13</span></div>
+      <div class="unit-body">
+        <div class="placeholder">
+          <div class="mono" style="font-size:26px;">TBD</div>
+          <div class="stencil" style="margin-top:8px;">Catalog · not specified yet</div>
+          <div class="hint" style="margin-top:6px;">Nothing to operate here yet. The key stays on the panel so the shape of the machine is honest.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================ 01 · INTAKE ============================ -->
+<section class="screen">
+  <div class="screen-tag"><b>01</b><span>Intake · PDF + manual</span></div>
+  <div class="rack">
+    <span class="screw tl"></span><span class="screw tr"></span><span class="screw bl"></span><span class="screw br"></span>
+    <div class="masthead">
+      <div class="brand">FieldOps · Dispatch</div>
+      <div class="meta"><span class="stencil">Operator</span><span class="who">Kristo</span><span class="clock">THU · JUL 16 · 2026</span></div>
+    </div>
+    <nav class="fnrow">
+      <div class="fkey"><span class="led"></span>Home</div>
+      <div class="fkey on"><span class="led"></span>Intake</div>
+      <div class="fkey"><span class="led"></span>Lobby</div>
+      <div class="fkey"><span class="led"></span>Transfer</div>
+      <div class="fkey"><span class="led"></span>History</div>
+      <div class="fkey"><span class="led"></span>Reports</div>
+      <div class="fkey"><span class="led"></span>Inventory</div>
+      <div class="fkey"><span class="led"></span>Chat</div>
+      <div class="fkey tbd"><span class="led"></span>Catalog</div>
+      <div class="fkey tbd"><span class="led"></span>Properties</div>
+      <div class="fkey tbd"><span class="led"></span>Technicians</div>
+      <div class="fkey tbd"><span class="led"></span>Payments</div>
+      <div class="fkey tbd"><span class="led"></span>Pay periods</div>
+      <div class="fkey tbd"><span class="led"></span>Corrections</div>
+    </nav>
+
+    <div style="display:flex;align-items:center;gap:16px;margin-bottom:16px;">
+      <div class="rocker"><span class="on">PDF</span><span>Manual</span></div>
+      <div class="stencil">Both modes write the same call · both land at pending review</div>
+    </div>
+
+    <div class="cols">
+      <!-- batch -->
+      <div class="unit" style="margin:0;">
+        <div class="unit-head"><span class="unit-id">BATCH</span><span class="unit-name">Today</span></div>
+        <div class="unit-body">
+          <div class="readout" style="margin-bottom:14px;">
+            <div class="num">03</div><div class="cap">calls held</div>
+          </div>
+          <table>
+            <tbody>
+              <tr><td>4735 North Star Trail<div class="hint">Jordan Ranch</div></td><td style="width:26px;text-align:right;"><span class="mono">✓</span></td></tr>
+              <tr><td>102 Willowbrook Ln<div class="hint">Jordan Ranch</div></td><td style="text-align:right;"><span class="mono">✓</span></td></tr>
+              <tr><td>22 Ridgeline Ct<div class="hint">Meritage</div></td><td style="text-align:right;"><span class="mono">✓</span></td></tr>
+            </tbody>
+          </table>
+          <div style="margin-top:14px;"><span class="key sm wide"><i class="ti ti-plus"></i>Add call</span></div>
+          <div style="margin-top:10px;"><span class="key dark wide">Release to lobby</span></div>
+          <div class="hint" style="margin-top:8px;">Nothing is published until you release.</div>
+        </div>
+      </div>
+
+      <!-- pdf review -->
+      <div class="unit" style="margin:0;">
+        <div class="unit-head">
+          <span class="unit-id">PDF</span><span class="unit-name">Review extraction</span>
+          <span class="unit-note"><span class="mono">CALL 2 / 7</span></span>
+        </div>
+        <div class="knurl"></div>
+        <div class="unit-body">
+          <div class="placeholder" style="padding:16px;margin-bottom:16px;">
+            <i class="ti ti-file-import" style="font-size:22px;"></i>
+            <div class="stencil" style="margin-top:6px;">route-sheet-jul16.pdf · 7 calls read</div>
+            <div class="hint">Drop a route sheet here to replace it.</div>
+          </div>
+
+          <h4 class="sub">Read from the sheet — confirm or correct</h4>
+          <table>
+            <tbody>
+              <tr><td style="width:120px;"><span class="stencil">Address</span></td><td>891 Bramble Way</td><td style="width:80px;text-align:right;"><span class="key sm">Correct</span></td></tr>
+              <tr><td><span class="stencil">Subdivision</span></td><td>Jordan Ranch</td><td style="text-align:right;"><span class="key sm">Correct</span></td></tr>
+              <tr><td><span class="stencil">Builder</span></td><td>Perry</td><td style="text-align:right;"><span class="key sm">Correct</span></td></tr>
+              <tr><td><span class="stencil">Work type</span></td><td>AC &amp; Heating Startup</td><td style="text-align:right;"><span class="key sm">Correct</span></td></tr>
+              <tr><td><span class="stencil">Systems</span></td><td><span class="mono">2</span> — indoor, outdoor, coil read per system</td><td style="text-align:right;"><span class="key sm">Correct</span></td></tr>
+              <tr><td><span class="stencil">Not read</span></td><td class="hint">Thermostat, accessories, notes — fill by hand if needed</td><td></td></tr>
+            </tbody>
+          </table>
+
+          <div class="row-end" style="margin-top:16px;">
+            <span class="key off">Discard call</span>
+            <span class="key dark">Confirm · next</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="divider"></div>
+
+    <!-- manual -->
+    <div class="unit">
+      <div class="unit-head">
+        <span class="unit-id">MAN</span><span class="unit-name">New call — manual entry</span>
+        <span class="unit-note">Same form the PDF fills</span>
+      </div>
+      <div class="unit-body">
+        <div class="cols-2" style="align-items:start;">
+          <div>
+            <div class="field">
+              <label>Address</label>
+              <input type="text" value="891 Bramble">
+              <div class="typeahead"><div>891 Bramble Way — <span class="stencil">Perry · Jordan Ranch</span></div></div>
+            </div>
+            <div class="cols-2">
+              <div class="field catalog-field"><label>Subdivision</label><select><option>Jordan Ranch</option></select></div>
+              <div class="field catalog-field"><label>Builder</label><select><option>Perry</option></select></div>
+            </div>
+
+            <h4 class="sub">House equipment · one bag for the whole call</h4>
+            <div class="cols-2">
+              <div class="field catalog-field"><label>Thermostat</label><select><option>Select…</option></select></div>
+              <div class="field catalog-field"><label>Accessories</label><select><option>Select…</option></select></div>
+            </div>
+
+            <div class="field"><label>Notes</label><textarea rows="2" style="resize:none;"></textarea></div>
+            <span class="key sm"><i class="ti ti-plus"></i>Call details — time, order #, contact, work type</span>
+          </div>
+
+          <div>
+            <h4 class="sub">System 1</h4>
+            <div class="field catalog-field"><label>Indoor unit</label><select><option>Select model…</option></select></div>
+            <div class="field catalog-field"><label>Outdoor unit</label><select><option>Select model…</option></select></div>
+            <div class="field free-field"><label>Coil</label><input type="text" class="data" placeholder="Type model"></div>
+
+            <h4 class="sub">System 2</h4>
+            <div class="field catalog-field"><label>Indoor unit</label><select><option>Select model…</option></select></div>
+            <div class="field catalog-field"><label>Outdoor unit</label><select><option>Select model…</option></select></div>
+            <div class="field free-field"><label>Coil</label><input type="text" class="data" placeholder="Type model"></div>
+
+            <span class="key sm"><i class="ti ti-plus"></i>Add system</span>
+
+            <div class="row-end" style="margin-top:18px;">
+              <span class="key off">Discard</span>
+              <span class="key dark">Confirm → batch</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="q"><b>Question</b> — "presented one by one" for PDF review: one <i>call</i> at a time (shown here), or one <i>field</i> at a time? Field-by-field is slower but catches more.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================ 02 · LOBBY ============================ -->
+<section class="screen">
+  <div class="screen-tag"><b>02</b><span>Lobby · published, unassigned</span></div>
+  <div class="rack">
+    <span class="screw tl"></span><span class="screw tr"></span><span class="screw bl"></span><span class="screw br"></span>
+    <div class="masthead">
+      <div class="brand">FieldOps · Dispatch</div>
+      <div class="meta"><span class="stencil">Operator</span><span class="who">Kristo</span><span class="clock">THU · JUL 16 · 2026</span></div>
+    </div>
+    <nav class="fnrow">
+      <div class="fkey"><span class="led"></span>Home</div>
+      <div class="fkey"><span class="led"></span>Intake</div>
+      <div class="fkey on"><span class="led"></span>Lobby</div>
+      <div class="fkey"><span class="led"></span>Transfer</div>
+      <div class="fkey"><span class="led"></span>History</div>
+      <div class="fkey"><span class="led"></span>Reports</div>
+      <div class="fkey"><span class="led"></span>Inventory</div>
+      <div class="fkey"><span class="led"></span>Chat</div>
+      <div class="fkey tbd"><span class="led"></span>Catalog</div>
+      <div class="fkey tbd"><span class="led"></span>Properties</div>
+      <div class="fkey tbd"><span class="led"></span>Technicians</div>
+      <div class="fkey tbd"><span class="led"></span>Payments</div>
+      <div class="fkey tbd"><span class="led"></span>Pay periods</div>
+      <div class="fkey tbd"><span class="led"></span>Corrections</div>
+    </nav>
+
+    <div class="unit">
+      <div class="unit-head">
+        <span class="unit-id">LBY</span><span class="unit-name">Lobby</span>
+        <span class="unit-note">Technicians claim from the field · you can assign directly</span>
+      </div>
+      <div class="knurl"></div>
+      <div class="unit-body">
+        <div style="display:flex;align-items:center;gap:14px;margin-bottom:18px;">
+          <div class="readout" style="padding:8px 12px;"><span class="num" style="font-size:24px;">04</span>
+            <span class="cap" style="display:inline;margin-left:8px;">waiting</span></div>
+          <span class="key sm" style="margin-left:auto;"><i class="ti ti-arrow-back-up"></i>Return a visit to lobby</span>
+        </div>
+
+        <div class="group">
+          <div class="group-bar"><span class="g-name">Jordan Ranch</span><span class="g-count">03</span></div>
+          <div class="cols-2">
+            <div class="card prio">
+              <div class="addr">4735 North Star Trail</div>
+              <div class="sub">Highland · Finish Start Up</div>
+              <div class="tags"><span class="badge solid">Priority</span><span class="badge">2 systems</span></div>
+              <div class="foot"><span class="stencil">Waiting <span class="mono">1h 12m</span></span><span class="key sm">Assign <i class="ti ti-chevron-down"></i></span></div>
+            </div>
+            <div class="card prio">
+              <div class="addr">318 Kestrel Bend</div>
+              <div class="sub">Highland · AC Startup</div>
+              <div class="tags"><span class="badge solid">Priority</span></div>
+              <div class="foot"><span class="stencil">Waiting <span class="mono">44m</span></span><span class="key sm">Assign <i class="ti ti-chevron-down"></i></span></div>
+            </div>
+            <div class="card">
+              <div class="addr">102 Willowbrook Ln</div>
+              <div class="sub">Highland · AC Startup</div>
+              <div class="foot"><span class="stencil">Waiting <span class="mono">26m</span></span><span class="key sm">Assign <i class="ti ti-chevron-down"></i></span></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="group">
+          <div class="group-bar"><span class="g-name">Meritage</span><span class="g-count">01</span></div>
+          <div class="cols-2">
+            <div class="card">
+              <div class="addr">22 Ridgeline Ct</div>
+              <div class="sub">Perry · AC &amp; Heating Startup</div>
+              <div class="tags"><span class="badge">A2L</span></div>
+              <div class="foot"><span class="stencil">Waiting <span class="mono">2h 05m</span></span><span class="key sm">Assign <i class="ti ti-chevron-down"></i></span></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="hint" style="margin-top:16px;">
+          Priority calls hold the top of their own subdivision — the black spine on the left edge is the only marker they need.
+        </div>
+        <div class="q"><b>Question</b> — where does "return a visit to lobby" start? A technician asks by chat or phone and you pick the visit from a list here — or does the request itself need to show up somewhere as a pending item?</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================ 03 · TRANSFER ============================ -->
+<section class="screen">
+  <div class="screen-tag"><b>03</b><span>Transfer · tech to tech</span></div>
+  <div class="rack">
+    <span class="screw tl"></span><span class="screw tr"></span><span class="screw bl"></span><span class="screw br"></span>
+    <div class="masthead">
+      <div class="brand">FieldOps · Dispatch</div>
+      <div class="meta"><span class="stencil">Operator</span><span class="who">Kristo</span><span class="clock">THU · JUL 16 · 2026</span></div>
+    </div>
+    <nav class="fnrow">
+      <div class="fkey"><span class="led"></span>Home</div>
+      <div class="fkey"><span class="led"></span>Intake</div>
+      <div class="fkey"><span class="led"></span>Lobby</div>
+      <div class="fkey on"><span class="led"></span>Transfer</div>
+      <div class="fkey"><span class="led"></span>History</div>
+      <div class="fkey"><span class="led"></span>Reports</div>
+      <div class="fkey"><span class="led"></span>Inventory</div>
+      <div class="fkey"><span class="led"></span>Chat</div>
+      <div class="fkey tbd"><span class="led"></span>Catalog</div>
+      <div class="fkey tbd"><span class="led"></span>Properties</div>
+      <div class="fkey tbd"><span class="led"></span>Technicians</div>
+      <div class="fkey tbd"><span class="led"></span>Payments</div>
+      <div class="fkey tbd"><span class="led"></span>Pay periods</div>
+      <div class="fkey tbd"><span class="led"></span>Corrections</div>
+    </nav>
+
+    <div class="unit">
+      <div class="unit-head">
+        <span class="unit-id">HSK</span><span class="unit-name">Open handshake</span>
+        <span class="unit-note">You are informed, not asked</span>
+      </div>
+      <div class="knurl"></div>
+      <div class="unit-body">
+        <div style="border:2px solid var(--ink);background:var(--panel);padding:14px;">
+          <div style="display:flex;align-items:baseline;gap:10px;margin-bottom:12px;">
+            <span class="addr" style="font-size:15px;font-weight:600;">44 Cedar Hollow</span>
+            <span class="hint">Meritage · Perry · AC Startup</span>
+            <span class="mono" style="margin-left:auto;font-size:11px;">2:41p</span>
+          </div>
+          <div class="handshake">
+            <div class="party">
+              <div class="role">Holds the visit</div>
+              <div class="name">R. Delgado</div>
+              <div class="state">OWNER — STILL</div>
+            </div>
+            <div class="arrow">PROPOSED<br>→</div>
+            <div class="party">
+              <div class="role">Asked to take it</div>
+              <div class="name">M. Reyes</div>
+              <div class="state">NOT ANSWERED</div>
+            </div>
+          </div>
+          <div style="margin-top:14px;">
+            <div class="stencil">Reason given</div>
+            <div style="font-size:13px;margin-top:4px;">Stuck on a warranty call in Katy, will not clear before 4p.</div>
+          </div>
+          <div class="hint" style="margin-top:12px;border-top:1px solid var(--line);padding-top:10px;">
+            The visit does not move until M. Reyes accepts. If nobody accepts, R. Delgado still owns it.
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="unit">
+      <div class="unit-head"><span class="unit-id">LOG</span><span class="unit-name">Transfer log</span><span class="unit-note">Today</span></div>
+      <div class="unit-body">
+        <table>
+          <thead><tr><th style="width:64px;">Time</th><th>Visit</th><th style="width:190px;">From → to</th><th style="width:100px;">State</th><th>Reason</th></tr></thead>
+          <tbody>
+            <tr><td class="num">2:41p</td><td>44 Cedar Hollow</td><td>R. Delgado → M. Reyes</td><td><span class="badge">Proposed</span></td><td class="hint">Stuck on a warranty call in Katy</td></tr>
+            <tr><td class="num">11:58a</td><td>902 Larkspur Ct</td><td>J. Ortiz → R. Delgado</td><td><span class="badge solid">Accepted</span></td><td class="hint">Route ran long, Larkspur is on Delgado's line</td></tr>
+            <tr><td class="num">9:20a</td><td>118 Blanco Trail</td><td>M. Reyes → J. Ortiz</td><td><span class="badge hatch">Declined</span></td><td class="hint">Needs A2L gauges, does not carry them</td></tr>
+          </tbody>
+        </table>
+        <div class="q"><b>Question</b> — does this log hold today only, or the full run of transfers with a date filter like History?</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================ 04 · HISTORY ============================ -->
+<section class="screen">
+  <div class="screen-tag"><b>04</b><span>History · the address is the record</span></div>
+  <div class="rack">
+    <span class="screw tl"></span><span class="screw tr"></span><span class="screw bl"></span><span class="screw br"></span>
+    <div class="masthead">
+      <div class="brand">FieldOps · Dispatch</div>
+      <div class="meta"><span class="stencil">Operator</span><span class="who">Kristo</span><span class="clock">THU · JUL 16 · 2026</span></div>
+    </div>
+    <nav class="fnrow">
+      <div class="fkey"><span class="led"></span>Home</div>
+      <div class="fkey"><span class="led"></span>Intake</div>
+      <div class="fkey"><span class="led"></span>Lobby</div>
+      <div class="fkey"><span class="led"></span>Transfer</div>
+      <div class="fkey on"><span class="led"></span>History</div>
+      <div class="fkey"><span class="led"></span>Reports</div>
+      <div class="fkey"><span class="led"></span>Inventory</div>
+      <div class="fkey"><span class="led"></span>Chat</div>
+      <div class="fkey tbd"><span class="led"></span>Catalog</div>
+      <div class="fkey tbd"><span class="led"></span>Properties</div>
+      <div class="fkey tbd"><span class="led"></span>Technicians</div>
+      <div class="fkey tbd"><span class="led"></span>Payments</div>
+      <div class="fkey tbd"><span class="led"></span>Pay periods</div>
+      <div class="fkey tbd"><span class="led"></span>Corrections</div>
+    </nav>
+
+    <div class="unit">
+      <div class="unit-head"><span class="unit-id">FND</span><span class="unit-name">Find an address</span></div>
+      <div class="unit-body">
+        <div style="display:flex;gap:12px;align-items:flex-end;">
+          <div style="flex:1;"><label>Address</label><input type="text" value="2727 Russell Meadows Ln"></div>
+          <span class="key dark"><i class="ti ti-search"></i>Search</span>
+          <div class="toggle on" style="margin-left:8px;"><i class="sw"></i>Partial only</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="unit">
+      <div class="unit-head">
+        <span class="unit-id">ADR</span><span class="unit-name">2727 Russell Meadows Ln</span>
+        <span class="unit-note">Cross Creek Ranch · Highland</span>
+      </div>
+      <div class="knurl"></div>
+      <div class="unit-body">
+        <div class="cols-2" style="margin-bottom:18px;">
+          <div class="readout">
+            <div class="stencil">System 1</div>
+            <div class="mono" style="font-size:15px;margin-top:6px;">S9V2C080U4PSAA</div>
+            <div class="mono" style="font-size:15px;">R4A5S24AKAWA</div>
+            <div class="cap">indoor · outdoor</div>
+          </div>
+          <div class="readout">
+            <div class="stencil">System 2</div>
+            <div class="mono" style="font-size:15px;margin-top:6px;">S9V2B060U3PSAA</div>
+            <div class="mono" style="font-size:15px;">R4A3S18AKAWA</div>
+            <div class="cap">indoor · outdoor</div>
+          </div>
+        </div>
+
+        <h4 class="sub">Visits · newest first</h4>
+        <table>
+          <thead><tr><th style="width:96px;">Date</th><th style="width:120px;">Technician</th><th>Work</th><th style="width:90px;">Flag</th><th style="width:80px;"></th></tr></thead>
+          <tbody>
+            <tr><td class="num">JUL 16</td><td>M. Reyes</td><td>Finish Start Up</td><td></td><td style="text-align:right;"><span class="key sm">Open</span></td></tr>
+            <tr><td class="num">JUL 02</td><td>R. Delgado</td><td>AC Startup</td><td><span class="badge hatch"><i class="ti ti-alert-triangle" style="font-size:9px;"></i> Partial</span></td><td style="text-align:right;"><span class="key sm">Open</span></td></tr>
+          </tbody>
+        </table>
+
+        <!-- opened row -->
+        <div style="border:2px solid var(--ink);border-top:none;background:var(--panel);padding:16px;">
+          <div style="display:flex;align-items:baseline;gap:10px;margin-bottom:12px;">
+            <span class="mono" style="font-size:13px;">JUL 02 · 2026</span>
+            <span class="stencil">R. Delgado · AC Startup</span>
+            <span class="badge hatch" style="margin-left:auto;">Partial</span>
+          </div>
+          <div class="cols-3">
+            <div>
+              <h4 class="sub">Accessories</h4>
+              <div style="font-size:12px;line-height:1.7;">Float switch<br>Pan tablet<br>Duct strap ×<span class="mono">4</span></div>
+            </div>
+            <div>
+              <h4 class="sub">Fixes</h4>
+              <div style="font-size:12px;line-height:1.7;">Pressure test<br>Wires jammed</div>
+            </div>
+            <div>
+              <h4 class="sub">Completion</h4>
+              <div style="font-size:12px;line-height:1.7;">Refrigerant added <span class="mono">0 oz</span><br>Photos <span class="mono">6</span><br>Total <span class="mono">$412.00</span></div>
+            </div>
+          </div>
+          <div style="border-top:1px solid var(--line);margin-top:14px;padding-top:10px;">
+            <div class="stencil">Why it stayed partial</div>
+            <div style="font-size:12px;margin-top:4px;">No gas meter set. System 2 never started.</div>
+          </div>
+        </div>
+
+        <div class="q"><b>Question</b> — "Completion" here is a guess at shape, not content. When you open a visit, what has to be on that plate?</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================ 05 · REPORTS ============================ -->
+<section class="screen">
+  <div class="screen-tag"><b>05</b><span>Reports</span></div>
+  <div class="rack">
+    <span class="screw tl"></span><span class="screw tr"></span><span class="screw bl"></span><span class="screw br"></span>
+    <div class="masthead">
+      <div class="brand">FieldOps · Dispatch</div>
+      <div class="meta"><span class="stencil">Operator</span><span class="who">Kristo</span><span class="clock">THU · JUL 16 · 2026</span></div>
+    </div>
+    <nav class="fnrow">
+      <div class="fkey"><span class="led"></span>Home</div>
+      <div class="fkey"><span class="led"></span>Intake</div>
+      <div class="fkey"><span class="led"></span>Lobby</div>
+      <div class="fkey"><span class="led"></span>Transfer</div>
+      <div class="fkey"><span class="led"></span>History</div>
+      <div class="fkey on"><span class="led"></span>Reports</div>
+      <div class="fkey"><span class="led"></span>Inventory</div>
+      <div class="fkey"><span class="led"></span>Chat</div>
+      <div class="fkey tbd"><span class="led"></span>Catalog</div>
+      <div class="fkey tbd"><span class="led"></span>Properties</div>
+      <div class="fkey tbd"><span class="led"></span>Technicians</div>
+      <div class="fkey tbd"><span class="led"></span>Payments</div>
+      <div class="fkey tbd"><span class="led"></span>Pay periods</div>
+      <div class="fkey tbd"><span class="led"></span>Corrections</div>
+    </nav>
+
+    <div class="unit">
+      <div class="unit-head">
+        <span class="unit-id">RPT</span><span class="unit-name">Build a report</span>
+        <span class="unit-note">Flip one, flip all three</span>
+      </div>
+      <div class="knurl"></div>
+      <div class="unit-body">
+        <div class="cols-3" style="margin-bottom:20px;">
+          <div class="readout">
+            <div class="toggle on" style="margin-bottom:10px;"><i class="sw"></i>Equipment &amp; accessories</div>
+            <div class="hint">What was installed and used, by item.</div>
+          </div>
+          <div class="readout">
+            <div class="toggle on" style="margin-bottom:10px;"><i class="sw"></i>Refrigerant</div>
+            <div class="hint">Charged by type, with running totals.</div>
+          </div>
+          <div class="readout">
+            <div class="toggle off" style="margin-bottom:10px;"><i class="sw"></i>Income by technician</div>
+            <div class="hint">Earned per technician over the range.</div>
+          </div>
+        </div>
+
+        <div class="cols-3" style="margin-bottom:20px;">
+          <div><label>From</label><input type="text" class="data" value="JUL 01 2026"></div>
+          <div><label>To</label><input type="text" class="data" value="JUL 16 2026"></div>
+          <div><label>Technician — optional</label><select><option>All technicians</option></select></div>
+        </div>
+
+        <div class="divider"></div>
+
+        <div style="display:flex;gap:14px;align-items:center;">
+          <span class="stencil" style="margin-right:6px;">Output</span>
+          <span class="key dark"><i class="ti ti-printer"></i>Printable sheet</span>
+          <span class="key"><i class="ti ti-file-text"></i>PDF</span>
+          <span class="key"><i class="ti ti-table"></i>CSV</span>
+          <span class="stencil" style="margin-left:auto;"><span class="mono">2</span> reports selected · one sheet</span>
+        </div>
+
+        <div class="q"><b>Question</b> — the printable sheet needs its own design pass. Two reports selected: one sheet with both, or one sheet each? And with three flipped on, does income sit on the same page as usage?</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================ 06 · INVENTORY / RESTOCK ============================ -->
+<section class="screen">
+  <div class="screen-tag"><b>06</b><span>Inventory · restock</span></div>
+  <div class="rack">
+    <span class="screw tl"></span><span class="screw tr"></span><span class="screw bl"></span><span class="screw br"></span>
+    <div class="masthead">
+      <div class="brand">FieldOps · Dispatch</div>
+      <div class="meta"><span class="stencil">Operator</span><span class="who">Kristo</span><span class="clock">THU · JUL 16 · 2026</span></div>
+    </div>
+    <nav class="fnrow">
+      <div class="fkey"><span class="led"></span>Home</div>
+      <div class="fkey"><span class="led"></span>Intake</div>
+      <div class="fkey"><span class="led"></span>Lobby</div>
+      <div class="fkey"><span class="led"></span>Transfer</div>
+      <div class="fkey"><span class="led"></span>History</div>
+      <div class="fkey"><span class="led"></span>Reports</div>
+      <div class="fkey on"><span class="led"></span>Inventory</div>
+      <div class="fkey"><span class="led"></span>Chat</div>
+      <div class="fkey tbd"><span class="led"></span>Catalog</div>
+      <div class="fkey tbd"><span class="led"></span>Properties</div>
+      <div class="fkey tbd"><span class="led"></span>Technicians</div>
+      <div class="fkey tbd"><span class="led"></span>Payments</div>
+      <div class="fkey tbd"><span class="led"></span>Pay periods</div>
+      <div class="fkey tbd"><span class="led"></span>Corrections</div>
+    </nav>
+
+    <div class="alert" style="margin-bottom:20px;">
+      <i class="ti ti-alert-triangle" style="font-size:20px;"></i>
+      <div class="txt"><b>Time to restock.</b> <span class="mono">3</span> items are at or below the line, <span class="mono">1</span> is negative. Nothing is blocked — keep working.</div>
+      <span class="x">Dismiss</span>
+    </div>
+
+    <div class="unit">
+      <div class="unit-head"><span class="unit-id">STK</span><span class="unit-name">Stock on hand</span></div>
+      <div class="knurl"></div>
+      <div class="unit-body">
+        <table>
+          <thead><tr><th>Item</th><th style="width:150px;">Category</th><th style="width:80px;">Stock</th><th style="width:110px;">Status</th><th style="width:90px;"></th></tr></thead>
+          <tbody>
+            <tr><td>Ecobee Premium</td><td>Thermostat</td><td class="num">12</td><td><span class="badge">OK</span></td><td style="text-align:right;"><span class="key sm">Adjust</span></td></tr>
+            <tr><td>Honeywell T6</td><td>Thermostat</td><td class="num">02</td><td><span class="badge solid">Restock</span></td><td style="text-align:right;"><span class="key sm">Adjust</span></td></tr>
+            <tr><td>Float switch</td><td>Accessory</td><td class="num">-04</td><td><span class="badge solid">Restock</span></td><td style="text-align:right;"><span class="key sm">Adjust</span></td></tr>
+            <tr><td>Pan tablet</td><td>Accessory</td><td class="num">31</td><td><span class="badge">OK</span></td><td style="text-align:right;"><span class="key sm">Adjust</span></td></tr>
+            <tr><td>Duct strap</td><td>Accessory</td><td class="num">03</td><td><span class="badge solid">Restock</span></td><td style="text-align:right;"><span class="key sm">Adjust</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="unit">
+      <div class="unit-head"><span class="unit-id">REF</span><span class="unit-name">Refrigerant</span><span class="unit-note">Tracked by type</span></div>
+      <div class="unit-body">
+        <div class="cols-3">
+          <div class="readout">
+            <div class="stencil">R-454B</div>
+            <div class="num" style="margin-top:8px;">18<span style="font-size:16px;">lb</span> 06<span style="font-size:16px;">oz</span></div>
+            <div class="cap">remaining</div>
+            <div style="border-top:1px solid var(--line);margin-top:10px;padding-top:8px;">
+              <span class="stencil">Used total</span> <span class="mono" style="font-size:13px;">142lb 11oz</span>
+            </div>
+          </div>
+          <div class="readout">
+            <div class="stencil">R-32</div>
+            <div class="num" style="margin-top:8px;">04<span style="font-size:16px;">lb</span> 12<span style="font-size:16px;">oz</span></div>
+            <div class="cap">remaining</div>
+            <div style="border-top:1px solid var(--line);margin-top:10px;padding-top:8px;">
+              <span class="stencil">Used total</span> <span class="mono" style="font-size:13px;">27lb 03oz</span>
+            </div>
+          </div>
+          <div class="readout">
+            <div class="stencil">R-410A</div>
+            <div class="num" style="margin-top:8px;">19<span style="font-size:16px;">lb</span> 04<span style="font-size:16px;">oz</span></div>
+            <div class="cap">remaining</div>
+            <div style="border-top:1px solid var(--line);margin-top:10px;padding-top:8px;">
+              <span class="stencil">Used total</span> <span class="mono" style="font-size:13px;">88lb 00oz</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="unit">
+      <div class="unit-head">
+        <span class="unit-id">RST</span><span class="unit-name">Restock report</span>
+        <span class="unit-note">Grouped by address · uncheck what you don't need</span>
+      </div>
+      <div class="knurl"></div>
+      <div class="unit-body">
+        <div class="cols-2" style="align-items:start;">
+          <div>
+            <h4 class="sub">What the report asks for</h4>
+            <table>
+              <tbody>
+                <tr><td style="width:22px;"><span class="mono">☑</span></td><td>2727 Russell Meadows Ln<div class="hint">Ecobee Premium ×1 · Float switch ×1 · 454B 4lb 02oz</div></td></tr>
+                <tr><td><span class="mono">☑</span></td><td>118 Blanco Trail<div class="hint">Honeywell T6 ×1 · Pan tablet ×2</div></td></tr>
+                <tr><td><span class="mono">☐</span></td><td style="color:var(--dim);">44 Cedar Hollow<div class="hint">Duct strap ×4 — got these already</div></td></tr>
+                <tr><td><span class="mono">☑</span></td><td>902 Larkspur Ct<div class="hint">Float switch ×2 · 32 1lb 08oz</div></td></tr>
+              </tbody>
+            </table>
+            <div class="row-end" style="margin-top:16px;">
+              <span class="key dark"><i class="ti ti-printer"></i>Print · take it in</span>
+            </div>
+          </div>
+
+          <div>
+            <h4 class="sub">What came back</h4>
+            <table>
+              <thead><tr><th>Item</th><th style="width:70px;">Asked</th><th style="width:90px;">Got</th></tr></thead>
+              <tbody>
+                <tr><td>Ecobee Premium</td><td class="num">10</td><td><input type="text" class="data" value="8" style="padding:5px 7px;"></td></tr>
+                <tr><td>Honeywell T6</td><td class="num">04</td><td><input type="text" class="data" value="4" style="padding:5px 7px;"></td></tr>
+                <tr><td>Float switch</td><td class="num">06</td><td><input type="text" class="data" value="6" style="padding:5px 7px;"></td></tr>
+                <tr><td>Pan tablet</td><td class="num">02</td><td><input type="text" class="data" value="0" style="padding:5px 7px;"></td></tr>
+                <tr><td>R-454B</td><td class="num">4lb 02</td><td><input type="text" class="data" value="4lb 02" style="padding:5px 7px;"></td></tr>
+              </tbody>
+            </table>
+            <div class="hint" style="margin-top:10px;">Type what actually landed in the truck. Short counts are normal — no explanation needed.</div>
+            <div class="row-end" style="margin-top:14px;">
+              <span class="key dark">Log received → update stock</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="q"><b>Question</b> — the report groups by address, but what comes back is counted by item. Is that the right seam, or should the received sheet stay grouped by address too?</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+</body>
+</html>

@@ -1,0 +1,646 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FieldOps · Dispatch — Reports · final structure</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/tabler-icons/2.44.0/iconfont/tabler-icons.min.css">
+<style>
+  :root{
+    --paper:#C6C4BC;
+    --panel:#E3E1D9;
+    --plate:#F2F1EB;
+    --ink:#101010;
+    --dim:#6E6E68;
+    --line:#A9A79F;
+    --mute:#9C9A93;
+    --sheet:#FBFAF6;
+    --stencil:'Arial Narrow','Helvetica Neue Condensed',Helvetica,Arial,sans-serif;
+    --body:-apple-system,'Helvetica Neue',Helvetica,Arial,sans-serif;
+    --data:'Courier New',Courier,monospace;
+  }
+  *{box-sizing:border-box;}
+  body{background:var(--paper);margin:0;padding:40px 24px 90px;font-family:var(--body);color:var(--ink);
+       background-image:repeating-linear-gradient(0deg,rgba(16,16,16,.035) 0 1px,transparent 1px 4px);}
+
+  /* ---------- scaffolding ---------- */
+  .screen{max-width:1040px;margin:0 auto 60px;}
+  .screen-tag{display:flex;align-items:center;gap:10px;margin-bottom:10px;}
+  .screen-tag b{font-family:var(--data);font-weight:700;font-size:12px;background:var(--ink);color:var(--plate);padding:3px 7px;}
+  .screen-tag span{font-family:var(--stencil);text-transform:uppercase;letter-spacing:2px;font-size:11px;color:var(--dim);}
+  .rack{position:relative;background:var(--panel);border:3px solid var(--ink);padding:22px 26px 26px;
+        box-shadow:7px 7px 0 rgba(16,16,16,.22);}
+  .screw{position:absolute;width:11px;height:11px;border-radius:50%;background:var(--plate);
+         border:1.5px solid var(--ink);box-shadow:inset 0 -1px 0 rgba(16,16,16,.35);}
+  .screw::after{content:'';position:absolute;left:1px;right:1px;top:3.5px;height:1.5px;background:var(--ink);transform:rotate(35deg);}
+  .screw.tl{top:7px;left:7px;} .screw.tr{top:7px;right:7px;}
+  .screw.bl{bottom:7px;left:7px;} .screw.br{bottom:7px;right:7px;}
+
+  /* ---------- masthead ---------- */
+  .masthead{display:flex;justify-content:space-between;align-items:flex-end;
+            border-bottom:3px solid var(--ink);padding-bottom:12px;margin-bottom:12px;}
+  .brand{font-family:Georgia,'Times New Roman',serif;font-size:23px;letter-spacing:.4px;}
+  .meta{display:flex;align-items:center;gap:14px;}
+  .meta .who{font-size:12px;}
+  .meta .clock{font-family:var(--data);font-weight:700;font-size:12px;background:var(--ink);color:var(--plate);padding:4px 8px;}
+  .gsearch{display:flex;align-items:center;gap:8px;flex:1;max-width:360px;margin:0 22px;padding:0 10px;
+           border:2px solid var(--ink);background:var(--panel);box-shadow:inset 2px 2px 0 rgba(16,16,16,.14);}
+  .gsearch i{font-size:14px;color:var(--dim);}
+  .gsearch input{border:none;background:transparent;box-shadow:none;padding:9px 0;font-size:12px;}
+  .gsearch .goto{font-family:var(--stencil);text-transform:uppercase;letter-spacing:1.2px;font-size:9px;
+                 color:var(--plate);background:var(--ink);padding:3px 5px;white-space:nowrap;}
+
+  /* ---------- nav ---------- */
+  .fnrow{display:flex;flex-wrap:wrap;border:2px solid var(--ink);margin-bottom:22px;background:var(--plate);}
+  .fkey{display:flex;align-items:center;gap:7px;padding:8px 11px;font-family:var(--stencil);text-transform:uppercase;
+        letter-spacing:1.2px;font-size:11px;color:var(--dim);border-right:1px solid var(--line);}
+  .fkey:last-child{border-right:none;}
+  .fkey .led{width:7px;height:7px;border:1.5px solid var(--dim);flex:none;}
+  .fkey.on{background:var(--ink);color:var(--plate);}
+  .fkey.on .led{background:var(--plate);border-color:var(--plate);}
+  .fkey.tbd{color:var(--mute);background-image:repeating-linear-gradient(45deg,rgba(16,16,16,.05) 0 3px,transparent 3px 6px);}
+  .fkey.tbd .led{border-color:#B5B3AC;}
+
+  /* ---------- units ---------- */
+  .unit{border:2px solid var(--ink);background:var(--plate);}
+  .unit-head{display:flex;align-items:center;gap:12px;border-bottom:2px solid var(--ink);padding:9px 14px;background:var(--panel);}
+  .unit-id{font-family:var(--data);font-weight:700;font-size:11px;background:var(--ink);color:var(--plate);padding:2px 6px;}
+  .unit-name{font-family:var(--stencil);text-transform:uppercase;letter-spacing:2px;font-size:12px;font-weight:700;}
+  .unit-note{margin-left:auto;font-family:var(--stencil);text-transform:uppercase;letter-spacing:1.2px;font-size:10px;color:var(--dim);}
+  .unit-body{padding:18px;}
+  .knurl{height:12px;background-image:repeating-linear-gradient(45deg,var(--ink) 0 1px,transparent 1px 4px);
+         border-bottom:2px solid var(--ink);opacity:.5;}
+
+  /* ---------- type ---------- */
+  .stencil{font-family:var(--stencil);text-transform:uppercase;letter-spacing:1.6px;font-size:10px;color:var(--dim);}
+  .mono{font-family:var(--data);font-weight:700;}
+  .hint{font-size:11px;color:var(--dim);line-height:1.5;}
+  h4.sub{font-family:var(--stencil);text-transform:uppercase;letter-spacing:2px;font-size:11px;margin:0 0 12px;color:var(--dim);
+         border-bottom:1px solid var(--line);padding-bottom:5px;display:flex;align-items:baseline;gap:8px;}
+  h4.sub .r{margin-left:auto;}
+
+  /* ---------- controls ---------- */
+  .key{display:inline-flex;align-items:center;justify-content:center;gap:7px;border:2px solid var(--ink);
+       background:var(--panel);box-shadow:0 4px 0 var(--ink);padding:12px 18px;font-family:var(--stencil);
+       text-transform:uppercase;letter-spacing:1.6px;font-size:12px;font-weight:700;cursor:default;}
+  .key.dark{background:var(--ink);color:var(--plate);box-shadow:0 4px 0 #55534E;}
+  label{display:block;font-family:var(--stencil);text-transform:uppercase;letter-spacing:1.3px;font-size:10px;color:var(--dim);margin-bottom:4px;}
+  input,select{width:100%;border:2px solid var(--ink);background:var(--panel);color:var(--ink);
+        font-family:var(--body);font-size:13px;padding:9px 10px;box-shadow:inset 2px 2px 0 rgba(16,16,16,.12);}
+  input.data,select.data{font-family:var(--data);font-weight:700;}
+  .filter{display:grid;grid-template-columns:1fr 1fr 1.4fr;gap:12px;}
+
+  /* ---------- checkboxes ---------- */
+  .cb{width:13px;height:13px;border:2px solid var(--ink);background:var(--plate);flex:none;
+      box-shadow:inset 1px 1px 0 rgba(16,16,16,.14);}
+  .cb.on{background:var(--ink);box-shadow:none;}
+  .cb-h{width:15px;height:15px;border:2px solid var(--plate);background:transparent;flex:none;position:relative;}
+  .cb-h.on{background:var(--plate);}
+  .cb-h.mid::after{content:'';position:absolute;left:1.5px;right:1.5px;top:4.5px;height:3px;background:var(--plate);}
+
+  /* ---------- register ---------- */
+  .register{border:2px solid var(--ink);background:var(--panel);padding:14px;box-shadow:inset 2px 2px 0 rgba(16,16,16,.14);}
+  .reg-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;}
+  .reg-grid.wide{grid-template-columns:repeat(3,1fr);}
+  .reg-item{border:2px solid var(--ink);background:var(--plate);}
+  .reg-win{background:var(--ink);color:var(--plate);font-family:var(--data);font-weight:700;font-size:26px;
+           text-align:center;padding:8px 4px;line-height:1;
+           background-image:repeating-linear-gradient(0deg,rgba(255,255,255,.07) 0 1px,transparent 1px 3px);}
+  .reg-win.small{font-size:18px;}
+  .reg-l{font-family:var(--stencil);text-transform:uppercase;letter-spacing:1.2px;font-size:9px;color:var(--dim);
+         text-align:center;padding:6px 4px;}
+
+  /* ---------- type filter ---------- */
+  .types{display:flex;gap:10px;flex-wrap:wrap;}
+  .type{display:flex;align-items:center;gap:9px;border:2px solid var(--ink);background:var(--panel);padding:8px 13px;
+        font-family:var(--data);font-weight:700;font-size:13px;}
+  .type.off{color:var(--mute);border-color:var(--mute);background:var(--plate);}
+  .type.off .cb{border-color:var(--mute);}
+
+  /* ---------- address group ---------- */
+  .ghdr{display:flex;align-items:center;gap:10px;background:var(--ink);color:var(--plate);padding:6px 11px;margin-top:14px;}
+  .ghdr .gd{font-family:var(--data);font-weight:700;font-size:11px;background:var(--plate);color:var(--ink);padding:1px 6px;}
+  .ghdr .ga{font-size:13px;font-weight:600;}
+  .ghdr .gs{margin-left:auto;font-family:var(--stencil);text-transform:uppercase;letter-spacing:1.2px;font-size:9px;color:#B5B3AC;}
+  .ghdr.out{background:var(--plate);color:var(--mute);border:2px solid var(--mute);
+            background-image:repeating-linear-gradient(45deg,rgba(16,16,16,.07) 0 3px,transparent 3px 7px);}
+  .ghdr.out .gd{background:var(--mute);color:var(--plate);}
+  .ghdr.out .cb-h{border-color:var(--mute);}
+  .ghdr.out .gs{color:var(--mute);}
+  .glist{border:2px solid var(--ink);border-top:none;background:var(--plate);}
+  .glist.out{border-color:var(--mute);}
+  .chips{display:flex;flex-wrap:wrap;gap:7px;padding:10px;}
+  .chip{display:inline-flex;align-items:center;gap:7px;border:1.5px solid var(--ink);background:var(--panel);
+        padding:4px 9px;font-size:12px;line-height:1.2;}
+  .chip .qx{font-family:var(--data);font-weight:700;font-size:10px;color:var(--dim);}
+  .chip.off{color:var(--mute);border-color:var(--mute);background:var(--plate);}
+  .chip.off .cb{border-color:var(--mute);}
+  .chip.off .qx{color:var(--mute);}
+
+  .outbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;border-top:3px solid var(--ink);margin-top:22px;padding-top:16px;}
+  .outbar .sp{margin-left:auto;display:flex;gap:9px;}
+
+  /* ---------- document stage ---------- */
+  .stage{border:2px solid var(--ink);padding:30px;background:var(--panel);
+         background-image:repeating-linear-gradient(45deg,rgba(16,16,16,.10) 0 3px,transparent 3px 8px);}
+  .doclabel{max-width:720px;margin:0 auto 18px;display:flex;align-items:center;gap:10px;
+            background:var(--ink);color:var(--plate);padding:8px 12px;}
+  .doclabel .dl{font-family:var(--stencil);text-transform:uppercase;letter-spacing:2px;font-size:11px;font-weight:700;}
+  .doclabel .dr{margin-left:auto;font-family:var(--data);font-weight:700;font-size:11px;background:var(--plate);color:var(--ink);padding:2px 6px;}
+  .stack{display:flex;flex-direction:column;gap:24px;}
+
+  /* ---------- the page ---------- */
+  .sheet{position:relative;max-width:720px;margin:0 auto;background:var(--sheet);border:1px solid var(--ink);
+         padding:44px 46px 34px;box-shadow:10px 10px 0 rgba(16,16,16,.28);}
+  .crop{position:absolute;width:14px;height:14px;}
+  .crop.tl{top:9px;left:9px;border-top:2px solid var(--ink);border-left:2px solid var(--ink);}
+  .crop.tr{top:9px;right:9px;border-top:2px solid var(--ink);border-right:2px solid var(--ink);}
+  .crop.bl{bottom:9px;left:9px;border-bottom:2px solid var(--ink);border-left:2px solid var(--ink);}
+  .crop.br{bottom:9px;right:9px;border-bottom:2px solid var(--ink);border-right:2px solid var(--ink);}
+
+  .letterhead{display:flex;justify-content:space-between;align-items:flex-start;padding-bottom:14px;border-bottom:4px solid var(--ink);}
+  .letterhead .lh-brand{font-family:Georgia,'Times New Roman',serif;font-size:26px;letter-spacing:.4px;line-height:1;}
+  .letterhead .lh-sub{font-family:var(--stencil);text-transform:uppercase;letter-spacing:2.4px;font-size:9px;color:var(--dim);margin-top:6px;}
+  .stub{text-align:right;font-family:var(--data);font-size:10px;line-height:1.7;}
+  .stub .lbl{font-family:var(--stencil);letter-spacing:1.4px;color:var(--dim);text-transform:uppercase;font-size:9px;margin-right:6px;}
+
+  /* running head on continuation pages */
+  .runhead{display:flex;justify-content:space-between;align-items:baseline;border-bottom:2px solid var(--ink);padding-bottom:9px;}
+  .runhead .rl{font-family:var(--stencil);text-transform:uppercase;letter-spacing:2px;font-size:10px;color:var(--dim);}
+  .runhead .rr{font-family:var(--data);font-weight:700;font-size:10px;}
+
+  .titleband{display:flex;align-items:baseline;gap:12px;border-bottom:1px solid var(--ink);padding:14px 0 12px;}
+  .titleband .rt{font-family:var(--stencil);text-transform:uppercase;letter-spacing:3px;font-size:19px;font-weight:700;}
+  .titleband .rn{margin-left:auto;font-family:var(--data);font-weight:700;font-size:11px;border:1.5px solid var(--ink);padding:2px 7px;}
+
+  .params{display:flex;gap:30px;padding:12px 0 18px;border-bottom:2px solid var(--ink);}
+  .params .p .lbl{font-family:var(--stencil);text-transform:uppercase;letter-spacing:1.6px;font-size:9px;color:var(--dim);}
+  .params .p .v{font-family:var(--data);font-weight:700;font-size:14px;margin-top:3px;}
+
+  /* section band — one per page */
+  .secband{display:flex;align-items:center;gap:11px;margin:22px 0 4px;border-bottom:3px solid var(--ink);padding-bottom:9px;}
+  .secband .sn{font-family:var(--data);font-weight:700;font-size:11px;background:var(--ink);color:var(--sheet);padding:2px 6px;}
+  .secband .st{font-family:var(--stencil);text-transform:uppercase;letter-spacing:2.6px;font-size:14px;font-weight:700;}
+  .secband .sr{margin-left:auto;font-family:var(--stencil);text-transform:uppercase;letter-spacing:1.4px;font-size:9px;color:var(--dim);}
+
+  .sheet table{width:100%;border-collapse:collapse;margin-top:6px;}
+  .sheet th{font-family:var(--stencil);text-transform:uppercase;letter-spacing:1.6px;font-size:9px;color:var(--dim);
+            text-align:left;border-bottom:2px solid var(--ink);padding:10px 6px;}
+  .sheet td{border-bottom:1px solid var(--line);padding:9px 6px;font-size:13px;}
+  .sheet td.n,.sheet td.d{font-family:var(--data);font-weight:700;}
+  .sheet td.n{text-align:right;}
+  .sheet th.n{text-align:right;}
+  .sheet td.cat{font-family:var(--stencil);text-transform:uppercase;letter-spacing:1.4px;font-size:10px;color:var(--dim);}
+  .sheet tr.tot td{border-top:3px solid var(--ink);border-bottom:none;padding-top:12px;
+                   font-family:var(--stencil);text-transform:uppercase;letter-spacing:2px;font-size:11px;font-weight:700;}
+  .sheet tr.tot td.n{font-family:var(--data);font-size:17px;letter-spacing:0;}
+  .bigrows td{padding:13px 6px;}
+  .bigrows td.n{font-size:18px;}
+
+  .sheetfoot{display:flex;justify-content:space-between;align-items:flex-end;margin-top:26px;
+             border-top:1px solid var(--ink);padding-top:10px;}
+  .sheetfoot .fl{font-family:var(--stencil);text-transform:uppercase;letter-spacing:1.6px;font-size:9px;color:var(--dim);line-height:1.6;}
+  .sheetfoot .fr{font-family:var(--data);font-size:10px;}
+
+  @media (max-width:880px){
+    .filter{grid-template-columns:1fr;}
+    .reg-grid{grid-template-columns:repeat(3,1fr);}
+    .reg-grid.wide{grid-template-columns:1fr;}
+    .gsearch{max-width:none;margin:10px 0;}
+    .masthead{flex-wrap:wrap;}
+    .sheet{padding:28px 22px 22px;}
+    .params{flex-wrap:wrap;gap:18px;}
+  }
+</style>
+</head>
+<body>
+
+<!-- ============================ 05a · EQUIPMENT — REVIEW ============================ -->
+<section class="screen">
+  <div class="screen-tag"><b>05a</b><span>Reports · equipment &amp; accessories · review</span></div>
+  <div class="rack">
+    <span class="screw tl"></span><span class="screw tr"></span><span class="screw bl"></span><span class="screw br"></span>
+
+    <div class="masthead">
+      <div class="brand">FieldOps · Dispatch</div>
+      <div class="gsearch"><i class="ti ti-search"></i><input type="text" placeholder="Address, subdivision, builder, technician…"><span class="goto">Go to</span></div>
+      <div class="meta"><span class="stencil">Operator</span><span class="who">Kristo</span><span class="clock">FRI · JUL 17 · 2026</span></div>
+    </div>
+
+    <nav class="fnrow">
+      <div class="fkey"><span class="led"></span>Home</div>
+      <div class="fkey"><span class="led"></span>Intake</div>
+      <div class="fkey"><span class="led"></span>Lobby</div>
+      <div class="fkey"><span class="led"></span>Transfer</div>
+      <div class="fkey"><span class="led"></span>History</div>
+      <div class="fkey on"><span class="led"></span>Reports</div>
+      <div class="fkey"><span class="led"></span>Inventory</div>
+      <div class="fkey"><span class="led"></span>Chat</div>
+      <div class="fkey tbd"><span class="led"></span>Catalog</div>
+      <div class="fkey"><span class="led"></span>Properties</div>
+      <div class="fkey tbd"><span class="led"></span>Technicians</div>
+      <div class="fkey tbd"><span class="led"></span>Payments</div>
+      <div class="fkey tbd"><span class="led"></span>Pay periods</div>
+      <div class="fkey tbd"><span class="led"></span>Corrections</div>
+    </nav>
+
+    <div class="unit">
+      <div class="unit-head">
+        <span class="unit-id">01</span><span class="unit-name">Equipment &amp; accessories</span>
+        <span class="unit-note">Filter · review · one document</span>
+      </div>
+      <div class="knurl"></div>
+      <div class="unit-body">
+
+        <h4 class="sub">Filter <span class="r">what comes up for review</span></h4>
+        <div class="filter">
+          <div><label>From</label><input type="text" class="data" value="JUL 14 2026"></div>
+          <div><label>To</label><input type="text" class="data" value="JUL 15 2026"></div>
+          <div><label>Technician — optional</label><select><option>All technicians</option></select></div>
+        </div>
+
+        <h4 class="sub" style="margin-top:24px;">Running count <span class="r">counts what's checked, nothing else</span></h4>
+        <div class="register">
+          <div class="reg-grid">
+            <div class="reg-item"><div class="reg-win">02</div><div class="reg-l">Honeywell T6 Pro</div></div>
+            <div class="reg-item"><div class="reg-win">01</div><div class="reg-l">Ecobee Premium</div></div>
+            <div class="reg-item"><div class="reg-win">03</div><div class="reg-l">Float switch</div></div>
+            <div class="reg-item"><div class="reg-win">03</div><div class="reg-l">Pan tablet</div></div>
+            <div class="reg-item"><div class="reg-win">04</div><div class="reg-l">Duct strap</div></div>
+          </div>
+          <div class="hint" style="margin-top:12px;">
+            UT3000 and condensate pump aren't in this bank — their only house is switched off below.
+          </div>
+        </div>
+
+        <h4 class="sub" style="margin-top:24px;">What's in the range <span class="r">by house · the box on the bar drops the whole house</span></h4>
+
+        <div class="ghdr">
+          <span class="cb-h on"></span>
+          <span class="gd">JUL 14</span><span class="ga">2727 Russell Meadows Ln</span>
+          <span class="gs">Cross Creek Ranch · M. Reyes</span>
+        </div>
+        <div class="glist">
+          <div class="chips">
+            <span class="chip"><span class="cb on"></span>Honeywell T6 Pro <span class="qx">×2</span></span>
+            <span class="chip"><span class="cb on"></span>Float switch <span class="qx">×2</span></span>
+            <span class="chip"><span class="cb on"></span>Pan tablet <span class="qx">×2</span></span>
+            <span class="chip"><span class="cb on"></span>Duct strap <span class="qx">×4</span></span>
+          </div>
+        </div>
+
+        <div class="ghdr">
+          <span class="cb-h mid"></span>
+          <span class="gd">JUL 15</span><span class="ga">118 Blanco Trail</span>
+          <span class="gs">Jordan Ranch · J. Ortiz</span>
+        </div>
+        <div class="glist">
+          <div class="chips">
+            <span class="chip"><span class="cb on"></span>Ecobee Premium</span>
+            <span class="chip"><span class="cb on"></span>Float switch</span>
+            <span class="chip"><span class="cb on"></span>Pan tablet</span>
+            <span class="chip off"><span class="cb"></span>Duct strap <span class="qx">×2</span></span>
+          </div>
+        </div>
+
+        <div class="ghdr out">
+          <span class="cb-h"></span>
+          <span class="gd">JUL 15</span><span class="ga">902 Larkspur Ct</span>
+          <span class="gs">Meritage · R. Delgado</span>
+        </div>
+        <div class="glist out">
+          <div class="chips">
+            <span class="chip off"><span class="cb"></span>Honeywell T6 Pro</span>
+            <span class="chip off"><span class="cb"></span>Float switch <span class="qx">×2</span></span>
+            <span class="chip off"><span class="cb"></span>Pan tablet <span class="qx">×2</span></span>
+            <span class="chip off"><span class="cb"></span>UT3000</span>
+            <span class="chip off"><span class="cb"></span>Condensate pump</span>
+          </div>
+        </div>
+        <div class="hint" style="margin-top:8px;">
+          The house is out but it stays on the screen, greyed. Press any one chip and that item comes back on its own — you never lose sight of what you dropped.
+        </div>
+
+        <div class="outbar">
+          <span class="stencil">Only what's checked leaves this screen</span>
+          <div class="sp">
+            <span class="key dark"><i class="ti ti-printer"></i>Sheet</span>
+            <span class="key"><i class="ti ti-file-text"></i>PDF</span>
+            <span class="key"><i class="ti ti-table"></i>CSV</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================ 05b · REFRIGERANT — REVIEW ============================ -->
+<section class="screen">
+  <div class="screen-tag"><b>05b</b><span>Reports · refrigerant · review</span></div>
+  <div class="rack">
+    <span class="screw tl"></span><span class="screw tr"></span><span class="screw bl"></span><span class="screw br"></span>
+
+    <div class="masthead">
+      <div class="brand">FieldOps · Dispatch</div>
+      <div class="gsearch"><i class="ti ti-search"></i><input type="text" placeholder="Address, subdivision, builder, technician…"><span class="goto">Go to</span></div>
+      <div class="meta"><span class="stencil">Operator</span><span class="who">Kristo</span><span class="clock">FRI · JUL 17 · 2026</span></div>
+    </div>
+
+    <nav class="fnrow">
+      <div class="fkey"><span class="led"></span>Home</div>
+      <div class="fkey"><span class="led"></span>Intake</div>
+      <div class="fkey"><span class="led"></span>Lobby</div>
+      <div class="fkey"><span class="led"></span>Transfer</div>
+      <div class="fkey"><span class="led"></span>History</div>
+      <div class="fkey on"><span class="led"></span>Reports</div>
+      <div class="fkey"><span class="led"></span>Inventory</div>
+      <div class="fkey"><span class="led"></span>Chat</div>
+      <div class="fkey tbd"><span class="led"></span>Catalog</div>
+      <div class="fkey"><span class="led"></span>Properties</div>
+      <div class="fkey tbd"><span class="led"></span>Technicians</div>
+      <div class="fkey tbd"><span class="led"></span>Payments</div>
+      <div class="fkey tbd"><span class="led"></span>Pay periods</div>
+      <div class="fkey tbd"><span class="led"></span>Corrections</div>
+    </nav>
+
+    <div class="unit">
+      <div class="unit-head">
+        <span class="unit-id">02</span><span class="unit-name">Refrigerant</span>
+        <span class="unit-note">Filter · review · one document</span>
+      </div>
+      <div class="knurl"></div>
+      <div class="unit-body">
+
+        <h4 class="sub">Filter <span class="r">what comes up for review</span></h4>
+        <div class="filter">
+          <div><label>From</label><input type="text" class="data" value="JUL 14 2026"></div>
+          <div><label>To</label><input type="text" class="data" value="JUL 15 2026"></div>
+          <div><label>Technician — optional</label><select><option>All technicians</option></select></div>
+        </div>
+
+        <h4 class="sub" style="margin-top:24px;">Types <span class="r">which ones show up below</span></h4>
+        <div class="types">
+          <div class="type"><span class="cb on"></span>R-454B</div>
+          <div class="type"><span class="cb on"></span>R-32</div>
+          <div class="type off"><span class="cb"></span>R-410A</div>
+        </div>
+
+        <h4 class="sub" style="margin-top:24px;">Running count <span class="r">counts what's checked, nothing else</span></h4>
+        <div class="register">
+          <div class="reg-grid wide">
+            <div class="reg-item"><div class="reg-win small">7lb 02oz</div><div class="reg-l">R-454B</div></div>
+            <div class="reg-item"><div class="reg-win small">1lb 09oz</div><div class="reg-l">R-32</div></div>
+          </div>
+          <div class="hint" style="margin-top:12px;">
+            R-410A is switched off up top, so it never reaches the list — and never gets a page in the document.
+          </div>
+        </div>
+
+        <h4 class="sub" style="margin-top:24px;">What's in the range <span class="r">by house · the box on the bar drops the whole house</span></h4>
+
+        <div class="ghdr">
+          <span class="cb-h on"></span>
+          <span class="gd">JUL 14</span><span class="ga">2727 Russell Meadows Ln</span>
+          <span class="gs">Cross Creek Ranch · M. Reyes</span>
+        </div>
+        <div class="glist">
+          <div class="chips">
+            <span class="chip"><span class="cb on"></span>R-454B <span class="qx">4lb 02oz</span></span>
+          </div>
+        </div>
+
+        <div class="ghdr">
+          <span class="cb-h on"></span>
+          <span class="gd">JUL 15</span><span class="ga">118 Blanco Trail</span>
+          <span class="gs">Jordan Ranch · J. Ortiz</span>
+        </div>
+        <div class="glist">
+          <div class="chips">
+            <span class="chip"><span class="cb on"></span>R-454B <span class="qx">3lb 00oz</span></span>
+            <span class="chip"><span class="cb on"></span>R-32 <span class="qx">1lb 09oz</span></span>
+          </div>
+        </div>
+
+        <div class="ghdr out">
+          <span class="cb-h"></span>
+          <span class="gd">JUL 15</span><span class="ga">902 Larkspur Ct</span>
+          <span class="gs">Meritage · R. Delgado</span>
+        </div>
+        <div class="glist out">
+          <div class="chips">
+            <span class="chip off"><span class="cb"></span>R-454B <span class="qx">2lb 08oz</span></span>
+            <span class="chip off"><span class="cb"></span>R-32 <span class="qx">1lb 08oz</span></span>
+          </div>
+        </div>
+
+        <div class="outbar">
+          <span class="stencil">Only what's checked leaves this screen</span>
+          <div class="sp">
+            <span class="key dark"><i class="ti ti-printer"></i>Sheet</span>
+            <span class="key"><i class="ti ti-file-text"></i>PDF</span>
+            <span class="key"><i class="ti ti-table"></i>CSV</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================ 05c · EQUIPMENT DOCUMENT ============================ -->
+<section class="screen">
+  <div class="screen-tag"><b>05c</b><span>Document · equipment &amp; accessories</span></div>
+  <div class="stage">
+    <div class="doclabel">
+      <span class="dl">One document</span>
+      <span class="dr">2 PAGES · SUMMARY + DETAIL</span>
+    </div>
+
+    <div class="stack">
+
+      <!-- PAGE 1 · SUMMARY -->
+      <div class="sheet">
+        <span class="crop tl"></span><span class="crop tr"></span><span class="crop bl"></span><span class="crop br"></span>
+
+        <div class="letterhead">
+          <div>
+            <div class="lh-brand">FieldOps</div>
+            <div class="lh-sub">Dispatch · Houston TX</div>
+          </div>
+          <div class="stub">
+            <div><span class="lbl">Document</span><b>EQP-2026-0715</b></div>
+            <div><span class="lbl">Generated</span><b>JUL 17 2026 · 08:12A</b></div>
+            <div><span class="lbl">Operator</span><b>KRISTO</b></div>
+          </div>
+        </div>
+
+        <div class="titleband">
+          <span class="rt">Equipment &amp; accessory usage</span>
+          <span class="rn">01</span>
+        </div>
+
+        <div class="params">
+          <div class="p"><div class="lbl">Range</div><div class="v">JUL 14 2026 — JUL 15 2026</div></div>
+          <div class="p"><div class="lbl">Technician</div><div class="v">ALL</div></div>
+        </div>
+
+        <div class="secband">
+          <span class="sn">01</span><span class="st">Summary</span>
+          <span class="sr">Totals across the selection</span>
+        </div>
+
+        <table>
+          <thead>
+            <tr><th>Item</th><th style="width:150px;">Category</th><th class="n" style="width:80px;">Total</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>Honeywell T6 Pro</td><td class="cat">Thermostat</td><td class="n">02</td></tr>
+            <tr><td>Ecobee Premium</td><td class="cat">Thermostat</td><td class="n">01</td></tr>
+            <tr><td>Float switch</td><td class="cat">Accessory</td><td class="n">03</td></tr>
+            <tr><td>Pan tablet</td><td class="cat">Accessory</td><td class="n">03</td></tr>
+            <tr><td>Duct strap</td><td class="cat">Accessory</td><td class="n">04</td></tr>
+            <tr class="tot"><td colspan="2">Total items</td><td class="n">13</td></tr>
+          </tbody>
+        </table>
+
+        <div class="sheetfoot">
+          <div class="fl">FieldOps · Dispatch<br>Equipment &amp; accessory usage · Summary</div>
+          <div class="fr">PAGE 1 / 2</div>
+        </div>
+      </div>
+
+      <!-- PAGE 2 · DETAIL -->
+      <div class="sheet">
+        <span class="crop tl"></span><span class="crop tr"></span><span class="crop bl"></span><span class="crop br"></span>
+
+        <div class="runhead">
+          <span class="rl">FieldOps · Equipment &amp; accessory usage</span>
+          <span class="rr">EQP-2026-0715 · JUL 14 — JUL 15 2026</span>
+        </div>
+
+        <div class="secband">
+          <span class="sn">02</span><span class="st">Detail</span>
+          <span class="sr">Date · address · item</span>
+        </div>
+
+        <table>
+          <thead>
+            <tr><th style="width:82px;">Date</th><th style="width:220px;">Address</th><th>Item</th><th class="n" style="width:60px;">Qty</th></tr>
+          </thead>
+          <tbody>
+            <tr><td class="d">JUL 14</td><td>2727 Russell Meadows Ln</td><td>Honeywell T6 Pro</td><td class="n">2</td></tr>
+            <tr><td class="d">JUL 14</td><td>2727 Russell Meadows Ln</td><td>Float switch</td><td class="n">2</td></tr>
+            <tr><td class="d">JUL 14</td><td>2727 Russell Meadows Ln</td><td>Pan tablet</td><td class="n">2</td></tr>
+            <tr><td class="d">JUL 14</td><td>2727 Russell Meadows Ln</td><td>Duct strap</td><td class="n">4</td></tr>
+            <tr><td class="d">JUL 15</td><td>118 Blanco Trail</td><td>Ecobee Premium</td><td class="n">1</td></tr>
+            <tr><td class="d">JUL 15</td><td>118 Blanco Trail</td><td>Float switch</td><td class="n">1</td></tr>
+            <tr><td class="d">JUL 15</td><td>118 Blanco Trail</td><td>Pan tablet</td><td class="n">1</td></tr>
+            <tr class="tot"><td colspan="3">Lines</td><td class="n">07</td></tr>
+          </tbody>
+        </table>
+
+        <div class="sheetfoot">
+          <div class="fl">FieldOps · Dispatch<br>Equipment &amp; accessory usage · Detail</div>
+          <div class="fr">PAGE 2 / 2</div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<!-- ============================ 05d · REFRIGERANT DOCUMENT ============================ -->
+<section class="screen">
+  <div class="screen-tag"><b>05d</b><span>Document · refrigerant</span></div>
+  <div class="stage">
+    <div class="doclabel">
+      <span class="dl">One document</span>
+      <span class="dr">2 PAGES · ONE PER TYPE</span>
+    </div>
+
+    <div class="stack">
+
+      <!-- PAGE 1 · R-454B -->
+      <div class="sheet">
+        <span class="crop tl"></span><span class="crop tr"></span><span class="crop bl"></span><span class="crop br"></span>
+
+        <div class="letterhead">
+          <div>
+            <div class="lh-brand">FieldOps</div>
+            <div class="lh-sub">Dispatch · Houston TX</div>
+          </div>
+          <div class="stub">
+            <div><span class="lbl">Document</span><b>REF-2026-0715</b></div>
+            <div><span class="lbl">Generated</span><b>JUL 17 2026 · 08:12A</b></div>
+            <div><span class="lbl">Operator</span><b>KRISTO</b></div>
+          </div>
+        </div>
+
+        <div class="titleband">
+          <span class="rt">Refrigerant usage</span>
+          <span class="rn">02</span>
+        </div>
+
+        <div class="params">
+          <div class="p"><div class="lbl">Range</div><div class="v">JUL 14 2026 — JUL 15 2026</div></div>
+          <div class="p"><div class="lbl">Technician</div><div class="v">ALL</div></div>
+          <div class="p"><div class="lbl">Types in document</div><div class="v">454B · 32</div></div>
+        </div>
+
+        <div class="secband">
+          <span class="sn">01</span><span class="st">R-454B</span>
+          <span class="sr">Date · address · charged</span>
+        </div>
+
+        <table class="bigrows">
+          <thead>
+            <tr><th style="width:82px;">Date</th><th>Address</th><th class="n" style="width:130px;">Charged</th></tr>
+          </thead>
+          <tbody>
+            <tr><td class="d">JUL 14</td><td>2727 Russell Meadows Ln</td><td class="n">4lb 02oz</td></tr>
+            <tr><td class="d">JUL 15</td><td>118 Blanco Trail</td><td class="n">3lb 00oz</td></tr>
+            <tr class="tot"><td colspan="2">Total R-454B</td><td class="n">7lb 02oz</td></tr>
+          </tbody>
+        </table>
+
+        <div class="sheetfoot">
+          <div class="fl">FieldOps · Dispatch<br>Refrigerant usage · R-454B</div>
+          <div class="fr">PAGE 1 / 2</div>
+        </div>
+      </div>
+
+      <!-- PAGE 2 · R-32 -->
+      <div class="sheet">
+        <span class="crop tl"></span><span class="crop tr"></span><span class="crop bl"></span><span class="crop br"></span>
+
+        <div class="runhead">
+          <span class="rl">FieldOps · Refrigerant usage</span>
+          <span class="rr">REF-2026-0715 · JUL 14 — JUL 15 2026</span>
+        </div>
+
+        <div class="secband">
+          <span class="sn">02</span><span class="st">R-32</span>
+          <span class="sr">Date · address · charged</span>
+        </div>
+
+        <table class="bigrows">
+          <thead>
+            <tr><th style="width:82px;">Date</th><th>Address</th><th class="n" style="width:130px;">Charged</th></tr>
+          </thead>
+          <tbody>
+            <tr><td class="d">JUL 15</td><td>118 Blanco Trail</td><td class="n">1lb 09oz</td></tr>
+            <tr class="tot"><td colspan="2">Total R-32</td><td class="n">1lb 09oz</td></tr>
+          </tbody>
+        </table>
+
+        <div class="sheetfoot">
+          <div class="fl">FieldOps · Dispatch<br>Refrigerant usage · R-32</div>
+          <div class="fr">PAGE 2 / 2</div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+</body>
+</html>

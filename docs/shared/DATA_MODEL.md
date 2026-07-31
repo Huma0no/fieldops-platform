@@ -202,6 +202,7 @@ System users — owner, dispatcher, and technician (field collaborators), per th
 | id | text PK | UUID |
 | name | text | Display name |
 | role | text | "owner", "dispatcher", "technician" — fixed set, enforced via CHECK constraint. Adding a new role always requires new permission logic in code; it is never just a new string value. |
+| commission_rate | real | Percentage of gross the technician keeps. Defaults to 20 when a technician is added; editable at any time, independently per technician — not a global constant. Not applicable to `role = "owner"`. |
 | is_active | boolean | Default true. A deactivated technician's row is never deleted — visit history, pay_period_lines, and edit_log all reference technician_id, so the row must persist for historical integrity. |
 | created_at | text | ISO 8601 |
 
@@ -209,7 +210,7 @@ System users — owner, dispatcher, and technician (field collaborators), per th
 - Authentication is per-device, not per-user-session — see `API_CONTRACT.md` §1 (one-time invite code, permanent device token, no PIN or daily login). Device tokens are not stored on this table; they live in a separate auth/device-tokens mechanism owned by the auth layer.
 - A technician sees only their own assigned visits.
 - Financial data of other technicians is not visible between collaborators.
-- `role = "owner"` applies Christian's 100% income rule. `role = "technician"` who is not the owner applies the 80/20 split (described as "collaborator" in SYSTEM_DESIGN.md's business context — a relationship descriptor, not a separate role value).
+- `role = "owner"` keeps 100% of their own income, no commission withheld. `role = "technician"` (non-owner, described as "collaborator" in the business context) is paid at their individual `commission_rate` — there is no single fixed split across all technicians. Full compensation model: `/docs/dispatch/LEDGER-SPEC.md`.
 - Personal app configuration (theme, AI provider, API keys) and catalog price overrides live in `technician_settings` and `technician_price_overrides` respectively — not as columns here, since both are per-technician variable-length data, not scalar attributes of identity.
 - Deactivating a technician (`is_active → false`) does not block on, move, or reassign their active visits (status `assigned` or `in_progress`) automatically. Those visits become orphaned — still pointing at the now-inactive `technician_id` — and the system creates a dispatcher notification listing them. The dispatcher resolves each one explicitly via `PATCH /api/dispatch/visits/:id/reassign` (to a specific technician) or by releasing it back to the Lobby. There is no automatic Lobby return and no automatic reassignment.
 
@@ -383,7 +384,7 @@ Refrigerant charge data per system per address. Captured during a visit but belo
 ---
 
 ### visit_photos
-Photos taken during a visit.
+Photos taken during a visit. **Google Drive upload (below) is designed but not yet built** — see `/docs/shared/PHOTOS-GPS-INTEGRATIONS.md` for current status.
 
 | Column | Type | Notes |
 |---|---|---|
@@ -394,12 +395,12 @@ Photos taken during a visit.
 | tag | text | "SCALE", "FAN", "NO_GAS_METER", "NO_ELECTRIC_METER", "NO_PDRAIN", "BREAKERS_MISSING", or free text from +Other — used to build filename |
 | label | text | Only populated when tag comes from +Other (free text description) |
 | category | text | "weigh_in_scale", "fan_speed", "site_evidence" |
-| stored_at | text | Google Drive file URL — see rules below |
+| stored_at | text | Google Drive file URL, once that integration is built — see rules below |
 
 **Rules:**
 - Photos are compressed client-side before upload (already done today in the current PWA, typically 1.3-1.5MB down to 500KB-1MB) — this behavior carries over unchanged.
-- The completion ZIP (photos + report) uploads to a Google Drive folder belonging to the company, via a Google service account configured for this purpose. Photos captured during the visit (API_CONTRACT.md §7 `POST /visits/:id/photos`) stay local on the device as the technician works — they are bundled into one ZIP per visit only at completion time (§8), never uploaded individually. The server stores the resulting Drive file URL in `stored_at` once that upload succeeds — `stored_at` is null until then.
-- Upload happens in the background as part of the completion send flow (API_CONTRACT.md §8) — same offline-queue-and-retry behavior as the rest of completion, no separate technician action required.
+- Designed target for storage (not yet built): the completion ZIP (photos + report) uploads to a Google Drive folder belonging to the company, via a Google service account configured for this purpose. Photos captured during the visit (API_CONTRACT.md §7 `POST /visits/:id/photos`) stay local on the device as the technician works — they are bundled into one ZIP per visit only at completion time (§8), never uploaded individually. The server will store the resulting Drive file URL in `stored_at` once that upload succeeds — `stored_at` is null until then.
+- Once built, upload happens in the background as part of the completion send flow (API_CONTRACT.md §8) — same offline-queue-and-retry behavior as the rest of completion, no separate technician action required.
 - Retention is not automatic: files are kept in Drive for roughly 60-90 days and cleaned up manually (or via a future Cowork-assisted routine) rather than through an automatic expiration policy on the storage provider itself.
 - `category` and `tag` are assigned automatically based on which fixed button the technician pressed (SCALE, FAN, NO_GAS_METER, NO_ELECTRIC_METER, NO_PDRAIN, BREAKERS_MISSING) — except when the technician uses +Other, where they write `tag` and `label` freely as plain text.
 - `tag` corresponds to a fixed button or free text when the technician uses +Other.
@@ -480,7 +481,7 @@ Per-item restock status per period, tracking what The Company still needs to rep
 ---
 
 ### pay_periods
-Weekly settlement header. One record per Monday–Sunday week.
+Weekly settlement header — called "Ledger" in the product/UI. One record per Monday–Sunday week. Full model: `/docs/dispatch/LEDGER-SPEC.md`.
 
 | Column | Type | Notes |
 |---|---|---|
@@ -489,22 +490,20 @@ Weekly settlement header. One record per Monday–Sunday week.
 | week_end | date | Sunday |
 | status | text | "open", "closed", "paid" |
 | gross_total | real | Sum of all completed visit totals in period |
+| ghost_deduction | real | Total Generated − Actual Received for the week. Affects only the owner's (Kristo's) own income — never redistributed across technicians, never touches any technician's `net_amount` below. |
 | tax_amount | real | Informational — pending accounting confirmation |
+| closed_at | text | ISO 8601 — set automatically the Wednesday following week_end, not a manual dispatcher action |
 | paid_at | text | ISO 8601 — null until paid |
 
-**Status values:**
-- `open` — current week, accumulating visits.
-- `closed` — week ended, totals calculated, pending payment.
-- `paid` — check received from The Company.
-
-**Payment cycle:**
-- The Company pays Christian by check the Friday following the worked period.
-- Christian pays collaborators within 48 business hours of receiving the check.
+**Status values / cycle:**
+- `open` — current week (Mon–Sun), accumulating visits.
+- `closed` — auto-closes the Wednesday following week_end. Totals are locked; this is also the deadline for `corrections` on any visit in this week (see `/docs/shared/CORRECTIONS.md`) — closing this row expires any still-open correction on a visit within it.
+- `paid` — Company check received (Friday), distribution to technicians follows (by Sunday).
 
 ---
 
 ### pay_period_lines
-Per-technician breakdown within a pay period.
+Per-technician breakdown within a Ledger week.
 
 | Column | Type | Notes |
 |---|---|---|
@@ -512,13 +511,26 @@ Per-technician breakdown within a pay period.
 | period_id | text FK | References pay_periods.id |
 | technician_id | text FK | References technicians.id |
 | gross_amount | real | Total generated by technician in period |
-| commission_retained | real | 20% if technician (non-owner), 0% if owner |
-| net_amount | real | Amount technician receives |
+| commission_rate_applied | real | Snapshot of the technician's `commission_rate` at close time — historical rows stay accurate even if the technician's rate is edited later |
+| net_amount | real | Amount technician receives — gross_amount × commission_rate_applied, ± this technician's own adjustment lines below |
+| excluded | boolean | Default false. Dispatcher can exclude a technician from a given run without losing their underlying data — flips back in when unmarked. |
 
 **Rules:**
-- `role = "owner"` → commission_retained = 0, net_amount = gross_amount.
-- `role = "technician"` (non-owner) → commission_retained = gross_amount × 0.20, net_amount = gross_amount × 0.80.
-- Tax is calculated at the pay_periods level on Christian's total income.
+- `role = "owner"` has no `pay_period_lines` row — the owner isn't paid out of their own Ledger, they keep whatever remains after all technician payouts and `ghost_deduction`.
+- `net_amount` = `gross_amount × commission_rate_applied` plus the sum of that technician's own adjustment lines (see `pay_period_adjustments`) — never affected by `ghost_deduction`.
+- Tax is informational at the `pay_periods` level, not deducted per line.
+
+---
+
+### pay_period_adjustments
+A technician's own Add/Deduct lines within a Ledger week — free-form, technician-specific (e.g. a tool advance deducted, a bonus added).
+
+| Column | Type | Notes |
+|---|---|---|
+| id | text PK | UUID |
+| line_id | text FK | References pay_period_lines.id |
+| description | text | Free text |
+| amount | real | Positive (Add) or negative (Deduct) |
 
 ---
 
@@ -595,26 +607,23 @@ System-generated alerts per user.
 ---
 
 ### corrections
-Technician-submitted requests to change a visit after it was already submitted. Distinct from `edit_log`: this table is the form and its review status (pending/approved/rejected); `edit_log` is the permanent record that a change actually occurred, regardless of whether it came from here or from a direct dispatcher edit.
+A one-way message from a technician to the Dispatcher flagging a possible error on a visit already submitted — not a formal approve/reject ticket. Full design: `/docs/shared/CORRECTIONS.md`. Distinct from `edit_log`: this table is just the flagged message; `edit_log` is the permanent record that a change actually occurred, regardless of whether it came from here or from a direct dispatcher edit.
 
 | Column | Type | Notes |
 |---|---|---|
 | id | text PK | UUID |
 | visit_id | text FK | References visits.id |
-| requested_by | text FK | References technicians.id — the technician requesting the change on their own submitted visit |
-| corrected_fields | text | JSON object of proposed field changes |
-| reason | text | Technician's explanation — may be empty |
-| status | text | "pending", "approved", "rejected" |
+| requested_by | text FK | References technicians.id — the technician flagging the issue on their own submitted visit |
+| message | text | Technician's free-text description of the issue |
+| status | text | "open" (unread/unapplied), "applied" (dispatcher made the change), "expired" (that visit's Ledger week auto-closed with no action taken) |
 | requested_at | text | ISO 8601 |
-| resolved_at | text | ISO 8601 — null until approved or rejected |
-| dispatcher_note | text | Dispatcher's explanation when rejecting — null otherwise. Optional but encouraged, so the technician understands why their request didn't go through. |
+| applied_at | text | ISO 8601 — null until the dispatcher applies it |
 
 **Rules:**
-- Only the technician who was originally assigned to the visit can submit a correction for it.
+- Only the technician who was originally assigned to the visit can flag a correction for it.
 - A visit must already be submitted (status completed/temporarily/cancelled) for a correction to apply — pre-submission edits happen freely in the technician's own Reports view and never touch this table.
-- On approval, the dispatcher applies `corrected_fields` to the visit and an `edit_log` row is created using this row's `reason` as the log entry's basis — the technician's stated reason becomes the record of why the change happened, the dispatcher doesn't have to re-type it.
-- On rejection, no changes are applied to the visit and no `edit_log` entry is created.
-- Pay-period cutoff logic (before/after cutoff determines which period the correction lands in) is evaluated at approval time — see API_CONTRACT.md §9.
+- Applying a correction is a manual dispatcher action, at their discretion — a courtesy extended to technicians, not a system obligation. The dispatcher edits the visit directly in Dispatch (there is no `corrected_fields` diff to approve); an `edit_log` row is created for the change as with any dispatcher edit.
+- A row's window closes automatically when the visit's Ledger week auto-closes (the following Wednesday) — status flips to "expired" and no further action is expected. No reopening of an already-closed Ledger week.
 
 ---
 

@@ -468,47 +468,37 @@ Once a report is actually sent and processed by Dispatch, this window has closed
 
 ---
 
-## 9. Visit Correction (Post-Completion)
+## 9. Corrections (Post-Completion)
 
-Technicians can edit their own completions freely before submitting, from the Reports section. After submission, changes require a formal correction request.
+Full design: `/docs/shared/CORRECTIONS.md`. Technicians edit their own completions freely before submitting, from the Reports section — that path never touches this endpoint. After submission, a technician can flag a possible error; this is a one-way message to the dispatcher, not a formal approve/reject ticket.
 
 ```
 POST /api/visits/:id/request-correction
   auth: technician (must be original assignee)
   requires: visit status = completed/temporarily/cancelled (already submitted)
-  body: { correctedFields, reason }
-  effect: creates a corrections row, status "pending" — does not apply changes yet
-  returns: { correctionId, status: "pending" }
+            visit's Ledger week (pay_periods) status = "open" — otherwise 409,
+            the window has already expired
+  body: { message }
+  effect: creates a corrections row, status "open"
+  returns: { correctionId, status: "open" }
 
-PATCH /api/dispatch/corrections/:id/approve
+PATCH /api/dispatch/corrections/:id/apply
   auth: dispatcher
-  effect: corrections.status → "approved", resolved_at set
-          applies corrected_fields to the visit
-          creates edit_log entry (source: "correction_approved", summary
-            built from corrections.reason)
-          checks pay period cutoff date:
-            before cutoff → reflected in current period
-            after cutoff → reflected in next period
-  returns: updated visit + which pay period it affects
-
-PATCH /api/dispatch/corrections/:id/reject
-  auth: dispatcher
-  body: { dispatcherNote? }
-  effect: corrections.status → "rejected", resolved_at set,
-          dispatcher_note stored if provided
-          no changes applied to the visit, no edit_log entry created
-          creates notification for the requesting technician, including
-          dispatcher_note if present
+  effect: corrections.status → "applied", applied_at set
+          dispatcher separately edits the visit via the standard
+            PATCH /api/dispatch/visits/:id (§10) — no corrected-fields
+            diff to approve, the dispatcher makes the edit directly
+          that PATCH creates its own edit_log entry, as any dispatcher
+            edit does
   returns: updated correction
 
 GET /api/dispatch/corrections
   auth: dispatcher
   query: ?status?
-  returns: [] of corrections, pending first by default — the dispatcher's
-           review queue
+  returns: [] of corrections, open first by default
 ```
 
-**Note:** the grace period for corrections (how long after submission a correction can be requested) depends on terms from The Company — pending external definition, see `SYSTEM_DESIGN.md` §10.
+**Window:** a correction can only be requested while its visit's Ledger week is still "open" (see §11). When that week auto-closes, any of its still-"open" corrections flip to "expired" — no endpoint needed, this happens as part of the week-close job. There is no reopening of an already-closed week; past that point it's the technician's own responsibility to have flagged the issue in time.
 
 **Derived artifacts (JSON to Dispatch, CSV, report to The Company) are never edited directly.** They are always regenerated on demand from current `visits` data, so a correction automatically propagates to all three the next time they're generated — no manual file sync required.
 
@@ -588,7 +578,9 @@ PATCH /api/dispatch/addresses/:id/weigh-in/:systemNumber
 
 ---
 
-## 11. Pay Periods
+## 11. Ledger (Pay Periods)
+
+Called "Ledger" in the product/UI; `pay_periods`/`pay_period_lines` remain the table names. Full model: `/docs/dispatch/LEDGER-SPEC.md`.
 
 ```
 GET /api/dispatch/pay-periods
@@ -597,28 +589,29 @@ GET /api/dispatch/pay-periods
 
 GET /api/dispatch/pay-periods/:id
   auth: dispatcher
-  returns: full period with pay_period_lines per technician
-
-POST /api/dispatch/pay-periods/close
-  auth: dispatcher
-  body: { periodId }
-  requires: period status = "open", week_end has passed
-  effect: calculates gross_amount per technician from completed visits in range,
-          applies commission split (owner: 0%, technician non-owner: 20%),
-          creates pay_period_lines, sets period status → "closed"
-  returns: full closed period with all lines
+  returns: full period with pay_period_lines per technician, each including
+           its pay_period_adjustments
 
 PATCH /api/dispatch/pay-periods/:id/mark-paid
   auth: dispatcher
+  requires: period status = "closed"
   effect: status → "paid", paid_at timestamp set
+
+POST /api/dispatch/pay-periods/:periodLineId/adjustments
+  auth: dispatcher
+  body: { description, amount }
+  effect: creates a pay_period_adjustments row (Add/Deduct) against that
+          technician's line, recalculates net_amount
+  returns: updated line
 
 GET /api/pay/mine
   auth: technician
   query: ?periodId?
-  returns: own pay_period_lines only — never other technicians' data
+  returns: own pay_period_lines only (including own adjustments) — never
+           other technicians' data, never ghost_deduction (owner-only)
 ```
 
-**Note:** period closing is a manual dispatcher action, not automatic on date rollover — daily audit of technician reports happens before closing, allowing discrepancies to be caught and corrected first.
+**Cycle — automatic, not a dispatcher action:** each week (Mon–Sun) auto-closes the following Wednesday via a scheduled job, not a manual "close" endpoint. On close: `gross_amount` is calculated per technician from completed visits in range, `commission_rate_applied` is snapshotted from each technician's current `commission_rate`, `net_amount` is derived, `ghost_deduction` is set (Total Generated − Actual Received, owner-only), and any still-"open" `corrections` on visits within the week flip to "expired". The Company check follows Friday; technician distribution follows by Sunday.
 
 **Price anomaly detection:** manually reviewing every service report line by line is tedious. The catalog can define an expected min/max range per item, particularly relevant for free-form "Other" entries. Visits with any price outside the expected range for its item are flagged visually during the daily audit — this does not block anything, it only draws the dispatcher's attention before approval.
 

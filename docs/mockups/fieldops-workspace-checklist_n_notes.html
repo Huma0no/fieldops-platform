@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, viewport-fit=cover">
+<title>FieldOps · Notes + Checklist</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700;800&family=Azeret+Mono:wght@500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --panel:#eceae5;--hi:#ffffff;--sh:#c8c4bc;--well:#e3e0da;--tile:#f5f3ef;
+    --ink:#221e19;--ink-soft:#7d776e;--accent:#b5641e;--accent-deep:#8a4a13;--ok:#3d6b3f;--no:#9e2b1e;--danger:#9e2b1e;
+    --sat:env(safe-area-inset-top,0px);--sab:env(safe-area-inset-bottom,0px);
+  }
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+  html,body{height:100%}
+  body{font-family:'Archivo',system-ui,sans-serif;color:var(--ink);width:100dvw;height:100dvh;overflow:hidden;display:flex;flex-direction:column;background:var(--panel)}
+
+  .topnav{flex:0 0 auto;padding-top:var(--sat);background:var(--panel);position:relative;z-index:6;box-shadow:inset 0 1px 0 var(--hi),0 4px 9px var(--sh)}
+  .tabs{display:flex;height:40px;padding:0 6px}
+  .tab{flex:1;border:0;background:transparent;cursor:pointer;margin:5px 3px;border-radius:11px;font-family:'Archivo';font-weight:700;font-size:13px;color:var(--ink-soft);display:flex;align-items:center;justify-content:center}
+  .tab.on{color:var(--accent-deep);box-shadow:inset 2px 2px 4px var(--sh),inset -2px -2px 4px var(--hi)}
+
+  .active{flex:0 0 auto;margin:14px 15px 0;background:var(--well);border-radius:14px;padding:11px 14px;display:flex;align-items:center;gap:11px;box-shadow:inset 4px 4px 9px var(--sh),inset -4px -4px 9px var(--hi)}
+  .active .dot{width:9px;height:9px;border-radius:50%;background:var(--accent);flex:0 0 auto;box-shadow:0 0 0 3px rgba(181,100,30,.15)}
+  .active .aj{flex:1;min-width:0}
+  .active .lbl{font-family:'Azeret Mono';font-size:7.5px;letter-spacing:.2em;color:var(--ink-soft)}
+  .active .addr{font-weight:800;font-size:15px;letter-spacing:-.01em;line-height:1.2;margin-top:1px}
+  .active .meta{font-family:'Azeret Mono';font-size:9px;color:var(--ink-soft);letter-spacing:.03em;margin-top:2px}
+  .active .total{font-family:'Azeret Mono';font-weight:700;font-size:13px;color:var(--accent-deep);padding:5px 10px;border-radius:20px;background:var(--panel);box-shadow:-2px -2px 4px var(--hi),3px 3px 6px var(--sh)}
+  .active .cancel{border:0;background:var(--panel);cursor:pointer;color:var(--danger);width:30px;height:30px;border-radius:9px;display:flex;align-items:center;justify-content:center;box-shadow:-2px -2px 4px var(--hi),3px 3px 6px var(--sh)}
+
+  .rail{flex:0 0 auto;display:flex;gap:6px;overflow-x:auto;padding:12px 15px 2px;scrollbar-width:none}
+  .rail::-webkit-scrollbar{height:0}
+  .step{flex:1 0 auto;min-width:60px;border:0;background:var(--panel);cursor:pointer;border-radius:12px;padding:9px 8px 8px;display:flex;flex-direction:column;align-items:center;gap:4px;box-shadow:-3px -3px 6px var(--hi),3px 4px 7px var(--sh)}
+  .step .sl{font-family:'Azeret Mono';font-weight:700;font-size:9px;letter-spacing:.04em;color:var(--ink-soft)}
+  .step .sd{width:5px;height:5px;border-radius:50%;background:var(--sh)}
+  .step.done .sd{background:var(--ok)}.step.done .sl{color:var(--ink)}
+  .step.cur{box-shadow:inset 2px 2px 5px var(--sh),inset -2px -2px 5px var(--hi)}
+  .step.cur .sl{color:var(--accent-deep)}.step.cur .sd{background:var(--accent)}
+
+  .scroll{flex:1;overflow-y:auto;padding:14px 15px 8px}
+  .scroll::-webkit-scrollbar{width:0}
+  .section{background:var(--panel);border-radius:20px;padding:16px;box-shadow:-6px -6px 12px var(--hi),6px 7px 14px var(--sh)}
+  .sec-head{display:flex;align-items:center;gap:10px;margin-bottom:14px}
+  .sec-head .bar{width:4px;height:18px;border-radius:3px;background:var(--accent)}
+  .sec-head .st{font-weight:800;font-size:17px;letter-spacing:-.01em}
+  .sec-head .sub{font-family:'Azeret Mono';font-size:8.5px;letter-spacing:.06em;color:var(--ink-soft);margin-left:auto}
+  .subhead{display:flex;align-items:center;gap:8px;margin:6px 2px 12px;font-family:'Azeret Mono';font-size:9px;letter-spacing:.18em;color:var(--ink-soft);font-weight:600}
+  .subhead::after{content:'';flex:1;height:1px;background:var(--sh)}
+
+  /* checklist */
+  .clist{background:var(--well);border-radius:14px;padding:5px;box-shadow:inset 4px 4px 9px var(--sh),inset -4px -4px 9px var(--hi)}
+  .item{padding:8px 8px 8px 12px;border-radius:11px}
+  .item + .item{border-top:1px solid rgba(0,0,0,.05)}
+  .item-row{display:flex;align-items:center;gap:10px}
+  .item-lab{flex:1;font-size:13.5px;font-weight:600;line-height:1.25;color:var(--ink)}
+  .tg{display:flex;gap:5px;flex:0 0 auto}
+  .t{border:0;border-radius:10px;background:var(--panel);cursor:pointer;font-family:'Azeret Mono';font-weight:700;font-size:11px;color:var(--ink-soft);width:44px;height:40px;box-shadow:-2px -2px 5px var(--hi),3px 3px 6px var(--sh)}
+  .t:active{transform:translateY(1px)}
+  .t.on{box-shadow:inset 2px 2px 5px var(--sh),inset -2px -2px 5px var(--hi)}
+  .t[data-v="si"].on{color:var(--ok)}
+  .t[data-v="no"].on{color:var(--no)}
+  .up{margin:9px 2px 2px;padding:10px;border-radius:11px;background:var(--panel);display:flex;align-items:center;gap:9px;box-shadow:-3px -3px 6px var(--hi),3px 4px 7px var(--sh)}
+  .up .cam{width:34px;height:34px;border-radius:9px;flex:0 0 auto;display:flex;align-items:center;justify-content:center;background:var(--well);box-shadow:inset 2px 2px 4px var(--sh),inset -2px -2px 4px var(--hi)}
+  .up .cam svg{stroke:var(--no)}
+  .up .ut{flex:1;font-size:11px;color:var(--ink-soft);font-weight:600}
+  .up .ut b{color:var(--no);display:block;font-family:'Azeret Mono';font-size:8px;letter-spacing:.1em;margin-bottom:2px}
+  .up .ub{border:0;border-radius:9px;background:var(--panel);cursor:pointer;font-family:'Azeret Mono';font-weight:700;font-size:10px;color:var(--ink);padding:10px 12px;box-shadow:-2px -2px 5px var(--hi),3px 3px 6px var(--sh)}
+
+  .compliance{display:flex;gap:9px;margin-top:12px}
+  .cphoto{flex:1;border:0;background:var(--panel);cursor:pointer;border-radius:12px;padding:13px 8px;display:flex;flex-direction:column;align-items:center;gap:6px;box-shadow:-3px -3px 6px var(--hi),4px 4px 9px var(--sh)}
+  .cphoto:active{transform:translateY(1px)}
+  .cphoto .n{font-family:'Azeret Mono';font-weight:700;font-size:12px;letter-spacing:.14em;color:var(--ink)}
+  .cphoto .s{font-family:'Azeret Mono';font-size:8px;letter-spacing:.08em;color:var(--ink-soft)}
+  .cphoto svg{stroke:var(--ink-soft)}
+  .cphoto.done{box-shadow:inset 3px 3px 6px var(--sh),inset -3px -3px 6px var(--hi)}
+  .cphoto.done .n,.cphoto.done .s{color:var(--ok)}.cphoto.done svg{stroke:var(--ok)}
+
+  /* notes textarea */
+  .notesarea{width:100%;border:0;background:var(--well);border-radius:14px;padding:13px;min-height:110px;resize:vertical;
+    font-family:'Archivo';font-weight:500;font-size:14px;color:var(--ink);line-height:1.5;box-shadow:inset 4px 4px 9px var(--sh),inset -4px -4px 9px var(--hi)}
+  .notesarea::placeholder{color:var(--ink-soft);opacity:.7}
+  .hint{font-family:'Azeret Mono';font-size:8.5px;letter-spacing:.03em;color:var(--ink-soft);margin-top:8px;opacity:.8}
+
+  .flow{display:flex;align-items:center;gap:10px;margin-top:18px}
+  .back{border:0;background:var(--panel);cursor:pointer;border-radius:13px;height:50px;padding:0 18px;display:flex;align-items:center;gap:7px;font-family:'Archivo';font-weight:700;font-size:13px;color:var(--ink-soft);box-shadow:-3px -3px 7px var(--hi),4px 4px 9px var(--sh)}
+  .back svg{stroke:var(--ink-soft)}
+  .gen{flex:1;border:0;background:var(--panel);cursor:pointer;border-radius:13px;height:50px;display:flex;align-items:center;justify-content:center;gap:9px;font-family:'Archivo';font-weight:800;font-size:15px;letter-spacing:.02em;color:var(--accent-deep);box-shadow:-4px -4px 9px var(--hi),5px 6px 12px var(--sh)}
+  .gen:active{transform:translateY(1px)}.gen svg{stroke:var(--accent-deep)}
+
+  /* advisory */
+  .backdrop{position:absolute;inset:0;z-index:8;background:rgba(30,26,22,.28);opacity:0;pointer-events:none;transition:opacity .2s ease;display:flex;align-items:center;justify-content:center;padding:26px}
+  .backdrop.show{opacity:1;pointer-events:auto}
+  .dialog{background:var(--panel);border-radius:20px;padding:20px;max-width:300px;text-align:center;box-shadow:-8px -8px 18px var(--hi),9px 11px 24px rgba(0,0,0,.18);transform:scale(.94);transition:transform .2s ease}
+  .backdrop.show .dialog{transform:none}
+  .dialog .di{width:44px;height:44px;margin:0 auto 12px;border-radius:12px;background:var(--well);display:flex;align-items:center;justify-content:center;box-shadow:inset 3px 3px 6px var(--sh),inset -3px -3px 6px var(--hi)}
+  .dialog .di svg{stroke:var(--accent)}
+  .dialog h3{font-size:15px;font-weight:800;margin-bottom:7px}
+  .dialog p{font-size:12.5px;color:var(--ink-soft);line-height:1.5;margin-bottom:16px}
+  .dialog .btns{display:flex;gap:9px}
+  .dialog button{flex:1;border:0;border-radius:12px;cursor:pointer;height:46px;font-family:'Archivo';font-weight:700;font-size:13px;background:var(--panel);box-shadow:-3px -3px 6px var(--hi),4px 4px 9px var(--sh)}
+  .dialog .ok{color:var(--accent-deep)}
+  .dialog .close{color:var(--ink-soft)}
+
+  .strip{flex:0 0 auto;display:flex;padding-bottom:var(--sab);background:var(--panel);position:relative;z-index:6;box-shadow:inset 0 1px 0 var(--hi),0 -4px 9px var(--sh)}
+  .util{flex:1;border:0;background:transparent;cursor:pointer;position:relative;height:56px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;color:var(--ink-soft)}
+  .util svg{stroke:currentColor}.util .ul{font-family:'Azeret Mono';font-weight:700;font-size:8px;letter-spacing:.06em}
+  .util .bdg{position:absolute;top:9px;right:calc(50% - 20px);min-width:15px;height:15px;padding:0 4px;border-radius:9px;background:var(--accent);color:#fff;font-family:'Azeret Mono';font-weight:700;font-size:8px;display:flex;align-items:center;justify-content:center}
+  .util + .util::before{content:'';position:absolute;left:0;top:16px;bottom:16px;width:1px;background:var(--sh)}
+  @media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+  <div class="topnav"><div class="tabs"><button class="tab">Lobby</button><button class="tab on">Workspace</button><button class="tab">Reports</button></div></div>
+  <div class="active"><span class="dot"></span><div class="aj"><div class="lbl">ACTIVE JOB</div><div class="addr">2416 Sable Ridge Ln</div><div class="meta">CADENCE AT BROOKWOOD · LENNAR</div></div><span class="total">$170</span><button class="cancel"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18M6 6l12 12"/></svg></button></div>
+
+  <div class="rail" id="rail"></div>
+  <div class="scroll"><div class="section" id="section"></div></div>
+
+  <div class="strip">
+    <button class="util"><svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg><span class="ul">SETTINGS</span></button>
+    <button class="util"><span class="bdg">2</span><svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M7 4L3 8l4 4"/><path d="M3 8h13a4 4 0 0 1 4 4"/><path d="M17 20l4-4-4-4"/><path d="M21 16H8a4 4 0 0 1-4-4"/></svg><span class="ul">TRANSFERS</span></button>
+    <button class="util"><span class="bdg">5</span><svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H8l-4 4V5a2 2 0 0 1 2-2h13a2 2 0 0 1 2 2z"/></svg><span class="ul">CHAT</span></button>
+    <button class="util"><svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="2" width="14" height="20" rx="2"/><line x1="9" y1="6" x2="15" y2="6"/></svg><span class="ul">CALC</span></button>
+  </div>
+
+  <div class="backdrop" id="backdrop"><div class="dialog">
+    <div class="di"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4M12 17h.01M10.3 3.9L2 18a2 2 0 0 0 1.7 3h16.6a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/></svg></div>
+    <h3>Revisar el P-drain</h3>
+    <p>Revisar el P-drain es recomendable antes de completar.</p>
+    <div class="btns"><button class="close" id="dClose">Cerrar</button><button class="ok" id="dOk">Entendido</button></div>
+  </div></div>
+
+<script>
+  var STEPS=[{k:'srv',l:'SERVICE'},{k:'acc',l:'ACC'},{k:'fix',l:'FIX'},{k:'wght',l:'WGHT'},{k:'notes',l:'NOTES'}];
+  var cur=4;
+  var rail=document.getElementById('rail'),section=document.getElementById('section');
+  var ITEMS=[
+    'P-drain [eCoil]','P-drain [Discharge]','Media Filter','Electric Meter','Breaker — Condenser','Breaker — Air Handler',
+    'Disconnect box','Whip 220v','Furnace disconnect switch','110v cable','Gas Meter','Gas Pipes/Tubing at Furnace','Gas Valve'
+  ];
+  var ans={}, comp={scale:false,fan:false};
+
+  function renderRail(){
+    rail.innerHTML=STEPS.map(function(s,i){return '<button class="step'+(i===cur?' cur':'')+(i<cur?' done':'')+'" data-i="'+i+'"><span class="sd"></span><span class="sl">'+s.l+'</span></button>';}).join('');
+    rail.querySelectorAll('.step').forEach(function(b){b.addEventListener('click',function(){cur=+b.getAttribute('data-i');renderRail();renderSection();});});
+  }
+
+  function notesContent(){
+    var cam='<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8h3l2-2h8l2 2h3v11H3z"/><circle cx="12" cy="13" r="3.5"/></svg>';
+    var items=ITEMS.map(function(lab,i){
+      var v=ans[i];
+      var row='<div class="item"><div class="item-row"><div class="item-lab">'+lab+'</div>'+
+        '<div class="tg"><button class="t'+(v==='si'?' on':'')+'" data-i="'+i+'" data-v="si">SÍ</button>'+
+        '<button class="t'+(v==='no'?' on':'')+'" data-i="'+i+'" data-v="no">NO</button></div></div>';
+      if(v==='no'){row+='<div class="up"><div class="cam">'+cam+'</div><div class="ut"><b>EVIDENCIA (OPCIONAL)</b>Documenta la condición</div><button class="ub">FOTO</button></div>';}
+      row+='</div>';
+      return row;
+    }).join('');
+    var chk='<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5 9-11"/></svg>';
+    var compliance='<div class="compliance">'+
+      '<button class="cphoto'+(comp.scale?' done':'')+'" data-c="scale">'+(comp.scale?chk:cam)+'<span class="n">SCALE</span><span class="s">'+(comp.scale?'✓ ADJUNTA':'FOTO')+'</span></button>'+
+      '<button class="cphoto'+(comp.fan?' done':'')+'" data-c="fan">'+(comp.fan?chk:cam)+'<span class="n">FAN</span><span class="s">'+(comp.fan?'✓ ADJUNTA':'FOTO')+'</span></button>'+
+      '</div>';
+    return '<div class="sec-head"><span class="bar"></span><span class="st">Notes</span><span class="sub">STEP 5/5</span></div>'+
+      '<div class="subhead">STARTUP CHECKLIST</div><div class="clist">'+items+'</div>'+compliance+
+      '<div class="subhead" style="margin-top:20px">NOTES</div>'+
+      '<textarea class="notesarea" placeholder="Notas de la llamada. Correcciones al equipo, p. ej. &quot;COND correct model XYZ&quot;, &quot;tstat correct 8321&quot;…"></textarea>'+
+      '<div class="hint">LAS CORRECCIONES AQUÍ LAS APLICA EL DISPATCHER EN DISPATCH</div>';
+  }
+
+  function renderSection(){
+    if(STEPS[cur].k!=='notes'){
+      section.innerHTML='<div class="sec-head"><span class="bar"></span><span class="st">'+STEPS[cur].l+'</span></div><div style="padding:38px;text-align:center;font-family:Azeret Mono;font-size:11px;color:var(--ink-soft);background:var(--well);border-radius:14px;box-shadow:inset 4px 4px 9px var(--sh),inset -4px -4px 9px var(--hi)">Empty — its own phase</div>';
+    }else{
+      section.innerHTML=notesContent();
+      section.querySelectorAll('.t').forEach(function(b){b.addEventListener('click',function(){var i=+b.getAttribute('data-i'),v=b.getAttribute('data-v');ans[i]=(ans[i]===v)?null:v;renderSection();});});
+      section.querySelectorAll('.cphoto').forEach(function(b){b.addEventListener('click',function(){var k=b.getAttribute('data-c');comp[k]=!comp[k];renderSection();});});
+    }
+    var flowBtn = STEPS[cur].k==='notes'
+      ? '<button class="gen" id="gen"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M9 15l2 2 4-4"/></svg>Generate Report</button>'
+      : '<button class="gen" id="gen">Next<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></button>';
+    section.insertAdjacentHTML('beforeend','<div class="flow"><button class="back"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M11 6l-6 6 6 6"/></svg>Back</button>'+flowBtn+'</div>');
+
+    section.querySelector('.back').addEventListener('click',function(){if(cur>0){cur--;renderRail();renderSection();}});
+    section.querySelector('#gen').addEventListener('click',function(){
+      if(STEPS[cur].k!=='notes'){cur++;renderRail();renderSection();return;}
+      // Generate Report → advisory P-drain si eCoil/Discharge = No o sin responder
+      var pd = (ans[0]!=='si') || (ans[1]!=='si');
+      if(pd){document.getElementById('backdrop').classList.add('show');}
+      else{alert('Completion Report generado (demo)');}
+    });
+  }
+
+  var bd=document.getElementById('backdrop');
+  document.getElementById('dClose').addEventListener('click',function(){bd.classList.remove('show');});
+  document.getElementById('dOk').addEventListener('click',function(){bd.classList.remove('show');alert('Completion Report generado (demo)');});
+
+  renderRail();renderSection();
+</script>
+</body>
+</html>

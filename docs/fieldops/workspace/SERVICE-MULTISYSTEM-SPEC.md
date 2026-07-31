@@ -1,6 +1,8 @@
 # Service Multi-System — Spec funcional
 
-Estado: planeado, no implementado.
+**⚠ PENDING TRANSLATION TO ENGLISH — flagged 2026-07-30, content below still in Spanish.**
+
+Estado: confirmado como el enfoque vigente (2026-07-30) — planeado, no implementado.
 Alcance: PWA técnico (`frontend/pwa/src/screens/workspace.js`, sección Service) + cambios de backend requeridos (rutas, schema, pricing — el archivo/módulo exacto queda a interpretación de quien implemente).
 
 ## 1. Problema que resuelve
