@@ -14,7 +14,7 @@ Minimal: address, subdivision, builder, and a Navigate button only. No delete/ed
 
 ## Expanded card
 
-Reveals, in order: work type label (single free-text field, no phase/scope split) → equipment/accessory chips (pre-specified thermostat + accessories + system count, already inserted as real visit items at visit creation) → intake notes line → per-system briefing → **Start Report**.
+Reveals, in order: work type label (single free-text field, no phase/scope split) → equipment/accessory chips (pre-specified thermostat + accessories + system count, already inserted as real visit items at visit creation) → intake notes line → per-system briefing → **Start Report**, alongside a **Cancel (✕)** entry point — full mechanism: `/docs/fieldops/CANCEL-SPEC.md`.
 
 **Per-system briefing** shows: indoor model + outdoor model, indoor/outdoor type, tonnage, refrigerant, factory/revised charge (oz + lb), over-charge threshold, subcooling, ESP, CFM max/min. Each system block carries its own LV and Blower Data buttons, scoped to that system's equipment.
 

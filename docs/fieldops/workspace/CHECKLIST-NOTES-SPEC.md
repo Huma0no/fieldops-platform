@@ -10,7 +10,7 @@ Fifth and final step of Workspace: the startup checklist on top, free-text notes
 
 ## Startup Checklist
 
-Single unified list, all items always visible — no categories, no conditional logic, no hard blockers. All items optional.
+Single unified list, all items always visible and expanded — no categories, no conditional logic, no hard blockers, no collapse/expand state. All items optional. No inheritance from a previous visit at this address/system — each visit's checklist starts blank, same as every other Workspace section; the checklist's own report text is what carries the record forward through History, not a pre-filled value.
 
 **Item order and report text when answered No** (Gas Valve is the one item excluded from report text):
 
@@ -41,6 +41,6 @@ Free-text field at the bottom, below the checklist. For observations at report-g
 
 ## Generate Report
 
-Final button on this step (not accessible from any earlier step). Tapping it fires a non-blocking advisory if P-drain [eCoil] or P-drain [Discharge] is No or unanswered: *"Reviewing the P-drain is recommended before completing."* Options: proceed anyway, or return to the checklist.
+Final button on this step (not accessible from any earlier step). No blocking or non-blocking advisory dialog on tap — the P-drain reminder lives as static text directly under the P-drain items' labels in the checklist itself (e.g. "Reviewing the P-drain is recommended before completing"), not as a separate popup evaluated at submission time.
 
 **Report text order:** Date · Address · Subdivision · Builder · Notes + checklist "No" items (pipe-separated) · Service · Service $ · Accessories · Acc $ · Fix · Fix $.
