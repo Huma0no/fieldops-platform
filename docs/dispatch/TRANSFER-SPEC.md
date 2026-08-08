@@ -14,4 +14,4 @@ A transfer is a handshake between two technicians — sender proposes, receiver 
 
 ## Dispatcher visibility
 
-The Dispatcher is informed via a log entry only — purely informational, no action required and no approval step. Log source: the `transfers` table (`visit_id`, `from_technician_id`, `to_technician_id`, `reason`, `accepted_at`) in `/docs/shared/DATA_MODEL.md`.
+The Dispatcher is informed via a log entry only — purely informational, no action required and no approval step. Log source: the `transfers` table (`visit_id`, `from_tech_id`, `to_tech_id`, `reason`, `accepted_at`) in `/docs/shared/DATA_MODEL.md`.

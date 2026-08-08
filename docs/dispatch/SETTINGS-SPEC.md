@@ -1,15 +1,20 @@
-# Settings (Dispatch)
+# Settings (FieldOps)
 
 **Version:** 1.0
 **Date:** 2026-07-30
-**Status:** Closed design
+**Status:** Built further than earlier drafts of this doc admitted — 4 real sections exist
 
 ## Purpose
 
-Dispatcher-facing configuration. Separate from FieldOps Settings (`/docs/fieldops/SETTINGS-SPEC.md`) — the two apps do not share a settings screen.
+Lives inside **Menu** on the bottom bar, alongside Transfers — not its own bar item. See `/docs/fieldops/NAVIGATION.md`. Separate from Dispatch Settings (`/docs/dispatch/SETTINGS-SPEC.md`) — the two apps do not share a settings screen.
 
 ## Contents
 
-- **AI API configuration** — provider/key setup for the PDF reader used in Call Intake (`/docs/dispatch/LOBBY-CALL-INTAKE-SPEC.md`).
-- **Nuke all Data** — destructive reset, gated behind a strong confirmation step.
 - **Theme.**
+- **AI Assistant** — API key management.
+- **My Inventory.**
+- **Pay** — link to the technician's own Ledger view (`GET /api/pay/mine`, see `/docs/shared/API_CONTRACT.md` §11).
+
+## Open Items
+
+- Full behavior detail per section not yet documented — the section list above is confirmed, the interaction-level spec isn't written yet.

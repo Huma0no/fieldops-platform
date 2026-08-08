@@ -22,7 +22,7 @@ Full section list (order matters, left to right in nav): **Home, PDF Intake, Lob
 - Displays a count of visits with no assigned technician (status `pending_review` or equivalent, unassigned).
 - Clicking navigates to the Lobby tab.
 - Count only — no inline list of visits on Home.
-- **Dependency (open):** F2 Lobby was never built (`LobbyPlaceholder` in current code). No endpoint currently exposes a count of unassigned visits. CC must diagnose whether this data is queryable from existing tables/status values, and likely needs to add a lightweight count endpoint (e.g. `GET /api/dispatch/visits/unassigned/count`). This is separate from building Lobby itself.
+- **Dependency:** resolved — `GET /api/dispatch/visits/unassigned/count` already exists, built independently of this Home Screen work. F2 Lobby itself is still separate (`LobbyPlaceholder` in current code) — this only unblocks the count on Home, not the Lobby tab's own build.
 
 ### 2.2 Pending corrections (count only)
 - Displays a count of corrections awaiting dispatcher approval.
@@ -43,10 +43,10 @@ Full section list (order matters, left to right in nav): **Home, PDF Intake, Lob
 ### 2.5 Quick actions
 - **Import PDF** — direct shortcut into the existing PDF Intake flow (✅ already functional, F5). No new backend work.
 - **+ New call** — shortcut into manual visit creation.
-  - **This form does not exist yet and should NOT be built as part of this Home Screen work.** `DISPATCH_FEATURE_MAP.md` documents two unresolved backend design gaps blocking it:
-    1. The contract has no single-visit release to Lobby — `release-to-lobby` only accepts a `batchId`, and a manually created visit doesn't belong to any batch.
-    2. `PATCH /reassign` does not transition status out of `pending_review` — assigning a manually created visit to a technician would not make it appear in that technician's My Calls.
-  - These two architecture questions need their own dedicated session/spec before the New Call form gets built. Do not resolve them as a side effect of this Home Screen work.
+  - **This form does not exist yet and should NOT be built as part of this Home Screen work.** `DISPATCH_FEATURE_MAP.md` originally documented two unresolved backend design gaps blocking it:
+    1. The contract has no single-visit release to Lobby — `release-to-lobby` only accepts a `batchId`, and a manually created visit doesn't belong to any batch. **Still open.**
+    2. ~~`PATCH /reassign` does not transition status out of `pending_review`~~ — **resolved**, built independently of this Home Screen work.
+  - Item 1 above still needs its own dedicated session/spec before the New Call form gets built. Do not resolve it as a side effect of this Home Screen work.
   - **Interim behavior:** the button is visible but disabled, with a tooltip reading "próximamente" (or equivalent "coming soon" copy). It should not link anywhere or throw an error on click.
 
 ---

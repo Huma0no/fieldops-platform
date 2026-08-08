@@ -10,7 +10,7 @@ The frame that holds every Workspace sub-section: the rail, the active-job banne
 
 ## Structure, top to bottom
 
-1. **Top section-tabs** (Lobby · My Calls · Workspace · Reports) — Workspace active. See `/docs/fieldops/NAVIGATION.md`.
+1. **Header** — back button + address. Workspace is reached from a job card's "Start Report" action, not from a persistent nav item — see `/docs/fieldops/NAVIGATION.md`.
 2. **Active Job banner** — compact: address, subdivision, builder, system count. Carries the running price total (top-right) and the job-level Cancel control.
 3. **Step rail** — 5 steps, horizontally scrollable, jumpable directly or via inline Back/Next: **Service+Tstat · Acc · Fix · Weigh-In · Notes**. Current step raised/accent-colored; completed steps marked; pending steps muted. Styled distinct from the top text-tabs.
 4. **Scrollable section content** — the active step's content, see per-section docs.

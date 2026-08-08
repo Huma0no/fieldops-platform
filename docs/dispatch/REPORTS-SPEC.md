@@ -1,21 +1,18 @@
-# Reports (to The Company)
+# Reports (FieldOps)
 
 **Version:** 1.0
 **Date:** 2026-07-30
-**Status:** Closed design
+**Status:** Built further than earlier drafts of this doc admitted — full working screen exists
 
 ## Purpose
 
-The formal reports Dispatch generates and delivers to The Company — distinct from a technician's own Completion Report in FieldOps.
+One of the 6 bottom-bar items (`/docs/fieldops/NAVIGATION.md`). Shows the day's completions and is the entry point for Request Corrections.
 
-## Report types
+## Contents
 
-Two reports, generated independently:
-1. **Equipment/accessory usage**
-2. **Refrigerant usage**
+- View and download completed visit reports.
+- Request Corrections workflow per visit — see `/docs/shared/CORRECTIONS.md`.
 
-## Generation
+## Open Items
 
-- Filters: date range (required) + technician (optional).
-- Each run produces **one document**, with each report category on its own page.
-- Curation before generating: visits shown as address-grouped chips; any address can be excluded from the run individually. A live summary reflects the current selection as items are excluded/included.
+- Full screen layout detail (list structure, exact fields shown per completed visit, download format) not yet fully documented — the workflow-level description above is confirmed, the pixel-level spec isn't written yet.

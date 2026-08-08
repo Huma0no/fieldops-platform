@@ -528,9 +528,12 @@ A technician's own Add/Deduct lines within a Ledger week — free-form, technici
 | Column | Type | Notes |
 |---|---|---|
 | id | text PK | UUID |
-| line_id | text FK | References pay_period_lines.id |
+| pay_period_id | text FK | References pay_periods.id |
+| technician_id | text FK | References technicians.id |
 | description | text | Free text |
 | amount | real | Positive (Add) or negative (Deduct) |
+
+As of 2026-07-30, the running code identifies an adjustment by (`pay_period_id`, `technician_id`) rather than a single FK to a `pay_period_lines` row — corrected above from an earlier draft that documented a `line_id` FK.
 
 ---
 
@@ -585,16 +588,15 @@ System-generated alerts per user.
 | read | boolean | Default false |
 | created_at | text | ISO 8601 |
 
-**Notification types:**
-- `assignment` — visit assigned to technician
-- `transfer_request` — incoming transfer request from another tech
-- `transfer_accepted` — Tech2 accepted transfer
-- `transfer_rejected` — Tech2 rejected transfer
-- `message` — new direct chat message
-- `broadcast` — new broadcast message
-- `completion_received` — dispatcher: technician submitted completion
-- `day_report_ready` — dispatcher: end-of-day files generated (JSON, CSV, TXT)
-- `restock_ready` — dispatcher: restock report ready for review
+**Notification types (as of 2026-07-30, matching running code):**
+- `visit_assigned` — visit assigned to technician
+- `correction_requested` — dispatcher: technician flagged a correction (see `corrections`)
+- `correction_applied` — technician: their flagged correction was applied
+- `correction_needs_period_adjustment` — dispatcher: an applied correction affects a Ledger week's totals
+- `transfer_expired` — a transfer request went unanswered past its window
+- `technician_deactivated`
+
+Earlier drafts of this list (assignment/transfer_request/transfer_accepted/transfer_rejected/message/broadcast/completion_received/day_report_ready/restock_ready) don't match what's actually implemented — replaced above with the real values. Transfer accept/reject and chat notifications may still exist under different type names; not yet re-verified against code.
 
 **Rules:**
 - Notifications are system-generated — never created manually.
