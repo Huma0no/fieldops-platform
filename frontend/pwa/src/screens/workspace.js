@@ -19,6 +19,7 @@ import { getCatalog } from '../lib/db.js'
 const CHECKLIST_ITEMS = [
   { key: 'pdrain_ecoil',   label: 'P-drain [eCoil]',            reportText: 'No/Incomplete pdrain at ecoil' },
   { key: 'pdrain_disch',   label: 'P-drain [Discharge]',         reportText: 'No/Incomplete pdrain' },
+  { key: 'tstat_locked',   label: 'Tstat Locked?',                reportText: null, noPhoto: true },
   { key: 'media_filter',   label: 'Media Filter',                 reportText: 'Media filter missing' },
   { key: 'electric_meter', label: 'Electric Meter',               reportText: 'No electric meter' },
   { key: 'breaker_cond',   label: 'Breaker — Condenser',          reportText: 'Disconnect missing at Cond' },
@@ -589,9 +590,6 @@ function buildItemsSection (category) {
         return
       }
       if (item.custom_price) { showCustomPriceModal(item, price => addItem(item, category, 1, price)); return }
-      if (category === 'fix' && (item.item_name === 'Fixed Leaks' || item.item_name === 'Extended Wire')) {
-        showSubOptionsModal(item, category); return
-      }
       await addItem(item, category, 1)
     })
     grid.appendChild(btn)
@@ -643,34 +641,6 @@ function showCustomPriceModal (item, onConfirm) {
   overlay.appendChild(modal)
   document.getElementById('ws-screen')?.appendChild(overlay)
   setTimeout(() => input.focus(), 50)
-}
-
-function showSubOptionsModal (item, category) {
-  const SUB_OPTIONS = { 'Fixed Leaks': ['cunit','ecoil','wall'], 'Extended Wire': ['cunit','furnace'] }
-  const options = SUB_OPTIONS[item.item_name] ?? []
-  const overlay = makeOverlay()
-  const modal = makeModal(item.item_name)
-  const note = document.createElement('p'); note.className='ws-modal-note'; note.textContent='Select all that apply'
-  modal.appendChild(note)
-  const selected = new Set()
-  const grid = document.createElement('div'); grid.className = 'ws-btn-grid'
-  options.forEach(opt => {
-    const btn = document.createElement('button')
-    btn.className = 'ws-item-btn'; btn.textContent = opt
-    btn.addEventListener('click', () => {
-      if (selected.has(opt)) { selected.delete(opt); btn.classList.remove('ws-item-btn--active') }
-      else { selected.add(opt); btn.classList.add('ws-item-btn--active') }
-    })
-    grid.appendChild(btn)
-  })
-  modal.appendChild(grid)
-  const actions = makeActions([
-    { label: 'Cancel', cls: 'secondary', fn: () => overlay.remove() },
-    { label: 'Add', cls: 'primary', fn: async () => { overlay.remove(); await addItem({ ...item, subOptions: [...selected] }, category, 1) } },
-  ])
-  modal.appendChild(actions)
-  overlay.appendChild(modal)
-  document.getElementById('ws-screen')?.appendChild(overlay)
 }
 
 function buildWeighInSection () {
@@ -775,7 +745,43 @@ function buildWeighInPanel (systemNum, showLabel) {
   updateChargeVisibility(preselect ?? '')
   configSel.addEventListener('change', () => { updateChargeVisibility(configSel.value); syncWeighIn() })
 
+  // Scale/Fan photos — per-system, per WEIGHIN-SPEC.md items 13-14
+  const photoSep = document.createElement('p'); photoSep.className='ws-weighin-label'; photoSep.textContent='Compliance Photos'
+  panel.appendChild(photoSep)
+  const photoGrid = document.createElement('div'); photoGrid.className='ws-btn-grid'
+  ;['SCALE', 'FAN'].forEach(tag => {
+    const btn = document.createElement('button'); btn.className='ws-item-btn'; btn.textContent=tag
+    if (visit._weighInPhotos?.[`${systemNum}-${tag}`]) btn.classList.add('ws-item-btn--active')
+    btn.addEventListener('click', () => captureWeighInPhoto(tag, systemNum, btn))
+    photoGrid.appendChild(btn)
+  })
+  panel.appendChild(photoGrid)
+
   return panel
+}
+
+async function captureWeighInPhoto (tag, systemNum, btn) {
+  const input = document.createElement('input')
+  input.type='file'; input.accept='image/*'; input.capture='environment'
+  input.addEventListener('change', async () => {
+    const file = input.files[0]; if (!file) return
+    btn.classList.add('ws-item-btn--active')
+    const compressed = await compressImage(file)
+    const category = tag === 'SCALE' ? 'weigh_in_scale' : 'fan_speed'
+    const form = new FormData()
+    form.append('photo', compressed, file.name)
+    form.append('tag', tag)
+    form.append('category', category)
+    form.append('systemNumber', systemNum)
+    await appendGpsFields(form, tag, file)
+    try {
+      await api.upload(`/visits/${visit.id}/photos`, form)
+      visit._photoCount = (visit._photoCount ?? 0) + 1
+      visit._weighInPhotos = visit._weighInPhotos ?? {}
+      visit._weighInPhotos[`${systemNum}-${tag}`] = true
+    } catch (err) { console.error('Weigh-in photo upload failed:', err); btn.classList.remove('ws-item-btn--active') }
+  })
+  input.click()
 }
 
 function buildCalcSection () {
@@ -858,15 +864,6 @@ function buildCalcPanel (systemNum, showLabel) {
 function buildStartupChecklistSection () {
   const wrap = document.createElement('div'); wrap.className='ws-section-content'
   CHECKLIST_ITEMS.forEach(item => wrap.appendChild(buildChecklistItemRow(item)))
-  const sep = document.createElement('p'); sep.className='ws-weighin-label'; sep.textContent='Compliance Photos'
-  wrap.appendChild(sep)
-  const grid = document.createElement('div'); grid.className='ws-btn-grid'
-  ;[['SCALE', 'site_evidence'], ['FAN', 'site_evidence']].forEach(([tag, cat]) => {
-    const btn = document.createElement('button'); btn.className='ws-item-btn'; btn.textContent=tag
-    btn.addEventListener('click', () => captureStartupPhoto(tag, cat, btn))
-    grid.appendChild(btn)
-  })
-  wrap.appendChild(grid)
   const doneBtn = document.createElement('button')
   doneBtn.className='ws-done-btn'; doneBtn.textContent='Done'
   doneBtn.addEventListener('click', () => markSectionComplete('startup'))
@@ -892,7 +889,7 @@ function buildChecklistItemRow (item) {
     btnGroup.appendChild(btn)
   })
   row.appendChild(lbl); row.appendChild(btnGroup); wrap.appendChild(row)
-  if (answer === 'no') {
+  if (answer === 'no' && !item.noPhoto) {
     const photoRow = document.createElement('div'); photoRow.className='ws-check-photo-row'
     const photoBtn = document.createElement('button'); photoBtn.className='ws-check-photo-btn'
     const count = visit._checklistPhotoCounts?.[item.key] ?? 0
@@ -923,25 +920,6 @@ async function captureStartupItemPhoto (itemKey, btn) {
   input.click()
 }
 
-async function captureStartupPhoto (tag, category, btn) {
-  const input = document.createElement('input')
-  input.type='file'; input.accept='image/*'; input.capture='environment'
-  input.addEventListener('change', async () => {
-    const file = input.files[0]; if (!file) return
-    btn.classList.add('ws-item-btn--active')
-    const compressed = await compressImage(file)
-    const form = new FormData()
-    form.append('photo', compressed, file.name); form.append('tag', tag); form.append('category', category)
-    await appendGpsFields(form, tag, file)
-    try {
-      await api.upload(`/visits/${visit.id}/photos`, form)
-      visit._photoCount = (visit._photoCount ?? 0) + 1
-      addThumb(compressed, tag)
-    } catch (err) { btn.classList.remove('ws-item-btn--active') }
-  })
-  input.click()
-}
-
 function buildNotesSection () {
   const wrap = document.createElement('div'); wrap.className='ws-section-content'
   const textarea = document.createElement('textarea')
@@ -961,50 +939,11 @@ function buildNotesSection () {
 
 function buildChecklistSection () {
   const wrap = document.createElement('div'); wrap.className='ws-section-content'
-  const TAGS = ['SCALE','FAN','NO_GAS_METER','NO_ELECTRIC_METER','NO_PDRAIN','BREAKERS_MISSING','Other']
-  const grid = document.createElement('div'); grid.className='ws-btn-grid'
-  TAGS.forEach(tag => {
-    const btn = document.createElement('button'); btn.className='ws-item-btn'; btn.textContent=tag
-    btn.addEventListener('click', () => capturePhoto(tag, btn))
-    grid.appendChild(btn)
-  })
-  wrap.appendChild(grid)
-  const thumbs = document.createElement('div'); thumbs.className='ws-thumbs'; thumbs.id='ws-thumbs'
-  wrap.appendChild(thumbs)
   const genBtn = document.createElement('button')
   genBtn.className='ws-done-btn ws-done-btn--generate'; genBtn.textContent='Generate Report'
   genBtn.addEventListener('click', openGenerateModal)
   wrap.appendChild(genBtn)
   return wrap
-}
-
-async function capturePhoto (tag, btn) {
-  const input = document.createElement('input')
-  input.type='file'; input.accept='image/*'; input.capture='environment'
-  input.addEventListener('change', async () => {
-    const file = input.files[0]; if (!file) return
-    btn.classList.add('ws-item-btn--active')
-    const compressed = await compressImage(file)
-    const category = tag === 'SCALE' ? 'weigh_in_scale' : tag === 'FAN' ? 'fan_speed' : 'site_evidence'
-    const form = new FormData()
-    form.append('photo', compressed, file.name); form.append('tag', tag); form.append('category', category)
-    await appendGpsFields(form, tag, file)
-    try {
-      await api.upload(`/visits/${visit.id}/photos`, form)
-      visit._photoCount = (visit._photoCount ?? 0) + 1
-      addThumb(compressed, tag)
-    } catch (err) { console.error('Photo upload failed:', err); btn.classList.remove('ws-item-btn--active') }
-  })
-  input.click()
-}
-
-function addThumb (blob, tag) {
-  const thumbs = document.getElementById('ws-thumbs'); if (!thumbs) return
-  const url = URL.createObjectURL(blob)
-  const wrap = document.createElement('div'); wrap.className='ws-thumb'
-  const img = document.createElement('img'); img.src=url; img.alt=tag; img.onload=()=>URL.revokeObjectURL(url)
-  const lbl = document.createElement('span'); lbl.className='ws-thumb-label'; lbl.textContent=tag
-  wrap.appendChild(img); wrap.appendChild(lbl); thumbs.appendChild(wrap)
 }
 
 async function compressImage (file, maxPx=1600, quality=0.8) {
@@ -1319,10 +1258,6 @@ function injectStyles () {
   .ws-field-input:focus{color:var(--fo-accent-deep);}
   .ws-notes-input{width:100%;background:var(--fo-well);box-shadow:var(--fo-shadow-well);border:none;border-radius:var(--fo-radius-sm);color:var(--fo-ink);font-size:var(--text-base);font-family:var(--fo-font-body);padding:var(--space-3);resize:none;outline:none;line-height:1.5;}
   .ws-notes-input:focus{color:var(--fo-ink);}
-  .ws-thumbs{display:flex;flex-wrap:wrap;gap:var(--space-2);}
-  .ws-thumb{width:64px;height:64px;border-radius:var(--fo-radius-sm);overflow:hidden;position:relative;box-shadow:var(--fo-shadow-raised);}
-  .ws-thumb img{width:100%;height:100%;object-fit:cover;}
-  .ws-thumb-label{position:absolute;bottom:0;left:0;right:0;background:rgba(0,0,0,.6);color:var(--fo-tile);font-size:8px;text-align:center;padding:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
   .ws-price-bar{background:var(--fo-panel);box-shadow:var(--fo-shadow-card);padding:var(--space-3) var(--space-4);padding-bottom:calc(var(--space-3) + env(safe-area-inset-bottom,0px));display:flex;align-items:center;justify-content:space-between;gap:var(--space-3);flex-shrink:0;position:relative;z-index:1;}
   .ws-price-label{font-size:var(--text-xs);color:var(--fo-ink-soft);font-family:var(--fo-font-mono);text-transform:uppercase;letter-spacing:.05em;}
   .ws-price-amount{font-size:20px;font-weight:800;font-family:var(--fo-font-mono);color:var(--fo-accent-deep);}

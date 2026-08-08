@@ -392,8 +392,8 @@ Photos taken during a visit. **Google Drive upload (below) is designed but not y
 | visit_id | text FK | References visits.id |
 | system_number | integer | null for non-system-specific photos |
 | slug | text | Unique storage key |
-| tag | text | "SCALE", "FAN", "NO_GAS_METER", "NO_ELECTRIC_METER", "NO_PDRAIN", "BREAKERS_MISSING", or free text from +Other — used to build filename |
-| label | text | Only populated when tag comes from +Other (free text description) |
+| tag | text | The checklist item key that triggered the photo (e.g. "electric_meter", "gas_meter", "pdrain_ecoil" — see `/docs/fieldops/workspace/CHECKLIST-NOTES-SPEC.md`'s item table) for checklist-driven photos, or "SCALE"/"FAN" for Weigh-In's per-system photos — used to build filename. No freeform tag; there is no generic/"+Other" photo slot in this version. |
+| label | text | Not used in the current design — reserved, may be removed. |
 | category | text | "weigh_in_scale", "fan_speed", "site_evidence" |
 | stored_at | text | Google Drive file URL, once that integration is built — see rules below |
 
@@ -402,10 +402,9 @@ Photos taken during a visit. **Google Drive upload (below) is designed but not y
 - Designed target for storage (not yet built): the completion ZIP (photos + report) uploads to a Google Drive folder belonging to the company, via a Google service account configured for this purpose. Photos captured during the visit (API_CONTRACT.md §7 `POST /visits/:id/photos`) stay local on the device as the technician works — they are bundled into one ZIP per visit only at completion time (§8), never uploaded individually. The server will store the resulting Drive file URL in `stored_at` once that upload succeeds — `stored_at` is null until then.
 - Once built, upload happens in the background as part of the completion send flow (API_CONTRACT.md §8) — same offline-queue-and-retry behavior as the rest of completion, no separate technician action required.
 - Retention is not automatic: files are kept in Drive for roughly 60-90 days and cleaned up manually (or via a future Cowork-assisted routine) rather than through an automatic expiration policy on the storage provider itself.
-- `category` and `tag` are assigned automatically based on which fixed button the technician pressed (SCALE, FAN, NO_GAS_METER, NO_ELECTRIC_METER, NO_PDRAIN, BREAKERS_MISSING) — except when the technician uses +Other, where they write `tag` and `label` freely as plain text.
-- `tag` corresponds to a fixed button or free text when the technician uses +Other.
-- `system_number` is null for `site_evidence` photos not tied to a specific system.
-- Filename convention: `{address}_{tag}` or `{address}_{tag}_SYS{system_number}` when system-specific, e.g. `5523_SILK_PETAL_NO_GAS_METER`, `7746_TRIBUTE_CIR_SCALE_SYS2`.
+- Checklist items answered "No" reveal their own inline photo upload — `tag` is that item's key, `category` is "site_evidence". Scale/Fan photos are captured per-system inside Weigh-In only — `tag` is "SCALE" or "FAN", `category` is "weigh_in_scale"/"fan_speed", `system_number` is set.
+- `system_number` is null for `site_evidence` photos (checklist items aren't per-system).
+- Filename convention: `{address}_{tag}` or `{address}_{tag}_SYS{system_number}` when system-specific, e.g. `5523_SILK_PETAL_ELECTRIC_METER`, `7746_TRIBUTE_CIR_SCALE_SYS2`.
 - Multiple site_evidence photos per visit are allowed — each documented condition is an independent photo.
 - Photos are sent to The Company as evidence with the completion report.
 
