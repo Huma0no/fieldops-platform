@@ -2,6 +2,49 @@ const crypto = require('crypto');
 const { pool } = require('../db/pool');
 const { computeCommission } = require('../helpers/commission');
 
+function mondayOf(date) {
+  const d = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
+  const day = d.getUTCDay(); // 0 = Sunday ... 6 = Saturday
+  const diff = day === 0 ? -6 : 1 - day;
+  d.setUTCDate(d.getUTCDate() + diff);
+  return d;
+}
+
+function addDays(date, n) {
+  const d = new Date(date);
+  d.setUTCDate(d.getUTCDate() + n);
+  return d;
+}
+
+function toDateStr(date) {
+  return date.toISOString().slice(0, 10);
+}
+
+// Ensures a pay_periods row exists for the current Mon-Sun week, and backfills
+// any week missed since the last row (e.g. the server was down across a Monday).
+// Never touches existing rows — only inserts missing weeks, oldest first.
+async function ensureCurrentPeriodExists() {
+  const { rows } = await pool.query('SELECT CURRENT_DATE AS today');
+  const currentMonday = mondayOf(new Date(rows[0].today));
+
+  const lastResult = await pool.query('SELECT MAX(week_start) AS last_week_start FROM pay_periods');
+  const lastWeekStart = lastResult.rows[0].last_week_start;
+
+  let cursor = lastWeekStart ? addDays(new Date(lastWeekStart), 7) : currentMonday;
+
+  while (cursor <= currentMonday) {
+    const weekStart = toDateStr(cursor);
+    const weekEnd = toDateStr(addDays(cursor, 6));
+    await pool.query(
+      `INSERT INTO pay_periods (id, week_start, week_end, status)
+       VALUES ($1, $2, $3, 'open')
+       ON CONFLICT (week_start) DO NOTHING`,
+      [crypto.randomUUID(), weekStart, weekEnd]
+    );
+    cursor = addDays(cursor, 7);
+  }
+}
+
 async function autoClosePeriods() {
   const overdue = await pool.query(
     `SELECT * FROM pay_periods
@@ -63,4 +106,4 @@ async function autoClosePeriods() {
   }
 }
 
-module.exports = { autoClosePeriods };
+module.exports = { autoClosePeriods, ensureCurrentPeriodExists };

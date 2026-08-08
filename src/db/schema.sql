@@ -409,6 +409,8 @@ CREATE INDEX edit_log_visit_id_idx ON edit_log (visit_id);
 CREATE INDEX pay_period_lines_period_id_idx ON pay_period_lines (period_id);
 CREATE INDEX pay_period_lines_technician_id_idx ON pay_period_lines (technician_id);
 
+CREATE UNIQUE INDEX pay_periods_week_start_idx ON pay_periods (week_start);
+
 -- 23. pay_period_adjustments
 CREATE TABLE pay_period_adjustments (
   id             text PRIMARY KEY DEFAULT gen_random_uuid()::text,

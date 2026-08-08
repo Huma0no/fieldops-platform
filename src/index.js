@@ -68,9 +68,13 @@ if (require.main === module) {
   app.listen(PORT, () => {
     console.log(`FieldOps server listening on port ${PORT}`);
   });
-  const { autoClosePeriods } = require('./services/autoClose');
-  autoClosePeriods();
-  setInterval(autoClosePeriods, 24 * 60 * 60 * 1000);
+  const { autoClosePeriods, ensureCurrentPeriodExists } = require('./services/autoClose');
+  async function runPayPeriodJob() {
+    await ensureCurrentPeriodExists();
+    await autoClosePeriods();
+  }
+  runPayPeriodJob();
+  setInterval(runPayPeriodJob, 24 * 60 * 60 * 1000);
 }
 
 module.exports = app;
