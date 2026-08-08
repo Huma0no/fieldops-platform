@@ -156,6 +156,33 @@ describe('POST /api/dispatch/pay-periods/close', () => {
     expect(line.netAmount).toBe(240);
   });
 
+  it('uses the technician\'s own commission_rate, snapshotted into commission_rate_applied', async () => {
+    const { token } = await seedDispatcherWithToken();
+    const { tech } = await seedTechnicianWithToken();
+    await pool.query('UPDATE technicians SET commission_rate = 30 WHERE id = $1', [tech.id]);
+    const periodId = await seedPayPeriod('2026-06-23', '2026-06-29');
+
+    await seedVisitInPeriod(tech.id, '2026-06-25T10:00:00Z', 200);
+
+    const res = await request(app)
+      .post('/api/dispatch/pay-periods/close')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ periodId });
+
+    expect(res.status).toBe(200);
+    const line = res.body.lines.find((l) => l.technicianId === tech.id);
+    expect(line.grossAmount).toBe(200);
+    expect(line.commissionRateApplied).toBe(30);
+    expect(line.commissionRetained).toBe(60);
+    expect(line.netAmount).toBe(140);
+
+    const row = await pool.query(
+      'SELECT commission_rate_applied FROM pay_period_lines WHERE period_id = $1 AND technician_id = $2',
+      [periodId, tech.id]
+    );
+    expect(row.rows[0].commission_rate_applied).toBe(30);
+  });
+
   it('applies 100% net for owner role', async () => {
     const { token } = await seedDispatcherWithToken();
     const { owner } = await seedOwnerWithToken();

@@ -2,6 +2,7 @@ const crypto = require('crypto');
 const express = require('express');
 const { pool } = require('../db/pool');
 const { requireRole } = require('../middleware/auth');
+const { computeCommission } = require('../helpers/commission');
 
 const router = express.Router();
 
@@ -62,12 +63,13 @@ async function fetchPeriodWithLines(periodId) {
     const adjs = adjByTech[row.technician_id] ?? [];
     const adjustmentSum = adjs.reduce((s, a) => s + a.amount, 0);
     return {
-      technicianId:       row.technician_id,
-      technicianName:     row.technician_name,
-      grossAmount:        row.gross_amount,
-      commissionRetained: row.commission_retained,
-      netAmount:          row.net_amount + adjustmentSum,
-      adjustments:        adjs,
+      technicianId:         row.technician_id,
+      technicianName:       row.technician_name,
+      grossAmount:          row.gross_amount,
+      commissionRateApplied: row.commission_rate_applied,
+      commissionRetained:   row.commission_retained,
+      netAmount:            row.net_amount + adjustmentSum,
+      adjustments:          adjs,
     };
   });
 
@@ -133,21 +135,21 @@ router.post('/pay-periods/close', requireRole('owner', 'dispatcher'), async (req
 
       for (const row of visitsResult.rows) {
         const techResult = await client.query(
-          'SELECT role FROM technicians WHERE id = $1',
+          'SELECT role, commission_rate FROM technicians WHERE id = $1',
           [row.technician_id]
         );
         const techRole = techResult.rows[0]?.role;
+        const commissionRate = techResult.rows[0]?.commission_rate;
         const gross = parseFloat(row.gross_amount);
-        const commission = techRole === 'owner' ? 0 : gross * 0.20;
-        const net = gross - commission;
+        const { rateApplied, commissionRetained, netAmount } = computeCommission(gross, techRole, commissionRate);
 
         await client.query(
           `INSERT INTO pay_period_lines
-             (id, period_id, technician_id, gross_amount, commission_retained, net_amount)
-           VALUES ($1, $2, $3, $4, $5, $6)
+             (id, period_id, technician_id, gross_amount, commission_rate_applied, commission_retained, net_amount)
+           VALUES ($1, $2, $3, $4, $5, $6, $7)
            ON CONFLICT (period_id, technician_id)
-           DO UPDATE SET gross_amount = $4, commission_retained = $5, net_amount = $6`,
-          [crypto.randomUUID(), periodId, row.technician_id, gross, commission, net]
+           DO UPDATE SET gross_amount = $4, commission_rate_applied = $5, commission_retained = $6, net_amount = $7`,
+          [crypto.randomUUID(), periodId, row.technician_id, gross, rateApplied, commissionRetained, netAmount]
         );
       }
 
@@ -252,7 +254,7 @@ router.get('/pay/mine', requireRole('technician'), async (req, res, next) => {
     if (periodId) {
       query = `
         SELECT ppl.period_id, pp.week_start, pp.week_end,
-               ppl.gross_amount, ppl.commission_retained, ppl.net_amount
+               ppl.gross_amount, ppl.commission_rate_applied, ppl.commission_retained, ppl.net_amount
         FROM pay_period_lines ppl
         JOIN pay_periods pp ON pp.id = ppl.period_id
         WHERE ppl.technician_id = $1 AND ppl.period_id = $2`;
@@ -260,7 +262,7 @@ router.get('/pay/mine', requireRole('technician'), async (req, res, next) => {
     } else {
       query = `
         SELECT ppl.period_id, pp.week_start, pp.week_end,
-               ppl.gross_amount, ppl.commission_retained, ppl.net_amount
+               ppl.gross_amount, ppl.commission_rate_applied, ppl.commission_retained, ppl.net_amount
         FROM pay_period_lines ppl
         JOIN pay_periods pp ON pp.id = ppl.period_id
         WHERE ppl.technician_id = $1
@@ -274,6 +276,7 @@ router.get('/pay/mine', requireRole('technician'), async (req, res, next) => {
       weekStart: r.week_start,
       weekEnd: r.week_end,
       grossAmount: r.gross_amount,
+      commissionRateApplied: r.commission_rate_applied,
       commissionRetained: r.commission_retained,
       netAmount: r.net_amount,
     })));

@@ -18,7 +18,7 @@ router.post('/', requireRole('owner', 'dispatcher'), async (req, res, next) => {
     const result = await pool.query(
       `INSERT INTO technicians (id, name, role, is_active, created_at)
        VALUES (gen_random_uuid()::text, $1, $2, true, $3)
-       RETURNING id, name, role, is_active, created_at`,
+       RETURNING id, name, role, commission_rate, is_active, created_at`,
       [name, role, createdAt]
     );
     const row = result.rows[0];
@@ -27,6 +27,7 @@ router.post('/', requireRole('owner', 'dispatcher'), async (req, res, next) => {
       id: row.id,
       name: row.name,
       role: row.role,
+      commissionRate: row.commission_rate,
       isActive: row.is_active,
       createdAt: row.created_at,
     });
@@ -40,8 +41,8 @@ router.get('/', requireRole('owner', 'dispatcher'), async (req, res, next) => {
   try {
     const includeInactive = req.query.includeInactive === 'true';
     const query = includeInactive
-      ? 'SELECT id, name, role, is_active, created_at FROM technicians ORDER BY created_at'
-      : "SELECT id, name, role, is_active, created_at FROM technicians WHERE is_active = true AND role = 'technician' ORDER BY created_at";
+      ? 'SELECT id, name, role, commission_rate, is_active, created_at FROM technicians ORDER BY created_at'
+      : "SELECT id, name, role, commission_rate, is_active, created_at FROM technicians WHERE is_active = true AND role = 'technician' ORDER BY created_at";
 
     const result = await pool.query(query);
     res.json(
@@ -49,6 +50,7 @@ router.get('/', requireRole('owner', 'dispatcher'), async (req, res, next) => {
         id: r.id,
         name: r.name,
         role: r.role,
+        commissionRate: r.commission_rate,
         isActive: r.is_active,
         createdAt: r.created_at,
       }))
@@ -95,6 +97,31 @@ router.patch('/:id/deactivate', requireRole('owner', 'dispatcher'), async (req, 
     }
 
     res.json({ id, isActive: false, orphanedVisitIds });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// PATCH /api/dispatch/technicians/:id/commission-rate
+router.patch('/:id/commission-rate', requireRole('owner', 'dispatcher'), async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { commissionRate } = req.body;
+
+    if (typeof commissionRate !== 'number' || !Number.isFinite(commissionRate) || commissionRate < 0 || commissionRate > 100) {
+      return res.status(400).json({ error: 'commissionRate must be a number between 0 and 100' });
+    }
+
+    const techResult = await pool.query('SELECT role FROM technicians WHERE id = $1', [id]);
+    if (techResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Technician not found' });
+    }
+    if (techResult.rows[0].role === 'owner') {
+      return res.status(400).json({ error: 'commissionRate is not applicable to the owner role' });
+    }
+
+    await pool.query('UPDATE technicians SET commission_rate = $1 WHERE id = $2', [commissionRate, id]);
+    res.json({ id, commissionRate });
   } catch (err) {
     next(err);
   }

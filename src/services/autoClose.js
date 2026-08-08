@@ -1,5 +1,6 @@
 const crypto = require('crypto');
 const { pool } = require('../db/pool');
+const { computeCommission } = require('../helpers/commission');
 
 async function autoClosePeriods() {
   const overdue = await pool.query(
@@ -25,18 +26,19 @@ async function autoClosePeriods() {
 
       for (const row of visitsResult.rows) {
         const techResult = await client.query(
-          'SELECT role FROM technicians WHERE id = $1', [row.technician_id]
+          'SELECT role, commission_rate FROM technicians WHERE id = $1', [row.technician_id]
         );
         const gross = parseFloat(row.gross_amount);
-        const commission = techResult.rows[0]?.role === 'owner' ? 0 : gross * 0.20;
-        const net = gross - commission;
+        const { rateApplied, commissionRetained, netAmount } = computeCommission(
+          gross, techResult.rows[0]?.role, techResult.rows[0]?.commission_rate
+        );
         await client.query(
           `INSERT INTO pay_period_lines
-             (id, period_id, technician_id, gross_amount, commission_retained, net_amount)
-           VALUES ($1, $2, $3, $4, $5, $6)
+             (id, period_id, technician_id, gross_amount, commission_rate_applied, commission_retained, net_amount)
+           VALUES ($1, $2, $3, $4, $5, $6, $7)
            ON CONFLICT (period_id, technician_id)
-           DO UPDATE SET gross_amount = $4, commission_retained = $5, net_amount = $6`,
-          [crypto.randomUUID(), period.id, row.technician_id, gross, commission, net]
+           DO UPDATE SET gross_amount = $4, commission_rate_applied = $5, commission_retained = $6, net_amount = $7`,
+          [crypto.randomUUID(), period.id, row.technician_id, gross, rateApplied, commissionRetained, netAmount]
         );
       }
 

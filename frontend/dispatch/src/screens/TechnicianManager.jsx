@@ -51,6 +51,17 @@ export default function TechnicianManager () {
     }
   }
 
+  async function handleCommissionRateChange (tech, value) {
+    setActionError('')
+    try {
+      await api.patch(`/dispatch/technicians/${tech.id}/commission-rate`, { commissionRate: value })
+      setTechnicians(prev => prev.map(t => t.id === tech.id ? { ...t, commissionRate: value } : t))
+    } catch (err) {
+      setActionError(`Commission rate update failed: ${err.message ?? 'unknown error'}`)
+      console.error(err)
+    }
+  }
+
   return (
     <div style={styles.page}>
       <div style={styles.header}>
@@ -74,7 +85,7 @@ export default function TechnicianManager () {
           <table style={styles.table}>
             <thead>
               <tr>
-                {['Name','Role','Status','Last active','Actions'].map(h => (
+                {['Name','Role','Commission %','Status','Last active','Actions'].map(h => (
                   <th key={h} style={styles.th}>{h}</th>
                 ))}
               </tr>
@@ -88,6 +99,7 @@ export default function TechnicianManager () {
                     tech={{ ...tech, isActive }}
                     onDeactivate={() => handleDeactivate(tech)}
                     onReactivate={() => handleReactivate(tech)}
+                    onCommissionRateChange={(value) => handleCommissionRateChange(tech, value)}
                     onError={setActionError}
                   />
                 )
@@ -102,12 +114,25 @@ export default function TechnicianManager () {
 
 // ── Tech row with invite/revoke actions ────────────────────
 
-function TechRow ({ tech, onDeactivate, onReactivate, onError }) {
+function TechRow ({ tech, onDeactivate, onReactivate, onCommissionRateChange, onError }) {
   const [inviteCode, setInviteCode]   = useState(null)
   const [countdown, setCountdown]     = useState(0)
   const [generating, setGenerating]   = useState(false)
   const [revoking, setRevoking]       = useState(false)
+  const [commissionInput, setCommissionInput] = useState(tech.commissionRate ?? tech.commission_rate ?? 20)
   const timerRef = useRef(null)
+
+  useEffect(() => { setCommissionInput(tech.commissionRate ?? tech.commission_rate ?? 20) }, [tech.commissionRate, tech.commission_rate])
+
+  function handleCommissionBlur () {
+    const value = Number(commissionInput)
+    if (!Number.isFinite(value) || value < 0 || value > 100) {
+      onError('Commission rate must be a number between 0 and 100')
+      setCommissionInput(tech.commissionRate ?? tech.commission_rate ?? 20)
+      return
+    }
+    if (value !== (tech.commissionRate ?? tech.commission_rate)) onCommissionRateChange(value)
+  }
 
   function startCountdown (code) {
     setInviteCode(code)
@@ -164,6 +189,22 @@ function TechRow ({ tech, onDeactivate, onReactivate, onError }) {
         <span style={{ fontWeight: 500, color: 'var(--text-primary)' }}>{tech.name}</span>
       </td>
       <td style={styles.td}>{roleLabel}</td>
+      <td style={styles.td}>
+        {tech.role === 'owner' ? (
+          <span>—</span>
+        ) : (
+          <input
+            type="number"
+            min="0"
+            max="100"
+            step="1"
+            value={commissionInput}
+            onChange={(e) => setCommissionInput(e.target.value)}
+            onBlur={handleCommissionBlur}
+            style={styles.commissionInput}
+          />
+        )}
+      </td>
       <td style={styles.td}>
         <StatusBadge active={tech.isActive} />
       </td>
@@ -242,6 +283,8 @@ const styles = {
   tr:             { borderBottom: '0.5px solid var(--border-subtle)' },
   td:             { padding: '12px 12px', color: 'var(--text-secondary)', verticalAlign: 'middle' },
   muted:          { color: 'var(--text-muted)', fontSize: '14px' },
+
+  commissionInput:{ width: '56px', background: 'var(--surface-2)', border: '0.5px solid var(--border-default)', borderRadius: '6px', color: 'var(--text-primary)', fontSize: '13px', padding: '4px 6px' },
 
   actions:        { display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' },
   actionBtn:      { background: 'none', border: '0.5px solid var(--border-default)', borderRadius: '6px', color: 'var(--color-signal)', fontSize: '12px', fontWeight: 500, padding: '4px 10px', cursor: 'pointer', whiteSpace: 'nowrap' },

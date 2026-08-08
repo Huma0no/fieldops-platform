@@ -42,6 +42,7 @@ describe('POST /api/dispatch/technicians', () => {
     expect(res.body.id).toBeDefined();
     expect(res.body.name).toBe('Bob');
     expect(res.body.role).toBe('technician');
+    expect(res.body.commissionRate).toBe(20);
     expect(res.body.isActive).toBe(true);
     expect(res.body.createdAt).toBeDefined();
   });
@@ -120,5 +121,58 @@ describe('PATCH /api/dispatch/technicians/:id/reactivate', () => {
 
     const row = await pool.query('SELECT is_active FROM technicians WHERE id = $1', [tech.id]);
     expect(row.rows[0].is_active).toBe(true);
+  });
+});
+
+describe('PATCH /api/dispatch/technicians/:id/commission-rate', () => {
+  it('updates commission_rate independently per technician', async () => {
+    const { token } = await dispatcherToken();
+    const tech = await seedTech({ name: 'RateTech' });
+
+    const res = await request(app)
+      .patch(`/api/dispatch/technicians/${tech.id}/commission-rate`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ commissionRate: 30 });
+
+    expect(res.status).toBe(200);
+    expect(res.body.commissionRate).toBe(30);
+
+    const row = await pool.query('SELECT commission_rate FROM technicians WHERE id = $1', [tech.id]);
+    expect(row.rows[0].commission_rate).toBe(30);
+  });
+
+  it('rejects the owner role', async () => {
+    const { token } = await dispatcherToken();
+    const owner = await seedTech({ name: 'Owner1', role: 'owner' });
+
+    const res = await request(app)
+      .patch(`/api/dispatch/technicians/${owner.id}/commission-rate`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ commissionRate: 30 });
+
+    expect(res.status).toBe(400);
+  });
+
+  it('rejects an out-of-range value', async () => {
+    const { token } = await dispatcherToken();
+    const tech = await seedTech({ name: 'RateTech2' });
+
+    const res = await request(app)
+      .patch(`/api/dispatch/technicians/${tech.id}/commission-rate`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ commissionRate: 150 });
+
+    expect(res.status).toBe(400);
+  });
+
+  it('returns 404 for unknown technician', async () => {
+    const { token } = await dispatcherToken();
+
+    const res = await request(app)
+      .patch(`/api/dispatch/technicians/nonexistent-id/commission-rate`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ commissionRate: 30 });
+
+    expect(res.status).toBe(404);
   });
 });

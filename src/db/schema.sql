@@ -135,11 +135,12 @@ CREATE UNIQUE INDEX addresses_street_idx ON addresses (street);
 
 -- 9. technicians
 CREATE TABLE technicians (
-  id         text PRIMARY KEY DEFAULT gen_random_uuid()::text,
-  name       text NOT NULL,
-  role       text NOT NULL CHECK (role IN ('owner', 'dispatcher', 'technician')),
-  is_active  boolean NOT NULL DEFAULT true,
-  created_at text NOT NULL DEFAULT now()::text
+  id               text PRIMARY KEY DEFAULT gen_random_uuid()::text,
+  name             text NOT NULL,
+  role             text NOT NULL CHECK (role IN ('owner', 'dispatcher', 'technician')),
+  commission_rate  real NOT NULL DEFAULT 20,
+  is_active        boolean NOT NULL DEFAULT true,
+  created_at       text NOT NULL DEFAULT now()::text
 );
 
 -- 10. technician_settings
@@ -308,12 +309,13 @@ CREATE TABLE pay_periods (
 
 -- 22. pay_period_lines
 CREATE TABLE pay_period_lines (
-  id                  text PRIMARY KEY DEFAULT gen_random_uuid()::text,
-  period_id           text NOT NULL REFERENCES pay_periods(id),
-  technician_id       text NOT NULL REFERENCES technicians(id),
-  gross_amount        real NOT NULL,
-  commission_retained real NOT NULL,
-  net_amount          real NOT NULL,
+  id                     text PRIMARY KEY DEFAULT gen_random_uuid()::text,
+  period_id              text NOT NULL REFERENCES pay_periods(id),
+  technician_id          text NOT NULL REFERENCES technicians(id),
+  gross_amount           real NOT NULL,
+  commission_rate_applied real NOT NULL DEFAULT 20,
+  commission_retained    real NOT NULL,
+  net_amount             real NOT NULL,
   UNIQUE (period_id, technician_id)
 );
 

@@ -20,9 +20,9 @@ One screen: the single check for the period, covering every technician in it —
 
 ## Per-technician payout
 
-- Each technician has an individually editable **commission %**, defaulting to 20% when added, changeable at any time. There is no single global split.
+- Each technician has an individually editable **commission %** — the percentage withheld as commission, not what they keep — defaulting to 20% when added, changeable at any time. There is no single global split.
 - At week close, the rate in effect is snapshotted as `commission_rate_applied` on that week's line — editing a technician's rate later never rewrites historical weeks.
-- **Payout = (gross × commission_rate_applied) ± that technician's own Add/Deduct lines.** Nothing else touches it.
+- **Payout = gross × (1 − commission_rate_applied), ± that technician's own Add/Deduct lines.** Nothing else touches it. (Default 20% commission → technician nets 80% of gross.)
 - **Add/Deduct:** free-form lines per technician per week (e.g. "+$78 bonus", "−$40 tool advance") — as many as needed, added directly on their row.
 - **Exclude from this run:** a checkbox per technician. Unchecking removes them from this week's run without losing their data — checking it back in restores them with their numbers intact.
 
@@ -30,7 +30,7 @@ One screen: the single check for the period, covering every technician in it —
 
 `Ghost Deduction = Calculated (the whole period, everyone's work, the same figure behind Money In) − Actual Received (what the check for the period actually was)`.
 
-This gap is Kristo's alone. It never touches technician payouts — those stay fixed at `gross × commission_rate_applied ± their own lines`, regardless of this number.
+This gap is Kristo's alone. It never touches technician payouts — those stay fixed at `gross × (1 − commission_rate_applied) ± their own lines`, regardless of this number.
 
 ## Open Items
 
