@@ -255,7 +255,7 @@ CREATE TABLE visit_photos (
   slug          text NOT NULL,
   tag           text NOT NULL,
   label         text,
-  category      text NOT NULL CHECK (category IN ('weigh_in_scale', 'fan_speed', 'site_evidence', 'correction_evidence')),
+  category      text NOT NULL CHECK (category IN ('weigh_in_scale', 'fan_speed', 'site_evidence')),
   stored_at     text
 );
 
@@ -356,17 +356,13 @@ CREATE TABLE notifications (
 
 -- 26. corrections
 CREATE TABLE corrections (
-  id               text PRIMARY KEY DEFAULT gen_random_uuid()::text,
-  visit_id         text NOT NULL REFERENCES visits(id),
-  requested_by     text NOT NULL REFERENCES technicians(id),
-  corrected_fields text NOT NULL,
-  reason           text,
-  status            text NOT NULL CHECK (status IN ('pending', 'approved', 'rejected', 'needs_evidence')),
-  requested_at      text NOT NULL,
-  resolved_at       text,
-  dispatcher_note   text,
-  has_evidence      boolean NOT NULL DEFAULT false,
-  evidence_photo_id text REFERENCES visit_photos(id)
+  id           text PRIMARY KEY DEFAULT gen_random_uuid()::text,
+  visit_id     text NOT NULL REFERENCES visits(id),
+  requested_by text NOT NULL REFERENCES technicians(id),
+  message      text NOT NULL,
+  status       text NOT NULL CHECK (status IN ('open', 'applied', 'expired')),
+  requested_at text NOT NULL,
+  applied_at   text
 );
 
 -- 27. edit_log

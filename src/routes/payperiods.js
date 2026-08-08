@@ -158,6 +158,14 @@ router.post('/pay-periods/close', requireRole('owner', 'dispatcher'), async (req
         [periodId]
       );
 
+      await client.query(
+        `UPDATE corrections SET status = 'expired'
+         WHERE status = 'open' AND visit_id IN (
+           SELECT id FROM visits WHERE completed_at >= $1 AND completed_at <= $2
+         )`,
+        [period.week_start, period.week_end]
+      );
+
       await client.query('COMMIT');
     } catch (err) {
       await client.query('ROLLBACK');

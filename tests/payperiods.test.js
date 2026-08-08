@@ -227,6 +227,48 @@ describe('POST /api/dispatch/pay-periods/close', () => {
     expect(line.grossAmount).toBe(200);
   });
 
+  it('expires open corrections on visits within the closing period, leaves others untouched', async () => {
+    const { token } = await seedDispatcherWithToken();
+    const { tech } = await seedTechnicianWithToken();
+    const periodId = await seedPayPeriod('2026-06-23', '2026-06-29');
+
+    const inPeriodVisitId = await seedVisitInPeriod(tech.id, '2026-06-25T10:00:00Z', 200);
+    const { visitId: outsidePeriodVisitId } = await seedCompletedVisit({ technicianId: tech.id });
+    await pool.query(`UPDATE visits SET completed_at = '2026-07-10T10:00:00Z' WHERE id = $1`, [outsidePeriodVisitId]);
+    const { visitId: appliedVisitId } = await seedCompletedVisit({ technicianId: tech.id });
+    await pool.query(`UPDATE visits SET completed_at = '2026-06-26T10:00:00Z' WHERE id = $1`, [appliedVisitId]);
+
+    async function seedCorrection(visitId, status) {
+      const id = crypto.randomUUID();
+      await pool.query(
+        `INSERT INTO corrections (id, visit_id, requested_by, message, status, requested_at)
+         VALUES ($1, $2, $3, 'msg', $4, $5)`,
+        [id, visitId, tech.id, status, new Date().toISOString()]
+      );
+      return id;
+    }
+
+    const openInPeriodId = await seedCorrection(inPeriodVisitId, 'open');
+    const openOutsidePeriodId = await seedCorrection(outsidePeriodVisitId, 'open');
+    const alreadyAppliedId = await seedCorrection(appliedVisitId, 'applied');
+
+    const res = await request(app)
+      .post('/api/dispatch/pay-periods/close')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ periodId });
+
+    expect(res.status).toBe(200);
+
+    const rows = await pool.query(
+      'SELECT id, status FROM corrections WHERE id IN ($1, $2, $3)',
+      [openInPeriodId, openOutsidePeriodId, alreadyAppliedId]
+    );
+    const statusById = Object.fromEntries(rows.rows.map((r) => [r.id, r.status]));
+    expect(statusById[openInPeriodId]).toBe('expired');
+    expect(statusById[openOutsidePeriodId]).toBe('open');
+    expect(statusById[alreadyAppliedId]).toBe('applied');
+  });
+
   it('does not create a line for technician with zero completed visits in period', async () => {
     const { token } = await seedDispatcherWithToken();
     const { tech } = await seedTechnicianWithToken();

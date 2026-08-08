@@ -637,12 +637,12 @@ Change history for visits — what changed and when, not who requested it.
 | visit_id | text FK | References visits.id |
 | changed_at | text | ISO 8601 |
 | summary | text | Human-readable description of what changed |
-| source | text | "dispatch_direct" — dispatcher edited the visit directly via `PATCH /api/dispatch/visits/:id`. "correction_approved" — change originated from a technician's `corrections` request that the dispatcher approved; in this case `corrections.reason` is carried into `summary`. |
+| source | text | "dispatch_direct" — every dispatcher edit to a visit via `PATCH /api/dispatch/visits/:id`, unconditionally. This includes edits made because of a technician's correction message (see `corrections`) — applying a correction and editing the visit are two separate, independent dispatcher actions (see `/docs/shared/CORRECTIONS.md`), so there is no distinct source value for correction-driven edits. |
 
 **Rules:**
 - One row per edit action — not per field.
 - Displayed in History as an expandable mini-log per visit (e.g. "06-15 20:15 — edited from Dispatch").
-- Does not track which user made the change — only when, what, and which of the two sources it came from.
+- Does not track which user made the change — only when and what. There is only one `source` value in practice; it exists as a column mainly for future extensibility, not to distinguish today's edits.
 
 ---
 

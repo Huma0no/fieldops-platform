@@ -124,7 +124,6 @@ function renderList () {
 function buildReportCard (visit) {
   const isPending    = queuedIds.has(visit.id)
   const isDownloaded = downloadedIds.has(visit.id)
-  const correctionStatus = visit.correction_status  // 'pending' | 'approved' | 'rejected' | null
 
   const card = document.createElement('div')
   card.className = 'report-card'
@@ -159,7 +158,7 @@ function buildReportCard (visit) {
   menuBtn.setAttribute('aria-label', 'More options')
   menuBtn.addEventListener('click', e => {
     e.stopPropagation()
-    showCardMenu(menuBtn, visit, correctionStatus)
+    showCardMenu(menuBtn, visit)
   })
   rightWrap.appendChild(menuBtn)
 
@@ -173,26 +172,6 @@ function buildReportCard (visit) {
   else if (isDownloaded) { statusLabel.textContent = 'Downloaded locally — not sent'; statusLabel.className = 'rc-status rc-status--downloaded' }
   else                   { statusLabel.textContent = 'Sent'; statusLabel.className = 'rc-status rc-status--sent' }
   card.appendChild(statusLabel)
-
-  // Correction badge
-  if (correctionStatus) {
-    const badge = document.createElement('p')
-    badge.className = 'rc-correction-badge'
-    if (correctionStatus === 'pending')  { badge.textContent = 'Correction pending'; badge.classList.add('rc-correction-badge--pending') }
-    if (correctionStatus === 'approved') { badge.textContent = 'Correction approved'; badge.classList.add('rc-correction-badge--approved') }
-    if (correctionStatus === 'rejected') {
-      badge.textContent = 'Correction rejected'
-      badge.classList.add('rc-correction-badge--rejected')
-      if (visit.correction_dispatcher_note) {
-        const note = document.createElement('button')
-        note.className   = 'rc-note-link'
-        note.textContent = ' · View note'
-        note.addEventListener('click', () => alert(visit.correction_dispatcher_note))
-        badge.appendChild(note)
-      }
-    }
-    card.appendChild(badge)
-  }
 
   // Actions
   const actions = document.createElement('div')
@@ -214,27 +193,20 @@ function buildReportCard (visit) {
   return card
 }
 
-function showCardMenu (anchorEl, visit, correctionStatus) {
+function showCardMenu (anchorEl, visit) {
   document.querySelector('.rc-context-menu')?.remove()
 
   const menu = document.createElement('div')
   menu.className = 'rc-context-menu'
 
-  if (!correctionStatus || correctionStatus === 'rejected') {
-    const corrBtn = document.createElement('button')
-    corrBtn.className   = 'rc-context-item'
-    corrBtn.textContent = 'Request correction'
-    corrBtn.addEventListener('click', () => {
-      menu.remove()
-      openCorrectionModal(visit)
-    })
-    menu.appendChild(corrBtn)
-  } else {
-    const info = document.createElement('p')
-    info.className   = 'rc-context-empty'
-    info.textContent = correctionStatus === 'pending' ? 'Correction pending review' : 'Correction approved'
-    menu.appendChild(info)
-  }
+  const corrBtn = document.createElement('button')
+  corrBtn.className   = 'rc-context-item'
+  corrBtn.textContent = 'Request correction'
+  corrBtn.addEventListener('click', () => {
+    menu.remove()
+    openCorrectionModal(visit)
+  })
+  menu.appendChild(corrBtn)
 
   const rect = anchorEl.getBoundingClientRect()
   menu.style.top   = `${rect.bottom + 4}px`
@@ -248,15 +220,10 @@ function showCardMenu (anchorEl, visit, correctionStatus) {
 function openCorrectionModal (visit) {
   const modal = CorrectionModal({
     visitId: visit.id,
-    onSubmit: async ({ visitId, fields, reason, hasEvidence, evidencePhotoId }) => {
-      try {
-        await api.post(`/visits/${visitId}/request-correction`, { correctedFields: fields, reason, hasEvidence, evidencePhotoId })
-        visit.correction_status = 'pending'
-        modal.remove()
-        renderList()
-      } catch (err) {
-        console.error('correction submit failed:', err)
-      }
+    onSubmit: async ({ visitId, message }) => {
+      await api.post(`/visits/${visitId}/request-correction`, { message })
+      modal.remove()
+      alert('Correction request sent.')
     },
     onCancel: () => modal.remove(),
   })
@@ -423,15 +390,9 @@ const screenStyles = `
   @keyframes shimmer { 0%,100%{opacity:.5} 50%{opacity:1} }
 
   .rc-menu-btn { background:none; border:none; color:var(--fo-ink-soft); font-size:18px; cursor:pointer; padding:0 2px; letter-spacing:1px; line-height:1; -webkit-tap-highlight-color:transparent; }
-  .rc-correction-badge { font-size:var(--text-sm); font-family:var(--fo-font-mono); margin-top:2px; }
-  .rc-correction-badge--pending  { color: var(--fo-accent); }
-  .rc-correction-badge--approved { color: var(--fo-ok); }
-  .rc-correction-badge--rejected { color: var(--fo-no); }
-  .rc-note-link { background:none; border:none; color:var(--fo-accent-deep); font-size:var(--text-sm); cursor:pointer; padding:0; }
   .rc-context-menu { position:fixed; background:var(--fo-panel); box-shadow:var(--fo-shadow-card); border-radius:var(--fo-radius-sm); padding:var(--space-2) 0; min-width:180px; z-index:100; }
   .rc-context-item { display:block; width:100%; background:none; border:none; text-align:left; font-size:var(--text-base); color:var(--fo-ink); padding:var(--space-3) var(--space-4); cursor:pointer; }
   .rc-context-item:active { background:var(--fo-well); }
-  .rc-context-empty { font-size:var(--text-sm); font-family:var(--fo-font-mono); color:var(--fo-ink-soft); padding:var(--space-3) var(--space-4); text-align:center; }
   .rp-overlay { position:fixed; inset:0; background:rgba(0,0,0,.6); display:flex; align-items:flex-end; z-index:100; }
   .rp-modal { width:100%; background:var(--fo-panel); box-shadow:var(--fo-shadow-card); border-radius:var(--fo-radius) var(--fo-radius) 0 0; max-height:80dvh; display:flex; flex-direction:column; padding-bottom:env(safe-area-inset-bottom,0px); }
   .rp-modal-header { display:flex; justify-content:space-between; align-items:center; padding:var(--space-4) var(--space-4) var(--space-3); box-shadow:inset 0 -1px 0 var(--fo-panel-lo); flex-shrink:0; }

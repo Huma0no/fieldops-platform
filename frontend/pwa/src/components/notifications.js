@@ -13,8 +13,7 @@ const NOTIFICATION_ROUTES = {
   transfer_rejected:   '/',
   message:             '/chat',
   broadcast:           '/chat',
-  correction_approved: '/reports',
-  correction_rejected: '/reports',
+  correction_applied:  '/reports',
 }
 
 let unreadCount   = 0
@@ -160,8 +159,7 @@ function formatType (type) {
     transfer_rejected:   'Transfer rejected',
     message:             'New message',
     broadcast:           'Broadcast message',
-    correction_approved: 'Correction approved',
-    correction_rejected: 'Correction rejected',
+    correction_applied:  'Correction applied',
   }
   return map[type] ?? type
 }

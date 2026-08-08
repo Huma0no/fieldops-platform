@@ -1,19 +1,8 @@
 /**
  * src/components/correction-modal.js
  * Modal for technician to submit a correction request on a completed visit.
+ * One-way free-text message to the Dispatcher/Ledger — not a proposed field-change payload.
  */
-
-import { api } from '../../../shared/api.js'
-
-const CORRECTABLE_FIELDS = [
-  { key: 'service',     label: 'Service' },
-  { key: 'thermostat',  label: 'Thermostat' },
-  { key: 'accessories', label: 'Accessories' },
-  { key: 'fixes',       label: 'Fixes' },
-  { key: 'weighin',     label: 'Weigh-in data' },
-  { key: 'notes',       label: 'Notes' },
-  { key: 'equipment',   label: 'Equipment models' },
-]
 
 export function CorrectionModal ({ visitId, onSubmit, onCancel }) {
   const overlay = document.createElement('div')
@@ -31,83 +20,20 @@ export function CorrectionModal ({ visitId, onSubmit, onCancel }) {
 
   const sub = document.createElement('p')
   sub.className = 'cm-sub'
-  sub.textContent = 'Select the fields that need correction and describe what changed.'
+  sub.textContent = 'Describe what needs to be corrected on this visit.'
   modal.appendChild(sub)
 
-  // Field checkboxes
-  const fieldSection = document.createElement('div')
-  fieldSection.className = 'cm-fields'
+  // Message textarea
+  const messageLabel = document.createElement('label')
+  messageLabel.className = 'cm-label'
+  messageLabel.textContent = 'Message'
+  modal.appendChild(messageLabel)
 
-  const selectedFields = new Set()
-
-  CORRECTABLE_FIELDS.forEach(({ key, label }) => {
-    const row = document.createElement('label')
-    row.className = 'cm-field-row'
-
-    const cb = document.createElement('input')
-    cb.type = 'checkbox'
-    cb.value = key
-    cb.addEventListener('change', () => {
-      if (cb.checked) selectedFields.add(key)
-      else selectedFields.delete(key)
-    })
-
-    const lbl = document.createElement('span')
-    lbl.textContent = label
-
-    row.appendChild(cb)
-    row.appendChild(lbl)
-    fieldSection.appendChild(row)
-  })
-
-  modal.appendChild(fieldSection)
-
-  // Reason textarea
-  const reasonLabel = document.createElement('label')
-  reasonLabel.className = 'cm-label'
-  reasonLabel.textContent = 'Reason'
-  modal.appendChild(reasonLabel)
-
-  const reason = document.createElement('textarea')
-  reason.className = 'cm-textarea'
-  reason.placeholder = 'Describe what needs to be corrected and why…'
-  reason.rows = 4
-  modal.appendChild(reason)
-
-  // Evidence photo prompt (optional)
-  const evidenceSection = document.createElement('div')
-  evidenceSection.className = 'cm-evidence'
-
-  const evidenceHint = document.createElement('p')
-  evidenceHint.className = 'cm-evidence-hint'
-  evidenceHint.textContent = 'Adding a photo helps the dispatcher approve this faster.'
-  evidenceSection.appendChild(evidenceHint)
-
-  let evidenceFile = null
-
-  const evidenceInput = document.createElement('input')
-  evidenceInput.type = 'file'
-  evidenceInput.accept = 'image/*'
-  evidenceInput.capture = 'environment'
-  evidenceInput.className = 'hidden'
-  evidenceInput.addEventListener('change', () => {
-    const file = evidenceInput.files?.[0]
-    if (file) {
-      evidenceFile = file
-      evidenceBtn.textContent = `📷 ${file.name}`
-      evidenceBtn.classList.add('cm-evidence-btn--selected')
-    }
-  })
-
-  const evidenceBtn = document.createElement('button')
-  evidenceBtn.type = 'button'
-  evidenceBtn.className = 'cm-evidence-btn'
-  evidenceBtn.textContent = '📷 Attach photo (optional)'
-  evidenceBtn.addEventListener('click', () => evidenceInput.click())
-
-  evidenceSection.appendChild(evidenceInput)
-  evidenceSection.appendChild(evidenceBtn)
-  modal.appendChild(evidenceSection)
+  const message = document.createElement('textarea')
+  message.className = 'cm-textarea'
+  message.placeholder = 'Describe what needs to be corrected and why…'
+  message.rows = 4
+  modal.appendChild(message)
 
   // Error
   const error = document.createElement('p')
@@ -128,11 +54,7 @@ export function CorrectionModal ({ visitId, onSubmit, onCancel }) {
   submitBtn.className = 'cm-btn cm-btn--primary'
   submitBtn.textContent = 'Submit request'
   submitBtn.addEventListener('click', async () => {
-    if (selectedFields.size === 0) {
-      error.textContent = 'Select at least one field to correct.'
-      return
-    }
-    if (!reason.value.trim()) {
+    if (!message.value.trim()) {
       error.textContent = 'Please describe what needs to be corrected.'
       return
     }
@@ -140,27 +62,13 @@ export function CorrectionModal ({ visitId, onSubmit, onCancel }) {
     submitBtn.textContent = 'Submitting…'
     error.textContent = ''
 
-    let evidencePhotoId = null
-    if (evidenceFile) {
-      try {
-        const form = new FormData()
-        form.append('photo', evidenceFile, evidenceFile.name)
-        form.append('category', 'correction_evidence')
-        form.append('tag', 'CORRECTION')
-        const result = await api.upload(`/visits/${visitId}/photos`, form)
-        evidencePhotoId = result?.photoId ?? null
-      } catch (uploadErr) {
-        console.warn('evidence photo upload failed:', uploadErr)
-      }
+    try {
+      await onSubmit({ visitId, message: message.value.trim() })
+    } catch (err) {
+      error.textContent = err.message ?? 'Submission failed.'
+      submitBtn.disabled = false
+      submitBtn.textContent = 'Submit request'
     }
-
-    await onSubmit({
-      visitId,
-      fields: [...selectedFields],
-      reason: reason.value.trim(),
-      hasEvidence: !!evidencePhotoId,
-      evidencePhotoId,
-    })
   })
 
   actions.appendChild(cancelBtn)
@@ -204,32 +112,6 @@ export const correctionModalStyles = `
     font-size: var(--text-sm);
     color: var(--text-muted);
     margin-top: -8px;
-  }
-
-  .cm-fields {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-2);
-    background: var(--surface-2);
-    border-radius: var(--radius-md);
-    padding: var(--space-3);
-    border: 0.5px solid var(--border-subtle);
-  }
-
-  .cm-field-row {
-    display: flex;
-    align-items: center;
-    gap: var(--space-3);
-    font-size: var(--text-base);
-    color: var(--text-secondary);
-    cursor: pointer;
-  }
-
-  .cm-field-row input[type="checkbox"] {
-    width: 16px;
-    height: 16px;
-    cursor: pointer;
-    accent-color: var(--color-signal);
   }
 
   .cm-label {
@@ -279,37 +161,4 @@ export const correctionModalStyles = `
   .cm-btn--primary   { background: var(--color-signal); color: #fff; }
   .cm-btn--secondary { background: var(--surface-3); color: var(--text-secondary); }
   .cm-btn:disabled   { opacity: 0.6; cursor: not-allowed; }
-
-  .cm-evidence {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-2);
-  }
-
-  .cm-evidence-hint {
-    font-size: var(--text-sm);
-    color: var(--text-disabled);
-    margin: 0;
-  }
-
-  .cm-evidence-btn {
-    align-self: flex-start;
-    background: var(--surface-2);
-    border: 0.5px solid var(--border-default);
-    border-radius: var(--radius-md);
-    color: var(--text-muted);
-    font-size: var(--text-sm);
-    padding: var(--space-2) var(--space-3);
-    cursor: pointer;
-    -webkit-tap-highlight-color: transparent;
-    max-width: 100%;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  .cm-evidence-btn--selected {
-    border-color: var(--color-signal);
-    color: var(--color-signal);
-  }
 `

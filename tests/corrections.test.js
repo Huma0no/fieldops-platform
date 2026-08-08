@@ -3,7 +3,7 @@ const crypto = require('crypto');
 const app = require('../src/index');
 const { pool, truncateTables } = require('./helpers/db');
 const {
-  seedDispatcherWithToken, seedTechnicianWithToken, seedTech, seedToken,
+  seedDispatcherWithToken, seedTechnicianWithToken, seedTech,
   seedCompletedVisit,
 } = require('./helpers/seeds');
 
@@ -20,41 +20,37 @@ async function seedPayPeriod(weekStart, weekEnd, status = 'open') {
 }
 
 // Seed a completed visit with a known completed_at inside a pay period window
-async function seedCompletedVisitAt(technicianId, completedAt, totalPrice = 200) {
+async function seedCompletedVisitAt(technicianId, completedAt) {
   const { visitId } = await seedCompletedVisit({ technicianId });
-  await pool.query(
-    `UPDATE visits SET completed_at = $1, total_price = $2 WHERE id = $3`,
-    [completedAt, totalPrice, visitId]
-  );
+  await pool.query(`UPDATE visits SET completed_at = $1 WHERE id = $2`, [completedAt, visitId]);
   return visitId;
 }
 
 // ── POST /api/visits/:id/request-correction ───────────────────────────────────
 
 describe('POST /api/visits/:id/request-correction', () => {
-  it('creates a correction row and returns correctionId + pending status', async () => {
+  it('creates a correction row and returns correctionId + open status', async () => {
     const { tech, token } = await seedTechnicianWithToken();
     const { visitId } = await seedCompletedVisit({ technicianId: tech.id });
 
     const res = await request(app)
       .post(`/api/visits/${visitId}/request-correction`)
       .set('Authorization', `Bearer ${token}`)
-      .send({ correctedFields: { notes: 'updated notes', totalPrice: 120 }, reason: 'wrong notes' });
+      .send({ message: 'Wrong total price, should be $150' });
 
     expect(res.status).toBe(200);
     expect(res.body.correctionId).toBeDefined();
-    expect(res.body.status).toBe('pending');
+    expect(res.body.status).toBe('open');
 
     const row = await pool.query('SELECT * FROM corrections WHERE id = $1', [res.body.correctionId]);
     expect(row.rows).toHaveLength(1);
     expect(row.rows[0].visit_id).toBe(visitId);
     expect(row.rows[0].requested_by).toBe(tech.id);
-    expect(row.rows[0].status).toBe('pending');
-    expect(JSON.parse(row.rows[0].corrected_fields)).toEqual({ notes: 'updated notes', totalPrice: 120 });
-    expect(row.rows[0].reason).toBe('wrong notes');
+    expect(row.rows[0].status).toBe('open');
+    expect(row.rows[0].message).toBe('Wrong total price, should be $150');
   });
 
-  it('creates notifications for all dispatchers and owners', async () => {
+  it('creates notifications for all dispatchers and owners, not the technician', async () => {
     const { tech, token } = await seedTechnicianWithToken();
     const { dispatcher } = await seedDispatcherWithToken();
     const owner = await seedTech({ role: 'owner', name: 'Owner-1' });
@@ -63,45 +59,42 @@ describe('POST /api/visits/:id/request-correction', () => {
     await request(app)
       .post(`/api/visits/${visitId}/request-correction`)
       .set('Authorization', `Bearer ${token}`)
-      .send({ correctedFields: { notes: 'fix' } });
+      .send({ message: 'fix' });
 
-    const notifs = await pool.query(
-      `SELECT * FROM notifications WHERE type = 'correction_requested'`
-    );
+    const notifs = await pool.query(`SELECT * FROM notifications WHERE type = 'correction_requested'`);
     const recipientIds = notifs.rows.map((r) => r.recipient_id);
     expect(recipientIds).toContain(dispatcher.id);
     expect(recipientIds).toContain(owner.id);
     expect(recipientIds).not.toContain(tech.id);
   });
 
-  it('returns 400 if a pending correction already exists', async () => {
+  it('returns 400 if an open correction already exists for the visit', async () => {
     const { tech, token } = await seedTechnicianWithToken();
     const { visitId } = await seedCompletedVisit({ technicianId: tech.id });
 
     await request(app)
       .post(`/api/visits/${visitId}/request-correction`)
       .set('Authorization', `Bearer ${token}`)
-      .send({ correctedFields: { notes: 'first' } });
+      .send({ message: 'first' });
 
     const res = await request(app)
       .post(`/api/visits/${visitId}/request-correction`)
       .set('Authorization', `Bearer ${token}`)
-      .send({ correctedFields: { notes: 'second' } });
+      .send({ message: 'second' });
 
     expect(res.status).toBe(400);
-    expect(res.body.error).toMatch(/already pending/i);
+    expect(res.body.error).toMatch(/already exists/i);
   });
 
   it('returns 400 if visit is not in a submitted status', async () => {
     const { tech, token } = await seedTechnicianWithToken();
-    // seedCompletedVisit returns status='completed' — change to 'assigned'
     const { visitId } = await seedCompletedVisit({ technicianId: tech.id });
     await pool.query(`UPDATE visits SET status = 'assigned' WHERE id = $1`, [visitId]);
 
     const res = await request(app)
       .post(`/api/visits/${visitId}/request-correction`)
       .set('Authorization', `Bearer ${token}`)
-      .send({ correctedFields: { notes: 'fix' } });
+      .send({ message: 'fix' });
 
     expect(res.status).toBe(400);
   });
@@ -114,7 +107,7 @@ describe('POST /api/visits/:id/request-correction', () => {
     const res = await request(app)
       .post(`/api/visits/${visitId}/request-correction`)
       .set('Authorization', `Bearer ${otherToken}`)
-      .send({ correctedFields: { notes: 'fix' } });
+      .send({ message: 'fix' });
 
     expect(res.status).toBe(403);
   });
@@ -124,7 +117,7 @@ describe('POST /api/visits/:id/request-correction', () => {
     const res = await request(app)
       .post('/api/visits/nonexistent-id/request-correction')
       .set('Authorization', `Bearer ${token}`)
-      .send({ correctedFields: { notes: 'fix' } });
+      .send({ message: 'fix' });
     expect(res.status).toBe(404);
   });
 
@@ -133,242 +126,136 @@ describe('POST /api/visits/:id/request-correction', () => {
     const res = await request(app)
       .post('/api/visits/some-id/request-correction')
       .set('Authorization', `Bearer ${token}`)
-      .send({ correctedFields: { notes: 'fix' } });
+      .send({ message: 'fix' });
     expect(res.status).toBe(403);
   });
-});
 
-// ── PATCH /api/dispatch/corrections/:id/approve ───────────────────────────────
-
-describe('PATCH /api/dispatch/corrections/:id/approve', () => {
-  async function seedPendingCorrection(visitId, techId, correctedFields = { notes: 'updated' }) {
-    const id = crypto.randomUUID();
-    await pool.query(
-      `INSERT INTO corrections (id, visit_id, requested_by, corrected_fields, reason, status, requested_at)
-       VALUES ($1, $2, $3, $4, 'test reason', 'pending', $5)`,
-      [id, visitId, techId, JSON.stringify(correctedFields), new Date().toISOString()]
-    );
-    return id;
-  }
-
-  it('applies correctedFields to the visit and transitions correction to approved', async () => {
-    const { token } = await seedDispatcherWithToken();
-    const { tech } = await seedTechnicianWithToken();
-    const { visitId } = await seedCompletedVisit({ technicianId: tech.id });
-    const corrId = await seedPendingCorrection(visitId, tech.id, { notes: 'fixed notes', totalPrice: 99 });
-
-    const res = await request(app)
-      .patch(`/api/dispatch/corrections/${corrId}/approve`)
-      .set('Authorization', `Bearer ${token}`);
-
-    expect(res.status).toBe(200);
-    expect(res.body.affectsClosedPeriod).toBeDefined();
-
-    const visit = await pool.query('SELECT notes, total_price FROM visits WHERE id = $1', [visitId]);
-    expect(visit.rows[0].notes).toBe('fixed notes');
-    expect(visit.rows[0].total_price).toBe(99);
-
-    const corr = await pool.query('SELECT status, resolved_at FROM corrections WHERE id = $1', [corrId]);
-    expect(corr.rows[0].status).toBe('approved');
-    expect(corr.rows[0].resolved_at).toBeDefined();
-  });
-
-  it('inserts an edit_log row with source correction_approved', async () => {
-    const { token } = await seedDispatcherWithToken();
-    const { tech } = await seedTechnicianWithToken();
-    const { visitId } = await seedCompletedVisit({ technicianId: tech.id });
-    const corrId = await seedPendingCorrection(visitId, tech.id);
-
-    await request(app)
-      .patch(`/api/dispatch/corrections/${corrId}/approve`)
-      .set('Authorization', `Bearer ${token}`);
-
-    const log = await pool.query(
-      `SELECT * FROM edit_log WHERE visit_id = $1 AND source = 'correction_approved'`,
-      [visitId]
-    );
-    expect(log.rows).toHaveLength(1);
-  });
-
-  it('notifies the requesting technician of approval', async () => {
-    const { token } = await seedDispatcherWithToken();
-    const { tech } = await seedTechnicianWithToken();
-    const { visitId } = await seedCompletedVisit({ technicianId: tech.id });
-    const corrId = await seedPendingCorrection(visitId, tech.id);
-
-    await request(app)
-      .patch(`/api/dispatch/corrections/${corrId}/approve`)
-      .set('Authorization', `Bearer ${token}`);
-
-    const notif = await pool.query(
-      `SELECT * FROM notifications WHERE recipient_id = $1 AND type = 'correction_approved'`,
-      [tech.id]
-    );
-    expect(notif.rows).toHaveLength(1);
-  });
-
-  it('returns affectsClosedPeriod=false when period is open', async () => {
-    const { token } = await seedDispatcherWithToken();
-    const { tech } = await seedTechnicianWithToken();
-    const visitId = await seedCompletedVisitAt(tech.id, '2026-06-25T10:00:00Z');
-    await seedPayPeriod('2026-06-23', '2026-06-29', 'open');
-    const corrId = await seedPendingCorrection(visitId, tech.id);
-
-    const res = await request(app)
-      .patch(`/api/dispatch/corrections/${corrId}/approve`)
-      .set('Authorization', `Bearer ${token}`);
-
-    expect(res.status).toBe(200);
-    expect(res.body.affectsClosedPeriod).toBe(false);
-  });
-
-  it('returns affectsClosedPeriod=true and notifies dispatchers when period is closed', async () => {
-    const { token, dispatcher } = await seedDispatcherWithToken();
-    const { tech } = await seedTechnicianWithToken();
+  it('returns 409 if the visit\'s Ledger week has already closed', async () => {
+    const { token, tech } = await seedTechnicianWithToken();
     const visitId = await seedCompletedVisitAt(tech.id, '2026-06-25T10:00:00Z');
     await seedPayPeriod('2026-06-23', '2026-06-29', 'closed');
-    const corrId = await seedPendingCorrection(visitId, tech.id);
 
     const res = await request(app)
-      .patch(`/api/dispatch/corrections/${corrId}/approve`)
-      .set('Authorization', `Bearer ${token}`);
+      .post(`/api/visits/${visitId}/request-correction`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ message: 'fix' });
+
+    expect(res.status).toBe(409);
+  });
+
+  it('allows the request when the Ledger week is still open', async () => {
+    const { token, tech } = await seedTechnicianWithToken();
+    const visitId = await seedCompletedVisitAt(tech.id, '2026-06-25T10:00:00Z');
+    await seedPayPeriod('2026-06-23', '2026-06-29', 'open');
+
+    const res = await request(app)
+      .post(`/api/visits/${visitId}/request-correction`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ message: 'fix' });
 
     expect(res.status).toBe(200);
-    expect(res.body.affectsClosedPeriod).toBe(true);
-
-    const notif = await pool.query(
-      `SELECT * FROM notifications WHERE type = 'correction_needs_period_adjustment'`
-    );
-    expect(notif.rows.length).toBeGreaterThan(0);
   });
 
-  it('silently ignores unknown fields in correctedFields', async () => {
-    const { token } = await seedDispatcherWithToken();
-    const { tech } = await seedTechnicianWithToken();
-    const { visitId } = await seedCompletedVisit({ technicianId: tech.id });
-    const corrId = await seedPendingCorrection(visitId, tech.id, { notes: 'ok', unknownField: 'bad' });
+  it('allows the request when no pay_periods row exists yet for that week', async () => {
+    const { token, tech } = await seedTechnicianWithToken();
+    const visitId = await seedCompletedVisitAt(tech.id, '2026-06-25T10:00:00Z');
 
     const res = await request(app)
-      .patch(`/api/dispatch/corrections/${corrId}/approve`)
-      .set('Authorization', `Bearer ${token}`);
+      .post(`/api/visits/${visitId}/request-correction`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ message: 'fix' });
 
     expect(res.status).toBe(200);
-    const visit = await pool.query('SELECT notes FROM visits WHERE id = $1', [visitId]);
-    expect(visit.rows[0].notes).toBe('ok');
-  });
-
-  it('returns 400 if correction is not pending', async () => {
-    const { token } = await seedDispatcherWithToken();
-    const { tech } = await seedTechnicianWithToken();
-    const { visitId } = await seedCompletedVisit({ technicianId: tech.id });
-    const corrId = await seedPendingCorrection(visitId, tech.id);
-    await pool.query(`UPDATE corrections SET status = 'approved' WHERE id = $1`, [corrId]);
-
-    const res = await request(app)
-      .patch(`/api/dispatch/corrections/${corrId}/approve`)
-      .set('Authorization', `Bearer ${token}`);
-
-    expect(res.status).toBe(400);
-  });
-
-  it('returns 404 for unknown correction', async () => {
-    const { token } = await seedDispatcherWithToken();
-    const res = await request(app)
-      .patch('/api/dispatch/corrections/nonexistent-id/approve')
-      .set('Authorization', `Bearer ${token}`);
-    expect(res.status).toBe(404);
-  });
-
-  it('returns 403 for technician role', async () => {
-    const { token } = await seedTechnicianWithToken();
-    const res = await request(app)
-      .patch('/api/dispatch/corrections/some-id/approve')
-      .set('Authorization', `Bearer ${token}`);
-    expect(res.status).toBe(403);
   });
 });
 
-// ── PATCH /api/dispatch/corrections/:id/reject ────────────────────────────────
+// ── PATCH /api/dispatch/corrections/:id/apply ──────────────────────────────────
 
-describe('PATCH /api/dispatch/corrections/:id/reject', () => {
-  async function seedPendingCorrection(visitId, techId) {
+describe('PATCH /api/dispatch/corrections/:id/apply', () => {
+  async function seedOpenCorrection(visitId, techId, message = 'please fix') {
     const id = crypto.randomUUID();
     await pool.query(
-      `INSERT INTO corrections (id, visit_id, requested_by, corrected_fields, status, requested_at)
-       VALUES ($1, $2, $3, '{}', 'pending', $4)`,
-      [id, visitId, techId, new Date().toISOString()]
+      `INSERT INTO corrections (id, visit_id, requested_by, message, status, requested_at)
+       VALUES ($1, $2, $3, $4, 'open', $5)`,
+      [id, visitId, techId, message, new Date().toISOString()]
     );
     return id;
   }
 
-  it('transitions correction to rejected and stores dispatcherNote', async () => {
+  it('transitions correction to applied and sets applied_at', async () => {
     const { token } = await seedDispatcherWithToken();
     const { tech } = await seedTechnicianWithToken();
     const { visitId } = await seedCompletedVisit({ technicianId: tech.id });
-    const corrId = await seedPendingCorrection(visitId, tech.id);
+    const corrId = await seedOpenCorrection(visitId, tech.id);
 
     const res = await request(app)
-      .patch(`/api/dispatch/corrections/${corrId}/reject`)
-      .set('Authorization', `Bearer ${token}`)
-      .send({ dispatcherNote: 'Not a valid correction' });
+      .patch(`/api/dispatch/corrections/${corrId}/apply`)
+      .set('Authorization', `Bearer ${token}`);
 
     expect(res.status).toBe(200);
-    expect(res.body.correctionId).toBe(corrId);
-    expect(res.body.status).toBe('rejected');
-    expect(res.body.dispatcherNote).toBe('Not a valid correction');
+    expect(res.body.status).toBe('applied');
+    expect(res.body.appliedAt).toBeDefined();
 
-    const row = await pool.query('SELECT * FROM corrections WHERE id = $1', [corrId]);
-    expect(row.rows[0].status).toBe('rejected');
-    expect(row.rows[0].dispatcher_note).toBe('Not a valid correction');
-    expect(row.rows[0].resolved_at).toBeDefined();
+    const row = await pool.query('SELECT status, applied_at FROM corrections WHERE id = $1', [corrId]);
+    expect(row.rows[0].status).toBe('applied');
+    expect(row.rows[0].applied_at).toBeDefined();
   });
 
-  it('notifies the requesting technician of rejection with note in message', async () => {
+  it('does not modify the visit', async () => {
     const { token } = await seedDispatcherWithToken();
     const { tech } = await seedTechnicianWithToken();
     const { visitId } = await seedCompletedVisit({ technicianId: tech.id });
-    const corrId = await seedPendingCorrection(visitId, tech.id);
+    const before = await pool.query('SELECT notes, total_price, updated_at FROM visits WHERE id = $1', [visitId]);
+    const corrId = await seedOpenCorrection(visitId, tech.id);
 
     await request(app)
-      .patch(`/api/dispatch/corrections/${corrId}/reject`)
-      .set('Authorization', `Bearer ${token}`)
-      .send({ dispatcherNote: 'prices look correct' });
+      .patch(`/api/dispatch/corrections/${corrId}/apply`)
+      .set('Authorization', `Bearer ${token}`);
 
-    const notif = await pool.query(
-      `SELECT * FROM notifications WHERE recipient_id = $1 AND type = 'correction_rejected'`,
-      [tech.id]
-    );
-    expect(notif.rows).toHaveLength(1);
-    expect(notif.rows[0].body).toContain('prices look correct');
+    const after = await pool.query('SELECT notes, total_price, updated_at FROM visits WHERE id = $1', [visitId]);
+    expect(after.rows[0]).toEqual(before.rows[0]);
   });
 
-  it('notifies technician without note suffix when no dispatcherNote', async () => {
+  it('notifies the requesting technician', async () => {
     const { token } = await seedDispatcherWithToken();
     const { tech } = await seedTechnicianWithToken();
     const { visitId } = await seedCompletedVisit({ technicianId: tech.id });
-    const corrId = await seedPendingCorrection(visitId, tech.id);
+    const corrId = await seedOpenCorrection(visitId, tech.id);
 
     await request(app)
-      .patch(`/api/dispatch/corrections/${corrId}/reject`)
+      .patch(`/api/dispatch/corrections/${corrId}/apply`)
       .set('Authorization', `Bearer ${token}`);
 
     const notif = await pool.query(
-      `SELECT * FROM notifications WHERE recipient_id = $1 AND type = 'correction_rejected'`,
+      `SELECT * FROM notifications WHERE recipient_id = $1 AND type = 'correction_applied'`,
       [tech.id]
     );
     expect(notif.rows).toHaveLength(1);
-    expect(notif.rows[0].body).not.toContain(':');
   });
 
-  it('returns 400 if correction is not pending', async () => {
+  it('returns 400 if correction is not open (already applied)', async () => {
     const { token } = await seedDispatcherWithToken();
     const { tech } = await seedTechnicianWithToken();
     const { visitId } = await seedCompletedVisit({ technicianId: tech.id });
-    const corrId = await seedPendingCorrection(visitId, tech.id);
-    await pool.query(`UPDATE corrections SET status = 'rejected' WHERE id = $1`, [corrId]);
+    const corrId = await seedOpenCorrection(visitId, tech.id);
+    await pool.query(`UPDATE corrections SET status = 'applied' WHERE id = $1`, [corrId]);
 
     const res = await request(app)
-      .patch(`/api/dispatch/corrections/${corrId}/reject`)
+      .patch(`/api/dispatch/corrections/${corrId}/apply`)
+      .set('Authorization', `Bearer ${token}`);
+
+    expect(res.status).toBe(400);
+  });
+
+  it('returns 400 if correction is expired', async () => {
+    const { token } = await seedDispatcherWithToken();
+    const { tech } = await seedTechnicianWithToken();
+    const { visitId } = await seedCompletedVisit({ technicianId: tech.id });
+    const corrId = await seedOpenCorrection(visitId, tech.id);
+    await pool.query(`UPDATE corrections SET status = 'expired' WHERE id = $1`, [corrId]);
+
+    const res = await request(app)
+      .patch(`/api/dispatch/corrections/${corrId}/apply`)
       .set('Authorization', `Bearer ${token}`);
 
     expect(res.status).toBe(400);
@@ -377,7 +264,7 @@ describe('PATCH /api/dispatch/corrections/:id/reject', () => {
   it('returns 404 for unknown correction', async () => {
     const { token } = await seedDispatcherWithToken();
     const res = await request(app)
-      .patch('/api/dispatch/corrections/nonexistent-id/reject')
+      .patch('/api/dispatch/corrections/nonexistent-id/apply')
       .set('Authorization', `Bearer ${token}`);
     expect(res.status).toBe(404);
   });
@@ -385,7 +272,7 @@ describe('PATCH /api/dispatch/corrections/:id/reject', () => {
   it('returns 403 for technician role', async () => {
     const { token } = await seedTechnicianWithToken();
     const res = await request(app)
-      .patch('/api/dispatch/corrections/some-id/reject')
+      .patch('/api/dispatch/corrections/some-id/apply')
       .set('Authorization', `Bearer ${token}`);
     expect(res.status).toBe(403);
   });
@@ -394,18 +281,18 @@ describe('PATCH /api/dispatch/corrections/:id/reject', () => {
 // ── GET /api/dispatch/corrections ─────────────────────────────────────────────
 
 describe('GET /api/dispatch/corrections', () => {
-  async function seedCorrection(visitId, techId, status = 'pending') {
+  async function seedCorrection(visitId, techId, status = 'open') {
     const id = crypto.randomUUID();
     const now = new Date().toISOString();
     await pool.query(
-      `INSERT INTO corrections (id, visit_id, requested_by, corrected_fields, reason, status, requested_at)
-       VALUES ($1, $2, $3, $4, 'some reason', $5, $6)`,
-      [id, visitId, techId, JSON.stringify({ notes: 'fix' }), status, now]
+      `INSERT INTO corrections (id, visit_id, requested_by, message, status, requested_at)
+       VALUES ($1, $2, $3, 'a message', $4, $5)`,
+      [id, visitId, techId, status, now]
     );
     return id;
   }
 
-  it('returns all corrections with address street and requester name', async () => {
+  it('returns all corrections with address street, requester name, and message', async () => {
     const { token } = await seedDispatcherWithToken();
     const { tech } = await seedTechnicianWithToken();
     const { visitId } = await seedCompletedVisit({ technicianId: tech.id });
@@ -423,39 +310,39 @@ describe('GET /api/dispatch/corrections', () => {
     expect(entry.address).toHaveProperty('street');
     expect(entry.requestedBy).toHaveProperty('id', tech.id);
     expect(entry.requestedBy).toHaveProperty('name', tech.name);
-    expect(entry.correctedFields).toEqual({ notes: 'fix' });
-    expect(entry.reason).toBe('some reason');
-    expect(entry.status).toBe('pending');
+    expect(entry.message).toBe('a message');
+    expect(entry.status).toBe('open');
     expect(entry).toHaveProperty('requestedAt');
-    expect(entry).toHaveProperty('resolvedAt');
-    expect(entry).toHaveProperty('dispatcherNote');
+    expect(entry).toHaveProperty('appliedAt');
+    expect(entry.correctedFields).toBeUndefined();
+    expect(entry.dispatcherNote).toBeUndefined();
+    expect(entry.hasEvidence).toBeUndefined();
   });
 
-  it('filters by ?status=pending', async () => {
+  it('filters by ?status=open', async () => {
     const { token } = await seedDispatcherWithToken();
     const { tech } = await seedTechnicianWithToken();
     const { visitId: v1 } = await seedCompletedVisit({ technicianId: tech.id });
     const { visitId: v2 } = await seedCompletedVisit({ technicianId: tech.id });
-    await seedCorrection(v1, tech.id, 'pending');
-    await seedCorrection(v2, tech.id, 'approved');
+    await seedCorrection(v1, tech.id, 'open');
+    await seedCorrection(v2, tech.id, 'applied');
 
     const res = await request(app)
-      .get('/api/dispatch/corrections?status=pending')
+      .get('/api/dispatch/corrections?status=open')
       .set('Authorization', `Bearer ${token}`);
 
     expect(res.status).toBe(200);
-    expect(res.body.every((c) => c.status === 'pending')).toBe(true);
-    const approvedIds = res.body.filter((c) => c.status === 'approved');
-    expect(approvedIds).toHaveLength(0);
+    expect(res.body.every((c) => c.status === 'open')).toBe(true);
+    expect(res.body.filter((c) => c.status === 'applied')).toHaveLength(0);
   });
 
-  it('returns pending corrections before non-pending ones', async () => {
+  it('returns open corrections before non-open ones', async () => {
     const { token } = await seedDispatcherWithToken();
     const { tech } = await seedTechnicianWithToken();
     const { visitId: v1 } = await seedCompletedVisit({ technicianId: tech.id });
     const { visitId: v2 } = await seedCompletedVisit({ technicianId: tech.id });
-    await seedCorrection(v1, tech.id, 'approved');
-    await seedCorrection(v2, tech.id, 'pending');
+    await seedCorrection(v1, tech.id, 'applied');
+    await seedCorrection(v2, tech.id, 'open');
 
     const res = await request(app)
       .get('/api/dispatch/corrections')
@@ -463,10 +350,10 @@ describe('GET /api/dispatch/corrections', () => {
 
     expect(res.status).toBe(200);
     const statuses = res.body.map((c) => c.status);
-    const firstNonPending = statuses.findIndex((s) => s !== 'pending');
-    const lastPending = statuses.lastIndexOf('pending');
-    if (firstNonPending !== -1 && lastPending !== -1) {
-      expect(lastPending).toBeLessThan(firstNonPending);
+    const firstNonOpen = statuses.findIndex((s) => s !== 'open');
+    const lastOpen = statuses.lastIndexOf('open');
+    if (firstNonOpen !== -1 && lastOpen !== -1) {
+      expect(lastOpen).toBeLessThan(firstNonOpen);
     }
   });
 
@@ -479,167 +366,35 @@ describe('GET /api/dispatch/corrections', () => {
   });
 });
 
-// ── Evidence fields on POST request-correction ────────────────────────────────
+// ── GET /api/dispatch/corrections/:id ─────────────────────────────────────────
 
-describe('POST /api/visits/:id/request-correction — evidence fields', () => {
-  it('stores hasEvidence=false by default when not provided', async () => {
-    const { tech, token } = await seedTechnicianWithToken();
-    const { visitId } = await seedCompletedVisit({ technicianId: tech.id });
-
-    const res = await request(app)
-      .post(`/api/visits/${visitId}/request-correction`)
-      .set('Authorization', `Bearer ${token}`)
-      .send({ correctedFields: { notes: 'fix' }, reason: 'test' });
-
-    expect(res.status).toBe(200);
-    const row = await pool.query('SELECT has_evidence FROM corrections WHERE id = $1', [res.body.correctionId]);
-    expect(row.rows[0].has_evidence).toBe(false);
-  });
-
-  it('stores hasEvidence=true when provided', async () => {
-    const { tech, token } = await seedTechnicianWithToken();
-    const { visitId } = await seedCompletedVisit({ technicianId: tech.id });
-
-    const res = await request(app)
-      .post(`/api/visits/${visitId}/request-correction`)
-      .set('Authorization', `Bearer ${token}`)
-      .send({ correctedFields: { notes: 'fix' }, reason: 'test', hasEvidence: true, evidencePhotoId: null });
-
-    expect(res.status).toBe(200);
-    const row = await pool.query('SELECT has_evidence FROM corrections WHERE id = $1', [res.body.correctionId]);
-    expect(row.rows[0].has_evidence).toBe(true);
-  });
-});
-
-// ── GET /api/dispatch/corrections — hasEvidence field ────────────────────────
-
-describe('GET /api/dispatch/corrections — hasEvidence field', () => {
-  it('includes hasEvidence in list response', async () => {
+describe('GET /api/dispatch/corrections/:id', () => {
+  it('returns detail with message and visit snapshot', async () => {
     const { token } = await seedDispatcherWithToken();
     const { tech } = await seedTechnicianWithToken();
     const { visitId } = await seedCompletedVisit({ technicianId: tech.id });
-
-    const now = new Date().toISOString();
+    const corrId = crypto.randomUUID();
     await pool.query(
-      `INSERT INTO corrections (id, visit_id, requested_by, corrected_fields, reason, status, requested_at, has_evidence)
-       VALUES (gen_random_uuid()::text, $1, $2, '{}', 'test', 'pending', $3, true)`,
-      [visitId, tech.id, now]
+      `INSERT INTO corrections (id, visit_id, requested_by, message, status, requested_at)
+       VALUES ($1, $2, $3, 'detail message', 'open', $4)`,
+      [corrId, visitId, tech.id, new Date().toISOString()]
     );
 
     const res = await request(app)
-      .get('/api/dispatch/corrections')
+      .get(`/api/dispatch/corrections/${corrId}`)
       .set('Authorization', `Bearer ${token}`);
 
     expect(res.status).toBe(200);
-    const entry = res.body.find(c => c.hasEvidence === true);
-    expect(entry).toBeDefined();
-  });
-});
-
-// ── PATCH /api/dispatch/corrections/:id/flag-evidence ────────────────────────
-
-describe('PATCH /api/dispatch/corrections/:id/flag-evidence', () => {
-  async function seedPendingCorrection (visitId, techId) {
-    const id = crypto.randomUUID();
-    await pool.query(
-      `INSERT INTO corrections (id, visit_id, requested_by, corrected_fields, status, requested_at)
-       VALUES ($1, $2, $3, '{}', 'pending', $4)`,
-      [id, visitId, techId, new Date().toISOString()]
-    );
-    return id;
-  }
-
-  it('transitions pending correction to needs_evidence', async () => {
-    const { token } = await seedDispatcherWithToken();
-    const { tech } = await seedTechnicianWithToken();
-    const { visitId } = await seedCompletedVisit({ technicianId: tech.id });
-    const corrId = await seedPendingCorrection(visitId, tech.id);
-
-    const res = await request(app)
-      .patch(`/api/dispatch/corrections/${corrId}/flag-evidence`)
-      .set('Authorization', `Bearer ${token}`)
-      .send({ dispatcherNote: 'Please attach a photo of the invoice' });
-
-    expect(res.status).toBe(200);
-    expect(res.body.correctionId).toBe(corrId);
-    expect(res.body.status).toBe('needs_evidence');
-
-    const row = await pool.query('SELECT status, dispatcher_note FROM corrections WHERE id = $1', [corrId]);
-    expect(row.rows[0].status).toBe('needs_evidence');
-    expect(row.rows[0].dispatcher_note).toBe('Please attach a photo of the invoice');
-  });
-
-  it('returns 400 if correction is not pending', async () => {
-    const { token } = await seedDispatcherWithToken();
-    const { tech } = await seedTechnicianWithToken();
-    const { visitId } = await seedCompletedVisit({ technicianId: tech.id });
-    const corrId = await seedPendingCorrection(visitId, tech.id);
-    await pool.query(`UPDATE corrections SET status = 'approved' WHERE id = $1`, [corrId]);
-
-    const res = await request(app)
-      .patch(`/api/dispatch/corrections/${corrId}/flag-evidence`)
-      .set('Authorization', `Bearer ${token}`);
-
-    expect(res.status).toBe(400);
+    expect(res.body.id).toBe(corrId);
+    expect(res.body.message).toBe('detail message');
+    expect(res.body.visitSnapshot).toHaveProperty('totalPrice');
   });
 
   it('returns 404 for unknown correction', async () => {
     const { token } = await seedDispatcherWithToken();
     const res = await request(app)
-      .patch('/api/dispatch/corrections/nonexistent/flag-evidence')
+      .get('/api/dispatch/corrections/nonexistent-id')
       .set('Authorization', `Bearer ${token}`);
     expect(res.status).toBe(404);
-  });
-
-  it('returns 403 for technician role', async () => {
-    const { token } = await seedTechnicianWithToken();
-    const res = await request(app)
-      .patch('/api/dispatch/corrections/any-id/flag-evidence')
-      .set('Authorization', `Bearer ${token}`);
-    expect(res.status).toBe(403);
-  });
-});
-
-// ── Approve/Reject also work from needs_evidence status ───────────────────────
-
-describe('Approve and Reject from needs_evidence status', () => {
-  async function seedNeedsEvidenceCorrection (visitId, techId) {
-    const id = crypto.randomUUID();
-    await pool.query(
-      `INSERT INTO corrections (id, visit_id, requested_by, corrected_fields, status, requested_at)
-       VALUES ($1, $2, $3, '{}', 'needs_evidence', $4)`,
-      [id, visitId, techId, new Date().toISOString()]
-    );
-    return id;
-  }
-
-  it('approve works on needs_evidence correction', async () => {
-    const { token } = await seedDispatcherWithToken();
-    const { tech } = await seedTechnicianWithToken();
-    const { visitId } = await seedCompletedVisit({ technicianId: tech.id });
-    const corrId = await seedNeedsEvidenceCorrection(visitId, tech.id);
-
-    const res = await request(app)
-      .patch(`/api/dispatch/corrections/${corrId}/approve`)
-      .set('Authorization', `Bearer ${token}`);
-
-    expect(res.status).toBe(200);
-    const row = await pool.query('SELECT status FROM corrections WHERE id = $1', [corrId]);
-    expect(row.rows[0].status).toBe('approved');
-  });
-
-  it('reject works on needs_evidence correction', async () => {
-    const { token } = await seedDispatcherWithToken();
-    const { tech } = await seedTechnicianWithToken();
-    const { visitId } = await seedCompletedVisit({ technicianId: tech.id });
-    const corrId = await seedNeedsEvidenceCorrection(visitId, tech.id);
-
-    const res = await request(app)
-      .patch(`/api/dispatch/corrections/${corrId}/reject`)
-      .set('Authorization', `Bearer ${token}`)
-      .send({ dispatcherNote: 'override' });
-
-    expect(res.status).toBe(200);
-    expect(res.body.status).toBe('rejected');
   });
 });

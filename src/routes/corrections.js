@@ -6,17 +6,6 @@ const { createNotification } = require('../helpers/notify');
 
 const router = express.Router();
 
-// Maps accepted camelCase or snake_case keys → DB column name
-const SAFE_FIELD_MAP = {
-  notes: 'notes',
-  order_number: 'order_number',
-  orderNumber: 'order_number',
-  scheduled_time: 'scheduled_time',
-  scheduledTime: 'scheduled_time',
-  total_price: 'total_price',
-  totalPrice: 'total_price',
-};
-
 async function notifyDispatchers(db, type, message) {
   const result = await db.query(
     `SELECT id FROM technicians WHERE role IN ('dispatcher', 'owner') AND is_active = true`
@@ -26,15 +15,28 @@ async function notifyDispatchers(db, type, message) {
   }
 }
 
+function correctionShape(r) {
+  return {
+    id: r.id,
+    visitId: r.visit_id,
+    address: { street: r.street },
+    requestedBy: { id: r.tech_id, name: r.tech_name },
+    message: r.message,
+    status: r.status,
+    requestedAt: r.requested_at,
+    appliedAt: r.applied_at,
+  };
+}
+
 // POST /api/visits/:id/request-correction  (mount at /api)
 router.post('/visits/:id/request-correction', requireRole('technician'), async (req, res, next) => {
   try {
     const { id: visitId } = req.params;
-    const { correctedFields, reason, hasEvidence, evidencePhotoId } = req.body;
+    const { message } = req.body;
     const techId = req.technician.id;
 
     const vResult = await pool.query(
-      `SELECT v.id, v.technician_id, v.status, a.street
+      `SELECT v.id, v.technician_id, v.status, v.completed_at, a.street
        FROM visits v JOIN addresses a ON a.id = v.address_id
        WHERE v.id = $1`,
       [visitId]
@@ -51,35 +53,42 @@ router.post('/visits/:id/request-correction', requireRole('technician'), async (
     }
 
     const existing = await pool.query(
-      `SELECT id FROM corrections WHERE visit_id = $1 AND status = 'pending'`,
+      `SELECT id FROM corrections WHERE visit_id = $1 AND status = 'open'`,
       [visitId]
     );
     if (existing.rows.length > 0) {
-      return res.status(400).json({ error: 'A correction request is already pending for this visit' });
+      return res.status(400).json({ error: 'An open correction request already exists for this visit' });
+    }
+
+    if (visit.completed_at) {
+      const ppResult = await pool.query(
+        `SELECT status FROM pay_periods WHERE week_start <= $1 AND week_end >= $1`,
+        [visit.completed_at]
+      );
+      if (ppResult.rows.length > 0 && ppResult.rows[0].status !== 'open') {
+        return res.status(409).json({ error: "This visit's Ledger week has already closed" });
+      }
     }
 
     const corrId = crypto.randomUUID();
     const now = new Date().toISOString();
     await pool.query(
-      `INSERT INTO corrections
-         (id, visit_id, requested_by, corrected_fields, reason, status, requested_at,
-          resolved_at, dispatcher_note, has_evidence, evidence_photo_id)
-       VALUES ($1, $2, $3, $4, $5, 'pending', $6, null, null, $7, $8)`,
-      [corrId, visitId, techId, JSON.stringify(correctedFields), reason ?? null, now,
-       hasEvidence ? true : false, evidencePhotoId ?? null]
+      `INSERT INTO corrections (id, visit_id, requested_by, message, status, requested_at)
+       VALUES ($1, $2, $3, $4, 'open', $5)`,
+      [corrId, visitId, techId, message, now]
     );
 
-    const message = `${req.technician.name} requested a correction for ${visit.street}`;
-    await notifyDispatchers(pool, 'correction_requested', message);
+    const notifyMsg = `${req.technician.name} requested a correction for ${visit.street}`;
+    await notifyDispatchers(pool, 'correction_requested', notifyMsg);
 
-    res.json({ correctionId: corrId, status: 'pending' });
+    res.json({ correctionId: corrId, status: 'open' });
   } catch (err) {
     next(err);
   }
 });
 
-// PATCH /api/dispatch/corrections/:id/approve  (mount at /api)
-router.patch('/dispatch/corrections/:id/approve', requireRole('owner', 'dispatcher'), async (req, res, next) => {
+// PATCH /api/dispatch/corrections/:id/apply  (mount at /api)
+router.patch('/dispatch/corrections/:id/apply', requireRole('owner', 'dispatcher'), async (req, res, next) => {
   try {
     const { id: corrId } = req.params;
 
@@ -94,133 +103,28 @@ router.patch('/dispatch/corrections/:id/approve', requireRole('owner', 'dispatch
     if (cResult.rows.length === 0) return res.status(404).json({ error: 'Correction not found' });
     const corr = cResult.rows[0];
 
-    if (!['pending', 'needs_evidence'].includes(corr.status)) {
-      return res.status(400).json({ error: 'Correction is not pending' });
+    if (corr.status !== 'open') {
+      return res.status(400).json({ error: 'Correction is not open' });
     }
-
-    const correctedFields = JSON.parse(corr.corrected_fields);
-    const safeEntries = Object.entries(correctedFields)
-      .filter(([k]) => SAFE_FIELD_MAP[k] !== undefined)
-      .map(([k, v]) => [SAFE_FIELD_MAP[k], v]);
 
     const now = new Date().toISOString();
-
-    if (safeEntries.length > 0) {
-      const setClauses = safeEntries.map(([col], i) => `${col} = $${i + 2}`);
-      setClauses.push(`updated_at = $${safeEntries.length + 2}`);
-      const values = [corr.visit_id, ...safeEntries.map(([, v]) => v), now];
-      await pool.query(
-        `UPDATE visits SET ${setClauses.join(', ')} WHERE id = $1`,
-        values
-      );
-    } else {
-      await pool.query(`UPDATE visits SET updated_at = $1 WHERE id = $2`, [now, corr.visit_id]);
-    }
-
     await pool.query(
-      `INSERT INTO edit_log (id, visit_id, changed_at, summary, source)
-       VALUES ($1, $2, $3, $4, 'correction_approved')`,
-      [crypto.randomUUID(), corr.visit_id, now, corr.reason ?? 'Correction approved']
-    );
-
-    await pool.query(
-      `UPDATE corrections SET status = 'approved', resolved_at = $1 WHERE id = $2`,
+      `UPDATE corrections SET status = 'applied', applied_at = $1 WHERE id = $2`,
       [now, corrId]
     );
 
-    // Pay period cutoff check
-    const visitResult = await pool.query(
-      'SELECT completed_at FROM visits WHERE id = $1',
-      [corr.visit_id]
-    );
-    const completedAt = visitResult.rows[0]?.completed_at;
-    let affectsClosedPeriod = false;
-
-    if (completedAt) {
-      const ppResult = await pool.query(
-        `SELECT status FROM pay_periods
-         WHERE week_start <= $1 AND week_end >= $1`,
-        [completedAt]
-      );
-      if (ppResult.rows.length > 0 && ['closed', 'paid'].includes(ppResult.rows[0].status)) {
-        affectsClosedPeriod = true;
-        const adjMsg = `Correction for ${corr.street} affects a closed pay period — manual adjustment may be needed`;
-        await notifyDispatchers(pool, 'correction_needs_period_adjustment', adjMsg);
-      }
-    }
-
     await createNotification(pool, {
       recipientId: corr.requested_by,
-      type: 'correction_approved',
-      message: `Your correction request for ${corr.street} was approved`,
+      type: 'correction_applied',
+      message: `Your correction request for ${corr.street} was applied`,
     });
 
-    const updatedVisit = await pool.query('SELECT * FROM visits WHERE id = $1', [corr.visit_id]);
-    res.json({ ...updatedVisit.rows[0], affectsClosedPeriod });
-  } catch (err) {
-    next(err);
-  }
-});
-
-// PATCH /api/dispatch/corrections/:id/reject  (mount at /api)
-router.patch('/dispatch/corrections/:id/reject', requireRole('owner', 'dispatcher'), async (req, res, next) => {
-  try {
-    const { id: corrId } = req.params;
-    const { dispatcherNote } = req.body ?? {};
-
-    const cResult = await pool.query(
-      `SELECT c.*, a.street
-       FROM corrections c
-       JOIN visits v ON v.id = c.visit_id
-       JOIN addresses a ON a.id = v.address_id
-       WHERE c.id = $1`,
-      [corrId]
-    );
-    if (cResult.rows.length === 0) return res.status(404).json({ error: 'Correction not found' });
-    const corr = cResult.rows[0];
-
-    if (!['pending', 'needs_evidence'].includes(corr.status)) {
-      return res.status(400).json({ error: 'Correction is not pending' });
-    }
-
-    const now = new Date().toISOString();
-    await pool.query(
-      `UPDATE corrections SET status = 'rejected', resolved_at = $1, dispatcher_note = $2 WHERE id = $3`,
-      [now, dispatcherNote ?? null, corrId]
-    );
-
-    const message = `Your correction request for ${corr.street} was rejected${dispatcherNote ? ': ' + dispatcherNote : ''}`;
-    await createNotification(pool, {
-      recipientId: corr.requested_by,
-      type: 'correction_rejected',
-      message,
+    res.json({
+      id: corr.id,
+      visitId: corr.visit_id,
+      status: 'applied',
+      appliedAt: now,
     });
-
-    res.json({ correctionId: corrId, status: 'rejected', dispatcherNote: dispatcherNote ?? null });
-  } catch (err) {
-    next(err);
-  }
-});
-
-// PATCH /api/dispatch/corrections/:id/flag-evidence  (mount at /api)
-router.patch('/dispatch/corrections/:id/flag-evidence', requireRole('owner', 'dispatcher'), async (req, res, next) => {
-  try {
-    const { id: corrId } = req.params;
-    const { dispatcherNote } = req.body ?? {};
-
-    const cResult = await pool.query('SELECT status FROM corrections WHERE id = $1', [corrId]);
-    if (cResult.rows.length === 0) return res.status(404).json({ error: 'Correction not found' });
-
-    if (cResult.rows[0].status !== 'pending') {
-      return res.status(400).json({ error: 'Correction is not pending' });
-    }
-
-    await pool.query(
-      `UPDATE corrections SET status = 'needs_evidence', dispatcher_note = $1 WHERE id = $2`,
-      [dispatcherNote ?? null, corrId]
-    );
-
-    res.json({ correctionId: corrId, status: 'needs_evidence' });
   } catch (err) {
     next(err);
   }
@@ -231,17 +135,13 @@ router.get('/dispatch/corrections/:id', requireRole('owner', 'dispatcher'), asyn
   try {
     const { id } = req.params;
     const result = await pool.query(
-      `SELECT c.id, c.visit_id, c.corrected_fields, c.reason, c.status,
-              c.requested_at, c.resolved_at, c.dispatcher_note,
-              c.has_evidence, c.evidence_photo_id,
-              vp.slug AS evidence_photo_slug,
+      `SELECT c.id, c.visit_id, c.message, c.status, c.requested_at, c.applied_at,
               a.street,
               t.id AS tech_id, t.name AS tech_name
        FROM corrections c
        JOIN visits v ON v.id = c.visit_id
        JOIN addresses a ON a.id = v.address_id
        JOIN technicians t ON t.id = c.requested_by
-       LEFT JOIN visit_photos vp ON vp.id = c.evidence_photo_id
        WHERE c.id = $1`,
       [id]
     );
@@ -255,20 +155,7 @@ router.get('/dispatch/corrections/:id', requireRole('owner', 'dispatcher'), asyn
     const v = visitResult.rows[0];
 
     res.json({
-      id: r.id,
-      visitId: r.visit_id,
-      address: { street: r.street },
-      requestedBy: { id: r.tech_id, name: r.tech_name },
-      correctedFields: JSON.parse(r.corrected_fields),
-      reason: r.reason,
-      status: r.status,
-      requestedAt: r.requested_at,
-      resolvedAt: r.resolved_at,
-      dispatcherNote: r.dispatcher_note,
-      hasEvidence: r.has_evidence,
-      evidencePhoto: r.evidence_photo_id
-        ? { id: r.evidence_photo_id, slug: r.evidence_photo_slug }
-        : null,
+      ...correctionShape(r),
       visitSnapshot: v ? {
         orderNumber: v.order_number,
         notes: v.notes,
@@ -295,8 +182,7 @@ router.get('/dispatch/corrections', requireRole('owner', 'dispatcher'), async (r
     }
 
     const result = await pool.query(
-      `SELECT c.id, c.visit_id, c.corrected_fields, c.reason, c.status,
-              c.requested_at, c.resolved_at, c.dispatcher_note, c.has_evidence,
+      `SELECT c.id, c.visit_id, c.message, c.status, c.requested_at, c.applied_at,
               a.street,
               t.id AS tech_id, t.name AS tech_name
        FROM corrections c
@@ -305,26 +191,12 @@ router.get('/dispatch/corrections', requireRole('owner', 'dispatcher'), async (r
        JOIN technicians t ON t.id = c.requested_by
        ${where}
        ORDER BY
-         CASE WHEN c.status = 'pending' THEN 0
-              WHEN c.status = 'needs_evidence' THEN 1
-              ELSE 2 END,
+         CASE WHEN c.status = 'open' THEN 0 ELSE 1 END,
          c.requested_at DESC`,
       params
     );
 
-    res.json(result.rows.map((r) => ({
-      id: r.id,
-      visitId: r.visit_id,
-      address: { street: r.street },
-      requestedBy: { id: r.tech_id, name: r.tech_name },
-      correctedFields: JSON.parse(r.corrected_fields),
-      reason: r.reason,
-      status: r.status,
-      requestedAt: r.requested_at,
-      resolvedAt: r.resolved_at,
-      dispatcherNote: r.dispatcher_note,
-      hasEvidence: r.has_evidence,
-    })));
+    res.json(result.rows.map(correctionShape));
   } catch (err) {
     next(err);
   }

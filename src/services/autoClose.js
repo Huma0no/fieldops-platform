@@ -43,6 +43,15 @@ async function autoClosePeriods() {
       }
 
       await client.query(`UPDATE pay_periods SET status = 'closed' WHERE id = $1`, [period.id]);
+
+      await client.query(
+        `UPDATE corrections SET status = 'expired'
+         WHERE status = 'open' AND visit_id IN (
+           SELECT id FROM visits WHERE completed_at >= $1 AND completed_at <= $2
+         )`,
+        [period.week_start, period.week_end]
+      );
+
       await client.query('COMMIT');
       console.log(`Auto-closed pay period ${period.id} (${period.week_start} – ${period.week_end})`);
     } catch (err) {
