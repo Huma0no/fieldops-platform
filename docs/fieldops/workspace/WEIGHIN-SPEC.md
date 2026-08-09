@@ -23,7 +23,7 @@ Per-system data-entry form with a System 1/2 (etc.) switcher. Header shows syste
 7. Liquid Temp °F
 8. Suction Temp °F
 9. Condenser Sat °F
-10. Subcooling °F (computed)
+10. Subcooling °F (computed: Condenser Sat − Liquid Temp). Tooltip: "Auto-calculated: Condenser Sat − Liquid Temp. Take both readings first."
 11. OEM SC Goal °F (fixed at 10°F for every system — not derived per-equipment from the catalog)
 12. SC Deviation °F (computed)
 13. Scale photo — GPS/EXIF required, see `/docs/shared/PHOTOS-GPS-INTEGRATIONS.md`

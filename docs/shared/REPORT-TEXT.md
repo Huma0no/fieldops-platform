@@ -111,3 +111,27 @@ Catalog item names below match `scripts/seed-catalog.sql` exactly (cross-checked
 ## The one price-modifier exception
 
 The only case where context changes an item's price is **Weight-In-Data + Finish active → $10 base + $10 addon = $20**. Every other non-standard price case is handled via the "Other"/"Other Fix" free-entry item — there are no other context-based price modifiers.
+
+## Full sentence format
+
+The report line for a visit joins address, notes, service, and every priced item into one sentence:
+
+```
+[Address], [Notes if any], [Service] [equipment details] $[price], [Accessory 1] $[price], [Accessory 2] $[price], [Fix 1] $[price], total $[total]
+```
+
+**Examples:**
+
+```
+32122 Waterlily View Court, AC & Heat started 2 Ecobee tstats $60, fin180p $10, float switch $5, opened ecoil to pull out sensor wire $30, weigh-in data $20, total $125
+```
+
+```
+22022 Matera Vista Lane, Finish/ AC & Heat started 1 T-6 tstat $30, fin180p $10, float switch $5, pressure test $10, weigh-in data $20, total $75
+```
+
+```
+5011 Wild Bergamot, No P-Drain, AC (Temporarily) started 1 T-6 tstat $30, fin180p $10, pressure test $10, total $50
+```
+
+Multi-system visits append the actual system count, not a fixed "2 Systems" label — e.g. a 3-system Prestart visit reads "System Prestarted (3 Systems) $60", never a hardcoded "(2 Systems)". Not appended at all for a single-system visit.

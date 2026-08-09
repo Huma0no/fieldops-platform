@@ -21,13 +21,23 @@ Base services: AC · Heat · AC & Heat · Prestart · Drive Run · Cancel.
 ## Accessories
 
 Governed by five combination rules:
-- **Multiplies** — price doubles when the visit covers two systems.
+- **Multiplies** — price multiplies by the visit's actual system count (not a fixed "×2" — driven by the real per-visit count, see `/docs/fieldops/workspace/SERVICE-MULTISYSTEM-SPEC.md`).
 - **Tech supplied** — the technician carries and charges the item from their own inventory.
 - **Custom price** — no fixed price; entered per visit (e.g. "Out of town fee", "Other").
 - **Companion items** — auto-activate when their parent item is selected.
 - **Zone board** — HZ322, Harmony, and UT3000 are mutually exclusive; selecting one deselects the others and their companions.
 
 Combination rules with modifiers (Finish, etc.) are resolved by the pricing engine, not documented per-item here.
+
+## Lineset Configs
+
+`catalog_lineset_configs` (per `/docs/shared/DATA_MODEL.md`) drives two calculations that share the same baseline-length-and-multiplier data: Weigh-In's **Approx Adjust oz** field and the standalone **Quick Charge Calc** (`/docs/fieldops/CALC-SPEC.md`).
+
+**Formula:** `(actual lineset ft − config's reference length ft) × oz/ft multiplier`
+
+**Multiplier by outdoor brand:**
+- Trane: 0.47 oz/ft
+- Lennox, Goodman, Daikin: 0.6 oz/ft
 
 ## Fixes
 

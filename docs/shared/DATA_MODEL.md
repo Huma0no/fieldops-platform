@@ -368,8 +368,8 @@ Refrigerant charge data per system per address. Captured during a visit but belo
 | liquid_line_temp | real | °F |
 | suction_line_temp | real | °F |
 | condenser_sat_temp | real | °F |
-| subcooling_value | real | Measured subcooling °F |
-| oem_subcooling_goal | real | From equipment catalog — stored explicitly |
+| subcooling_value | real | Computed by the server: condenser_saturation_temp − liquid_line_temp. Not technician-entered. |
+| oem_subcooling_goal | real | Fixed constant, 10°F for every system — not derived per-equipment from the catalog |
 | subcooling_deviation | real | subcooling_value − oem_subcooling_goal |
 
 **Rules:**

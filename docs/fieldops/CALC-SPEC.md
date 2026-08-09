@@ -10,7 +10,7 @@ A standalone refrigerant-charge calculator, available from the bottom bar's **Ca
 
 ## Formula
 
-`(|ft2 − ft1| − config baseline length) × oz/ft`
+`(|ft2 − ft1| − config baseline length) × oz/ft`. Baseline length and the oz/ft multiplier per outdoor brand: `/docs/shared/CATALOG.md` (Lineset Configs).
 
 ## Inputs
 
