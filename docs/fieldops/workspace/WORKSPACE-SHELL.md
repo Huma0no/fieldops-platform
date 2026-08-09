@@ -16,7 +16,7 @@ The frame that holds every Workspace sub-section: the rail, the active-job banne
 4. **Scrollable section content** — the active step's content, see per-section docs.
 5. **Inline Back/Next** — Next becomes **Generate Report** only on the last step (Notes), never earlier.
 
-Bottom utility strip (Calc/Chat/Transfers/Settings) stays present and unchanged throughout.
+The bottom bar (see `/docs/fieldops/NAVIGATION.md`) stays present and unchanged throughout Workspace.
 
 ## Cancel
 
