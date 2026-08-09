@@ -105,7 +105,7 @@ Base services and their pricing/modifier rules — the single source for the ser
 
 | Column | Type | Notes |
 |---|---|---|
-| service_name | text PK | "AC", "Heat", "AC & Heat", "Prestart System", "Drive Run", "Cancel" |
+| service_name | text PK | "AC", "Heat", "AC & Heat", "Prestart", "Drive Run", "Cancel" |
 | default_price | real | Base price before modifiers |
 | is_bundle | boolean | True for "AC & Heat" — priced as one service, not the sum of AC + Heat |
 | multiplies_by_system_count | boolean | True if this service is charged once per system on the visit (price × visit's system count) rather than once per visit. There is no fixed cap at two systems. |
@@ -319,7 +319,7 @@ Services performed during a visit.
 |---|---|---|
 | id | text PK | UUID |
 | visit_id | text FK | References visits.id |
-| service_name | text | "AC", "Heat", "AC & Heat", "Prestart System", "Cancel", "Drive Run" — base service only, matches `catalog_services.service_name` exactly. Finish and Temporarily are never values of this column — see is_finish/is_temporarily below. |
+| service_name | text | "AC", "Heat", "AC & Heat", "Prestart", "Cancel", "Drive Run" — base service only, matches `catalog_services.service_name` exactly. Finish and Temporarily are never values of this column — see is_finish/is_temporarily below. |
 | is_finish | boolean | Finish modifier applied to service_name — has a real pricing effect (see catalog_items.finish_addon_price) |
 | is_temporarily | boolean | Temporarily modifier applied to service_name — label only, no pricing effect. Its only consequence is setting the visit's final status to "temporarily" instead of "completed". |
 | price | real | Final price after all rules applied |

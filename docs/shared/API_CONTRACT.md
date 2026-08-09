@@ -340,7 +340,7 @@ Note: POST /api/dispatch/catalog/services does not exist — the service list is
 PATCH /api/visits/:id/services
   auth: technician (must be assigned)
   body: { serviceName, isFinish, isTemporarily }
-  note: serviceName carries the base service value, including "Prestart System"
+  note: serviceName carries the base service value, including "Prestart"
         and "Cancel" — those are NOT separate flags, they are values of
         serviceName itself. isFinish and isTemporarily are modifiers that can
         apply on top of any base service (e.g. serviceName: "AC", isFinish: true

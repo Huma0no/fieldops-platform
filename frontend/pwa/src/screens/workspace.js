@@ -471,7 +471,7 @@ async function syncService () {
   if (svc.ac && svc.heat)   serviceName = 'AC & Heat'
   else if (svc.ac)          serviceName = 'AC'
   else if (svc.heat)        serviceName = 'Heat'
-  else if (svc.prestart)    serviceName = 'Prestart System'
+  else if (svc.prestart)    serviceName = 'Prestart'
   else if (svc.cancel)      serviceName = 'Cancel'
   else if (svc.driveRun)    serviceName = 'Drive Run'
   if (!serviceName) return

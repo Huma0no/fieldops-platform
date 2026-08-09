@@ -15,9 +15,10 @@ describe('PATCH /api/visits/:id/services', () => {
     await pool.query(`
       INSERT INTO catalog_services (service_name, default_price, is_bundle, multiplies_by_system_count)
       VALUES
-        ('AC',     150, false, false),
-        ('Heat',   100, false, false),
-        ('Cancel',   0, false, false)
+        ('AC',       150, false, false),
+        ('Heat',     100, false, false),
+        ('Cancel',     0, false, false),
+        ('Prestart',  20, false, false)
       ON CONFLICT (service_name) DO NOTHING
     `);
   });
@@ -33,6 +34,20 @@ describe('PATCH /api/visits/:id/services', () => {
     expect(res.body.isFinish).toBe(false);
     expect(res.body.isTemporarily).toBe(false);
     expect(res.body.totalPrice).toBe(150);
+  });
+
+  it('sets Prestart service end-to-end (regression: was rejected due to serviceName/catalog naming mismatch)', async () => {
+    const { visitId, token } = await seedAssignedVisit();
+    const res = await request(app)
+      .patch(`/api/visits/${visitId}/services`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ serviceName: 'Prestart' });
+    expect(res.status).toBe(200);
+    expect(res.body.serviceName).toBe('Prestart');
+    expect(res.body.totalPrice).toBe(20);
+    const rows = await pool.query('SELECT * FROM visit_services WHERE visit_id = $1', [visitId]);
+    expect(rows.rows).toHaveLength(1);
+    expect(rows.rows[0].service_name).toBe('Prestart');
   });
 
   it('overwrites existing service — only one row in visit_services after second call', async () => {

@@ -29,7 +29,7 @@ function embedGps(buffer, lat, lon) {
   return Buffer.from(newDataUrl.split(',')[1], 'base64');
 }
 
-const VALID_SERVICES = ['AC', 'Heat', 'AC & Heat', 'Prestart System', 'Drive Run', 'Cancel'];
+const VALID_SERVICES = ['AC', 'Heat', 'AC & Heat', 'Prestart', 'Drive Run', 'Cancel'];
 const VALID_CATEGORIES = ['accessory', 'fix', 'thermostat'];
 const VALID_PHOTO_CATEGORIES = ['weigh_in_scale', 'fan_speed', 'site_evidence'];
 
