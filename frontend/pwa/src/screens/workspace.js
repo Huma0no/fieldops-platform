@@ -15,6 +15,7 @@
 
 import { api }        from '../../../shared/api.js'
 import { getCatalog } from '../lib/db.js'
+import { isCancelJustificationMissing } from '../lib/cancel-justification.mjs'
 
 const CHECKLIST_ITEMS = [
   { key: 'pdrain_ecoil',   label: 'P-drain [eCoil]',            reportText: 'No/Incomplete pdrain at ecoil' },
@@ -101,6 +102,12 @@ export default async function mount (appEl) {
     if (!visit._items) visit._items = []
     if (!visit._checklist) visit._checklist = {}
     if (!visit._checklistPhotoCounts) visit._checklistPhotoCounts = {}
+
+    if (sessionStorage.getItem('workspace:cancelOrigin') === 'true') {
+      sessionStorage.removeItem('workspace:cancelOrigin')
+      visit._cancelOriginated = true
+      activeStep = 'notes'
+    }
   } catch (err) {
     console.error('Workspace load failed:', err)
     navigateBack()
@@ -131,16 +138,19 @@ function renderScreen (appEl) {
 function buildHeader () {
   const el = document.createElement('div')
   el.className = 'ws-header'
+
+  const top = document.createElement('div')
+  top.className = 'ws-header-top'
+
   const back = document.createElement('button')
   back.className = 'ws-back-btn'
   back.innerHTML = '←'
   back.setAttribute('aria-label', 'Back')
   back.addEventListener('click', navigateBack)
+  top.appendChild(back)
+
   const info = document.createElement('div')
   info.className = 'ws-header-info'
-  const supra = document.createElement('p')
-  supra.className = 'ws-header-supra'
-  supra.textContent = 'Workspace'
   const addr = document.createElement('p')
   addr.className = 'ws-header-addr'
   const addrParts = [visit.address?.street, visit.address?.city].filter(Boolean)
@@ -151,10 +161,38 @@ function buildHeader () {
       window.open('https://maps.google.com/maps?q=' + encodeURIComponent(addrParts.join(', ')), '_blank')
     })
   }
-  info.appendChild(supra)
+  const meta = document.createElement('p')
+  meta.className = 'ws-header-meta'
+  const systemCount = visit.systems?.length ?? 0
+  const metaParts = [
+    visit.address?.subdivision,
+    visit.address?.builder,
+    systemCount ? `${systemCount} system${systemCount !== 1 ? 's' : ''}` : null,
+  ].filter(Boolean)
+  meta.textContent = metaParts.length ? metaParts.join(' · ') : '—'
   info.appendChild(addr)
-  el.appendChild(back)
-  el.appendChild(info)
+  info.appendChild(meta)
+  top.appendChild(info)
+
+  const right = document.createElement('div')
+  right.className = 'ws-header-right'
+  const price = document.createElement('p')
+  price.className = 'ws-header-price'
+  price.id = 'ws-header-price'
+  price.textContent = formatPrice(visit.totalPrice)
+  const cancelBtn = document.createElement('button')
+  cancelBtn.className = 'ws-header-cancel-btn'
+  cancelBtn.innerHTML = '✕'
+  cancelBtn.setAttribute('aria-label', 'Cancel visit')
+  cancelBtn.addEventListener('click', () => {
+    visit._cancelOriginated = true
+    goToStep('notes')
+  })
+  right.appendChild(price)
+  right.appendChild(cancelBtn)
+  top.appendChild(right)
+
+  el.appendChild(top)
   return el
 }
 
@@ -350,6 +388,8 @@ function buildPriceSummary () {
 function updatePrice (newTotal) {
   const el = document.getElementById('ws-price-amount')
   if (el) el.textContent = formatPrice(newTotal)
+  const headerEl = document.getElementById('ws-header-price')
+  if (headerEl) headerEl.textContent = formatPrice(newTotal)
   if (visit) visit.totalPrice = newTotal
 }
 
@@ -1049,6 +1089,10 @@ function buildChecklistAnswers () {
 }
 
 function openGenerateModal () {
+  if (visit._cancelOriginated && isCancelJustificationMissing({ notes: visit.notes, checklist: visit._checklist })) {
+    showCancelJustificationBlock()
+    return
+  }
   const pdrain1 = visit._checklist?.pdrain_ecoil
   const pdrain2 = visit._checklist?.pdrain_disch
   if (pdrain1 !== 'yes' || pdrain2 !== 'yes') {
@@ -1056,6 +1100,19 @@ function openGenerateModal () {
     return
   }
   openGenerateModalDirect()
+}
+
+function showCancelJustificationBlock () {
+  const overlay = makeOverlay()
+  const modal = makeModal('Add Notes or Checklist')
+  const note = document.createElement('p'); note.className='ws-modal-note'
+  note.textContent = 'Add a note or answer at least one checklist item before generating this report.'
+  const actions = makeActions([
+    { label: 'OK', cls: 'primary', fn: () => overlay.remove() },
+  ])
+  modal.appendChild(note); modal.appendChild(actions)
+  overlay.appendChild(modal)
+  document.getElementById('ws-screen')?.appendChild(overlay)
 }
 
 function showPdrainAdvisory () {
@@ -1213,12 +1270,16 @@ function injectStyles () {
   style.textContent = `
   .ws-screen{display:flex;flex-direction:column;height:100dvh;background:var(--fo-panel);overflow:hidden;position:relative;font-family:var(--fo-font-body);}
   .ws-loading{display:flex;align-items:center;justify-content:center;height:100dvh;font-size:var(--text-base);color:var(--fo-ink-soft);background:var(--fo-panel);}
-  .ws-header{display:flex;align-items:center;gap:var(--space-3);padding:calc(var(--space-5) + env(safe-area-inset-top,0px)) var(--space-4) var(--space-3);background:var(--fo-panel);flex-shrink:0;}
+  .ws-header{display:flex;flex-direction:column;padding:calc(var(--space-5) + env(safe-area-inset-top,0px)) var(--space-4) var(--space-3);background:var(--fo-panel);flex-shrink:0;}
+  .ws-header-top{display:flex;align-items:flex-start;gap:var(--space-3);}
   .ws-back-btn{background:var(--fo-panel);box-shadow:var(--fo-shadow-raised);border:none;color:var(--fo-ink-soft);font-size:18px;cursor:pointer;padding:var(--space-2);border-radius:var(--fo-radius-sm);line-height:1;-webkit-tap-highlight-color:transparent;flex-shrink:0;}
   .ws-header-info{flex:1;min-width:0;}
-  .ws-header-supra{font-size:var(--text-xs);color:var(--fo-ink-soft);font-family:var(--fo-font-mono);text-transform:uppercase;letter-spacing:.05em;}
   .ws-header-addr{font-size:var(--text-base);font-weight:600;color:var(--fo-ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
   .ws-header-addr--nav{cursor:pointer;color:var(--fo-accent-deep);text-decoration:underline;text-decoration-style:dotted;text-underline-offset:2px;-webkit-tap-highlight-color:transparent;}
+  .ws-header-meta{font-size:var(--text-xs);color:var(--fo-ink-soft);font-family:var(--fo-font-mono);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:2px;}
+  .ws-header-right{display:flex;flex-direction:column;align-items:flex-end;gap:var(--space-1);flex-shrink:0;}
+  .ws-header-price{font-size:var(--text-base);font-weight:800;font-family:var(--fo-font-mono);color:var(--fo-accent-deep);}
+  .ws-header-cancel-btn{background:var(--fo-well);box-shadow:var(--fo-shadow-well);border:none;color:var(--fo-no);font-size:13px;font-weight:700;cursor:pointer;width:24px;height:24px;border-radius:50%;line-height:1;-webkit-tap-highlight-color:transparent;}
   .ws-body{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;padding:var(--space-2) var(--space-3) var(--space-4);display:flex;flex-direction:column;gap:var(--space-2);}
   .ws-rail-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;flex-shrink:0;}
   .ws-rail{display:flex;padding:6px 2px;gap:8px;}
