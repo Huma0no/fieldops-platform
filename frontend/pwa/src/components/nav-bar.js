@@ -1,6 +1,7 @@
 /**
  * src/components/nav-bar.js
  * Bottom navigation bar — persistent across all main screens.
+ * Per /docs/fieldops/NAVIGATION.md v2.0: Lobby, My Calls, Reports, Chat, Calc, Menu.
  *
  * Usage:
  *   import { NavBar } from '../components/nav-bar.js'
@@ -8,19 +9,21 @@
  *   appEl.appendChild(nav)
  */
 
+import { api } from '../../../shared/api.js'
+import { CalcPanel, calcPanelStyles } from './calc-panel.js'
+import { MenuSheet, menuSheetStyles } from './menu-sheet.js'
+import { computeMenuBadgeCount } from '../lib/menu-badge.mjs'
+
+const STYLES_ID = 'styles-nav-bar-overlays'
+function injectOverlayStyles () {
+  if (document.getElementById(STYLES_ID)) return
+  const style = document.createElement('style')
+  style.id = STYLES_ID
+  style.textContent = calcPanelStyles + menuSheetStyles
+  document.head.appendChild(style)
+}
+
 const TABS = [
-  {
-    id:    'my-calls',
-    label: 'My Calls',
-    route: '/',
-    icon:  `<svg width="22" height="22" viewBox="0 0 24 24" fill="none"
-              stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
-              <rect x="3" y="4" width="18" height="16" rx="2"/>
-              <line x1="3" y1="9" x2="21" y2="9"/>
-              <line x1="8" y1="14" x2="13" y2="14"/>
-              <line x1="8" y1="17" x2="11" y2="17"/>
-            </svg>`,
-  },
   {
     id:    'lobby',
     label: 'Lobby',
@@ -32,13 +35,15 @@ const TABS = [
             </svg>`,
   },
   {
-    id:    'transfers',
-    label: 'Transfers',
-    route: '/transfers/incoming',
+    id:    'my-calls',
+    label: 'My Calls',
+    route: '/',
     icon:  `<svg width="22" height="22" viewBox="0 0 24 24" fill="none"
               stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
-              <path d="M7 16V4m0 0L3 8m4-4l4 4"/>
-              <path d="M17 8v12m0 0l4-4m-4 4l-4-4"/>
+              <rect x="3" y="4" width="18" height="16" rx="2"/>
+              <line x1="3" y1="9" x2="21" y2="9"/>
+              <line x1="8" y1="14" x2="13" y2="14"/>
+              <line x1="8" y1="17" x2="11" y2="17"/>
             </svg>`,
   },
   {
@@ -63,18 +68,35 @@ const TABS = [
             </svg>`,
   },
   {
-    id:    'settings',
-    label: 'Settings',
-    route: '/settings',
+    id:    'calc',
+    label: 'Calc',
     icon:  `<svg width="22" height="22" viewBox="0 0 24 24" fill="none"
               stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
-              <circle cx="12" cy="8" r="4"/>
-              <path d="M6 20v-2a6 6 0 0 1 12 0v2"/>
+              <rect x="4" y="2" width="16" height="20" rx="2"/>
+              <line x1="8" y1="7" x2="16" y2="7"/>
+              <line x1="8" y1="12" x2="8" y2="12"/>
+              <line x1="12" y1="12" x2="12" y2="12"/>
+              <line x1="16" y1="12" x2="16" y2="12"/>
+              <line x1="8" y1="16" x2="8" y2="16"/>
+              <line x1="12" y1="16" x2="12" y2="16"/>
+              <line x1="16" y1="16" x2="16" y2="16"/>
+            </svg>`,
+  },
+  {
+    id:    'menu',
+    label: 'Menu',
+    icon:  `<svg width="22" height="22" viewBox="0 0 24 24" fill="none"
+              stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
+              <line x1="4" y1="7" x2="20" y2="7"/>
+              <line x1="4" y1="12" x2="20" y2="12"/>
+              <line x1="4" y1="17" x2="20" y2="17"/>
             </svg>`,
   },
 ]
 
 export function NavBar ({ active, onNavigate, unreadChat = 0 }) {
+  injectOverlayStyles()
+
   const nav = document.createElement('nav')
   nav.className = 'nav-bar'
 
@@ -93,13 +115,51 @@ export function NavBar ({ active, onNavigate, unreadChat = 0 }) {
     `
 
     btn.addEventListener('click', () => {
+      if (tab.id === 'calc') {
+        const overlayEl = CalcPanel({ onClose: () => overlayEl.remove() })
+        document.body.appendChild(overlayEl)
+        return
+      }
+      if (tab.id === 'menu') {
+        const overlayEl = MenuSheet({ onNavigate, onClose: () => overlayEl.remove() })
+        document.body.appendChild(overlayEl)
+        return
+      }
       if (!isActive) onNavigate(tab.route)
     })
 
     nav.appendChild(btn)
   })
 
+  loadMenuBadge(nav)
+
   return nav
+}
+
+async function loadMenuBadge (navEl) {
+  try {
+    const pending = await api.get('/transfers/pending/mine')
+    const count = computeMenuBadgeCount([pending?.length ?? 0])
+    updateMenuBadge(navEl, count)
+  } catch (_) {
+    // Offline or fetch failed — no badge shown, next mount retries.
+  }
+}
+
+function updateMenuBadge (navEl, count) {
+  const menuTab = navEl.querySelector('[aria-label="Menu"]')
+  if (!menuTab) return
+  let badge = menuTab.querySelector('.nav-badge')
+  if (count > 0) {
+    if (!badge) {
+      badge = document.createElement('span')
+      badge.className = 'nav-badge'
+      menuTab.appendChild(badge)
+    }
+    badge.textContent = count > 9 ? '9+' : count
+  } else {
+    badge?.remove()
+  }
 }
 
 // Update unread badge without re-rendering the whole nav

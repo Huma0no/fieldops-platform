@@ -36,7 +36,7 @@ export default async function mount (appEl) {
   screen.appendChild(scrollArea)
 
   screen.appendChild(NavBar({
-    active: 'settings',
+    active: 'menu',
     onNavigate: route => window.dispatchEvent(new CustomEvent('app:navigate', { detail: { route } })),
   }))
 
