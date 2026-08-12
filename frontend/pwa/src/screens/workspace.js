@@ -18,8 +18,8 @@ import { getCatalog } from '../lib/db.js'
 import { isCancelJustificationMissing } from '../lib/cancel-justification.mjs'
 
 const CHECKLIST_ITEMS = [
-  { key: 'pdrain_ecoil',   label: 'P-drain [eCoil]',            reportText: 'No/Incomplete pdrain at ecoil' },
-  { key: 'pdrain_disch',   label: 'P-drain [Discharge]',         reportText: 'No/Incomplete pdrain' },
+  { key: 'pdrain_ecoil',   label: 'P-drain [eCoil]',            reportText: 'No/Incomplete pdrain at ecoil', reminder: 'Reviewing the P-drain is recommended before completing.' },
+  { key: 'pdrain_disch',   label: 'P-drain [Discharge]',         reportText: 'No/Incomplete pdrain', reminder: 'Reviewing the P-drain is recommended before completing.' },
   { key: 'tstat_locked',   label: 'Tstat Locked?',                reportText: null, noPhoto: true },
   { key: 'media_filter',   label: 'Media Filter',                 reportText: 'Media filter missing' },
   { key: 'electric_meter', label: 'Electric Meter',               reportText: 'No electric meter' },
@@ -929,6 +929,10 @@ function buildChecklistItemRow (item) {
     btnGroup.appendChild(btn)
   })
   row.appendChild(lbl); row.appendChild(btnGroup); wrap.appendChild(row)
+  if (item.reminder) {
+    const reminder = document.createElement('p'); reminder.className='ws-check-reminder'; reminder.textContent=item.reminder
+    wrap.appendChild(reminder)
+  }
   if (answer === 'no' && !item.noPhoto) {
     const photoRow = document.createElement('div'); photoRow.className='ws-check-photo-row'
     const photoBtn = document.createElement('button'); photoBtn.className='ws-check-photo-btn'
@@ -1093,12 +1097,6 @@ function openGenerateModal () {
     showCancelJustificationBlock()
     return
   }
-  const pdrain1 = visit._checklist?.pdrain_ecoil
-  const pdrain2 = visit._checklist?.pdrain_disch
-  if (pdrain1 !== 'yes' || pdrain2 !== 'yes') {
-    showPdrainAdvisory()
-    return
-  }
   openGenerateModalDirect()
 }
 
@@ -1109,20 +1107,6 @@ function showCancelJustificationBlock () {
   note.textContent = 'Add a note or answer at least one checklist item before generating this report.'
   const actions = makeActions([
     { label: 'OK', cls: 'primary', fn: () => overlay.remove() },
-  ])
-  modal.appendChild(note); modal.appendChild(actions)
-  overlay.appendChild(modal)
-  document.getElementById('ws-screen')?.appendChild(overlay)
-}
-
-function showPdrainAdvisory () {
-  const overlay = makeOverlay()
-  const modal = makeModal('P-drain Review')
-  const note = document.createElement('p'); note.className='ws-modal-note'
-  note.textContent = 'Reviewing the P-drain before completing is recommended.'
-  const actions = makeActions([
-    { label: 'Close',      cls: 'secondary', fn: () => overlay.remove() },
-    { label: 'Understood', cls: 'primary',   fn: () => { overlay.remove(); openGenerateModalDirect() } },
   ])
   modal.appendChild(note); modal.appendChild(actions)
   overlay.appendChild(modal)
@@ -1345,6 +1329,7 @@ function injectStyles () {
   .ws-check-item{display:flex;flex-direction:column;gap:6px;}
   .ws-check-row{display:flex;align-items:center;justify-content:space-between;gap:var(--space-3);}
   .ws-check-label{font-size:var(--text-sm);color:var(--fo-ink);flex:1;line-height:1.3;}
+  .ws-check-reminder{margin:0 0 0 2px;font-size:var(--text-xs);color:var(--fo-ink-soft);line-height:1.3;}
   .ws-check-btns{display:flex;gap:6px;flex-shrink:0;}
   .ws-check-btn{padding:5px 14px;border-radius:var(--fo-radius-sm);border:none;background:var(--fo-tile);box-shadow:var(--fo-shadow-raised);color:var(--fo-ink-soft);font-size:var(--text-sm);font-weight:500;cursor:pointer;-webkit-tap-highlight-color:transparent;}
   .ws-check-btn--active{box-shadow:var(--fo-shadow-inset);}
