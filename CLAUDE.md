@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-Behavioral guidelines to reduce common LLM coding mistakes. Merge with project-specific instructions as needed.
+Claude-specific behavioral guidelines to reduce common LLM coding mistakes. Repository-wide FieldOps engineering rules live in `AGENTS.md`; Claude must follow them. Merge these guidelines with applicable project-specific instructions.
 
 **Tradeoff:** These guidelines bias toward caution over speed. For trivial tasks, use judgment.
 
@@ -77,7 +77,7 @@ The Behavior Summary states:
 | Changes to existing code | Behavior Summary first. Diff available on request. |
 | Structural or multi-file changes | Full diff mandatory. |
 
-Do not apply any change until the user explicitly confirms.
+Do not apply any change until the user explicitly confirms, unless the current task has already explicitly authorized the edit and it is within that task's scope. Still clarify or obtain confirmation when the scope is ambiguous, the change would materially expand the task, a destructive or risky operation is proposed, or product behavior requires an undecided product decision.
 
 ## 6. Impact Summary
 
