@@ -29,27 +29,26 @@ Every catalog item (Service, Accessory, Fix) has two separate strings, for two s
 | Prestart | "System Prestarted" | Catalog `service_name`: "Prestart" (not "Prestart System" — see the naming bug fix in DATA_MODEL.md/API_CONTRACT.md) |
 | Drive Run | "Drive Run" | System-count multiplier never applies |
 | Cancel | "service canceled" | Voids all charge |
-| Finish | "Finish/ [active companion]" | Modifier, not its own catalog service — see Finish rules below |
+| Finish | "Finish/ " always prints when active | Modifier, not its own catalog service — see Finish rules below |
 
 Multi-system visits append the actual system count to the report (e.g. "3 Systems") — driven by the visit's real system count, not a fixed label. See `/docs/fieldops/workspace/SERVICE-MULTISYSTEM-SPEC.md`.
 
 ### Finish rules
 
-- Finish is a **context flag** — it does not change how the rest of the report is built, only prefixes the active companion's report string with "Finish/ ".
-- Finish has no price of its own. When AC and/or Heat are active alongside it, Finish sets the service's price to a flat $20 (replacing, not adding to, AC/Heat's normal $30). Weigh-In's own $10 Finish addon (see `/docs/shared/CATALOG.md`) is a separate, independent rule.
+- Finish is a visual flag for the dispatcher — it signals that this visit is a return to an address that had a prior, incomplete visit, not a full first-time startup. It is not a description of the work performed.
+- **"Finish/ " (the word, a slash, a space) always prints when Finish is active — never skipped.** When AC and/or Heat are active, it immediately prefixes that service: "Finish/ AC started". Without AC/Heat, "Finish/ " prints as its own comma-separated marker before the remaining report content — see the 4th worked example below.
+- Finish has no price of its own. When AC and/or Heat are active alongside it, Finish sets the service's price to a flat $20 (replacing, not adding to, AC/Heat's normal $30). Weigh-In's own $10 Finish addon (see `/docs/shared/CATALOG.md`) is a separate, independent rule — it fires whenever Finish + Weigh-In-Data are both active, regardless of whether AC/Heat is active.
 - The Finish tile is disabled if the workspace is otherwise completely empty — Finish is never the only thing active.
 - Temporarily is a valid, non-conflicting companion of Finish.
 
-**Companion priority** — if more than one candidate is active, Finish attaches to the highest-priority one; everything else still appears in the report as its own independent line, unrelated to Finish:
+**Service companion** — AC and/or Heat is the only service companion for the Finish prefix:
 
-| Priority | Companion | Finish's report string | Price |
-|---|---|---|---|
-| 1 | AC and/or Heat | "Finish/ AC started", "Finish/ Heat started", "Finish/ AC & Heat started" | $20 |
-| 2 | Notes | "Finish/ [notes text]" | $0 |
-| 3 | Other (an Accessory or Fix named "Other") | "Finish/ [Other's text]" | custom |
-| — | Nothing active | Finish is ignored, doesn't appear in the report | — |
+| Companion | Finish's report string | Price |
+|---|---|---|
+| AC and/or Heat | "Finish/ AC started", "Finish/ Heat started", "Finish/ AC & Heat started" | $20 |
+| No AC/Heat | "Finish/ " prints as its own marker | — |
 
-Fixes and Accessories other than "Other" are never Finish companions — they always appear as independent report lines.
+Notes, checklist findings, accessories, and fixes always remain independent report content; none becomes a Finish companion.
 
 ## Accessories
 
@@ -132,6 +131,12 @@ The report line for a visit joins address, notes, service, and every priced item
 
 ```
 5011 Wild Bergamot, No P-Drain, AC (Temporarily) started 1 T-6 tstat $30, fin180p $10, pressure test $10, total $50
+```
+
+**Example with Finish and no AC/Heat service companion** (only Weigh-In and Pressure Test active — Finish still prints as its own marker):
+
+```
+1207 Cedar Bend, Finish/, weigh-in data $20, Pressure Test $10, total $30
 ```
 
 Multi-system visits append the actual system count, not a fixed "2 Systems" label — e.g. a 3-system Prestart visit reads "System Prestarted (3 Systems) $60", never a hardcoded "(2 Systems)". Not appended at all for a single-system visit.
