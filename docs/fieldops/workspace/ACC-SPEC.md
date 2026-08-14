@@ -28,7 +28,7 @@ Hidden sub-options expand on selection: **Lennox 1Stg · Lennox 2Stg · Goodman*
 
 ## Other
 
-Custom entry, price entered per visit — see `/docs/shared/CATALOG.md` (custom-price items).
+Custom-price accessory entry requiring a short technician-entered description and a price per visit. `Other` remains a normal accessory: its catalog `tech_supplied = true` value makes it participate in the existing restock mechanism, and its persisted description identifies it in the Completion Report. See `/docs/shared/CATALOG.md` (custom-price items).
 
 ## Running total
 

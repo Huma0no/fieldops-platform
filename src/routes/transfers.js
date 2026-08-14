@@ -180,7 +180,7 @@ router.post('/transfers/:id/accept', requireRole('technician'), async (req, res,
         [transfer.visit_id]
       ),
       pool.query(
-        'SELECT category, item_name, quantity, price, tech_supplied FROM visit_items WHERE visit_id = $1',
+        'SELECT category, item_name, description, quantity, price, tech_supplied FROM visit_items WHERE visit_id = $1',
         [transfer.visit_id]
       ),
       pool.query(
@@ -201,7 +201,7 @@ router.post('/transfers/:id/accept', requireRole('technician'), async (req, res,
       address: { street: v.street, city: v.city, state: v.state, zip: v.zip, subdivision: v.subdivision, builder: v.builder },
       systems: systems.rows.map((s) => ({ systemNumber: s.system_number, indoorModel: s.indoor_model, outdoorModel: s.outdoor_model, refrigerant: s.refrigerant })),
       services: services.rows.map((s) => ({ serviceName: s.service_name, isFinish: s.is_finish, isTemporarily: s.is_temporarily, price: s.price })),
-      items: items.rows.map((i) => ({ category: i.category, itemName: i.item_name, quantity: i.quantity, price: i.price, techSupplied: i.tech_supplied })),
+      items: items.rows.map((i) => ({ category: i.category, itemName: i.item_name, description: i.description, quantity: i.quantity, price: i.price, techSupplied: i.tech_supplied })),
       photos: photos.rows.map((p) => ({ id: p.id, tag: p.tag, label: p.label, category: p.category, systemNumber: p.system_number, storedAt: p.stored_at })),
     });
   } catch (err) {

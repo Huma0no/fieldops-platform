@@ -629,7 +629,7 @@ function buildItemsSection (category) {
         }
         return
       }
-      if (item.custom_price) { showCustomPriceModal(item, price => addItem(item, category, 1, price)); return }
+      if (item.custom_price) { showCustomPriceModal(item, ({ price, description }) => addItem(item, category, 1, price, description)); return }
       await addItem(item, category, 1)
     })
     grid.appendChild(btn)
@@ -650,12 +650,13 @@ function buildItemsSection (category) {
   return wrap
 }
 
-async function addItem (item, category, quantity, customPrice) {
+async function addItem (item, category, quantity, customPrice, description) {
   try {
     const body = { itemName: item.item_name, category, quantity }
     if (customPrice !== undefined) body.price = customPrice
+    if (description !== undefined) body.description = description
     const result = await api.post(`/visits/${visit.id}/items`, body)
-    const newItem = { id: result.id, item_name: item.item_name, category, quantity, price: customPrice ?? item.default_price }
+    const newItem = { id: result.id, item_name: item.item_name, description, category, quantity, price: customPrice ?? item.default_price }
     visit._items = [...(visit._items ?? []).filter(i => !result.removedItems?.includes(i.item_name)), newItem]
     if (result.totalPrice !== undefined) updatePrice(result.totalPrice)
     refreshSection(category === 'accessory' ? 'accessories' : 'fixes')
@@ -665,6 +666,13 @@ async function addItem (item, category, quantity, customPrice) {
 function showCustomPriceModal (item, onConfirm) {
   const overlay = makeOverlay()
   const modal = makeModal(item.item_name)
+  const requiresDescription = item.item_name === 'Other' || item.item_name === 'Other Fix'
+  let descriptionInput
+  if (requiresDescription) {
+    descriptionInput = document.createElement('input')
+    descriptionInput.type = 'text'; descriptionInput.placeholder = 'Enter description'; descriptionInput.className = 'ws-price-input'
+    modal.appendChild(descriptionInput)
+  }
   const input = document.createElement('input')
   input.type = 'number'; input.min = '0'; input.step = '0.01'
   input.placeholder = 'Enter price'; input.className = 'ws-price-input'
@@ -673,14 +681,15 @@ function showCustomPriceModal (item, onConfirm) {
     { label: 'Cancel', cls: 'secondary', fn: () => overlay.remove() },
     { label: 'Add', cls: 'primary', fn: () => {
       const price = parseFloat(input.value)
-      if (isNaN(price) || price < 0) return
-      overlay.remove(); onConfirm(price)
+      const description = descriptionInput?.value.trim()
+      if (isNaN(price) || price < 0 || (requiresDescription && !description)) return
+      overlay.remove(); onConfirm({ price, description })
     }},
   ])
   modal.appendChild(actions)
   overlay.appendChild(modal)
   document.getElementById('ws-screen')?.appendChild(overlay)
-  setTimeout(() => input.focus(), 50)
+  setTimeout(() => (descriptionInput ?? input).focus(), 50)
 }
 
 function buildWeighInSection () {
@@ -1186,7 +1195,8 @@ function downloadLocalReport () {
 function buildItemChip (item) {
   const chip = document.createElement('div'); chip.className='ws-item-chip'
   const name = document.createElement('span'); name.className='ws-chip-name'
-  name.textContent = item.quantity > 1 ? `${item.item_name} × ${item.quantity}` : item.item_name
+  const displayName = item.description ?? item.item_name
+  name.textContent = item.quantity > 1 ? `${displayName} × ${item.quantity}` : displayName
   const right = document.createElement('div'); right.className='ws-chip-right'
   if (item.price) {
     const price = document.createElement('span'); price.className='ws-chip-price'

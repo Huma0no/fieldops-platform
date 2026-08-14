@@ -60,7 +60,7 @@ VALUES
   ('LP Kit Goodman',      'accessory',  20,   true,  true,  false,  null),
   ('Weight-In-Data',      'accessory',  10,   false, true,  false,    10),
   ('Out of town fee',     'accessory',  null, false, false, true,   null),
-  ('Other',               'accessory',  null, false, false, true,   null)
+  ('Other',               'accessory',  null, true,  false, true,   null)
 ON CONFLICT (item_name) DO NOTHING;
 
 

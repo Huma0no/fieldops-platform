@@ -1,5 +1,5 @@
 async function generateReportText(db, visitId) {
-  const [visitRow, serviceRows, systemRows] = await Promise.all([
+  const [visitRow, serviceRows, systemRows, itemRows] = await Promise.all([
     db.query(
       `SELECT v.order_number, v.total_price, v.completed_at, v.notes, v.checklist_answers,
               a.street, a.subdivision, a.builder
@@ -16,6 +16,12 @@ async function generateReportText(db, visitId) {
       'SELECT COUNT(*) AS count FROM visit_systems WHERE visit_id = $1',
       [visitId]
     ),
+    db.query(
+      `SELECT item_name, description, price
+       FROM visit_items
+       WHERE visit_id = $1 AND item_name IN ('Other', 'Other Fix')`,
+      [visitId]
+    ),
   ]);
 
   const v = visitRow.rows[0];
@@ -29,6 +35,8 @@ async function generateReportText(db, visitId) {
     ? `${v.notes ?? ''} | ${noChecklistItems.join(', ')}`
     : (v.notes ?? '');
 
+  const describedItems = itemRows.rows.map(item => `${item.description} $${item.price}`);
+
   return [
     v.order_number,
     v.street,
@@ -41,6 +49,7 @@ async function generateReportText(db, visitId) {
     v.total_price,
     v.completed_at,
     combinedNotes,
+    ...describedItems,
   ].join(',');
 }
 
@@ -67,7 +76,7 @@ async function generateReportJSON(db, visitId) {
       [visitId]
     ),
     db.query(
-      'SELECT item_name, category, quantity, price, tech_supplied FROM visit_items WHERE visit_id = $1',
+      'SELECT item_name, category, description, quantity, price, tech_supplied FROM visit_items WHERE visit_id = $1',
       [visitId]
     ),
     db.query(
@@ -115,6 +124,7 @@ async function generateReportJSON(db, visitId) {
     })),
     items: items.rows.map((i) => ({
       itemName: i.item_name,
+      description: i.description,
       category: i.category,
       quantity: i.quantity,
       price: i.price,

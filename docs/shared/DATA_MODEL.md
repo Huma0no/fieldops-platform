@@ -338,12 +338,16 @@ Accessories, fixes, and thermostats installed during a visit. Unified into one t
 | id | text PK | UUID |
 | visit_id | text FK | References visits.id |
 | category | text | "accessory", "fix", "thermostat" — fixed set, enforced via CHECK constraint, matching `catalog_items.category` exactly |
+| description | text | Nullable technician-entered description. Normal catalog items do not require it; `Other` and `Other Fix` require a nonblank description. |
 | quantity | integer | Default 1 |
 | price | real | Price per unit × quantity |
 | tech_supplied | boolean | True if item impacts restock |
 
 **Rules:**
+- `description` is persisted with the visit item when required; it is used to identify `Other` and `Other Fix` in the Completion Report.
 - `tech_supplied` is assigned automatically by the server from the catalog — never set manually.
+- Operationally, `tech_supplied` indicates whether the catalog item participates in the technician restock/supply mechanism.
+- `Other` is an accessory with `tech_supplied = true`; `Other Fix` is a fix with `tech_supplied = false`.
 - `category = "thermostat"` → `tech_supplied = true` always.
 - `category = "fix"` → `tech_supplied = false` always.
 - `category = "accessory"` → `tech_supplied` depends on catalog definition per item.

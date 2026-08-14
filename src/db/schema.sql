@@ -221,6 +221,7 @@ CREATE TABLE visit_items (
   visit_id      text NOT NULL REFERENCES visits(id),
   item_name     text NOT NULL REFERENCES catalog_items(item_name),
   category      text NOT NULL CHECK (category IN ('accessory', 'fix', 'thermostat')),
+  description   text,
   quantity      integer NOT NULL DEFAULT 1,
   price         real NOT NULL,
   tech_supplied boolean NOT NULL,

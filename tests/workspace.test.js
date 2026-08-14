@@ -154,9 +154,12 @@ describe('POST /api/visits/:id/items', () => {
         ('TEST-EXCL-A',    'accessory', 30, false, false, false),
         ('TEST-EXCL-B',    'accessory', 30, false, false, false),
         ('TEST-EXCL-COMP', 'accessory', 10, false, false, false),
-        ('TEST-CUSTOM',    'fix',        0, false, false, true)
+        ('TEST-CUSTOM',    'fix',        0, false, false, true),
+        ('Other',          'accessory', null, true,  false, true),
+        ('Other Fix',      'fix',       null, false, false, true)
       ON CONFLICT (item_name) DO NOTHING
     `);
+    await pool.query(`UPDATE catalog_items SET tech_supplied = true WHERE item_name = 'Other'`);
     await pool.query(`
       INSERT INTO catalog_item_relations (id, item_name, relation_type, related_item_name, exclusion_group_id)
       VALUES
@@ -233,6 +236,59 @@ describe('POST /api/visits/:id/items', () => {
       .send({ category: 'fix', itemName: 'TEST-CUSTOM' });
     expect(res.status).toBe(400);
     expect(res.body.error).toBe('price is required for this item');
+  });
+
+  it('requires and persists descriptions for Other and Other Fix using catalog-derived tech_supplied', async () => {
+    const { visitId, token } = await seedAssignedVisit();
+
+    const missingDescription = await request(app)
+      .post(`/api/visits/${visitId}/items`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ category: 'accessory', itemName: 'Other', price: 25 });
+    expect(missingDescription.status).toBe(400);
+    expect(missingDescription.body.error).toBe('description is required for this item');
+
+    for (const itemName of ['Other', 'Other Fix']) {
+      const res = await request(app)
+        .post(`/api/visits/${visitId}/items`)
+        .set('Authorization', `Bearer ${token}`)
+        .send({ category: itemName === 'Other' ? 'accessory' : 'fix', itemName, price: 25, description: '   ' });
+      expect(res.status).toBe(400);
+      expect(res.body.error).toBe('description is required for this item');
+    }
+
+    const otherRes = await request(app)
+      .post(`/api/visits/${visitId}/items`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ category: 'accessory', itemName: 'Other', price: 25, description: 'Thermostat adapter', techSupplied: false });
+    expect(otherRes.status).toBe(200);
+    expect(otherRes.body.totalPrice).toBe(25);
+
+    const otherFixRes = await request(app)
+      .post(`/api/visits/${visitId}/items`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ category: 'fix', itemName: 'Other Fix', price: 40, description: 'Repaired drain pan', techSupplied: true });
+    expect(otherFixRes.status).toBe(200);
+    expect(otherFixRes.body.totalPrice).toBe(65);
+
+    const rows = await pool.query(
+      `SELECT item_name, description, price, tech_supplied FROM visit_items
+       WHERE visit_id = $1 ORDER BY item_name`,
+      [visitId]
+    );
+    expect(rows.rows).toEqual([
+      { item_name: 'Other', description: 'Thermostat adapter', price: 25, tech_supplied: true },
+      { item_name: 'Other Fix', description: 'Repaired drain pan', price: 40, tech_supplied: false },
+    ]);
+
+    const visitRes = await request(app)
+      .get(`/api/visits/${visitId}`)
+      .set('Authorization', `Bearer ${token}`);
+    expect(visitRes.status).toBe(200);
+    expect(visitRes.body.items).toEqual(expect.arrayContaining([
+      expect.objectContaining({ itemName: 'Other', description: 'Thermostat adapter', techSupplied: true }),
+      expect.objectContaining({ itemName: 'Other Fix', description: 'Repaired drain pan', techSupplied: false }),
+    ]));
   });
 
   it('returns 403 when token belongs to a different technician', async () => {

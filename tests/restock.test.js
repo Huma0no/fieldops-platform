@@ -3,7 +3,7 @@ const crypto = require('crypto');
 const app = require('../src/index');
 const { pool, truncateTables } = require('./helpers/db');
 const {
-  seedDispatcherWithToken, seedTechnicianWithToken,
+  seedDispatcherWithToken, seedTechnicianWithToken, seedAssignedVisit,
   seedCompletedVisit, seedCatalogItem,
 } = require('./helpers/seeds');
 
@@ -88,6 +88,41 @@ describe('GET /api/dispatch/restock-report', () => {
       .set('Authorization', `Bearer ${token}`);
 
     expect(res.status).toBe(403);
+  });
+
+  it('includes Other through catalog-derived tech_supplied and excludes Other Fix', async () => {
+    const { token: dispatcherToken } = await seedDispatcherWithToken();
+    const { visitId, token } = await seedAssignedVisit();
+    await pool.query(`
+      INSERT INTO catalog_items (item_name, category, default_price, tech_supplied, custom_price)
+      VALUES
+        ('Other', 'accessory', null, true, true),
+        ('Other Fix', 'fix', null, false, true)
+      ON CONFLICT (item_name) DO UPDATE SET tech_supplied = EXCLUDED.tech_supplied
+    `);
+
+    for (const [itemName, category, price, description] of [
+      ['Other', 'accessory', 25, 'Thermostat adapter'],
+      ['Other Fix', 'fix', 40, 'Repaired drain pan'],
+    ]) {
+      const res = await request(app)
+        .post(`/api/visits/${visitId}/items`)
+        .set('Authorization', `Bearer ${token}`)
+        .send({ itemName, category, price, description });
+      expect(res.status).toBe(200);
+    }
+    await pool.query(
+      `UPDATE visits SET status = 'completed', completed_at = $1 WHERE id = $2`,
+      [new Date().toISOString(), visitId]
+    );
+
+    const res = await request(app)
+      .get('/api/dispatch/restock-report')
+      .set('Authorization', `Bearer ${dispatcherToken}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.items.find(item => item.itemName === 'Other')?.totalConsumed).toBe(1);
+    expect(res.body.items.find(item => item.itemName === 'Other Fix')).toBeUndefined();
   });
 });
 

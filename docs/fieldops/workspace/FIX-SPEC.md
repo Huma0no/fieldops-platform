@@ -16,7 +16,7 @@ Multi-select tile grid, tile labels matching catalog `item_name` exactly (tiles 
 
 ## Custom entry
 
-Free-text description + free-text price, entered manually at the bottom of the section, added as its own line item.
+`Other Fix` is a normal custom-price Fix requiring a short technician-entered description and a price, entered as its own line item. Its description is persisted for Completion Report text. It remains `tech_supplied = false` and does not participate in restock.
 
 ## Report text
 

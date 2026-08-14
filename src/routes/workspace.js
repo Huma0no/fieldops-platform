@@ -221,7 +221,7 @@ router.post(
   requireVisitOwnership,
   async (req, res, next) => {
     const { id } = req.params;
-    const { category, itemName, quantity = 1, price } = req.body;
+    const { category, itemName, quantity = 1, price, description } = req.body;
     try {
       if (!VALID_CATEGORIES.includes(category)) {
         return res.status(400).json({ error: 'Invalid category' });
@@ -235,17 +235,21 @@ router.post(
         return res.status(400).json({ error: 'Item not found in catalog' });
       }
       const catalog = catRes.rows[0];
+      const itemDescription = typeof description === 'string' ? description.trim() : null;
 
       if (catalog.custom_price && price == null) {
         return res.status(400).json({ error: 'price is required for this item' });
+      }
+      if ((itemName === 'Other' || itemName === 'Other Fix') && !itemDescription) {
+        return res.status(400).json({ error: 'description is required for this item' });
       }
 
       const resolvedPrice = catalog.custom_price ? price : (catalog.default_price ?? 0);
 
       const insertRes = await pool.query(
-        `INSERT INTO visit_items (id, visit_id, item_name, category, quantity, price, tech_supplied)
-         VALUES (gen_random_uuid()::text, $1, $2, $3, $4, $5, $6) RETURNING id`,
-        [id, itemName, catalog.category, quantity, resolvedPrice, catalog.tech_supplied]
+        `INSERT INTO visit_items (id, visit_id, item_name, category, description, quantity, price, tech_supplied)
+         VALUES (gen_random_uuid()::text, $1, $2, $3, $4, $5, $6, $7) RETURNING id`,
+        [id, itemName, catalog.category, itemDescription, quantity, resolvedPrice, catalog.tech_supplied]
       );
       const newId = insertRes.rows[0].id;
 

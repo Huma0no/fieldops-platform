@@ -62,6 +62,34 @@ describe('generateReportText', () => {
     expect(parts[5]).toBe('true');
     expect(parts[6]).toBe('false');
   });
+
+  it('uses persisted descriptions and stored prices for Other and Other Fix', async () => {
+    const { visitId } = await seedAssignedVisit();
+    await setupVisitWithService(visitId);
+    await pool.query(`
+      INSERT INTO catalog_items (item_name, category, default_price, tech_supplied, custom_price)
+      VALUES
+        ('Other', 'accessory', null, true, true),
+        ('Other Fix', 'fix', null, false, true)
+      ON CONFLICT (item_name) DO NOTHING
+    `);
+    await pool.query(
+      `INSERT INTO visit_items (id, visit_id, item_name, category, description, quantity, price, tech_supplied)
+       VALUES
+         (gen_random_uuid()::text, $1, 'Other', 'accessory', 'Thermostat adapter', 1, 25, true),
+         (gen_random_uuid()::text, $1, 'Other Fix', 'fix', 'Repaired drain pan', 1, 40, false)`,
+      [visitId]
+    );
+    await pool.query(`UPDATE visits SET total_price = 215 WHERE id = $1`, [visitId]);
+
+    const text = await generateReportText(pool, visitId);
+
+    expect(text).toContain('Thermostat adapter $25');
+    expect(text).toContain('Repaired drain pan $40');
+    expect(text).toContain(',215,');
+    expect(text).not.toContain('Other $25');
+    expect(text).not.toContain('Other Fix $40');
+  });
 });
 
 describe('generateReportJSON', () => {
@@ -97,6 +125,7 @@ describe('generateReportJSON', () => {
     expect(report.services[0].serviceName).toBe('AC');
     expect(report.items).toHaveLength(1);
     expect(report.items[0].itemName).toBe('TEST-ITEM');
+    expect(report.items[0].description).toBeNull();
     expect(report.photos).toHaveLength(1);
     expect(report.photos[0]).toEqual({ slug: 'TEST_SLUG' });
     expect(Array.isArray(report.weighInData)).toBe(true);

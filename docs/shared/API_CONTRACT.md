@@ -362,11 +362,14 @@ PATCH /api/visits/:id/services
 
 POST /api/visits/:id/items
   auth: technician (must be assigned)
-  body: { category, itemName, quantity, price? }
+  body: { category, itemName, quantity, price?, description? }
   note: price is required when itemName references a catalog_items row with
         custom_price = true (e.g. "Other") — there is no default_price to fall
         back on for those items. For all other items, price is ignored if sent
         and the server uses catalog default_price instead.
+        description is required and must be nonblank for "Other" and "Other Fix";
+        it identifies the item in the Completion Report. Other catalog items do
+        not require a description.
   effect: creates visit_items row — server resolves tech_supplied from catalog
           server checks catalog_item_relations for itemName:
             companion rows → auto-creates visit_items rows for each related_item_name
