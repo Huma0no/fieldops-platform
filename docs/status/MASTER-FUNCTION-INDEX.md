@@ -1,6 +1,6 @@
 # FieldOps — Master Function Index
 
-**Version:** 0.3
+**Version:** 0.4
 **Date:** 2026-08-15
 **Status:** Working audit index
 
@@ -43,19 +43,19 @@ The index is derived from `docs/OVERVIEW.md` and the feature specifications it r
 | Equipment/accessory briefing | SPEC CLOSED / IMPLEMENTED | Pre-specified thermostat + accessories + system count. |
 | Per-system briefing | SPEC CLOSED / IMPLEMENTED | Equipment, charge, subcooling, ESP/CFM and contextual LV/Blower tools. |
 | Start Report | SPEC CLOSED / IMPLEMENTED | Opens Workspace for the visit. |
-| Cancel entry point | SPEC CLOSED / IMPLEMENTATION AUDIT | Job-level mechanism owned by CANCEL-SPEC. |
+| Cancel entry point | SPEC CLOSED / IMPLEMENTED (focused automated verification) | Opens Workspace Notes as a Cancel-originated session without calling `/start` or persisting cancellation. Full-suite verification remains inconclusive because PostgreSQL test infrastructure failed in `tests/helpers/db.js:truncateTables`; manual QA remains pending. |
 | Load Sheet Summary | SPEC CLOSED / IMPLEMENTATION AUDIT | Aggregates thermostats + accessories across visible jobs. |
 
 ## 3. Workspace Shell
 
 | Function | Spec Status | Implementation / QA | Notes |
 |---|---|---|---|
-| Workspace header | SPEC CLOSED | PARTIAL | Current header is back + address only. |
-| Active Job banner | SPEC CLOSED | OPEN | Spec explicitly says it is NOT built; intended to contain address, subdivision, builder, system count, price and Cancel. |
+| Workspace header | SPEC CLOSED | IMPLEMENTED (focused automated verification) | Separate back/navigation header with address. Full-suite verification remains inconclusive because PostgreSQL test infrastructure failed in `tests/helpers/db.js:truncateTables`; manual QA remains pending. |
+| Active Job banner | SPEC CLOSED | IMPLEMENTED (focused automated verification) | Separate compact banner shows address, subdivision, builder, actual `visit.systems.length`, persisted/live running total, and job-level Cancel ✕. Full-suite verification remains inconclusive because PostgreSQL test infrastructure failed in `tests/helpers/db.js:truncateTables`; manual QA remains pending. |
 | Five-step rail | SPEC CLOSED | IMPLEMENTED | Service+Tstat → Acc → Fix → Weigh-In → Notes. |
 | Direct step navigation | SPEC CLOSED | IMPLEMENTED / QA AUDIT | Rail is jumpable; inline Back/Next also exists. |
-| Running price total | SPEC CLOSED | IMPLEMENTED | Fed by workspace selections. |
-| Job-level Cancel | SPEC CLOSED | IMPLEMENTATION AUDIT | Spec places it in the Active Job banner and routes directly to Notes without confirmation. |
+| Running price total | SPEC CLOSED | IMPLEMENTED (focused automated verification) | Detail response supplies persisted `totalPrice`; existing Workspace updates keep the banner total live. Full-suite verification remains inconclusive because PostgreSQL test infrastructure failed in `tests/helpers/db.js:truncateTables`; manual QA remains pending. |
+| Job-level Cancel | SPEC CLOSED | IMPLEMENTED (focused automated verification) | ✕ opens Notes without confirmation or persistence. Generate Report requires Notes or an answered Checklist item; server enforcement finalizes Cancel by clearing invalid work data, preserving notes/checklist/permitted evidence, persisting `service_name=Cancel`, setting total to $0, and completing as `cancelled`. No separate cancel DB flag or service tile. Full-suite verification remains inconclusive because PostgreSQL test infrastructure failed in `tests/helpers/db.js:truncateTables`; manual QA remains pending. |
 | Contextual LV / Blower tools | SPEC CLOSED | IMPLEMENTED | Scoped to active system. |
 
 ## 4. Workspace — Service + Thermostat
@@ -134,7 +134,7 @@ The index is derived from `docs/OVERVIEW.md` and the feature specifications it r
 | Accessory phrases | SPEC CLOSED | IMPLEMENTED (automated verification) | Canonical phrases use persisted quantity/resolved price; Other uses its technician description and Weight-In-Data uses persisted $10/$20. |
 | Fix phrases | SPEC CLOSED | IMPLEMENTED (automated verification) | Canonical phrases use persisted quantity/price; Other Fix uses its technician description. |
 | Checklist No text | SPEC CLOSED | IMPLEMENTED (automated verification) | No-answer `reportText` values are included; entries with no report text, including Gas Valve, are naturally excluded. |
-| Edit generated report | SPEC CLOSED | IMPLEMENTATION AUDIT | Required correction path; current source/spec reconciliation still needed. |
+| Edit generated report | SPEC CLOSED | OPEN / IMPLEMENTATION AUDIT | Required correction path; current source/spec reconciliation still needed. |
 | Share/export | SPEC CLOSED | QA VERIFIED | Reports surface. |
 
 ## 10. Company Google Form Integration
@@ -211,9 +211,9 @@ This section records findings verified during the 2026-08-15 audit reconciliatio
 
 **Resolution:** implemented and automatically verified. The deferred per-system Service redesign remains separate.
 
-### R-02 — Workspace Active Job banner is intentionally documented as missing
+### R-02 — Workspace Active Job banner and job-level Cancel implemented
 
-`docs/fieldops/workspace/WORKSPACE-SHELL.md` states that the Active Job banner is not built and describes the intended content. The index therefore treats this as a known implementation gap rather than an ambiguous audit item.
+Commit `a5461691e597b8e51ead41dd9e6af64f81a63fb9` implements the separate Active Job banner and the My Calls/Workspace Cancel entry points. Cancel now persists only through Generate Report after Notes-or-Checklist justification, using the existing `service_name=Cancel` representation and preserving Notes, Checklist, and permitted evidence. Focused automated verification passed (4/4 suites, 91/91 tests), `git diff --check`, and relevant `node --check` passed. Full-suite verification remains inconclusive because PostgreSQL test infrastructure failed in `tests/helpers/db.js:truncateTables`; manual QA is not complete.
 
 ### R-03 — P-drain behavior conflict resolved
 
@@ -239,13 +239,12 @@ The intended behavior is: generate refrigerant restock needs automatically from 
 
 The next pass should focus on the highest-value reconciliation items in this order:
 
-1. Workspace Shell — verify the Active Job banner and job-level Cancel against actual UI/code.
-2. Completion Report Edit behavior — audit the correction path separately from the implemented generator.
-3. PWA QA findings P-01 / P-02 / P-03 — verify and resolve the currently open FieldOps issues in `QA-TRACKER.md`.
-4. Weigh-In — reconcile the current 10°F OEM SC goal with the canonical equipment/OEM rule.
-5. Company Google Form integration — verify the end-to-end prefill and required-photo behavior.
-6. Accessories/restock data model — define consumption quantity and technician-controlled restock state before coding; existing Other participation does not complete this work.
-7. Refrigerant auto-restock — create the canonical implementation spec after the business rule is confirmed.
-8. Multi-system Service redesign — schedule the deferred per-system model when intentionally prioritized.
+1. Completion Report Edit behavior — audit the correction path separately from the implemented generator.
+2. PWA QA findings P-01 / P-02 / P-03 — verify and resolve the currently open FieldOps issues in `QA-TRACKER.md`.
+3. Weigh-In — reconcile the current 10°F OEM SC goal with the canonical equipment/OEM rule.
+4. Company Google Form integration — verify the end-to-end prefill and required-photo behavior.
+5. Accessories/restock data model — define consumption quantity and technician-controlled restock state before coding; existing Other participation does not complete this work.
+6. Refrigerant auto-restock — create the canonical implementation spec after the business rule is confirmed.
+7. Multi-system Service redesign — schedule the deferred per-system model when intentionally prioritized.
 
 No application behavior should be changed solely because an index entry says so; the index is an audit map, not authorization to redesign a closed UX.
