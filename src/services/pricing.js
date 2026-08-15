@@ -1,8 +1,15 @@
+const FINISH_SERVICE_NAMES = new Set(['AC', 'Heat', 'AC & Heat']);
+
+function resolveServicePrice(serviceName, isFinish, basePrice) {
+  if (isFinish && FINISH_SERVICE_NAMES.has(serviceName)) return 20;
+  return basePrice ?? 0;
+}
+
 async function calculateVisitPrice(db, visitId) {
   const [servicesRes, itemsRes, systemsRes, visitRes] = await Promise.all([
     db.query(
-      `SELECT vs.service_name, vs.is_finish,
-              cs.default_price, cs.multiplies_by_system_count
+      `SELECT vs.service_name, vs.is_finish, vs.price,
+              cs.multiplies_by_system_count
        FROM visit_services vs
        JOIN catalog_services cs ON cs.service_name = vs.service_name
        WHERE vs.visit_id = $1`,
@@ -45,8 +52,8 @@ async function calculateVisitPrice(db, visitId) {
 
   let serviceTotal = 0;
   for (const s of servicesRes.rows) {
-    let price = s.default_price ?? 0;
-    if (s.multiplies_by_system_count) price *= systemCount;
+    let price = s.price ?? 0;
+    if (!s.is_finish && s.multiplies_by_system_count) price *= systemCount;
     serviceTotal += price;
   }
 
@@ -74,4 +81,4 @@ async function calculateVisitPrice(db, visitId) {
   return serviceTotal + itemTotal + finishAddonTotal;
 }
 
-module.exports = { calculateVisitPrice };
+module.exports = { calculateVisitPrice, resolveServicePrice };

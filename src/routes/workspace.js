@@ -1,7 +1,7 @@
 const express = require('express');
 const { pool } = require('../db/pool');
 const { requireRole } = require('../middleware/auth');
-const { calculateVisitPrice } = require('../services/pricing');
+const { calculateVisitPrice, resolveServicePrice } = require('../services/pricing');
 const multer = require('multer');
 const piexif = require('piexifjs');
 
@@ -191,13 +191,13 @@ router.patch(
       if (!catalogRes.rows.length) {
         return res.status(400).json({ error: 'Invalid service name' });
       }
-      const catalogPrice = catalogRes.rows[0].default_price;
+      const servicePrice = resolveServicePrice(serviceName, isFinish, catalogRes.rows[0].default_price);
 
       await pool.query(`DELETE FROM visit_services WHERE visit_id = $1`, [id]);
       await pool.query(
         `INSERT INTO visit_services (id, visit_id, service_name, is_finish, is_temporarily, price)
          VALUES (gen_random_uuid()::text, $1, $2, $3, $4, $5)`,
-        [id, serviceName, isFinish, isTemporarily, catalogPrice]
+        [id, serviceName, isFinish, isTemporarily, servicePrice]
       );
 
       const totalPrice = await calculateVisitPrice(pool, id);

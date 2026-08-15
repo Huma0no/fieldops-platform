@@ -17,8 +17,10 @@ describe('PATCH /api/visits/:id/services', () => {
       VALUES
         ('AC',       150, false, false),
         ('Heat',     100, false, false),
+        ('AC & Heat', 175, true,  false),
         ('Cancel',     0, false, false),
-        ('Prestart',  20, false, false)
+        ('Prestart',  20, false, false),
+        ('Drive Run', 10, false, false)
       ON CONFLICT (service_name) DO NOTHING
     `);
   });
@@ -48,6 +50,75 @@ describe('PATCH /api/visits/:id/services', () => {
     const rows = await pool.query('SELECT * FROM visit_services WHERE visit_id = $1', [visitId]);
     expect(rows.rows).toHaveLength(1);
     expect(rows.rows[0].service_name).toBe('Prestart');
+  });
+
+  it.each([
+    ['AC', 150],
+    ['Heat', 100],
+    ['AC & Heat', 175],
+  ])('preserves the normal price for %s without Finish', async (serviceName, expectedPrice) => {
+    const { visitId, token } = await seedAssignedVisit();
+    const res = await request(app)
+      .patch(`/api/visits/${visitId}/services`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ serviceName });
+
+    expect(res.status).toBe(200);
+    expect(res.body.totalPrice).toBe(expectedPrice);
+    const service = await pool.query('SELECT price FROM visit_services WHERE visit_id = $1', [visitId]);
+    expect(service.rows[0].price).toBe(expectedPrice);
+  });
+
+  it.each(['AC', 'Heat', 'AC & Heat'])('resolves Finish + %s to a persisted $20 service price', async (serviceName) => {
+    const { visitId, token } = await seedAssignedVisit();
+    const res = await request(app)
+      .patch(`/api/visits/${visitId}/services`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ serviceName, isFinish: true });
+
+    expect(res.status).toBe(200);
+    expect(res.body.totalPrice).toBe(20);
+    const service = await pool.query('SELECT price FROM visit_services WHERE visit_id = $1', [visitId]);
+    expect(service.rows[0].price).toBe(20);
+  });
+
+  it('keeps the Weight-In-Data Finish addon independent of the $20 service price', async () => {
+    const { visitId, token } = await seedAssignedVisit();
+    await pool.query(
+      `INSERT INTO catalog_items
+         (item_name, category, default_price, tech_supplied, finish_addon_price)
+       VALUES ('Weight-In-Data', 'accessory', 10, false, 10)
+       ON CONFLICT (item_name) DO UPDATE
+       SET default_price = EXCLUDED.default_price,
+           finish_addon_price = EXCLUDED.finish_addon_price`
+    );
+
+    await request(app)
+      .patch(`/api/visits/${visitId}/services`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ serviceName: 'AC', isFinish: true });
+    const res = await request(app)
+      .post(`/api/visits/${visitId}/items`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ category: 'accessory', itemName: 'Weight-In-Data' });
+
+    expect(res.status).toBe(200);
+    expect(res.body.totalPrice).toBe(40);
+    const service = await pool.query('SELECT price FROM visit_services WHERE visit_id = $1', [visitId]);
+    expect(service.rows[0].price).toBe(20);
+  });
+
+  it('does not invent a $20 Finish charge for Drive Run', async () => {
+    const { visitId, token } = await seedAssignedVisit();
+    const res = await request(app)
+      .patch(`/api/visits/${visitId}/services`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ serviceName: 'Drive Run', isFinish: true });
+
+    expect(res.status).toBe(200);
+    expect(res.body.totalPrice).toBe(10);
+    const service = await pool.query('SELECT price FROM visit_services WHERE visit_id = $1', [visitId]);
+    expect(service.rows[0].price).toBe(10);
   });
 
   it('overwrites existing service — only one row in visit_services after second call', async () => {

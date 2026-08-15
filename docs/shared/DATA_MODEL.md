@@ -113,7 +113,7 @@ Base services and their pricing/modifier rules — the single source for the ser
 **Rules:**
 - Seed data source: `src/data.js` (ACstartup repo) — `SERVICES`, `DEFAULT_PRICES.SERVICE`.
 - Finish and Temporarily are modifiers applied on top of a base service (see `visit_services.is_finish` / `is_temporarily`), not separate rows here.
-- The Finish + accessory price addon (e.g. Weigh-In-Data + Finish = +$10) lives on `catalog_items.finish_addon_price`, not here — the addon is tied to which accessory is present, not to the service itself.
+- In the current service model, Finish + AC, Heat, or AC & Heat resolves that visit's service charge to a flat $20, replacing the normal AC/Heat charge rather than adding to it. The separate Finish + accessory addon (e.g. Weigh-In-Data + Finish = +$10) lives on `catalog_items.finish_addon_price`, because that addon is tied to which accessory is present.
 - This table backs the pricing engine described in `API_CONTRACT.md` §7 (bundle rule, system-count multiplier, Cancel rule) — built once, reused by both the technician Workspace and the dispatcher full-edit endpoint.
 
 ---
@@ -320,13 +320,16 @@ Services performed during a visit.
 | id | text PK | UUID |
 | visit_id | text FK | References visits.id |
 | service_name | text | "AC", "Heat", "AC & Heat", "Prestart", "Cancel", "Drive Run" — base service only, matches `catalog_services.service_name` exactly. Finish and Temporarily are never values of this column — see is_finish/is_temporarily below. |
-| is_finish | boolean | Finish modifier applied to service_name — has a real pricing effect (see catalog_items.finish_addon_price) |
+| is_finish | boolean | Finish modifier applied to service_name. With AC, Heat, or AC & Heat, resolves this visit's service price to $20; see rules below. |
 | is_temporarily | boolean | Temporarily modifier applied to service_name — label only, no pricing effect. Its only consequence is setting the visit's final status to "temporarily" instead of "completed". |
-| price | real | Final price after all rules applied |
+| price | real | Resolved service price for this visit after current service rules are applied; it is the price consumed by the Completion Report generator, not merely the catalog base price. |
 
 **Rules:**
 - `is_finish` and `is_temporarily` are separate modifiers. "Finish/AC" = service_name "AC" + is_finish true.
-- Pricing rules (bundle, system-count multiplier, cancel) are applied by the server before storing price.
+- Under the current service model, Finish + AC, Heat, or AC & Heat stores a resolved service price of $20. This replaces the normal AC/Heat service price; it is not an additional charge. The Weigh-In-Data Finish addon remains separate on the applicable visit item.
+- `generateReportText()` consumes this resolved, persisted service price and does not recreate Finish pricing independently.
+- Pricing rules (bundle, system-count multiplier, cancel) are applied by the server before storing price. The future per-system service model in `/docs/fieldops/workspace/SERVICE-MULTISYSTEM-SPEC.md` is outside this rule and remains deferred.
+- **Implementation alignment:** `src/routes/workspace.js` resolves and persists the $20 Finish service price, and `src/services/pricing.js` consumes that persisted service price while retaining the separate `catalog_items.finish_addon_price` rule.
 
 ---
 

@@ -269,6 +269,23 @@ describe('calculateVisitPrice', () => {
     expect(total).toBe(190); // 150 (service) + 25 (item default) + 15 (finish addon)
   });
 
+  it('uses the persisted Finish service price without double-counting the normal service price', async () => {
+    const { visitId } = await makePricingVisit();
+    await pool.query(
+      `INSERT INTO visit_services (id, visit_id, service_name, is_finish, is_temporarily, price)
+       VALUES (gen_random_uuid()::text, $1, 'PT-SVC', true, false, 20)`,
+      [visitId]
+    );
+    await pool.query(
+      `INSERT INTO visit_items (id, visit_id, item_name, category, quantity, price, tech_supplied)
+       VALUES (gen_random_uuid()::text, $1, 'PT-ITEM-A', 'accessory', 1, 25, false)`,
+      [visitId]
+    );
+
+    const total = await calculateVisitPrice(pool, visitId);
+    expect(total).toBe(60); // 20 (stored Finish service) + 25 (item) + 15 (Finish addon)
+  });
+
   it('uses visit_items.price directly for custom_price items', async () => {
     const { visitId } = await makePricingVisit();
     await pool.query(

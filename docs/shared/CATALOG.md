@@ -16,7 +16,7 @@ Base services: AC · Heat · AC & Heat · Prestart · Drive Run · Cancel.
 
 - **Bundle** — AC & Heat is charged as one unit, not AC + Heat separately.
 - **Standalone** — Prestart, Drive Run, and Cancel are mutually exclusive with refrigeration services (AC/Heat/AC & Heat).
-- **Finish** is a modifier, not a catalog service — no standalone price, no catalog entry. It has a real pricing effect only when combined with the Weigh-In-Data accessory on the same visit.
+- **Finish** is a modifier, not a catalog service — no standalone price, no catalog entry. In the current service model, Finish + AC, Heat, or AC & Heat resolves that visit's service charge to a flat $20, replacing the normal AC/Heat charge rather than adding to it. The Weigh-In-Data Finish addon remains a separate, independent charge.
 
 ## Accessories
 
