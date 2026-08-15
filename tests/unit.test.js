@@ -210,7 +210,8 @@ describe('calculateVisitPrice', () => {
       VALUES
         ('PT-ITEM-A',    'accessory', 25, false, false, false, 15),
         ('PT-ITEM-MULTI','accessory', 40, false, true,  false, null),
-        ('PT-ITEM-CUST', 'fix',        0, false, false, true,  null)
+        ('PT-ITEM-CUST', 'fix',        0, false, false, true,  null),
+        ('Weight-In-Data', 'accessory', 10, false, false, false, 10)
       ON CONFLICT (item_name) DO NOTHING
     `);
   });
@@ -284,6 +285,23 @@ describe('calculateVisitPrice', () => {
 
     const total = await calculateVisitPrice(pool, visitId);
     expect(total).toBe(60); // 20 (stored Finish service) + 25 (item) + 15 (Finish addon)
+  });
+
+  it('uses the persisted Weight-In-Data Finish price without adding its addon twice', async () => {
+    const { visitId } = await makePricingVisit();
+    await pool.query(
+      `INSERT INTO visit_services (id, visit_id, service_name, is_finish, is_temporarily, price)
+       VALUES (gen_random_uuid()::text, $1, 'PT-SVC', true, false, 20)`,
+      [visitId]
+    );
+    await pool.query(
+      `INSERT INTO visit_items (id, visit_id, item_name, category, quantity, price, tech_supplied)
+       VALUES (gen_random_uuid()::text, $1, 'Weight-In-Data', 'accessory', 1, 20, false)`,
+      [visitId]
+    );
+
+    const total = await calculateVisitPrice(pool, visitId);
+    expect(total).toBe(40);
   });
 
   it('uses visit_items.price directly for custom_price items', async () => {

@@ -82,7 +82,7 @@ describe('PATCH /api/visits/:id/services', () => {
     expect(service.rows[0].price).toBe(20);
   });
 
-  it('keeps the Weight-In-Data Finish addon independent of the $20 service price', async () => {
+  it('persists Weight-In-Data at $20 when Finish is already active', async () => {
     const { visitId, token } = await seedAssignedVisit();
     await pool.query(
       `INSERT INTO catalog_items
@@ -106,6 +106,74 @@ describe('PATCH /api/visits/:id/services', () => {
     expect(res.body.totalPrice).toBe(40);
     const service = await pool.query('SELECT price FROM visit_services WHERE visit_id = $1', [visitId]);
     expect(service.rows[0].price).toBe(20);
+    const item = await pool.query('SELECT price FROM visit_items WHERE visit_id = $1 AND item_name = $2', [visitId, 'Weight-In-Data']);
+    expect(item.rows[0].price).toBe(20);
+  });
+
+  it('updates Weight-In-Data when Finish changes without changing unrelated accessories', async () => {
+    const { visitId, token } = await seedAssignedVisit();
+    await pool.query(
+      `INSERT INTO catalog_items
+         (item_name, category, default_price, tech_supplied, finish_addon_price)
+       VALUES
+         ('Weight-In-Data', 'accessory', 10, false, 10),
+         ('WS-UNCHANGED', 'accessory', 7, false, null)
+       ON CONFLICT (item_name) DO UPDATE
+       SET default_price = EXCLUDED.default_price,
+           finish_addon_price = EXCLUDED.finish_addon_price`
+    );
+
+    await request(app)
+      .patch(`/api/visits/${visitId}/services`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ serviceName: 'AC' });
+    await request(app)
+      .post(`/api/visits/${visitId}/items`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ category: 'accessory', itemName: 'Weight-In-Data' });
+    await request(app)
+      .post(`/api/visits/${visitId}/items`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ category: 'accessory', itemName: 'WS-UNCHANGED' });
+
+    let items = await pool.query(
+      'SELECT item_name, price FROM visit_items WHERE visit_id = $1 ORDER BY item_name',
+      [visitId]
+    );
+    expect(items.rows).toEqual([
+      { item_name: 'WS-UNCHANGED', price: 7 },
+      { item_name: 'Weight-In-Data', price: 10 },
+    ]);
+
+    let res = await request(app)
+      .patch(`/api/visits/${visitId}/services`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ serviceName: 'AC', isFinish: true });
+    expect(res.body.totalPrice).toBe(47);
+
+    items = await pool.query(
+      'SELECT item_name, price FROM visit_items WHERE visit_id = $1 ORDER BY item_name',
+      [visitId]
+    );
+    expect(items.rows).toEqual([
+      { item_name: 'WS-UNCHANGED', price: 7 },
+      { item_name: 'Weight-In-Data', price: 20 },
+    ]);
+
+    res = await request(app)
+      .patch(`/api/visits/${visitId}/services`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ serviceName: 'AC', isFinish: false });
+    expect(res.body.totalPrice).toBe(167);
+
+    items = await pool.query(
+      'SELECT item_name, price FROM visit_items WHERE visit_id = $1 ORDER BY item_name',
+      [visitId]
+    );
+    expect(items.rows).toEqual([
+      { item_name: 'WS-UNCHANGED', price: 7 },
+      { item_name: 'Weight-In-Data', price: 10 },
+    ]);
   });
 
   it('does not invent a $20 Finish charge for Drive Run', async () => {

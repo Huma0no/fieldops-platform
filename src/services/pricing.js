@@ -1,8 +1,29 @@
 const FINISH_SERVICE_NAMES = new Set(['AC', 'Heat', 'AC & Heat']);
+const WEIGHT_IN_DATA = 'Weight-In-Data';
 
 function resolveServicePrice(serviceName, isFinish, basePrice) {
   if (isFinish && FINISH_SERVICE_NAMES.has(serviceName)) return 20;
   return basePrice ?? 0;
+}
+
+function resolveWeightInDataPrice(defaultPrice, finishAddonPrice, isFinish) {
+  return (defaultPrice ?? 0) + (isFinish ? (finishAddonPrice ?? 0) : 0);
+}
+
+async function syncWeightInDataPrice(db, visitId, isFinish) {
+  const itemsRes = await db.query(
+    `SELECT vi.id, ci.default_price, ci.finish_addon_price
+     FROM visit_items vi
+     JOIN catalog_items ci ON ci.item_name = vi.item_name
+     WHERE vi.visit_id = $1 AND vi.item_name = $2`,
+    [visitId, WEIGHT_IN_DATA]
+  );
+  for (const item of itemsRes.rows) {
+    await db.query(
+      'UPDATE visit_items SET price = $1 WHERE id = $2',
+      [resolveWeightInDataPrice(item.default_price, item.finish_addon_price, isFinish), item.id]
+    );
+  }
 }
 
 async function calculateVisitPrice(db, visitId) {
@@ -60,14 +81,16 @@ async function calculateVisitPrice(db, visitId) {
   let finishAddonTotal = 0;
   if (hasFinish) {
     for (const item of itemsRes.rows) {
-      if (item.finish_addon_price != null) finishAddonTotal += item.finish_addon_price;
+      if (item.item_name !== WEIGHT_IN_DATA && item.finish_addon_price != null) {
+        finishAddonTotal += item.finish_addon_price;
+      }
     }
   }
 
   let itemTotal = 0;
   for (const item of itemsRes.rows) {
     let price;
-    if (item.custom_price) {
+    if (item.item_name === WEIGHT_IN_DATA || item.custom_price) {
       price = item.stored_price ?? 0;
     } else if (overridesMap.has(item.item_name)) {
       price = overridesMap.get(item.item_name);
@@ -81,4 +104,9 @@ async function calculateVisitPrice(db, visitId) {
   return serviceTotal + itemTotal + finishAddonTotal;
 }
 
-module.exports = { calculateVisitPrice, resolveServicePrice };
+module.exports = {
+  calculateVisitPrice,
+  resolveServicePrice,
+  resolveWeightInDataPrice,
+  syncWeightInDataPrice,
+};

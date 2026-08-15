@@ -64,13 +64,13 @@ Accessories, fixes, and thermostats — the single source for default pricing, r
 |---|---|---|
 | item_name | text PK | Canonical name, e.g. "FIN180P", "Pressure Test", "T-10" |
 | category | text | "accessory", "fix", "thermostat" — fixed set, enforced via CHECK constraint, matching `visit_items.category` exactly |
-| default_price | real | Used unless overridden at the visit level (custom-price items) |
+| default_price | real | Catalog base price. For ordinary items, this normally becomes the visit item's resolved price; context modifiers are applied before the resolved visit price is persisted. |
 | tech_supplied | boolean | True if the item impacts restock — see rules below |
 | multiplies_by_system_count | boolean | True if this item is charged once per system on the visit (price × visit's system count) rather than once per visit, regardless of how many systems exist. There is no fixed cap at two systems — the platform supports any number of systems via +Add Systems. |
 | custom_price | boolean | True for free-form-price items (e.g. "Other", "Out of town fee") — no default_price applies |
 | expected_price_min | real | Lower bound for anomaly detection — null if not applicable |
 | expected_price_max | real | Upper bound for anomaly detection — null if not applicable |
-| finish_addon_price | real | Extra amount added when this specific item is selected together with the Finish modifier on the same visit (e.g. Weigh-In-Data + Finish = +$10). Lives here rather than on catalog_services because the addon is tied to which accessory is present, not to the service itself. |
+| finish_addon_price | real | Extra amount added when this specific item is selected together with the Finish modifier on the same visit (e.g. Weigh-In-Data + Finish = +$10). It contributes to the item's resolved `visit_items.price`, rather than being a separate report-only amount. Lives here rather than on catalog_services because the addon is tied to which accessory is present, not to the service itself. |
 
 **Rules:**
 - `category = "thermostat"` → `tech_supplied = true` always.
@@ -343,11 +343,12 @@ Accessories, fixes, and thermostats installed during a visit. Unified into one t
 | category | text | "accessory", "fix", "thermostat" — fixed set, enforced via CHECK constraint, matching `catalog_items.category` exactly |
 | description | text | Nullable technician-entered description. Normal catalog items do not require it; `Other` and `Other Fix` require a nonblank description. |
 | quantity | integer | Default 1 |
-| price | real | Price per unit × quantity |
+| price | real | Resolved item price for this visit. For ordinary items, this normally equals the selected/custom price; for Weight-In-Data + Finish, it is $20 ($10 base + $10 addon). |
 | tech_supplied | boolean | True if item impacts restock |
 
 **Rules:**
 - `description` is persisted with the visit item when required; it is used to identify `Other` and `Other Fix` in the Completion Report.
+- The pricing engine and item persistence use the same resolved value for `price`. `generateReportText()` consumes this persisted item price and does not recreate the Finish addon.
 - `tech_supplied` is assigned automatically by the server from the catalog — never set manually.
 - Operationally, `tech_supplied` indicates whether the catalog item participates in the technician restock/supply mechanism.
 - `Other` is an accessory with `tech_supplied = true`; `Other Fix` is a fix with `tech_supplied = false`.
@@ -355,6 +356,7 @@ Accessories, fixes, and thermostats installed during a visit. Unified into one t
 - `category = "fix"` → `tech_supplied = false` always.
 - `category = "accessory"` → `tech_supplied` depends on catalog definition per item.
 - If visit status is `cancelled`, no new items can be created — the server rejects the request. Existing items are deleted, not zeroed, when a visit transitions to `cancelled` (see `visits` status rules).
+- **Implementation alignment:** `src/routes/workspace.js` resolves and synchronizes the Weight-In-Data price when the item is added or Finish changes. `src/services/pricing.js` consumes that persisted price without adding the Weight-In-Data addon a second time.
 
 ---
 

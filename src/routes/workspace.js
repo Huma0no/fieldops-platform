@@ -1,7 +1,12 @@
 const express = require('express');
 const { pool } = require('../db/pool');
 const { requireRole } = require('../middleware/auth');
-const { calculateVisitPrice, resolveServicePrice } = require('../services/pricing');
+const {
+  calculateVisitPrice,
+  resolveServicePrice,
+  resolveWeightInDataPrice,
+  syncWeightInDataPrice,
+} = require('../services/pricing');
 const multer = require('multer');
 const piexif = require('piexifjs');
 
@@ -199,6 +204,7 @@ router.patch(
          VALUES (gen_random_uuid()::text, $1, $2, $3, $4, $5)`,
         [id, serviceName, isFinish, isTemporarily, servicePrice]
       );
+      await syncWeightInDataPrice(pool, id, isFinish);
 
       const totalPrice = await calculateVisitPrice(pool, id);
       const now = new Date().toISOString();
@@ -244,7 +250,18 @@ router.post(
         return res.status(400).json({ error: 'description is required for this item' });
       }
 
-      const resolvedPrice = catalog.custom_price ? price : (catalog.default_price ?? 0);
+      let resolvedPrice = catalog.custom_price ? price : (catalog.default_price ?? 0);
+      if (itemName === 'Weight-In-Data') {
+        const serviceRes = await pool.query(
+          'SELECT COALESCE(BOOL_OR(is_finish), false) AS is_finish FROM visit_services WHERE visit_id = $1',
+          [id]
+        );
+        resolvedPrice = resolveWeightInDataPrice(
+          catalog.default_price,
+          catalog.finish_addon_price,
+          serviceRes.rows[0].is_finish
+        );
+      }
 
       const insertRes = await pool.query(
         `INSERT INTO visit_items (id, visit_id, item_name, category, description, quantity, price, tech_supplied)

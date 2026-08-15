@@ -27,7 +27,7 @@ Governed by five combination rules:
 - **Companion items** — auto-activate when their parent item is selected.
 - **Zone board** — HZ322, Harmony, and UT3000 are mutually exclusive; selecting one deselects the others and their companions.
 
-Combination rules with modifiers (Finish, etc.) are resolved by the pricing engine, not documented per-item here.
+Combination rules with modifiers (Finish, etc.) are resolved by the pricing engine, not documented per-item here. The existing Weight-In-Data + Finish rule resolves that visit item's price from its $10 base plus its $10 addon to $20; `visit_items.price` persists that resolved price for the visit, and the Completion Report consumes it directly.
 
 ## Lineset Configs
 
