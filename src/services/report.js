@@ -1,56 +1,132 @@
+const ITEM_REPORT_TEXT = {
+  UT3000: 'UT3000 zone board',
+  HZ322: 'HZ322 zone board',
+  Harmony: 'Harmony zone board',
+  DAPC: 'DAPC',
+  eBypass: 'Electronic Bypass Damper wired',
+  Bypass: 'Bypass damper controller',
+  FIN180P: 'FIN180P wired and set',
+  Dehum: 'Dehum Box wired',
+  'Float Switch': 'Float Switch',
+  'Weight-In-Data': 'weigh-in data',
+  'Ecoil Wire': 'Ecoil wire to furnace wired',
+  AprilAir: 'AprilAire',
+  'F/A': 'Fresh Air damper wired',
+  'FIN6-MD': 'FIN6-MD wired',
+  'Trane Harness': 'Trane Harness wired',
+  RDS: 'RDS',
+  'LP Kit Lennox 1stg': 'Lennox LP Kit 1 Stage',
+  'LP Kit Lennox 2stg': 'Lennox LP Kit 2 Stage',
+  'LP Kit Goodman': 'Goodman LP Kit',
+  'Extended Wire(Furnace)': 'extended wire to furnace',
+  'Extended Wire(Cunit)': 'extended wire to cunit',
+  'Out of town fee': 'Out of town fee',
+  'Pressure Test': 'Pressure Test',
+  'Open Ecoil': 'I had to open the ecoil to pull out the sensor wire',
+  'Leaks Ecoil': 'Fixed Leaks at Ecoil',
+  'Leaks Cunit': 'Fixed Leaks at Cunit',
+  'Leaks Wall': 'Fixed Leaks Inside the Wall',
+  'Wires Jammed': 'Compressor wires jammed, fixed them to prevent electrical short',
+  'Stuck Blower': 'Fixed Stuck/Out of balance Blower',
+  'Cut Sheetrock': 'I had to cut sheetrock to locate tstat wire',
+};
+
+function formatPrice(value) {
+  return Number(value ?? 0).toString();
+}
+
+function formatService(service, systemCount) {
+  if (!service) return null;
+
+  const temporarily = service.is_temporarily ? ' (Temporarily)' : '';
+  const serviceText = {
+    AC: `AC${temporarily} started`,
+    Heat: `Heat${temporarily} started`,
+    'AC & Heat': `AC & Heat${temporarily} started`,
+    Prestart: 'System Prestarted',
+    'Drive Run': 'Drive Run',
+    Cancel: 'service canceled',
+  }[service.service_name];
+  if (!serviceText) return null;
+
+  const hasAcOrHeat = ['AC', 'Heat', 'AC & Heat'].includes(service.service_name);
+  const prefix = service.is_finish && hasAcOrHeat ? 'Finish/ ' : '';
+  const systemSuffix = service.service_name !== 'Cancel' && systemCount > 1
+    ? ` (${systemCount} Systems)`
+    : '';
+  return `${prefix}${serviceText}${systemSuffix} $${formatPrice(service.price)}`;
+}
+
+function formatItem(item) {
+  const text = (item.item_name === 'Other' || item.item_name === 'Other Fix')
+    ? item.description
+    : ITEM_REPORT_TEXT[item.item_name] ?? item.item_name;
+  if (!text) return null;
+  const quantity = item.quantity > 1 ? `${item.quantity} ` : '';
+  return `${quantity}${text} $${formatPrice(item.price)}`;
+}
+
 async function generateReportText(db, visitId) {
   const [visitRow, serviceRows, systemRows, itemRows] = await Promise.all([
     db.query(
-      `SELECT v.order_number, v.total_price, v.completed_at, v.notes, v.checklist_answers,
-              a.street, a.subdivision, a.builder
+      `SELECT v.status, v.total_price, v.notes, v.checklist_answers, a.street
        FROM visits v
        JOIN addresses a ON a.id = v.address_id
        WHERE v.id = $1`,
       [visitId]
     ),
     db.query(
-      'SELECT service_name, is_finish, is_temporarily FROM visit_services WHERE visit_id = $1',
+      `SELECT service_name, is_finish, is_temporarily, price
+       FROM visit_services
+       WHERE visit_id = $1
+       ORDER BY id`,
       [visitId]
     ),
     db.query(
-      'SELECT COUNT(*) AS count FROM visit_systems WHERE visit_id = $1',
+      'SELECT COUNT(*)::int AS count FROM visit_systems WHERE visit_id = $1',
       [visitId]
     ),
     db.query(
-      `SELECT item_name, description, price
+      `SELECT item_name, category, description, quantity, price
        FROM visit_items
-       WHERE visit_id = $1 AND item_name IN ('Other', 'Other Fix')`,
+       WHERE visit_id = $1
+       ORDER BY category, item_name, id`,
       [visitId]
     ),
   ]);
 
-  const v = visitRow.rows[0];
-  const svc = serviceRows.rows[0] || {};
-  const systemCount = parseInt(systemRows.rows[0].count, 10);
+  const visit = visitRow.rows[0];
+  const service = serviceRows.rows[0];
+  const systemCount = systemRows.rows[0].count;
+  const checklistFindings = (visit.checklist_answers ?? [])
+    .filter(answer => answer.answer === 'no' && typeof answer.reportText === 'string' && answer.reportText.trim())
+    .map(answer => answer.reportText.trim());
+  const noteParts = [visit.notes?.trim(), ...checklistFindings].filter(Boolean);
+  const thermostatItems = itemRows.rows.filter(item => item.category === 'thermostat');
+  const thermostatText = thermostatItems
+    .map(item => `${item.quantity} ${item.item_name} tstat${item.quantity === 1 ? '' : 's'}`)
+    .join(', ');
+  const accessoryItems = itemRows.rows.filter(item => item.category === 'accessory');
+  const fixItems = itemRows.rows.filter(item => item.category === 'fix');
+  const serviceText = visit.status === 'cancelled'
+    ? 'service canceled $0'
+    : formatService(service, systemCount);
+  const parts = [visit.street?.trim()];
 
-  const noChecklistItems = (v.checklist_answers ?? [])
-    .filter(a => a.answer === 'no' && a.reportText)
-    .map(a => a.reportText);
-  const combinedNotes = noChecklistItems.length
-    ? `${v.notes ?? ''} | ${noChecklistItems.join(', ')}`
-    : (v.notes ?? '');
+  if (noteParts.length) parts.push(noteParts.join(' | '));
+  if (service?.is_finish && !['AC', 'Heat', 'AC & Heat'].includes(service.service_name)) {
+    parts.push('Finish/');
+  }
+  if (serviceText) {
+    parts.push(thermostatText ? serviceText.replace(/ \$[^ ]+$/, ` ${thermostatText}$&`) : serviceText);
+  } else if (thermostatText) {
+    parts.push(thermostatText);
+  }
+  parts.push(...accessoryItems.map(formatItem).filter(Boolean));
+  parts.push(...fixItems.map(formatItem).filter(Boolean));
+  parts.push(`total $${formatPrice(visit.total_price)}`);
 
-  const describedItems = itemRows.rows.map(item => `${item.description} $${item.price}`);
-
-  return [
-    v.order_number,
-    v.street,
-    v.subdivision,
-    v.builder,
-    svc.service_name,
-    svc.is_finish,
-    svc.is_temporarily,
-    systemCount,
-    v.total_price,
-    v.completed_at,
-    combinedNotes,
-    ...describedItems,
-  ].join(',');
+  return parts.filter(Boolean).join(', ');
 }
 
 async function generateReportJSON(db, visitId) {

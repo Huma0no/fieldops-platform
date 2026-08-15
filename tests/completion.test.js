@@ -192,7 +192,7 @@ describe('POST /api/visits/:id/complete', () => {
 
 describe('GET /api/visits/:id/report-preview', () => {
   it('returns { reportText: "..." } for the assignee', async () => {
-    const { visitId, token } = await seedAssignedVisit();
+    const { visitId, token, street } = await seedAssignedVisit();
     await addService(visitId, 'AC');
 
     const res = await request(app)
@@ -200,8 +200,7 @@ describe('GET /api/visits/:id/report-preview', () => {
       .set('Authorization', `Bearer ${token}`);
 
     expect(res.status).toBe(200);
-    expect(typeof res.body.reportText).toBe('string');
-    expect(res.body.reportText.split(',')).toHaveLength(11);
+    expect(res.body.reportText).toBe(`${street}, AC started $150, total $150`);
   });
 
   it('allows dispatcher to access report-preview', async () => {
