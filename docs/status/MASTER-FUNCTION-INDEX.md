@@ -1,7 +1,7 @@
 # FieldOps — Master Function Index
 
-**Version:** 0.2
-**Date:** 2026-08-11
+**Version:** 0.3
+**Date:** 2026-08-15
 **Status:** Working audit index
 
 ## Purpose
@@ -65,13 +65,13 @@ The index is derived from `docs/OVERVIEW.md` and the feature specifications it r
 | AC service | SPEC CLOSED | IMPLEMENTED | Catalog-driven. |
 | Heat service | SPEC CLOSED | IMPLEMENTED | Catalog-driven. |
 | Prestart service | SPEC CLOSED | IMPLEMENTED | Catalog-driven. |
-| Finish modifier | SPEC CLOSED | IMPLEMENTED / AUDIT | Modifier, not a base service; Finish pricing/companion rules are catalog-dependent. |
+| Finish modifier | SPEC CLOSED | IMPLEMENTED (automated verification) | Current single-service model: Finish + AC, Heat, or AC & Heat persists the resolved $20 service price; without AC/Heat, `Finish/` remains an independent report marker. The separate Weight-In-Data addon remains independent. |
 | Drive Run | SPEC CLOSED | IMPLEMENTED | Separate action. |
 | Cancel | SPEC CLOSED | MOVED TO JOB LEVEL | Not a service tile. |
 | Thermostat single-select | SPEC CLOSED | IMPLEMENTED | Catalog/SearchableSelect behavior. |
 | Thermostat quantity | SPEC CLOSED | IMPLEMENTED | Single model × quantity. |
 | Add new thermostat | SPEC CLOSED | OPEN | Known SearchableSelect `+ Add new` issue from implementation history. |
-| Multi-system service behavior | SPEC PARTIAL | OPEN | `SERVICE-MULTISYSTEM-SPEC.md` is identified as a redesign/implementation item. |
+| Multi-system service behavior | SPEC PARTIAL | DEFERRED | `SERVICE-MULTISYSTEM-SPEC.md` is a separate future per-system Service redesign; it is not implemented and does not block the current report generator. |
 
 ## 5. Workspace — Accessories
 
@@ -80,9 +80,9 @@ The index is derived from `docs/OVERVIEW.md` and the feature specifications it r
 | Accessory catalog tiles | SPEC CLOSED | IMPLEMENTED | Catalog-driven. |
 | Zone-board companion activation | SPEC CLOSED | IMPLEMENTED / AUDIT | HZ322 / UT3000 / Harmony rules. |
 | LP Kit sub-options | SPEC CLOSED | DEFERRED | Existing inline behavior retained. |
-| Other custom accessory | SPEC CLOSED | DEFERRED | Custom description/price behavior retained. |
+| Other custom accessory | SPEC CLOSED | IMPLEMENTED (automated verification) | Persists technician description + custom price; `tech_supplied=true`; Completion Report uses the description and the existing restock mechanism consumes the item. This does not implement the separate future consumption-level restock workflow. |
 | Running price contribution | SPEC CLOSED | IMPLEMENTED | Feeds job total. |
-| Weigh-In Data billable accessory | SPEC CLOSED | IMPLEMENTED | Separate from Weigh-In charge-data toggle. |
+| Weigh-In Data billable accessory | SPEC CLOSED | IMPLEMENTED (automated verification) | Separate from Weigh-In charge-data capture. Persists $10 normally and the resolved $20 price with Finish; toggling Finish synchronizes the persisted price without double-counting. |
 | Structured quantity tracking | SPEC PARTIAL | OPEN | Needed for the planned accessory restock workflow. |
 | Restock state per consumption record | SPEC PARTIAL | OPEN | Needs canonical consumption/restock model before implementation. |
 
@@ -93,7 +93,7 @@ The index is derived from `docs/OVERVIEW.md` and the feature specifications it r
 | Standard fix tiles | SPEC CLOSED | IMPLEMENTED | Catalog-driven. |
 | Leak variants | SPEC CLOSED | IMPLEMENTED | Ecoil / Cunit / Wall. |
 | Extended Wire variants | SPEC CLOSED | IMPLEMENTED | Furnace / Cunit. |
-| Custom fix | SPEC CLOSED | IMPLEMENTED | Description + price. |
+| Custom fix | SPEC CLOSED | IMPLEMENTED (automated verification) | `Other Fix` persists technician description + custom price, reports the description, and remains `tech_supplied=false` / not restockable. |
 
 ## 7. Workspace — Weigh-In
 
@@ -123,17 +123,17 @@ The index is derived from `docs/OVERVIEW.md` and the feature specifications it r
 | Checklist No → photo | SPEC CLOSED | IMPLEMENTED | Inline photo capture. |
 | Notes | SPEC CLOSED | IMPLEMENTED | Observational notes for report generation. |
 | Generate Report | SPEC CLOSED | IMPLEMENTED | Final Workspace action. |
-| P-drain behavior | SPEC CLOSED | CONFLICT | Checklist spec explicitly says static reminder and no popup/gate; QA tracker says a P-drain advisory was built. This must be reconciled. |
+| P-drain behavior | SPEC CLOSED | IMPLEMENTED (automated verification) | Static inline reminder retained. Submission-time advisory/modal and Generate Report gate were removed; Yes/No and checklist report-text behavior remain unchanged. |
 
 ## 9. Completion Report
 
 | Function | Spec Status | Implementation / QA | Notes |
 |---|---|---|---|
-| Report field order | SPEC CLOSED | PARTIAL / CONFIRMED | `REPORT-TEXT.md` defines the target. Current `src/services/report.js` still returns a raw comma-joined sequence and does not implement the approved field order/template. |
-| Service phrases | SPEC CLOSED | OPEN IMPLEMENTATION | Approved phrases exist in `REPORT-TEXT.md`; current generator uses raw `service_name`/flags. |
-| Accessory phrases | SPEC CLOSED | OPEN IMPLEMENTATION | Approved report strings exist; current text generator does not query/build accessory report phrases. |
-| Fix phrases | SPEC CLOSED | OPEN IMPLEMENTATION | Approved report strings exist; current text generator does not query/build fix report phrases. |
-| Checklist No text | SPEC CLOSED | IMPLEMENTED / AUDIT | Current generator does include `reportText` values for No answers and filters out items without report text, which preserves the Gas Valve exclusion. |
+| Report field order | SPEC CLOSED | IMPLEMENTED (automated verification) | Canonical Company-facing line is address, notes/checklist findings, service/thermostat, accessories, fixes, and authoritative stored total. |
+| Service phrases | SPEC CLOSED | IMPLEMENTED (automated verification) | Canonical AC, Heat, AC & Heat, Prestart, Drive Run, Cancel, Temporarily, Finish, and current system-count wording use persisted service price. |
+| Accessory phrases | SPEC CLOSED | IMPLEMENTED (automated verification) | Canonical phrases use persisted quantity/resolved price; Other uses its technician description and Weight-In-Data uses persisted $10/$20. |
+| Fix phrases | SPEC CLOSED | IMPLEMENTED (automated verification) | Canonical phrases use persisted quantity/price; Other Fix uses its technician description. |
+| Checklist No text | SPEC CLOSED | IMPLEMENTED (automated verification) | No-answer `reportText` values are included; entries with no report text, including Gas Valve, are naturally excluded. |
 | Edit generated report | SPEC CLOSED | IMPLEMENTATION AUDIT | Required correction path; current source/spec reconciliation still needed. |
 | Share/export | SPEC CLOSED | QA VERIFIED | Reports surface. |
 
@@ -203,21 +203,21 @@ When a node is reviewed, answer these questions before marking it `CLOSED`:
 
 ## 15. Current Reconciliation Findings
 
-This section records findings verified during the 2026-08-11 audit pass.
+This section records findings verified during the 2026-08-15 audit reconciliation.
 
-### R-01 — Completion Report is a real implementation gap
+### R-01 — Completion Report implementation gap resolved
 
-`docs/shared/REPORT-TEXT.md` explicitly says the approved report-text design is not yet built. The current `src/services/report.js` confirms this: `generateReportText()` selects one service row, system count, notes/checklist text, and visit metadata, then returns a raw comma-joined sequence. It does not query or generate the approved accessory/fix report phrases, and its order does not match the target Completion Report format.
+`generateReportText()` now generates the canonical Company-facing report line using persisted service/item prices, canonical phrases, notes/checklist findings, and the stored total. Focused and full-suite automated tests passed with commit `14466fd`.
 
-**Conclusion:** this is not merely a documentation issue. It is an implementation task.
+**Resolution:** implemented and automatically verified. The deferred per-system Service redesign remains separate.
 
 ### R-02 — Workspace Active Job banner is intentionally documented as missing
 
 `docs/fieldops/workspace/WORKSPACE-SHELL.md` states that the Active Job banner is not built and describes the intended content. The index therefore treats this as a known implementation gap rather than an ambiguous audit item.
 
-### R-03 — P-drain behavior is a documentation/code conflict
+### R-03 — P-drain behavior conflict resolved
 
-`docs/fieldops/workspace/CHECKLIST-NOTES-SPEC.md` says there is no submission-time popup or gate. The QA tracker records that a P-drain advisory was built. The implementation must be reconciled against the owning UX decision before either side is changed.
+The implementation now matches `CHECKLIST-NOTES-SPEC.md`: P-drain is a static inline reminder with no submission-time popup/advisory and no Generate Report gate. Existing Yes/No and report-text behavior was preserved.
 
 ### R-04 — Weigh-In OEM SC goal requires canonical business rule
 
@@ -239,11 +239,13 @@ The intended behavior is: generate refrigerant restock needs automatically from 
 
 The next pass should focus on the highest-value reconciliation items in this order:
 
-1. Completion Report generation — reconcile target prose, current generator, and Edit behavior.
-2. Workspace Shell — verify Active Job banner and cancellation against actual UI/code.
-3. P-drain — resolve spec vs implementation conflict.
-4. Weigh-In — reconcile the current 10°F rule with the canonical equipment/OEM rule.
-5. Accessories/restock data model — define consumption quantity and restocked state before coding.
-6. Refrigerant auto-restock — create the canonical implementation spec after the business rule is confirmed.
+1. Workspace Shell — verify the Active Job banner and job-level Cancel against actual UI/code.
+2. Completion Report Edit behavior — audit the correction path separately from the implemented generator.
+3. PWA QA findings P-01 / P-02 / P-03 — verify and resolve the currently open FieldOps issues in `QA-TRACKER.md`.
+4. Weigh-In — reconcile the current 10°F OEM SC goal with the canonical equipment/OEM rule.
+5. Company Google Form integration — verify the end-to-end prefill and required-photo behavior.
+6. Accessories/restock data model — define consumption quantity and technician-controlled restock state before coding; existing Other participation does not complete this work.
+7. Refrigerant auto-restock — create the canonical implementation spec after the business rule is confirmed.
+8. Multi-system Service redesign — schedule the deferred per-system model when intentionally prioritized.
 
 No application behavior should be changed solely because an index entry says so; the index is an audit map, not authorization to redesign a closed UX.
