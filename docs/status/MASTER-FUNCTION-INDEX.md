@@ -1,6 +1,6 @@
 # FieldOps — Master Function Index
 
-**Version:** 0.4
+**Version:** 0.5
 **Date:** 2026-08-15
 **Status:** Working audit index
 
@@ -19,6 +19,7 @@ The index is derived from `docs/OVERVIEW.md` and the feature specifications it r
 - `QA VERIFIED` — behavior has been validated according to the current QA record.
 - `OPEN` — known issue, missing implementation, or unresolved decision.
 - `DEFERRED` — intentionally not part of the current implementation pass.
+- `SUPERSEDED / NOT REQUIRED` — a prior or legacy behavior is intentionally not part of FieldOps.
 - `CONFLICT` — documentation and implementation disagree; do not modify code until the owning rule is reconciled.
 
 ## 1. Application Shell / Navigation
@@ -134,7 +135,7 @@ The index is derived from `docs/OVERVIEW.md` and the feature specifications it r
 | Accessory phrases | SPEC CLOSED | IMPLEMENTED (automated verification) | Canonical phrases use persisted quantity/resolved price; Other uses its technician description and Weight-In-Data uses persisted $10/$20. |
 | Fix phrases | SPEC CLOSED | IMPLEMENTED (automated verification) | Canonical phrases use persisted quantity/price; Other Fix uses its technician description. |
 | Checklist No text | SPEC CLOSED | IMPLEMENTED (automated verification) | No-answer `reportText` values are included; entries with no report text, including Gas Valve, are naturally excluded. |
-| Edit generated report | SPEC CLOSED | OPEN / IMPLEMENTATION AUDIT | Required correction path; current source/spec reconciliation still needed. |
+| Edit generated report | SPEC CLOSED | SUPERSEDED / NOT REQUIRED | Legacy standalone-PWA behavior; FieldOps uses Request Correction after Generate Report. Canonical report text is regenerated from source visit data, not edited directly. |
 | Share/export | SPEC CLOSED | QA VERIFIED | Reports surface. |
 
 ## 10. Company Google Form Integration
@@ -239,12 +240,11 @@ The intended behavior is: generate refrigerant restock needs automatically from 
 
 The next pass should focus on the highest-value reconciliation items in this order:
 
-1. Completion Report Edit behavior — audit the correction path separately from the implemented generator.
-2. PWA QA findings P-01 / P-02 / P-03 — verify and resolve the currently open FieldOps issues in `QA-TRACKER.md`.
-3. Weigh-In — reconcile the current 10°F OEM SC goal with the canonical equipment/OEM rule.
-4. Company Google Form integration — verify the end-to-end prefill and required-photo behavior.
-5. Accessories/restock data model — define consumption quantity and technician-controlled restock state before coding; existing Other participation does not complete this work.
-6. Refrigerant auto-restock — create the canonical implementation spec after the business rule is confirmed.
-7. Multi-system Service redesign — schedule the deferred per-system model when intentionally prioritized.
+1. PWA QA findings P-01 / P-02 / P-03 — verify and resolve the currently open FieldOps issues in `QA-TRACKER.md`.
+2. Weigh-In — reconcile the current 10°F OEM SC goal with the canonical equipment/OEM rule.
+3. Company Google Form integration — verify the end-to-end prefill and required-photo behavior.
+4. Accessories/restock data model — define consumption quantity and technician-controlled restock state before coding; existing Other participation does not complete this work.
+5. Refrigerant auto-restock — create the canonical implementation spec after the business rule is confirmed.
+6. Multi-system Service redesign — schedule the deferred per-system model when intentionally prioritized.
 
 No application behavior should be changed solely because an index entry says so; the index is an audit map, not authorization to redesign a closed UX.

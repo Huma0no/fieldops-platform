@@ -9,6 +9,7 @@
 - Shows the day's completions.
 - Share/export capability.
 - Hosts the "Request Corrections" action per visit — see `/docs/shared/CORRECTIONS.md`.
+- Does not provide direct editing of generated Completion Report text or completed source visit data. After Generate Report, Request Corrections is the technician's correction entry point.
 
 ## Missing
 

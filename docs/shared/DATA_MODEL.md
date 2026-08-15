@@ -288,7 +288,8 @@ A service call to an address on a specific date, executed by a specific technici
 A technician-to-technician transfer does not introduce a separate status value here — the visit keeps its current status (typically `assigned` or `in_progress`) throughout. Transfer progress is tracked entirely in the `transfers` table (pending/accepted/rejected/expired); see that table's rules.
 
 **Rules:**
-- `cancelled` status deletes all visit_items and visit_services rows for the visit, sets `total_price = 0`. No accessories, fixes, or services are retained — only `notes` remains editable.
+- `cancelled` status deletes all visit_items and visit_services rows for the visit, sets `total_price = 0`. No accessories, fixes, or services are retained; notes and checklist answers remain as the recorded cancellation justification.
+- Generate Report moves an `assigned` or `in_progress` visit into one of these terminal states: `completed`, `temporarily`, or `cancelled`. There is no visit-level `closed` state. Post-completion technician corrections use `corrections`; the technician does not directly reopen source visit data.
 - Any visit type can have child visits on future dates — lineage is tracked via address history.
 - `has_multiple_systems` is a denormalized convenience flag kept in sync with `visit_systems` row count.
 
@@ -632,7 +633,7 @@ A one-way message from a technician to the Dispatcher flagging a possible error 
 
 **Rules:**
 - Only the technician who was originally assigned to the visit can flag a correction for it.
-- A visit must already be submitted (status completed/temporarily/cancelled) for a correction to apply — pre-submission edits happen freely in the technician's own Reports view and never touch this table.
+- A visit must already be submitted (status completed/temporarily/cancelled) for a correction to apply. Technician source-data edits occur in Workspace before Generate Report; post-completion corrections never directly reopen the visit for the technician.
 - Applying a correction is a manual dispatcher action, at their discretion — a courtesy extended to technicians, not a system obligation. The dispatcher edits the visit directly in Dispatch (there is no `corrected_fields` diff to approve); an `edit_log` row is created for the change as with any dispatcher edit.
 - A row's window closes automatically when the visit's Ledger week auto-closes (the following Wednesday) — status flips to "expired" and no further action is expected. No reopening of an already-closed Ledger week.
 

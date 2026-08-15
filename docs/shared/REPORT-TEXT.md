@@ -2,7 +2,7 @@
 
 **Version:** 1.0
 **Date:** 2026-07-30
-**Status:** Approved design (originally approved April 2026 for the legacy ACstartup app; carried forward and cross-checked against fieldops-platform's current catalog seed). **Not yet built** — the current report generator writes raw catalog values only, no templated phrase. This document is the target behavior for the report-text generator.
+**Status:** Approved design (originally approved April 2026 for the legacy ACstartup app; carried forward and cross-checked against fieldops-platform's current catalog seed). Implemented by the canonical report generator. This document remains the target behavior for report-text composition.
 
 ## Purpose
 

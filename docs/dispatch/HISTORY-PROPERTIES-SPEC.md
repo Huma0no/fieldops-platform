@@ -15,7 +15,7 @@ Two related views in Dispatch: the permanent record of completed visits (History
 - Row actions: **Detail**, **Property** (jumps to that address's Properties view).
 - No Total column in the list view.
 
-**Detail view:** raw Completion Report text, plus a collapsed Weigh-In section — no itemized accessory/fix chips; the report text is the source of truth for what was done.
+**Detail view:** generated canonical Completion Report text, plus a collapsed Weigh-In section — no itemized accessory/fix chips. Structured visit data is the source of truth; the displayed report text is derived from it.
 
 ## Properties
 

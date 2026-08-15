@@ -452,28 +452,15 @@ GET /api/visits/:id/download
         required when offline
 ```
 
-**Client-side behavior (PWA) — send-on-completion:**
+**Technician finalization boundary:**
 
-When the technician finishes a workspace, the completion report (and photo ZIP, if applicable) is generated and stored locally first — it is not sent instantly. Two submission modes are possible (to be decided during development):
-
-- **Countdown mode** — a short countdown (duration TBD) gives the technician a window to review and cancel the send. If the countdown completes without cancellation, the report is sent automatically.
-- **Manual submit mode** — the technician taps Submit explicitly, either per visit or once at the end of the route.
-
-Once a report is actually sent and processed by Dispatch, this window has closed. From that point, any change requires the formal correction flow in §9 — the two mechanisms operate at different moments and are not interchangeable: this section covers the pre-send window, §9 covers post-send correction.
-
-1. Technician finishes workspace → report + photos generated locally.
-2. Countdown or manual trigger → sends to Dispatch.
-3. Online → sends → success icon shown on the visit's Reports card.
-4. Offline → completion queued locally (IndexedDB) → modal: "No internet connection — this report cannot be sent. Download to send manually, or wait for connection?" [Download] [Wait]
-5. "Wait" → PWA retries automatically in background when connection returns → icon updates to success once sent.
-6. "Download" → generates JSON locally, no server call needed → icon reflects "downloaded, not auto-sent" (distinct from the success icon).
-7. Queued completions never block work on other visits.
+Generate Report is the technician's operational finalization action. It immediately persists the visit's terminal outcome (`completed`, `temporarily`, or `cancelled`) and its source data. The canonical Completion Report is generated from that authoritative visit data; it is not an editable text snapshot. After Generate Report, the technician cannot directly reopen or edit source visit data. Any post-completion correction uses §9.
 
 ---
 
 ## 9. Corrections (Post-Completion)
 
-Full design: `/docs/shared/CORRECTIONS.md`. Technicians edit their own completions freely before submitting, from the Reports section — that path never touches this endpoint. After submission, a technician can flag a possible error; this is a one-way message to the dispatcher, not a formal approve/reject ticket.
+Full design: `/docs/shared/CORRECTIONS.md`. Technicians edit source visit data only in Workspace before Generate Report. After terminal completion, a technician flags a possible error through Request Correction; this is a one-way message to the dispatcher, not a formal approve/reject ticket.
 
 ```
 POST /api/visits/:id/request-correction
