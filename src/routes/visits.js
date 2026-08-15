@@ -194,7 +194,7 @@ visitsRouter.get('/:id', async (req, res, next) => {
   try {
     const visitResult = await pool.query(
       `SELECT v.id, v.order_number, v.scheduled_time, v.status, v.technician_id,
-              v.has_multiple_systems, v.is_deferred,
+              v.has_multiple_systems, v.is_deferred, v.total_price,
               a.street, a.city, a.state, a.zip, a.subdivision, a.builder
        FROM visits v
        JOIN addresses a ON a.id = v.address_id
@@ -235,6 +235,7 @@ visitsRouter.get('/:id', async (req, res, next) => {
       technicianId: v.technician_id,
       hasMultipleSystems: v.has_multiple_systems,
       isDeferred: v.is_deferred,
+      totalPrice: v.total_price ?? 0,
       address: { street: v.street, city: v.city, state: v.state, zip: v.zip, subdivision: v.subdivision, builder: v.builder },
       systems: systems.rows.map((s) => ({ systemNumber: s.system_number, indoorModel: s.indoor_model, outdoorModel: s.outdoor_model, refrigerant: s.refrigerant })),
       services: services.rows.map((s) => ({ serviceName: s.service_name, isFinish: s.is_finish, isTemporarily: s.is_temporarily, price: s.price })),

@@ -228,6 +228,7 @@ describe('GET /api/visits/:id', () => {
     const v = res.body;
     expect(v.id).toBe(visitId);
     expect(v.status).toBe('assigned');
+    expect(v.totalPrice).toBe(0);
     expect(v.address.street).toBeDefined();
     expect(v.address.city).toBeDefined();
     expect(Array.isArray(v.systems)).toBe(true);

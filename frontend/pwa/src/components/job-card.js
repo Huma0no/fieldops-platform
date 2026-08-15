@@ -136,19 +136,11 @@ export function JobCard ({ visit, onStart, onOpenWorkspace, onNavigate, onItemsL
         const cancelBtn = document.createElement('button')
         cancelBtn.className   = 'jc-btn jc-btn--secondary'
         cancelBtn.textContent = 'Cancel Visit'
-        cancelBtn.addEventListener('click', async e => {
+        cancelBtn.addEventListener('click', e => {
           e.stopPropagation()
-          cancelBtn.disabled = true
-          try {
-            await api.post(`/visits/${visit.id}/start`)
-            visit.status = 'in_progress'
-            sessionStorage.setItem('workspace:visitId', visit.id)
-            sessionStorage.setItem('workspace:cancelOrigin', 'true')
-            onOpenWorkspace?.(visit.id)
-          } catch (err) {
-            cancelBtn.disabled = false
-            console.error('Cancel failed:', err)
-          }
+          sessionStorage.setItem('workspace:visitId', visit.id)
+          sessionStorage.setItem('workspace:cancelOrigin', 'true')
+          onOpenWorkspace?.(visit.id)
         })
         actions.appendChild(cancelBtn)
 

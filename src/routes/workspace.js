@@ -183,6 +183,11 @@ router.patch(
         await pool.query(`DELETE FROM visit_items WHERE visit_id = $1`, [id]);
         await pool.query(`DELETE FROM visit_services WHERE visit_id = $1`, [id]);
         await pool.query(
+          `INSERT INTO visit_services (id, visit_id, service_name, is_finish, is_temporarily, price)
+           VALUES (gen_random_uuid()::text, $1, 'Cancel', false, false, 0)`,
+          [id]
+        );
+        await pool.query(
           `UPDATE visits SET total_price = 0, updated_at = $1 WHERE id = $2`,
           [now, id]
         );

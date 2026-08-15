@@ -61,16 +61,64 @@ describe('POST /api/visits/:id/complete', () => {
     expect(res.body.status).toBe('temporarily');
   });
 
-  it('sets status=cancelled when service is Cancel', async () => {
+  it('sets status=cancelled when an existing Cancel service has a justification', async () => {
     const { visitId, token } = await seedAssignedVisit();
     await addService(visitId, 'Cancel');
 
     const res = await request(app)
       .post(`/api/visits/${visitId}/complete`)
-      .set('Authorization', `Bearer ${token}`);
+      .set('Authorization', `Bearer ${token}`)
+      .send({ notes: 'Customer not present' });
 
     expect(res.status).toBe(200);
     expect(res.body.status).toBe('cancelled');
+  });
+
+  it('rejects Cancel completion when both notes and checklist are empty', async () => {
+    const { visitId, token } = await seedAssignedVisit();
+
+    const res = await request(app)
+      .post(`/api/visits/${visitId}/complete`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ cancel: true, notes: '', checklistAnswers: [] });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toBe('Cancel requires notes or a checklist answer');
+    const visit = await pool.query('SELECT status FROM visits WHERE id = $1', [visitId]);
+    expect(visit.rows[0].status).toBe('assigned');
+  });
+
+  it('finalizes Cancel only on completion, clearing work data while preserving notes and checklist', async () => {
+    const { visitId, token } = await seedAssignedVisit();
+    await addService(visitId, 'AC');
+    await pool.query(`
+      INSERT INTO catalog_items (item_name, category, default_price, tech_supplied)
+      VALUES ('COMPLETE-CANCEL-ITEM', 'accessory', 10, false)
+      ON CONFLICT (item_name) DO NOTHING
+    `);
+    await pool.query(
+      `INSERT INTO visit_items (id, visit_id, item_name, category, quantity, price, tech_supplied)
+       VALUES (gen_random_uuid()::text, $1, 'COMPLETE-CANCEL-ITEM', 'accessory', 1, 10, false)`,
+      [visitId]
+    );
+    const checklistAnswers = [{ item: 'gas_meter', answer: 'no', photoCount: 0, reportText: 'gas meter closed/missing' }];
+
+    const res = await request(app)
+      .post(`/api/visits/${visitId}/complete`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ cancel: true, notes: 'Customer not present', checklistAnswers });
+
+    expect(res.status).toBe(200);
+    expect(res.body.status).toBe('cancelled');
+    expect(res.body.totalPrice).toBe(0);
+    expect(res.body.services).toEqual([expect.objectContaining({ serviceName: 'Cancel', price: 0 })]);
+    expect(res.body.items).toEqual([]);
+    const visit = await pool.query(
+      'SELECT status, total_price, notes, checklist_answers FROM visits WHERE id = $1',
+      [visitId]
+    );
+    expect(visit.rows[0]).toMatchObject({ status: 'cancelled', total_price: 0, notes: 'Customer not present' });
+    expect(visit.rows[0].checklist_answers).toEqual(checklistAnswers);
   });
 
   it('is idempotent — second call on terminal visit returns report without error', async () => {

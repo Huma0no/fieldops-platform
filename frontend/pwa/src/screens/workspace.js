@@ -70,6 +70,8 @@ let _exifrLoaded = false
 export default async function mount (appEl) {
   injectStyles()
   appEl.innerHTML = ''
+  activeStep = 'service'
+  completedSections.clear()
 
   const visitId = sessionStorage.getItem('workspace:visitId')
   if (!visitId) { navigateBack(); return }
@@ -126,6 +128,7 @@ function renderScreen (appEl) {
   screen.className = 'ws-screen'
   screen.id = 'ws-screen'
   screen.appendChild(buildHeader())
+  screen.appendChild(buildActiveJobBanner())
   const body = document.createElement('div')
   body.className = 'ws-body'
   body.id = 'ws-body'
@@ -161,27 +164,43 @@ function buildHeader () {
       window.open('https://maps.google.com/maps?q=' + encodeURIComponent(addrParts.join(', ')), '_blank')
     })
   }
+  info.appendChild(addr)
+  top.appendChild(info)
+
+  el.appendChild(top)
+  return el
+}
+
+function buildActiveJobBanner () {
+  const el = document.createElement('div')
+  el.className = 'ws-active-job-banner'
+
+  const info = document.createElement('div')
+  info.className = 'ws-active-job-info'
+  const address = document.createElement('p')
+  address.className = 'ws-active-job-address'
+  address.textContent = visit.address?.street ?? '—'
   const meta = document.createElement('p')
-  meta.className = 'ws-header-meta'
+  meta.className = 'ws-active-job-meta'
   const systemCount = visit.systems?.length ?? 0
   const metaParts = [
     visit.address?.subdivision,
     visit.address?.builder,
-    systemCount ? `${systemCount} system${systemCount !== 1 ? 's' : ''}` : null,
+    `${systemCount} system${systemCount !== 1 ? 's' : ''}`,
   ].filter(Boolean)
-  meta.textContent = metaParts.length ? metaParts.join(' · ') : '—'
-  info.appendChild(addr)
+  meta.textContent = metaParts.join(' · ')
+  info.appendChild(address)
   info.appendChild(meta)
-  top.appendChild(info)
+  el.appendChild(info)
 
   const right = document.createElement('div')
-  right.className = 'ws-header-right'
+  right.className = 'ws-active-job-actions'
   const price = document.createElement('p')
-  price.className = 'ws-header-price'
-  price.id = 'ws-header-price'
+  price.className = 'ws-active-job-price'
+  price.id = 'ws-active-job-price'
   price.textContent = formatPrice(visit.totalPrice)
   const cancelBtn = document.createElement('button')
-  cancelBtn.className = 'ws-header-cancel-btn'
+  cancelBtn.className = 'ws-active-job-cancel-btn'
   cancelBtn.innerHTML = '✕'
   cancelBtn.setAttribute('aria-label', 'Cancel visit')
   cancelBtn.addEventListener('click', () => {
@@ -190,9 +209,7 @@ function buildHeader () {
   })
   right.appendChild(price)
   right.appendChild(cancelBtn)
-  top.appendChild(right)
-
-  el.appendChild(top)
+  el.appendChild(right)
   return el
 }
 
@@ -388,8 +405,8 @@ function buildPriceSummary () {
 function updatePrice (newTotal) {
   const el = document.getElementById('ws-price-amount')
   if (el) el.textContent = formatPrice(newTotal)
-  const headerEl = document.getElementById('ws-header-price')
-  if (headerEl) headerEl.textContent = formatPrice(newTotal)
+  const bannerEl = document.getElementById('ws-active-job-price')
+  if (bannerEl) bannerEl.textContent = formatPrice(newTotal)
   if (visit) visit.totalPrice = newTotal
 }
 
@@ -1146,7 +1163,11 @@ function openGenerateModalDirect () {
     { label: 'Submit report', cls: 'primary', fn: async (btn) => {
       btn.disabled=true; btn.textContent='Submitting…'
       try {
-        await api.post(`/visits/${visit.id}/complete`, { checklistAnswers: buildChecklistAnswers() })
+        await api.post(`/visits/${visit.id}/complete`, {
+          checklistAnswers: buildChecklistAnswers(),
+          notes: visit.notes ?? '',
+          cancel: visit._cancelOriginated === true,
+        })
         overlay.remove()
         sessionStorage.removeItem('workspace:visitId')
         window.dispatchEvent(new CustomEvent('app:navigate', { detail: { route: '/reports' } }))
@@ -1264,16 +1285,19 @@ function injectStyles () {
   style.textContent = `
   .ws-screen{display:flex;flex-direction:column;height:100dvh;background:var(--fo-panel);overflow:hidden;position:relative;font-family:var(--fo-font-body);}
   .ws-loading{display:flex;align-items:center;justify-content:center;height:100dvh;font-size:var(--text-base);color:var(--fo-ink-soft);background:var(--fo-panel);}
-  .ws-header{display:flex;flex-direction:column;padding:calc(var(--space-5) + env(safe-area-inset-top,0px)) var(--space-4) var(--space-3);background:var(--fo-panel);flex-shrink:0;}
+  .ws-header{display:flex;flex-direction:column;padding:calc(var(--space-5) + env(safe-area-inset-top,0px)) var(--space-4) var(--space-2);background:var(--fo-panel);flex-shrink:0;}
   .ws-header-top{display:flex;align-items:flex-start;gap:var(--space-3);}
   .ws-back-btn{background:var(--fo-panel);box-shadow:var(--fo-shadow-raised);border:none;color:var(--fo-ink-soft);font-size:18px;cursor:pointer;padding:var(--space-2);border-radius:var(--fo-radius-sm);line-height:1;-webkit-tap-highlight-color:transparent;flex-shrink:0;}
   .ws-header-info{flex:1;min-width:0;}
   .ws-header-addr{font-size:var(--text-base);font-weight:600;color:var(--fo-ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
   .ws-header-addr--nav{cursor:pointer;color:var(--fo-accent-deep);text-decoration:underline;text-decoration-style:dotted;text-underline-offset:2px;-webkit-tap-highlight-color:transparent;}
-  .ws-header-meta{font-size:var(--text-xs);color:var(--fo-ink-soft);font-family:var(--fo-font-mono);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:2px;}
-  .ws-header-right{display:flex;flex-direction:column;align-items:flex-end;gap:var(--space-1);flex-shrink:0;}
-  .ws-header-price{font-size:var(--text-base);font-weight:800;font-family:var(--fo-font-mono);color:var(--fo-accent-deep);}
-  .ws-header-cancel-btn{background:var(--fo-well);box-shadow:var(--fo-shadow-well);border:none;color:var(--fo-no);font-size:13px;font-weight:700;cursor:pointer;width:24px;height:24px;border-radius:50%;line-height:1;-webkit-tap-highlight-color:transparent;}
+  .ws-active-job-banner{display:flex;align-items:center;gap:var(--space-3);margin:0 var(--space-3) var(--space-2);padding:var(--space-3);background:var(--fo-panel);box-shadow:var(--fo-shadow-raised);border-radius:var(--fo-radius-sm);flex-shrink:0;}
+  .ws-active-job-info{flex:1;min-width:0;}
+  .ws-active-job-address{font-size:var(--text-sm);font-weight:600;color:var(--fo-ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .ws-active-job-meta{font-size:var(--text-xs);color:var(--fo-ink-soft);font-family:var(--fo-font-mono);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:2px;}
+  .ws-active-job-actions{display:flex;align-items:center;gap:var(--space-2);flex-shrink:0;}
+  .ws-active-job-price{font-size:var(--text-base);font-weight:800;font-family:var(--fo-font-mono);color:var(--fo-accent-deep);}
+  .ws-active-job-cancel-btn{background:var(--fo-well);box-shadow:var(--fo-shadow-well);border:none;color:var(--fo-no);font-size:13px;font-weight:700;cursor:pointer;width:24px;height:24px;border-radius:50%;line-height:1;-webkit-tap-highlight-color:transparent;}
   .ws-body{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;padding:var(--space-2) var(--space-3) var(--space-4);display:flex;flex-direction:column;gap:var(--space-2);}
   .ws-rail-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;flex-shrink:0;}
   .ws-rail{display:flex;padding:6px 2px;gap:8px;}

@@ -13,7 +13,7 @@ router.post('/:id/complete', requireRole('technician'), async (req, res, next) =
   const { id } = req.params;
   try {
     const visitResult = await pool.query(
-      `SELECT v.id, v.status, v.technician_id, a.street
+      `SELECT v.id, v.status, v.technician_id, v.notes, a.street
        FROM visits v
        JOIN addresses a ON a.id = v.address_id
        WHERE v.id = $1`,
@@ -34,17 +34,27 @@ router.post('/:id/complete', requireRole('technician'), async (req, res, next) =
       return res.status(400).json({ error: `Visit cannot be completed — current status: ${visit.status}` });
     }
 
+    const { checklistAnswers, notes, cancel = false } = req.body ?? {};
     const serviceResult = await pool.query(
       'SELECT service_name, is_temporarily FROM visit_services WHERE visit_id = $1',
       [id]
     );
-    if (serviceResult.rows.length === 0) {
+    if (serviceResult.rows.length === 0 && !cancel) {
       return res.status(400).json({ error: 'No service selected' });
     }
     const svc = serviceResult.rows[0];
+    const isCancel = cancel === true || svc?.service_name === 'Cancel';
+    const resolvedNotes = typeof notes === 'string' ? notes : visit.notes;
+    const hasNotes = typeof resolvedNotes === 'string' && resolvedNotes.trim().length > 0;
+    const hasChecklistAnswer = Array.isArray(checklistAnswers)
+      && checklistAnswers.some(answer => answer?.answer === 'yes' || answer?.answer === 'no');
+
+    if (isCancel && !hasNotes && !hasChecklistAnswer) {
+      return res.status(400).json({ error: 'Cancel requires notes or a checklist answer' });
+    }
 
     let finalStatus;
-    if (svc.service_name === 'Cancel') {
+    if (isCancel) {
       finalStatus = 'cancelled';
     } else if (svc.is_temporarily) {
       finalStatus = 'temporarily';
@@ -52,15 +62,27 @@ router.post('/:id/complete', requireRole('technician'), async (req, res, next) =
       finalStatus = 'completed';
     }
 
-    const { checklistAnswers } = req.body ?? {};
     const now = new Date().toISOString();
     const client = await pool.connect();
     let expiredRows = [];
     try {
       await client.query('BEGIN');
+      if (cancel === true) {
+        await client.query('DELETE FROM visit_items WHERE visit_id = $1', [id]);
+        await client.query('DELETE FROM visit_services WHERE visit_id = $1', [id]);
+        await client.query(
+          `INSERT INTO visit_services (id, visit_id, service_name, is_finish, is_temporarily, price)
+           VALUES (gen_random_uuid()::text, $1, 'Cancel', false, false, 0)`,
+          [id]
+        );
+      }
       await client.query(
-        `UPDATE visits SET status = $1, completed_at = $2, updated_at = $2, checklist_answers = $4 WHERE id = $3`,
-        [finalStatus, now, id, checklistAnswers ?? null]
+        `UPDATE visits
+         SET status = $1, total_price = CASE WHEN $5 THEN 0 ELSE total_price END,
+             notes = COALESCE($6, notes), completed_at = $2, updated_at = $2,
+             checklist_answers = $4
+         WHERE id = $3`,
+        [finalStatus, now, id, JSON.stringify(checklistAnswers ?? null), isCancel, typeof notes === 'string' ? notes : null]
       );
       const expiredResult = await client.query(
         `UPDATE transfers SET status = 'expired', resolved_at = $1

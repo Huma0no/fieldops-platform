@@ -230,7 +230,7 @@ describe('PATCH /api/visits/:id/services', () => {
     expect(items.rows).toHaveLength(1); // unchanged
   });
 
-  it('Cancel with confirmed:true deletes all items and sets totalPrice to 0', async () => {
+  it('legacy Cancel confirmation clears items, persists Cancel service, and sets totalPrice to 0', async () => {
     const { visitId, token } = await seedAssignedVisit();
     await pool.query(`
       INSERT INTO catalog_items (item_name, category, default_price, tech_supplied)
@@ -252,6 +252,9 @@ describe('PATCH /api/visits/:id/services', () => {
     expect(items.rows).toHaveLength(0);
     const visit = await pool.query('SELECT total_price FROM visits WHERE id = $1', [visitId]);
     expect(visit.rows[0].total_price).toBe(0);
+    const services = await pool.query('SELECT service_name, price FROM visit_services WHERE visit_id = $1', [visitId]);
+    expect(services.rows).toHaveLength(1);
+    expect(services.rows[0]).toMatchObject({ service_name: 'Cancel', price: 0 });
   });
 
   it('returns 400 for unrecognised serviceName', async () => {
