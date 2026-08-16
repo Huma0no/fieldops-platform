@@ -10,6 +10,14 @@ The catalog (equipment, accessories, fixes, services, thermostats, builders) liv
 
 This document does not reproduce the full equipment/accessory/fix data — that lives in the seed file and the database, not here, to avoid a second copy going stale. It documents the rules that govern how catalog items combine and price.
 
+## Intake selection and catalog administration
+
+Dispatch Intake selects existing catalog entries; it does not create or upsert global catalog data. In particular, its Thermostat and Accessory fields must use valid `catalog_items` entries of the matching category, so the resulting `visit_items` rows retain their catalog references.
+
+Dispatch → Catalog already provides administrative create/edit functionality for Equipment, Items, Services, and Lineset Configs. The historical Config-Equipment concept is absorbed by its Equipment subsection; no separate Config-Equipment surface is needed.
+
+The remaining future gap is catalog lifecycle management. The catalog tables do not yet have an active/inactive, deactivate, archive, or equivalent behavior. That future work must support administrative deactivate/reactivate, exclude deactivated entries from new operational selectors, and preserve historical references. Hard delete is not the normal lifecycle action.
+
 ## Services
 
 Base services: AC · Heat · AC & Heat · Prestart · Drive Run · Cancel.

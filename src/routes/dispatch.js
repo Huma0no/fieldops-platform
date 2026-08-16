@@ -4,7 +4,7 @@ const { pool } = require('../db/pool');
 const { requireRole } = require('../middleware/auth');
 const { extractCallsFromPDF } = require('../services/ai');
 const { findOrCreateAddress } = require('../helpers/address');
-const { createVisitWithSystems } = require('../helpers/visit');
+const { createVisitWithSystems, validateCatalogSelections } = require('../helpers/visit');
 
 const router = express.Router();
 const upload = multer({ storage: multer.memoryStorage() });
@@ -92,6 +92,10 @@ router.post('/batch/:batchId/call/:index/confirm', requireRole('owner', 'dispatc
 
     const { orderNumber, address, city, state, zip, subdivision, builder, scheduledTime, workType, systemCount, notes,
             preSpecifiedThermostat, preSpecifiedThermostatQty, preIdentifiedAccessories } = req.body;
+    const thermostat = preSpecifiedThermostat || null;
+    const accessories = Array.isArray(preIdentifiedAccessories) ? preIdentifiedAccessories : [];
+
+    await validateCatalogSelections(pool, { thermostat, accessories });
 
     const { address: foundAddress, nearMatch } = await findOrCreateAddress(pool, {
       street: address,
@@ -118,9 +122,9 @@ router.post('/batch/:batchId/call/:index/confirm', requireRole('owner', 'dispatc
       workType,
       systemCount,
       notes,
-      thermostat: preSpecifiedThermostat || null,
+      thermostat,
       thermostatQty: parseInt(preSpecifiedThermostatQty, 10) || 1,
-      accessories: Array.isArray(preIdentifiedAccessories) ? preIdentifiedAccessories : [],
+      accessories,
     });
 
     res.json({ created: true, visitId });
@@ -228,6 +232,8 @@ router.post('/visits/create-manual', requireRole('owner', 'dispatcher'), async (
     const accessories = typeof accessoriesRaw === 'string'
       ? accessoriesRaw.split(',').map(s => s.trim()).filter(Boolean)
       : [];
+
+    await validateCatalogSelections(pool, { thermostat: thermostat || null, accessories });
 
     const { address: foundAddress, nearMatch } = await findOrCreateAddress(pool, {
       street: address, city, state, zip, subdivision, builder,

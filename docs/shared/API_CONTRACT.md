@@ -224,6 +224,11 @@ POST /api/dispatch/batch/:batchId/call/:index/confirm
   effect: creates address (or triggers comparison modal if near-match found)
           creates visit with status "pending_review", batch_id = batchId —
             NOT visible to technicians yet
+          Thermostat and Accessory values must reference existing
+            catalog_items rows of their matching category. Unknown or
+            wrong-category values are rejected with a controlled 4xx client
+            error; Intake never creates or upserts catalog rows and must not
+            surface a visit_items foreign-key 500.
   returns: { created: true, visitId } or { comparisonRequired: true, addressId }
 
 POST /api/dispatch/batch/:batchId/call/:index/skip
@@ -253,13 +258,18 @@ POST /api/addresses/:id/resolve-comparison
 
 POST /api/dispatch/visits/create-manual
   auth: dispatcher
-  body: { address, orderNumber, scheduledTime, workType, systemCount?, notes? }
+  body: { address, orderNumber, scheduledTime, workType, systems?, thermostat?,
+          thermostatQty?, accessories?, notes?, batchId? }
   effect: creates address (or triggers comparison modal if near-match found)
           creates visit with status "pending_review" — same starting state as
           PDF-confirmed visits, so the dispatcher can review before releasing.
-          No batch is created — the visit stands alone and must be released
-          individually via a dedicated release call or included in the next
-          release-to-lobby operation.
+          Creates a manual in-review batch when batchId is absent; later calls
+          in that session reuse it and release through the normal batch flow.
+          Thermostat and Accessory values must reference existing
+          catalog_items rows of their matching category. Unknown or
+          wrong-category values are rejected with a controlled 4xx client
+          error; this endpoint does not create or upsert catalog rows and must
+          not expose a visit_items foreign-key 500.
   note: this is the manual-entry path alongside the PDF extraction path.
         Both produce visits in pending_review with the same downstream flow:
         review → release → Lobby → assign. The origin (PDF vs manual) does

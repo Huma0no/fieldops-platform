@@ -56,6 +56,9 @@ app.use('/api/dispatch', require('./routes/catalog'));
 
 // Global error handler
 app.use((err, req, res, _next) => {
+  if (err.status >= 400 && err.status < 500) {
+    return res.status(err.status).json({ error: err.message });
+  }
   console.error(err);
   if (process.env.NODE_ENV === 'production') {
     return res.status(500).json({ error: 'Internal server error' });

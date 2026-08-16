@@ -86,10 +86,10 @@ function equipmentOptions(list) {
   return list.map(e => ({ value: e.model, label: `${e.brand} ${e.model}` }))
 }
 
-// Single-value typeahead with a "+ Add new" free-text escape for values not
-// in the catalog. `options`: [{ value, label }]. `classes`: CSS class names
+// Single-value typeahead. Free-text entry is optional for fields that are not
+// catalog-backed. `options`: [{ value, label }]. `classes`: CSS class names
 // from tokens.css (see .intake-select-* / .intake-select-*-light).
-function SearchableSelect({ value, onChange, options, placeholder, classes }) {
+function SearchableSelect({ value, onChange, options, placeholder, classes, allowFreeText = true }) {
   const [query, setQuery] = useState(value || '')
   const [open, setOpen]   = useState(false)
 
@@ -97,7 +97,7 @@ function SearchableSelect({ value, onChange, options, placeholder, classes }) {
 
   const filtered    = query ? options.filter(o => o.label.toLowerCase().includes(query.toLowerCase())) : options
   const exactMatch   = options.some(o => o.value.toLowerCase() === query.trim().toLowerCase())
-  const showAddNew   = query.trim() && !exactMatch
+  const showAddNew   = allowFreeText && query.trim() && !exactMatch
 
   function commit(val) {
     onChange(val)
@@ -132,16 +132,16 @@ function SearchableSelect({ value, onChange, options, placeholder, classes }) {
   )
 }
 
-// Multi-select chip picker over a comma-separated string value, same
-// "+ Add new" escape as SearchableSelect. `options`: [{ value, label }].
-function MultiSelectChips({ value, onChange, options, placeholder, classes }) {
+// Multi-select chip picker over a comma-separated string value. Free-text
+// entry is optional, as with SearchableSelect. `options`: [{ value, label }].
+function MultiSelectChips({ value, onChange, options, placeholder, classes, allowFreeText = true }) {
   const selected = value ? value.split(',').map(s => s.trim()).filter(Boolean) : []
   const [query, setQuery] = useState('')
   const [open, setOpen]   = useState(false)
 
   const filtered  = options.filter(o => !selected.includes(o.value) && o.label.toLowerCase().includes(query.toLowerCase()))
   const exactMatch = options.some(o => o.value.toLowerCase() === query.trim().toLowerCase())
-  const showAddNew = query.trim() && !exactMatch && !selected.includes(query.trim())
+  const showAddNew = allowFreeText && query.trim() && !exactMatch && !selected.includes(query.trim())
 
   function addChip(name) {
     if (selected.includes(name)) return
@@ -499,14 +499,14 @@ function PdfReviewStage({ batch, callIndex, call, loading, fields, onFieldChange
                 <label style={s.fieldLabel}>{PDF_FIELD_LABELS.preSpecifiedThermostat}</label>
                 <SearchableSelect
                   value={fields.preSpecifiedThermostat ?? ''} onChange={v => onFieldChange('preSpecifiedThermostat', v)}
-                  options={thermostatOptions} placeholder="Model or N/A" classes={s.selectClasses}
+                  options={thermostatOptions} placeholder="Model or N/A" classes={s.selectClasses} allowFreeText={false}
                 />
               </div>
               <div style={s.fieldRow}>
                 <label style={s.fieldLabel}>Accessories</label>
                 <MultiSelectChips
                   value={fields.preIdentifiedAccessories ?? ''} onChange={v => onFieldChange('preIdentifiedAccessories', v)}
-                  options={accessoryOptions} placeholder="Search accessories…" classes={s.selectClasses}
+                  options={accessoryOptions} placeholder="Search accessories…" classes={s.selectClasses} allowFreeText={false}
                 />
               </div>
             </div>
@@ -838,7 +838,7 @@ function ManualFlow() {
               <div style={{ flex: 1 }}>
                 <SearchableSelect
                   value={draft.thermostat} onChange={v => setDraftField('thermostat', v)}
-                  options={thermostatOptions} placeholder="Model or N/A" classes={m.selectClasses}
+                  options={thermostatOptions} placeholder="Model or N/A" classes={m.selectClasses} allowFreeText={false}
                 />
               </div>
               <input style={{ ...m.input, width: 52 }} type="number" min="1" value={draft.thermostatQty} onChange={e => setDraftField('thermostatQty', parseInt(e.target.value, 10) || 1)} />
@@ -848,7 +848,7 @@ function ManualFlow() {
             <label style={m.label}>Accessories</label>
             <MultiSelectChips
               value={draft.accessories} onChange={v => setDraftField('accessories', v)}
-              options={accessoryOptions} placeholder="Search accessories…" classes={m.selectClasses}
+              options={accessoryOptions} placeholder="Search accessories…" classes={m.selectClasses} allowFreeText={false}
             />
           </div>
         </div>

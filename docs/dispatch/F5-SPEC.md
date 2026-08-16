@@ -286,7 +286,7 @@ All address-intake flows (PDF Intake, manual entry, future imports) call the sam
 | `builderContactPhone` | Returned raw as extracted — dispatcher corrects malformed numbers in review UI |
 | `companyNotes` | IMPORTANT NOTES block copied verbatim + ROUGH/TRIM/SET lines appended |
 | Refrigerant | Not extracted — resolved automatically from `catalog_equipment` by model number |
-| Thermostat/accessories | AI matches against known catalog list; unmatched values remain in companyNotes |
+| Thermostat/accessories | AI maps recognized values to existing catalog entries. Review may select only existing entries of the correct category; unmatched values remain in companyNotes and never create catalog rows or visit items. Catalog activation/deactivation is future work, not a current PDF filter. |
 | Address normalization | Uppercase + abbreviation expansion — backend utility, all intake flows |
 | Address comparison scope | Street number + street name only (city/state/zip/subdivision excluded) |
 | Partial match resolution | Dispatcher modal — no automatic merge |

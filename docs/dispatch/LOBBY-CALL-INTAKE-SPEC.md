@@ -67,6 +67,19 @@ Todos los campos que extrae PDF están disponibles en captura manual: `scheduled
 
 **Sistema(s):** Sistema 1 siempre visible por default; `[+ Agregar sistema]` para adicionales.
 
+### Selección respaldada por catálogo
+
+Termostato y accesorios son campos respaldados por `catalog_items` en ambos modos de Call Intake:
+
+- El dispatcher selecciona únicamente entradas existentes del catálogo; no hay opción de texto libre ni `+ Add new` para estos campos.
+- Intake manual y la revisión asistida por PDF aplican la misma regla. Si la extracción de PDF no reconoce un termostato o accesorio, ese texto permanece como contexto en `companyNotes`; no se convierte en un ítem seleccionable ni crea un catálogo nuevo.
+- Call Intake nunca crea, actualiza ni hace upsert de filas globales de catálogo. Cada `visit_item` debe referenciar una entrada de catálogo válida de la categoría correcta.
+- El backend rechaza un nombre desconocido o de categoría incorrecta con un error de cliente controlado; no debe dejar que la FK de `visit_items` produzca un error 500.
+
+Esta regla se limita a Termostato y Accesorios, que son campos respaldados por catálogo. No cambia el texto libre de campos cuyo spec no los define como catálogo.
+
+El catálogo todavía no tiene un ciclo de activación/desactivación. Cuando exista, los selectores operativos excluirán las entradas desactivadas sin afectar referencias históricas.
+
 ### Lobby — tags
 
 | Tag | Origen |

@@ -1,3 +1,36 @@
+class CatalogInputError extends Error {
+  constructor(field, itemName, expectedCategory, actualCategory = null) {
+    const detail = actualCategory
+      ? `must be a ${expectedCategory} catalog item, but is a ${actualCategory}`
+      : 'is not an existing catalog item';
+    super(`Invalid ${field} "${itemName}": ${detail}`);
+    this.status = 400;
+  }
+}
+
+async function validateCatalogSelections(queryable, { thermostat, accessories }) {
+  const resolvedAccessories = Array.isArray(accessories) ? accessories : [];
+  const selections = [
+    ...(thermostat ? [{ field: 'thermostat', itemName: thermostat, category: 'thermostat' }] : []),
+    ...resolvedAccessories.map((itemName) => ({ field: 'accessory', itemName, category: 'accessory' })),
+  ];
+  const resolved = new Map();
+
+  for (const selection of selections) {
+    const result = await queryable.query(
+      'SELECT item_name, category, default_price, tech_supplied FROM catalog_items WHERE item_name = $1',
+      [selection.itemName]
+    );
+    const item = result.rows[0];
+    if (!item || item.category !== selection.category) {
+      throw new CatalogInputError(selection.field, selection.itemName, selection.category, item?.category);
+    }
+    resolved.set(`${selection.category}:${selection.itemName}`, item);
+  }
+
+  return { resolvedAccessories, resolved };
+}
+
 async function createVisitWithSystems(pool, { addressId, batchId, orderNumber, scheduledTime, workType, systemCount, notes, systems, isPriority, thermostat, thermostatQty, accessories }) {
   const now = new Date().toISOString();
   const systemList = (systems && systems.length > 0)
@@ -10,6 +43,7 @@ async function createVisitWithSystems(pool, { addressId, batchId, orderNumber, s
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
+    const { resolvedAccessories, resolved } = await validateCatalogSelections(client, { thermostat, accessories });
 
     const visitResult = await client.query(
       `INSERT INTO visits
@@ -33,29 +67,20 @@ async function createVisitWithSystems(pool, { addressId, batchId, orderNumber, s
     }
 
     if (thermostat) {
-      // Free-text names (not in catalog_items) fall back to these defaults —
-      // they are recorded on the visit only, never written back to the catalog.
-      const cat = await client.query(
-        'SELECT default_price, tech_supplied FROM catalog_items WHERE item_name = $1',
-        [thermostat]
-      );
+      const cat = resolved.get(`thermostat:${thermostat}`);
       await client.query(
         `INSERT INTO visit_items (visit_id, item_name, category, quantity, price, tech_supplied)
          VALUES ($1, $2, 'thermostat', $3, $4, $5)`,
-        [visitId, thermostat, resolvedThermostatQty, cat.rows[0]?.default_price ?? 0, cat.rows[0]?.tech_supplied ?? true]
+        [visitId, thermostat, resolvedThermostatQty, cat.default_price, cat.tech_supplied]
       );
     }
 
-    const resolvedAccessories = Array.isArray(accessories) ? accessories : [];
     for (const itemName of resolvedAccessories) {
-      const cat = await client.query(
-        'SELECT default_price, tech_supplied FROM catalog_items WHERE item_name = $1',
-        [itemName]
-      );
+      const cat = resolved.get(`accessory:${itemName}`);
       await client.query(
         `INSERT INTO visit_items (visit_id, item_name, category, quantity, price, tech_supplied)
          VALUES ($1, $2, 'accessory', $3, $4, $5)`,
-        [visitId, itemName, systemList.length, cat.rows[0]?.default_price ?? 0, cat.rows[0]?.tech_supplied ?? true]
+        [visitId, itemName, systemList.length, cat.default_price, cat.tech_supplied]
       );
     }
 
@@ -69,4 +94,4 @@ async function createVisitWithSystems(pool, { addressId, batchId, orderNumber, s
   }
 }
 
-module.exports = { createVisitWithSystems };
+module.exports = { createVisitWithSystems, validateCatalogSelections };

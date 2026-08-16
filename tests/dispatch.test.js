@@ -1,10 +1,23 @@
 const request = require('supertest');
+const crypto = require('crypto');
 const app = require('../src/index');
 const { pool, truncateTables } = require('./helpers/db');
-const { seedDispatcherWithToken } = require('./helpers/seeds');
+const { seedDispatcherWithToken, seedTechnicianWithToken } = require('./helpers/seeds');
 
 beforeEach(truncateTables);
 afterAll(() => pool.end());
+
+function uniqueCatalogName(prefix) {
+  return `${prefix}-${crypto.randomBytes(6).toString('hex')}`;
+}
+
+async function insertCatalogItem(itemName, category, defaultPrice = 50) {
+  await pool.query(
+    `INSERT INTO catalog_items (item_name, category, default_price, tech_supplied)
+     VALUES ($1, $2, $3, true)`,
+    [itemName, category, defaultPrice]
+  );
+}
 
 // ── POST /api/dispatch/parse-pdf ─────────────────────────────────────────────
 describe('POST /api/dispatch/parse-pdf', () => {
@@ -192,11 +205,10 @@ describe('POST /api/dispatch/batch/:batchId/call/:index/confirm', () => {
 
   it('persists thermostat and accessories as visit_items', async () => {
     const { token } = await seedDispatcherWithToken();
-    await pool.query(
-      `INSERT INTO catalog_items (item_name, category, default_price, tech_supplied)
-       VALUES ('Ecobee Smart', 'thermostat', 120, true), ('Float Switch', 'accessory', 25, true)
-       ON CONFLICT (item_name) DO NOTHING`
-    );
+    const thermostat = uniqueCatalogName('PDF thermostat');
+    const accessory = uniqueCatalogName('PDF accessory');
+    await insertCatalogItem(thermostat, 'thermostat', 120);
+    await insertCatalogItem(accessory, 'accessory', 25);
     const { batchId } = await parsePdf(token);
 
     const res = await request(app)
@@ -210,9 +222,9 @@ describe('POST /api/dispatch/batch/:batchId/call/:index/confirm', () => {
         zip: '77001',
         workType: 'AC',
         systemCount: 1,
-        preSpecifiedThermostat: 'Ecobee Smart',
+        preSpecifiedThermostat: thermostat,
         preSpecifiedThermostatQty: 2,
-        preIdentifiedAccessories: ['Float Switch'],
+        preIdentifiedAccessories: [accessory],
       });
 
     expect(res.status).toBe(200);
@@ -221,8 +233,27 @@ describe('POST /api/dispatch/batch/:batchId/call/:index/confirm', () => {
       [res.body.visitId]
     );
     expect(items.rows).toHaveLength(2);
-    expect(items.rows.find(r => r.category === 'thermostat')).toMatchObject({ item_name: 'Ecobee Smart', quantity: 2 });
-    expect(items.rows.find(r => r.category === 'accessory')).toMatchObject({ item_name: 'Float Switch', quantity: 1 });
+    expect(items.rows.find(r => r.category === 'thermostat')).toMatchObject({ item_name: thermostat, quantity: 2 });
+    expect(items.rows.find(r => r.category === 'accessory')).toMatchObject({ item_name: accessory, quantity: 1 });
+  });
+
+  it('rejects an unknown PDF accessory before creating a visit', async () => {
+    const { token } = await seedDispatcherWithToken();
+    const { batchId } = await parsePdf(token);
+    const unknownAccessory = uniqueCatalogName('Unknown PDF accessory');
+
+    const res = await request(app)
+      .post(`/api/dispatch/batch/${batchId}/call/1/confirm`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({
+        orderNumber: 'ORD-UNKNOWN-ACCESSORY', address: '51 INTAKE ST', city: 'Houston', state: 'TX', zip: '77001',
+        preIdentifiedAccessories: [unknownAccessory],
+      });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toContain(`accessory \"${unknownAccessory}\"`);
+    expect((await pool.query('SELECT id FROM visits WHERE batch_id = $1', [batchId])).rows).toHaveLength(0);
+    expect((await pool.query('SELECT item_name FROM catalog_items WHERE item_name = $1', [unknownAccessory])).rows).toHaveLength(0);
   });
 });
 
@@ -372,11 +403,10 @@ describe('POST /api/dispatch/visits/create-manual', () => {
 
   it('persists thermostat and accessories as visit_items', async () => {
     const { token } = await seedDispatcherWithToken();
-    await pool.query(
-      `INSERT INTO catalog_items (item_name, category, default_price, tech_supplied)
-       VALUES ('Honeywell T6', 'thermostat', 90, true), ('UV Light', 'accessory', 60, true)
-       ON CONFLICT (item_name) DO NOTHING`
-    );
+    const thermostat = uniqueCatalogName('Manual thermostat');
+    const accessory = uniqueCatalogName('Manual accessory');
+    await insertCatalogItem(thermostat, 'thermostat', 90);
+    await insertCatalogItem(accessory, 'accessory', 60);
 
     const res = await request(app)
       .post('/api/dispatch/visits/create-manual')
@@ -389,9 +419,9 @@ describe('POST /api/dispatch/visits/create-manual', () => {
         zip: '77006',
         workType: 'AC',
         systems: [{ indoorModel: 'IN-1', outdoorModel: 'OUT-1' }, { indoorModel: 'IN-2', outdoorModel: 'OUT-2' }],
-        thermostat: 'Honeywell T6',
+        thermostat,
         thermostatQty: 3,
-        accessories: 'UV Light',
+        accessories: accessory,
       });
 
     expect(res.status).toBe(200);
@@ -400,45 +430,81 @@ describe('POST /api/dispatch/visits/create-manual', () => {
       [res.body.visitId]
     );
     expect(items.rows).toHaveLength(2);
-    expect(items.rows.find(r => r.category === 'thermostat')).toMatchObject({ item_name: 'Honeywell T6', quantity: 3 });
+    expect(items.rows.find(r => r.category === 'thermostat')).toMatchObject({ item_name: thermostat, quantity: 3 });
     // 2 systems → accessory quantity = 2
-    expect(items.rows.find(r => r.category === 'accessory')).toMatchObject({ item_name: 'UV Light', quantity: 2 });
+    expect(items.rows.find(r => r.category === 'accessory')).toMatchObject({ item_name: accessory, quantity: 2 });
+    const catalogItems = await pool.query(
+      'SELECT item_name, category, default_price, tech_supplied FROM catalog_items WHERE item_name = ANY($1)',
+      [[thermostat, accessory]]
+    );
+    expect(catalogItems.rows).toEqual(expect.arrayContaining([
+      expect.objectContaining({ item_name: thermostat, category: 'thermostat', default_price: 90, tech_supplied: true }),
+      expect.objectContaining({ item_name: accessory, category: 'accessory', default_price: 60, tech_supplied: true }),
+    ]));
   });
 
-  it('creates catalog_items entries for free-text thermostat and accessories not in catalog', async () => {
+  it.each([
+    ['unknown thermostat', 'thermostat', 'thermostat'],
+    ['wrong-category thermostat', 'thermostat', 'accessory'],
+    ['unknown accessory', 'accessory', 'accessory'],
+    ['wrong-category accessory', 'accessory', 'thermostat'],
+  ])('rejects %s without creating a visit or mutating the catalog', async (_label, field, catalogCategory) => {
     const { token } = await seedDispatcherWithToken();
-    // No catalog pre-seeding — names are unknown free-text
+    const itemName = uniqueCatalogName(_label);
+    if (_label.startsWith('wrong-category')) {
+      await insertCatalogItem(itemName, catalogCategory);
+    }
+    const visitsBefore = await pool.query('SELECT COUNT(*) FROM visits');
 
     const res = await request(app)
       .post('/api/dispatch/visits/create-manual')
       .set('Authorization', `Bearer ${token}`)
       .send({
-        address: '700 FREETEXT RD',
+        address: `700 ${itemName} RD`,
         city: 'Houston',
         state: 'TX',
         zip: '77007',
         workType: 'AC',
         systems: [{ indoorModel: 'IN-A', outdoorModel: 'OUT-A' }],
-        thermostat: 'Brand New Tstat',
-        accessories: 'Fancy Float Switch',
+        ...(field === 'thermostat' ? { thermostat: itemName } : { accessories: itemName }),
       });
 
-    expect(res.status).toBe(200);
+    expect(res.status).toBe(400);
+    expect(res.body.error).toContain(`${field} \"${itemName}\"`);
+    const visitsAfter = await pool.query('SELECT COUNT(*) FROM visits');
+    expect(visitsAfter.rows[0].count).toBe(visitsBefore.rows[0].count);
+    if (_label.startsWith('unknown')) {
+      expect((await pool.query('SELECT item_name FROM catalog_items WHERE item_name = $1', [itemName])).rows).toHaveLength(0);
+    }
+  });
 
-    const items = await pool.query(
-      `SELECT category, item_name, quantity FROM visit_items WHERE visit_id = $1 ORDER BY category`,
-      [res.body.visitId]
-    );
-    expect(items.rows).toHaveLength(2);
-    expect(items.rows.find(r => r.category === 'thermostat')).toMatchObject({ item_name: 'Brand New Tstat', quantity: 1 });
-    expect(items.rows.find(r => r.category === 'accessory')).toMatchObject({ item_name: 'Fancy Float Switch', quantity: 1 });
+  it('releases a valid manual Intake visit and exposes it through My Calls after assignment', async () => {
+    const { token } = await seedDispatcherWithToken();
+    const { tech, token: technicianToken } = await seedTechnicianWithToken({ name: uniqueCatalogName('Assigned tech') });
+    const thermostat = uniqueCatalogName('Release thermostat');
+    await insertCatalogItem(thermostat, 'thermostat');
 
-    const catRows = await pool.query(
-      `SELECT item_name, category, default_price, tech_supplied FROM catalog_items WHERE item_name = ANY($1)`,
-      [['Brand New Tstat', 'Fancy Float Switch']]
-    );
-    expect(catRows.rows).toHaveLength(2);
-    expect(catRows.rows.find(r => r.item_name === 'Brand New Tstat')).toMatchObject({ category: 'thermostat', default_price: 0, tech_supplied: true });
-    expect(catRows.rows.find(r => r.item_name === 'Fancy Float Switch')).toMatchObject({ category: 'accessory', default_price: 0, tech_supplied: true });
+    const create = await request(app)
+      .post('/api/dispatch/visits/create-manual')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ address: '800 RELEASE RD', city: 'Houston', state: 'TX', zip: '77008', workType: 'AC', thermostat });
+    expect(create.status).toBe(200);
+
+    const release = await request(app)
+      .post(`/api/dispatch/batch/${create.body.batchId}/release-to-lobby`)
+      .set('Authorization', `Bearer ${token}`);
+    expect(release.body).toMatchObject({ releasedCount: 1, visitIds: [create.body.visitId] });
+
+    const assign = await request(app)
+      .patch(`/api/dispatch/visits/${create.body.visitId}/reassign`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ technicianId: tech.id });
+    expect(assign.status).toBe(200);
+
+    const mine = await request(app)
+      .get('/api/visits/mine')
+      .set('Authorization', `Bearer ${technicianToken}`);
+    expect(mine.status).toBe(200);
+    expect(mine.body).toEqual(expect.arrayContaining([expect.objectContaining({ id: create.body.visitId, status: 'assigned' })]));
   });
 });
