@@ -522,6 +522,30 @@ describe('DELETE /api/visits/:id/items/:itemId', () => {
     expect(res.status).toBe(200);
     expect(res.body.totalPrice).toBe(150); // AC service remains
   });
+
+  it('keeps totals correct through repeated accessory add and remove cycles', async () => {
+    const { visitId, token } = await seedAssignedVisit();
+    const add = () => request(app)
+      .post(`/api/visits/${visitId}/items`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ category: 'accessory', itemName: 'TEST-PARENT' });
+
+    const firstAdd = await add();
+    expect(firstAdd.status).toBe(200);
+    expect(firstAdd.body.totalPrice).toBe(70);
+
+    const firstDelete = await request(app)
+      .delete(`/api/visits/${visitId}/items/${firstAdd.body.id}`)
+      .set('Authorization', `Bearer ${token}`);
+    expect(firstDelete.status).toBe(200);
+    expect(firstDelete.body.totalPrice).toBe(0);
+
+    const secondAdd = await add();
+    expect(secondAdd.status).toBe(200);
+    expect(secondAdd.body.totalPrice).toBe(70);
+    const visit = await pool.query('SELECT total_price FROM visits WHERE id = $1', [visitId]);
+    expect(visit.rows[0].total_price).toBe(70);
+  });
 });
 
 // ── PATCH /api/visits/:id/systems/:systemNumber ───────────────────────────────

@@ -640,7 +640,8 @@ function buildItemsSection (category) {
       if (isActive) {
         const existing = activeItems.find(a => a.item_name === item.item_name)
         if (existing) {
-          await api.delete(`/visits/${visit.id}/items/${existing.id}`)
+          const result = await api.delete(`/visits/${visit.id}/items/${existing.id}`)
+          if (result.totalPrice !== undefined) updatePrice(result.totalPrice)
           visit._items = (visit._items ?? []).filter(i => i.id !== existing.id)
           refreshSection(sectionId)
         }
@@ -1226,7 +1227,8 @@ function buildItemChip (item) {
   const del = document.createElement('button'); del.className='ws-chip-del'; del.textContent='×'
   del.addEventListener('click', async () => {
     try {
-      await api.delete(`/visits/${visit.id}/items/${item.id}`)
+      const result = await api.delete(`/visits/${visit.id}/items/${item.id}`)
+      if (result.totalPrice !== undefined) updatePrice(result.totalPrice)
       visit._items = (visit._items ?? []).filter(i => i.id !== item.id)
       const sectionId = item.category==='thermostat' ? 'thermostat' : item.category==='accessory' ? 'accessories' : 'fixes'
       refreshSection(sectionId)

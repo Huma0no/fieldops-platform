@@ -27,33 +27,31 @@ async function syncWeightInDataPrice(db, visitId, isFinish) {
 }
 
 async function calculateVisitPrice(db, visitId) {
-  const [servicesRes, itemsRes, systemsRes, visitRes] = await Promise.all([
-    db.query(
-      `SELECT vs.service_name, vs.is_finish, vs.price,
-              cs.multiplies_by_system_count
-       FROM visit_services vs
-       JOIN catalog_services cs ON cs.service_name = vs.service_name
-       WHERE vs.visit_id = $1`,
-      [visitId]
-    ),
-    db.query(
-      `SELECT vi.item_name, vi.price AS stored_price,
-              ci.default_price, ci.multiplies_by_system_count,
-              ci.custom_price, ci.finish_addon_price
-       FROM visit_items vi
-       JOIN catalog_items ci ON ci.item_name = vi.item_name
-       WHERE vi.visit_id = $1`,
-      [visitId]
-    ),
-    db.query(
-      `SELECT COUNT(*)::int AS cnt FROM visit_systems WHERE visit_id = $1`,
-      [visitId]
-    ),
-    db.query(
-      `SELECT technician_id FROM visits WHERE id = $1`,
-      [visitId]
-    ),
-  ]);
+  const servicesRes = await db.query(
+    `SELECT vs.service_name, vs.is_finish, vs.price,
+            cs.multiplies_by_system_count
+     FROM visit_services vs
+     JOIN catalog_services cs ON cs.service_name = vs.service_name
+     WHERE vs.visit_id = $1`,
+    [visitId]
+  );
+  const itemsRes = await db.query(
+    `SELECT vi.item_name, vi.price AS stored_price,
+            ci.default_price, ci.multiplies_by_system_count,
+            ci.custom_price, ci.finish_addon_price
+     FROM visit_items vi
+     JOIN catalog_items ci ON ci.item_name = vi.item_name
+     WHERE vi.visit_id = $1`,
+    [visitId]
+  );
+  const systemsRes = await db.query(
+    `SELECT COUNT(*)::int AS cnt FROM visit_systems WHERE visit_id = $1`,
+    [visitId]
+  );
+  const visitRes = await db.query(
+    `SELECT technician_id FROM visits WHERE id = $1`,
+    [visitId]
+  );
 
   if (servicesRes.rows.some(r => r.service_name === 'Cancel')) return 0;
 
