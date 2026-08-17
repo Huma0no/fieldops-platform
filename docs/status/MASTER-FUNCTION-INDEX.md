@@ -1,6 +1,6 @@
 # FieldOps — Master Function Index
 
-**Version:** 0.7
+**Version:** 0.8
 **Date:** 2026-08-16
 **Status:** Working audit index
 
@@ -151,8 +151,8 @@ The index is derived from `docs/OVERVIEW.md` and the feature specifications it r
 
 | Function | Status | Notes |
 |---|---|---|
-| PDF Intake | SPEC CLOSED / REPAIR TARGET | Extraction API remains stub/unconfigured. Thermostat/Accessory review must accept only matching existing catalog entries; unmatched extraction remains contextual notes, not a catalog or visit item. |
-| Manual Call Intake | SPEC CLOSED / REPAIR TARGET | Batch flow exists, but catalog-backed Thermostat/Accessory selection currently permits invalid free text that can reach a `visit_items` FK 500. Repair must restrict selection and return controlled validation errors; it must not mutate catalog data. |
+| PDF Intake | SPEC CLOSED / IMPLEMENTED (catalog integrity) | Thermostat/Accessory review and the shared persistence path now accept only matching existing catalog entries; unmatched values remain contextual review data and do not create catalog or visit items. The extraction API itself remains stub/unconfigured. |
+| Manual Call Intake | SPEC CLOSED / IMPLEMENTED / focused automated + manual flow QA | Catalog-backed Thermostat/Accessory selection is restricted to matching existing entries. Unknown or wrong-category values return controlled 400 errors; no catalog upsert occurs. Manual Create → Release → Assign → FieldOps My Calls QA passed locally. |
 | Catalog administration — create/edit | PARTIALLY IMPLEMENTED / automated coverage | Dispatch → Catalog already creates/edits Equipment and Items, and edits supported Service and Lineset Config properties. Equipment is the current successor to the historical Config-Equipment concept; no parallel feature is needed. |
 | Catalog lifecycle — deactivate/reactivate | SPEC PARTIAL / FUTURE | No catalog active/inactive or equivalent lifecycle exists. Future work must exclude deactivated entries from new selectors while preserving historical references; normal hard delete is not intended. It does not block the Intake repair. |
 | Lobby | QA VERIFIED | Current tracker marks complete. |
@@ -238,9 +238,9 @@ Dispatch Restock is marked complete in the QA tracker. The newer requirement for
 
 The intended behavior is: generate refrigerant restock needs automatically from consumption data, target approximately 20 lb, enforce the agreed maximum, and process oldest consumption first so older report items do not remain stranded. This is not sufficiently represented in the existing document set to be treated as an implementation-ready feature.
 
-### R-08 — Intake catalog integrity requires repair
+### R-08 — Intake catalog integrity repaired
 
-Thermostat and Accessory values in Manual and PDF-assisted Intake are catalog-backed. Intake must select existing entries of the matching category, must not create global catalog rows implicitly, and must reject unknown values with a controlled client error. The current free-text path can instead reach the `visit_items.item_name` foreign key and return a 500; this is an implementation repair target, not a catalog seed or migration gap.
+The prior free-text Intake path could pass an invalid thermostat/accessory name to the `visit_items.item_name` foreign key and return a 500. Commit `41d15c5` restricts Manual/PDF-assisted catalog-backed selection, validates existence and category before persistence, returns controlled 400 errors, and never creates catalog rows implicitly. Focused automated tests passed; the Manual Create → Release → Assign → FieldOps My Calls flow also passed local manual QA. PDF extraction remains separately stub/unconfigured.
 
 Dispatch → Catalog already provides the administrative create/edit surface, including Equipment as the successor to the historical Config-Equipment concept. The future work is limited to catalog lifecycle management: deactivate/reactivate, selector filtering, and the supporting data-model specification. No parallel Config-Equipment feature is required.
 
@@ -248,12 +248,14 @@ Dispatch → Catalog already provides the administrative create/edit surface, in
 
 The next pass should focus on the highest-value reconciliation items in this order:
 
-1. Dispatch Intake catalog integrity — restore catalog-only Thermostat/Accessory selection and controlled validation without implicit catalog mutation.
-2. PWA QA findings P-01 / P-02 / P-03 — verify and resolve the currently open FieldOps issues in `QA-TRACKER.md`.
-3. Weigh-In — reconcile the current 10°F OEM SC goal with the canonical equipment/OEM rule.
-4. Company Google Form integration — verify the end-to-end prefill and required-photo behavior.
-5. Accessories/restock data model — define consumption quantity and technician-controlled restock state before coding; existing Other participation does not complete this work.
-6. Refrigerant auto-restock — create the canonical implementation spec after the business rule is confirmed.
-7. Multi-system Service redesign — schedule the deferred per-system model when intentionally prioritized.
+1. PWA QA reconciliation — revalidate P-01 visually, perform the manual/device verification required for P-02, and reconcile P-03 as obsolete under the current rail/Back-Next design.
+2. Weigh-In — reconcile the current 10°F OEM SC goal with the canonical equipment/OEM rule.
+3. Company Google Form integration — verify the end-to-end prefill and required-photo behavior.
+4. Properties — perform the implementation audit for the address-level rollup.
+5. Load Sheet Summary — perform the implementation audit for the My Calls aggregate.
+6. Accessories/restock data model — define consumption quantity and technician-controlled restock state before coding; existing Other participation does not complete this work.
+7. Refrigerant auto-restock — create the canonical implementation spec after the business rule is confirmed.
+8. Multi-system Service redesign — schedule the deferred per-system model when intentionally prioritized.
+9. Workspace Shell documentation cleanup — reconcile stale Active Job banner wording in `WORKSPACE-SHELL.md`; this is documentation-only and does not reopen the implemented banner.
 
 No application behavior should be changed solely because an index entry says so; the index is an audit map, not authorization to redesign a closed UX.
