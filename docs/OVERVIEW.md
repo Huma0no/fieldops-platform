@@ -8,6 +8,8 @@
 
 This is the map of the platform. Read this first, before touching any code or any other doc. It defines what the system is, who it serves, how work flows end to end, and where to go for detail on any specific area. It intentionally does not duplicate detail that belongs elsewhere — every section below points to the doc that owns it.
 
+For the current reading order, use `/docs/ARCHITECTURE-MAP.md` for source-of-truth boundaries and journeys, then `/docs/DOMAIN-CONTRACT-INDEX.md` for entity contracts, then the owning feature/domain specifications.
+
 This document replaces the old `SYSTEM_DESIGN.md`, which is archived at `/docs/_archive/SYSTEM_DESIGN.md` for history only.
 
 ---
