@@ -56,14 +56,19 @@ Pricing is resolved centrally from the selected visit source data and persisted 
 
 Generate Report is the technician operational finalization boundary. It persists the terminal visit outcome and source data. Thereafter, the technician cannot directly reopen finalized source records or edit report text; Request Correction is the post-completion route. The canonical Completion Report remains regenerable from authoritative source data — no report snapshot or versioned editable copy is introduced.
 
-## 8. Architectural Invariants
+## 8. Offline-First Boundary
+
+For active FieldOps work, a durable Local Visit Draft is the technician's working source of truth. Generate Report creates an immutable submission snapshot; that snapshot remains pending until the backend explicitly acknowledges its accepted, terminal persistence. Retrying the same submission must be duplicate-safe. The backend remains the shared operational source after ACK, while Dispatch does not mirror every intermediate Workspace mutation. The detailed contract is `/docs/OFFLINE-FIRST-CONTRACT.md`.
+
+## 9. Architectural Invariants
 
 - Structured source records remain the single operational truth; derived artifacts do not compete with them.
 - Operational screens select catalog data but do not silently mutate master catalog data.
 - Pricing rules are resolved once and are not duplicated in UI or report formatting layers.
 - Visit lifecycle and payroll lifecycle are separate.
+- Active FieldOps work survives temporary offline operation; a transport attempt is not delivery without server ACK.
 - Deferred models are not implemented opportunistically as part of adjacent work.
 
-## 9. Deferred Architecture Boundaries
+## 10. Deferred Architecture Boundaries
 
 Major explicitly deferred boundaries are the per-system multi-system Service redesign, catalog deactivate/reactivate, a consumption-level restock model, and refrigerant auto-restock. They are not implied by the current architecture and require their own current specification before implementation.
