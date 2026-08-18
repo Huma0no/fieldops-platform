@@ -13,7 +13,7 @@ How an error on a visit finalized through Generate Report gets flagged, and unti
 A visit can need a correction at two different times. They are not the same mechanism.
 
 ### 1. Before Generate Report — source-data entry
-While the technician is still in Workspace, they can enter and correct the visit's source data, including free-text Notes. This is not a correction-tracking mechanism.
+While the technician is still in Workspace, they can enter and correct the Local Visit Draft, including free-text Notes. The draft is durable offline-first working state; Generate Report submits its immutable snapshot, and accepted server source data becomes the shared operational record. This is not a correction-tracking mechanism. See `/docs/OFFLINE-FIRST-CONTRACT.md`.
 
 ### 2. After Generate Report, before that visit's Ledger week closes — Request Corrections
 Generate Report is the technician's operational finalization boundary: it places the visit in `completed`, `temporarily`, or `cancelled`. After that boundary, the technician does not reopen or directly edit source visit data, nor directly edit generated report text. The technician uses **Request Corrections** (Reports, FieldOps) to flag the error.

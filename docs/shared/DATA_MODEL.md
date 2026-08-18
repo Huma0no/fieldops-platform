@@ -272,7 +272,7 @@ A service call to an address on a specific date, executed by a specific technici
 | contact_name | text | Builder contact name |
 | contact_phone | text | Builder contact phone |
 | contact_channel | text | e.g. "EMAIL", "SUPPLY PRO" |
-| total_price | real | Calculated by server on completion |
+| total_price | real | Resolved server total for the visit once accepted/finalized. A Local Visit Draft carries its resolved working total before delivery; the server value becomes shared operational truth after ACK. See `OFFLINE-FIRST-CONTRACT.md`. |
 | created_at | text | ISO 8601 |
 | completed_at | text | ISO 8601 — null until completed |
 
@@ -289,7 +289,7 @@ A technician-to-technician transfer does not introduce a separate status value h
 
 **Rules:**
 - `cancelled` status deletes all visit_items and visit_services rows for the visit, sets `total_price = 0`. No accessories, fixes, or services are retained; notes and checklist answers remain as the recorded cancellation justification.
-- Generate Report moves an `assigned` or `in_progress` visit into one of these terminal states: `completed`, `temporarily`, or `cancelled`. There is no visit-level `closed` state. Post-completion technician corrections use `corrections`; the technician does not directly reopen source visit data.
+- Generate Report creates a local immutable submission snapshot whose ACK moves an `assigned` or `in_progress` visit into one of these terminal states: `completed`, `temporarily`, or `cancelled`. There is no visit-level `closed` state. Post-completion technician corrections use `corrections`; the technician does not directly reopen source visit data. **IMPLEMENTATION GAP:** current schema/API behavior does not yet model the local snapshot/outbox lifecycle; see `OFFLINE-FIRST-CONTRACT.md`.
 - Any visit type can have child visits on future dates — lineage is tracked via address history.
 - `has_multiple_systems` is a denormalized convenience flag kept in sync with `visit_systems` row count.
 

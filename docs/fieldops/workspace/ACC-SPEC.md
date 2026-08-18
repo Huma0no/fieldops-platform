@@ -34,6 +34,8 @@ Custom-price accessory entry requiring a short technician-entered description an
 
 Feeds the price shown in the Active Job banner (top-right) — not tied to any single step, since Generate Report only lives on the last step (Notes).
 
+Accessory selection, quantity, description, and resolved price belong to the durable Local Visit Draft during active work. They must survive temporary offline operation and are included in the Generate Report submission snapshot; no immediate backend persistence is required for Workspace correctness. See `/docs/OFFLINE-FIRST-CONTRACT.md`.
+
 ## Deferred (existing behavior kept as-is, not rebuilt in the latest style pass)
 
 LP Kit inline sub-menu behavior, custom-entry row.

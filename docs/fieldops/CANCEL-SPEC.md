@@ -18,7 +18,7 @@ Not a distinct flow — it reuses the Notes step and ends in the same Generate R
 
 ## Flow
 
-The ✕ button opens the Notes step directly — no intermediate confirmation dialog. Freely interruptible: closing the sheet without pressing Generate Report has no effect, nothing is saved.
+The ✕ button opens the Notes step directly — no intermediate confirmation dialog. Freely interruptible: leaving Workspace without Generate Report does not finalize cancellation. Any active-work edits remain in the Local Visit Draft under the offline-first contract; no cancellation is delivered until the Generate Report submission is acknowledged by the backend. See `/docs/OFFLINE-FIRST-CONTRACT.md`.
 
 Once in Notes, the technician sees the same Checklist + Notes + photo evidence structure as any normal visit — see `/docs/fieldops/workspace/CHECKLIST-NOTES-SPEC.md`. There is no separate "Cancel mode" for that step.
 

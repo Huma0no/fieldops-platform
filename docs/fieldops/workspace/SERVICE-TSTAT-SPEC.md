@@ -8,6 +8,8 @@
 
 First step of Workspace: the base service and thermostat for the visit. Merged into one step (the rail shows 5 steps total, not 6).
 
+Service and thermostat selection/quantity are durable Local Visit Draft state while the visit is active. They are submitted as part of Generate Report's complete snapshot, not dependent on an immediate server write. See `/docs/OFFLINE-FIRST-CONTRACT.md`.
+
 ## Service
 
 Big tiles: **AC · Heat · Prestart · Finish · Drive Run · Cancel**. Base services per `/docs/shared/CATALOG.md`; Finish is a modifier tile, not a separate base service.

@@ -34,6 +34,8 @@ Per-system data-entry form with a System 1/2 (etc.) switcher. Header shows syste
 
 Small toggle in the section header, per-system. Auto-activates when any numeric field is filled; the technician can manually deactivate without clearing the underlying data. Scoped per-system — N systems can independently have their own charge active.
 
+Weigh-In values and charge-toggle state are durable Local Visit Draft fields. They must survive system switching, navigation, refresh, FieldOps close/reopen, and temporary connectivity loss, then travel in the complete Generate Report submission snapshot. See `/docs/OFFLINE-FIRST-CONTRACT.md`; no local storage schema is prescribed here.
+
 ## Deferred (existing behavior kept as-is, not rebuilt in the latest style pass)
 
 Tabbed system switcher, Factory/Revised toggle, GPS badge display on SCALE/FAN photos.

@@ -59,7 +59,7 @@ POST /api/auth/generate-invite
 
 ## 2. Sync
 
-"Real-time" elsewhere in these documents does not mean instant push — for genuinely urgent communication, a phone call is the right tool, and the platform doesn't need to compete with that. What it means here is that the PWA and Dispatch stay reasonably current with each other without requiring a manual refresh or a full re-download, while staying robust against the weak (rarely zero) signal common at new-construction sites.
+"Real-time" elsewhere in these documents does not mean instant push — for genuinely urgent communication, a phone call is the right tool, and the platform doesn't need to compete with that. This polling endpoint keeps each client reasonably current with **server-shared** visits, notifications, chat, and corrections without a manual refresh or full re-download. It does not mirror individual active Workspace edits to Dispatch.
 
 The mechanism is polling, not WebSockets or Server-Sent Events — the complexity of a persistent push connection isn't justified when a few seconds of delay is acceptable, and polling degrades more gracefully on flaky connections: each attempt is independent, so a failed poll just gets retried, with no connection state to recover.
 
@@ -76,6 +76,8 @@ GET /api/sync/changes
         list. Catalog data is fetched separately and far less frequently
         (§6) since it changes rarely compared to visits.
 ```
+
+`/api/sync/changes` is server → client polling/delta behavior only. It is not a bidirectional Workspace mutation-sync engine and does not imply delivery of offline writes. The future Local Visit Draft/submission outbox model is defined in `/docs/OFFLINE-FIRST-CONTRACT.md`.
 
 **Polling interval:** suggested 15-30 seconds while the app is in the foreground, paused when backgrounded. The exact number is an implementation detail, not a design constraint — adjust based on real battery/data usage once built.
 
@@ -281,7 +283,7 @@ POST /api/dispatch/visits/create-manual
 
 ## 6. Catalog
 
-The PWA is offline-first (SYSTEM_DESIGN.md §8.1) and must be able to download and cache all catalog data on the device. These endpoints are the only way catalog data reaches the client — server-side resolution (refrigerant, tech_supplied, pricing) consumes the same tables internally, but the client never gets this data any other way.
+FieldOps is offline-first (`/docs/OFFLINE-FIRST-CONTRACT.md`) and must be able to download and cache catalog data needed for assigned local work. These endpoints are the only way catalog data reaches the client — server-side resolution (refrigerant, tech_supplied, pricing) consumes the same tables internally, but the client never gets this data any other way.
 
 ```
 GET /api/catalog/equipment
@@ -345,6 +347,10 @@ Note: POST /api/dispatch/catalog/services does not exist — the service list is
 ---
 
 ## 7. Workspace — Field Execution
+
+The endpoints in this section document the current server API behavior when called; their per-edit effects do not make immediate backend persistence a FieldOps correctness requirement. Under the offline-first contract, active Workspace state belongs to the durable Local Visit Draft and Generate Report delivers a complete submission snapshot.
+
+**IMPLEMENTATION GAP:** the current API contract does not yet define the snapshot/outbox payload, stable submission identity, or ACK-driven delivery lifecycle required by `/docs/OFFLINE-FIRST-CONTRACT.md`. Do not treat the existing mutation endpoints or `/api/sync/changes` as that future delivery mechanism.
 
 ```
 PATCH /api/visits/:id/services
@@ -437,7 +443,7 @@ PATCH /api/visits/:id/notes
 
 ---
 
-## 8. Completion & Offline Behavior
+## 8. Current Completion Endpoint & Offline-First Target
 
 ```
 POST /api/visits/:id/complete
@@ -464,7 +470,9 @@ GET /api/visits/:id/download
 
 **Technician finalization boundary:**
 
-Generate Report is the technician's operational finalization action. It immediately persists the visit's terminal outcome (`completed`, `temporarily`, or `cancelled`) and its source data. The canonical Completion Report is generated from that authoritative visit data; it is not an editable text snapshot. After Generate Report, the technician cannot directly reopen or edit source visit data. Any post-completion correction uses §9.
+Generate Report validates and finalizes the Local Visit Draft, durably creates a complete immutable submission snapshot, then attempts delivery. The visit is `delivered` only after explicit backend ACK accepting and persisting its intended terminal outcome (`completed`, `temporarily`, or `cancelled`). The canonical Completion Report is generated from accepted authoritative visit data; it is not an editable text snapshot. After delivery, the technician cannot directly reopen or edit source visit data. Any post-completion correction uses §9.
+
+**IMPLEMENTATION GAP:** `POST /api/visits/:id/complete` above describes the current immediate server-finalization endpoint. It does not by itself implement the required durable local snapshot, stable idempotency identity, retry behavior, or ACK-driven `pending → delivered` lifecycle. Those target requirements are owned by `/docs/OFFLINE-FIRST-CONTRACT.md`.
 
 ---
 

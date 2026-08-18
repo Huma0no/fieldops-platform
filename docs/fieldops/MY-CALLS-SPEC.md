@@ -26,4 +26,4 @@ Collapsed by default, at the foot of the card list. Aggregates thermostats + acc
 
 ## Start Report
 
-Launches Workspace for that visit (navigates away from My Calls — see `/docs/fieldops/NAVIGATION.md`).
+Launches Workspace for that visit (navigates away from My Calls — see `/docs/fieldops/NAVIGATION.md`). Assignment and Lobby claim remain shared online lifecycle actions. Once an assigned visit has been downloaded locally, the technician can open and work it offline; FieldOps must not imply that an offline technician can claim a new Lobby call. See `/docs/OFFLINE-FIRST-CONTRACT.md`.

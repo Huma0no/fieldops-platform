@@ -10,7 +10,8 @@
 - Share/export capability.
 - Hosts the "Request Corrections" action per visit — see `/docs/shared/CORRECTIONS.md`.
 - Does not provide direct editing of generated Completion Report text or completed source visit data. After Generate Report, Request Corrections is the technician's correction entry point.
+- A locally pending submission is not a delivered completion. Delivery requires an explicit backend ACK; the canonical report remains derived from the accepted structured source data. See `/docs/OFFLINE-FIRST-CONTRACT.md`.
 
 ## Missing
 
-Full screen layout and behavior — list structure, what's shown per completed visit, export format.
+Full screen layout and behavior — list structure, treatment of pending versus delivered submissions, what's shown per completed visit, export format.

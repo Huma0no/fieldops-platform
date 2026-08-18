@@ -19,7 +19,7 @@ One full-width, thumb-reachable, icon-only bar: **Lobby · My Calls · Reports �
 - **Calc** — Quick Charge Calc, opened directly from the bar (not buried in a menu). See `/docs/fieldops/CALC-SPEC.md`.
 - **Menu** — contains **Settings** and **Transfers**. Inherits the badge count from whichever of its contents has something pending (e.g. a pending transfer) — the technician sees a badge on Menu itself, not just once they've opened it.
 
-**Workspace is not a bar item.** It's reached only via a job card's "Start Report" / "Open Workspace" action from My Calls — not a persistent destination. Back from Workspace returns to My Calls.
+**Workspace is not a bar item.** It's reached only via a job card's "Start Report" / "Open Workspace" action from My Calls — not a persistent destination. Back from Workspace returns to My Calls; active work is restored from its durable Local Visit Draft rather than requiring the backend to be continuously reachable. See `/docs/OFFLINE-FIRST-CONTRACT.md`.
 
 ## Contextual additions
 

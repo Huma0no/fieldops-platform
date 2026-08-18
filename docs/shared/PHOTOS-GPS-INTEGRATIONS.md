@@ -10,9 +10,9 @@ Cross-app infrastructure: photo capture and storage, GPS/EXIF requirements, and 
 
 ## Photo capture (FieldOps)
 
-- Compressed client-side before upload — target 300kb–1MB.
-- Photos captured during the visit stay local on the device as the technician works; they are bundled into one ZIP per visit only at completion time, never uploaded individually.
-- Retry queue: held locally until upload succeeds, then cleared.
+- Compressed client-side after local capture and before upload — target 300kb–1MB.
+- Photos captured during the visit are durable local evidence while the technician works. They must survive FieldOps close/reopen and connectivity loss; they are bundled into one ZIP per visit only at completion time, never uploaded individually.
+- Retry queue: durable locally until upload succeeds, then cleared. Loss of connectivity must not destroy captured evidence.
 - Filename convention: `{address}_{tag}` or `{address}_{tag}_SYS{system_number}` when system-specific.
 - `category`/`tag` are assigned automatically from the fixed button pressed (SCALE, FAN, NO_GAS_METER, NO_ELECTRIC_METER, NO_PDRAIN, BREAKERS_MISSING), or written freely via +Other.
 
@@ -21,7 +21,7 @@ Cross-app infrastructure: photo capture and storage, GPS/EXIF requirements, and 
 - Required (hard requirement) on exactly two photos per system: **Scale** (jug-after-charge) and **Fan Speed** (fan-speed-setting) — because The Company's Google Form only accepts photo uploads and needs the location embedded in-file (EXIF), not as separate metadata.
 - All other photos: GPS captured if available, not required.
 - Multi-system visits: N systems = N Scale/Fan Speed submissions, each disambiguated with a "– System N" suffix.
-- Permission flow: requested on first load with a pre-prompt explaining why; on denial, retryable. Hard block only at Completion Report submission, not earlier in the flow.
+- Permission flow: requested on first load with a pre-prompt explaining why; on denial, retryable. The requirement applies to capture, but whether missing required evidence blocks terminal submission ACK is **CONTRACT OPEN** under `/docs/OFFLINE-FIRST-CONTRACT.md`; it must not prevent durable local draft/snapshot creation.
 
 ## The Company's Google Form
 
@@ -30,4 +30,4 @@ Cross-app infrastructure: photo capture and storage, GPS/EXIF requirements, and 
 
 ## Google Drive storage
 
-**Status: decided, not yet built** — this section describes the design, not current behavior. Design: server-side upload only, via a Google service account. Folders organized by address name. Non-blocking on failure — the dispatcher gets an alert plus a manual-download fallback; nothing about the completion flow blocks on this. The database stores the resulting Drive link only, never a duplicate copy of the file. Retention is not automatic — files are kept roughly 60-90 days and cleaned up manually rather than through an expiration policy on the storage provider.
+**Status: decided, not yet built** — this section describes the design, not current behavior. Design: server-side upload only, via a Google service account. Folders organized by address name. Upload failure is retryable and does not destroy the local evidence; final ACK policy while evidence remains pending is **CONTRACT OPEN**, and the future emergency Download Report does not mark a visit delivered. The database stores the resulting Drive link only, never a duplicate copy of the file. Retention is not automatic — files are kept roughly 60-90 days and cleaned up manually rather than through an expiration policy on the storage provider.

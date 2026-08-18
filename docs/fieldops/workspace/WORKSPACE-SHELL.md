@@ -18,6 +18,12 @@ The frame that holds every Workspace sub-section: the rail, the active-job banne
 
 The bottom bar (see `/docs/fieldops/NAVIGATION.md`) stays present and unchanged throughout Workspace.
 
+## Offline-first Workspace state
+
+Service, thermostat, accessories, fixes, Weigh-In, Checklist, Notes, and evidence are fields of the active **Local Visit Draft**. Technician edits must durably update that draft and remain available through step navigation, refresh, FieldOps close/reopen, and temporary loss of connectivity; Workspace correctness must not depend on an immediate backend write. Generate Report is the normal submission boundary. Full contract: `/docs/OFFLINE-FIRST-CONTRACT.md`.
+
+**IMPLEMENTATION GAP:** existing Workspace/API mutation behavior is not evidence that the durable local-draft and submission-outbox contract has been implemented. A future implementation may communicate with the backend during active work, but that communication cannot be required for correctness.
+
 ## Cancel
 
 A small ✕ button lives in the Active Job banner (job-level). Tapping it opens the Notes step directly — no confirmation dialog. It is not part of the Service step's tile set. Full mechanism: `/docs/fieldops/CANCEL-SPEC.md`.
