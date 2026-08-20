@@ -1,10 +1,27 @@
 /**
  * src/screens/History.jsx
- * F6 — Completed visit history with filters, full edit, and edit log.
+ * F6 — Completed visit history with checklist and edit log context.
  */
 
 import { useState, useEffect } from 'react'
 import { api } from '@shared/api.js'
+
+const CHECKLIST_ITEMS = [
+  ['pdrain_ecoil', 'P-drain [eCoil]'],
+  ['pdrain_disch', 'P-drain [Discharge]'],
+  ['tstat_locked', 'Tstat Locked?'],
+  ['media_filter', 'Media Filter'],
+  ['electric_meter', 'Electric Meter'],
+  ['breaker_cond', 'Breaker — Condenser'],
+  ['breaker_ah', 'Breaker — Air Handler'],
+  ['disconnect_box', 'Disconnect box'],
+  ['whip_220v', 'Whip 220v'],
+  ['furnace_switch', 'Furnace disconnect switch'],
+  ['cable_110v', '110v cable'],
+  ['gas_meter', 'Gas Meter'],
+  ['gas_pipes', 'Gas Pipes/Tubing at Furnace'],
+  ['gas_valve', 'Gas Valve'],
+]
 
 export default function History () {
   const [visits, setVisits]       = useState([])
@@ -12,8 +29,6 @@ export default function History () {
   const [selected, setSelected]   = useState(null)   // full visit detail
   const [editLog, setEditLog]     = useState([])
   const [filters, setFilters]     = useState({ dateFrom: '', dateTo: '', technician: '', builder: '' })
-  const [saving, setSaving]         = useState(false)
-  const [editFields, setEditFields] = useState({})
   const [propertyHistory, setPropertyHistory] = useState([])
 
   useEffect(() => { loadHistory() }, [])
@@ -46,7 +61,6 @@ export default function History () {
       ])
       const merged = { ...detail, weighInData: report?.weighInData ?? [] }
       setSelected(merged)
-      setEditFields(flattenVisit(merged))
       setEditLog(log ?? [])
       setPropertyHistory((propHist ?? []).filter(v => v.id !== visit.id))
     } catch (err) {
@@ -54,37 +68,10 @@ export default function History () {
     }
   }
 
-  function flattenVisit (v) {
-    return {
-      address:        v.address?.street ?? '',
-      orderNumber:    v.orderNumber ?? '',
-      builder:        v.address?.builder ?? '',
-      workType:       v.workType ?? '',
-      notes:          v.notes ?? '',
-      scheduledTime:  v.scheduledTime ?? '',
-    }
-  }
-
-  async function saveEdit () {
-    setSaving(true)
-    try {
-      await api.patch(`/visits/${selected.id}`, editFields)
-      await openVisit(selected)   // reload with updated data + new log entry
-    } catch (err) {
-      console.error('save failed:', err)
-    } finally {
-      setSaving(false)
-    }
-  }
-
   if (selected) {
     return (
       <VisitDetail
         visit={selected}
-        editFields={editFields}
-        onFieldChange={(k, v) => setEditFields(f => ({ ...f, [k]: v }))}
-        onSave={saveEdit}
-        saving={saving}
         editLog={editLog}
         propertyHistory={propertyHistory}
         onBack={() => setSelected(null)}
@@ -203,14 +190,37 @@ function WeighInSection ({ data }) {
   )
 }
 
-function VisitDetail ({ visit, editFields, onFieldChange, onSave, saving, editLog, propertyHistory, onBack }) {
+function ChecklistSection ({ answers }) {
+  const byItem = new Map((answers ?? []).map(answer => [answer.item, answer.answer]))
+  return (
+    <>
+      <div style={styles.sectionTitle}>Checklist</div>
+      <div style={styles.checklist}>
+        {CHECKLIST_ITEMS.map(([key, label]) => {
+          const answer = byItem.get(key)
+          const answerLabel = answer === 'yes' ? 'Yes' : answer === 'no' ? 'No' : 'Unanswered'
+          return (
+            <div key={key} style={styles.checklistRow}>
+              <span>{label}</span>
+              <span style={{ ...styles.checklistAnswer, ...(answer === 'yes' ? styles.checklistYes : answer === 'no' ? styles.checklistNo : {}) }}>
+                {answerLabel}
+              </span>
+            </div>
+          )
+        })}
+      </div>
+    </>
+  )
+}
+
+function VisitDetail ({ visit, editLog, propertyHistory, onBack }) {
   const FIELDS = [
-    { key: 'address',       label: 'Address' },
-    { key: 'orderNumber',   label: 'Order #' },
-    { key: 'builder',       label: 'Builder' },
-    { key: 'workType',      label: 'Work type' },
-    { key: 'scheduledTime', label: 'Scheduled time' },
-    { key: 'notes',         label: 'Notes', multiline: true },
+    { label: 'Address',        value: visit.address?.street },
+    { label: 'Order #',        value: visit.orderNumber },
+    { label: 'Builder',        value: visit.address?.builder },
+    { label: 'Work type',      value: visit.workType },
+    { label: 'Scheduled time', value: visit.scheduledTime },
+    { label: 'Notes',          value: visit.notes, multiline: true },
   ]
 
   return (
@@ -224,34 +234,21 @@ function VisitDetail ({ visit, editFields, onFieldChange, onSave, saving, editLo
       </div>
 
       <div style={styles.detailBody}>
-        {/* Left — edit form + visit data */}
+        {/* Left — finalized source visit data. */}
         <div style={styles.detailLeft}>
-          <div style={styles.sectionTitle}>Edit visit</div>
+          <div style={styles.sectionTitle}>Visit details</div>
           <div style={styles.fieldsCol}>
-            {FIELDS.map(({ key, label, multiline }) => (
-              <div key={key} style={styles.fieldRow}>
+            {FIELDS.map(({ label, value, multiline }) => (
+              <div key={label} style={styles.fieldRow}>
                 <label style={styles.fieldLabel}>{label}</label>
-                {multiline ? (
-                  <textarea
-                    style={styles.fieldTextarea}
-                    value={editFields[key] ?? ''}
-                    onChange={e => onFieldChange(key, e.target.value)}
-                    rows={3}
-                  />
-                ) : (
-                  <input
-                    style={styles.fieldInput}
-                    value={editFields[key] ?? ''}
-                    onChange={e => onFieldChange(key, e.target.value)}
-                  />
-                )}
+                <div style={multiline ? styles.fieldReadOnlyMultiline : styles.fieldReadOnly}>
+                  {value || '—'}
+                </div>
               </div>
             ))}
           </div>
-          <button style={styles.saveBtn} onClick={onSave} disabled={saving}>
-            {saving ? 'Saving…' : 'Save changes'}
-          </button>
-          <p style={styles.catalogNote}>Changes to the catalog do not affect historical visits.</p>
+
+          <ChecklistSection answers={visit.checklistAnswers} />
 
           {/* Services (B3) */}
           {(visit.services ?? []).length > 0 && <>
@@ -381,10 +378,13 @@ const styles = {
   fieldsCol:    { display: 'flex', flexDirection: 'column', gap: '10px' },
   fieldRow:     { display: 'flex', flexDirection: 'column', gap: '3px' },
   fieldLabel:   { fontSize: '11px', color: 'var(--text-muted)', fontWeight: 500 },
-  fieldInput:   { background: 'var(--surface-2)', border: '0.5px solid var(--border-default)', borderRadius: '6px', color: 'var(--text-primary)', fontSize: '13px', padding: '6px 10px', outline: 'none', fontFamily: 'var(--font-sans)' },
-  fieldTextarea:{ background: 'var(--surface-2)', border: '0.5px solid var(--border-default)', borderRadius: '6px', color: 'var(--text-primary)', fontSize: '13px', padding: '6px 10px', outline: 'none', resize: 'vertical', fontFamily: 'var(--font-sans)', lineHeight: 1.5 },
-  saveBtn:      { background: 'var(--color-signal)', color: '#fff', border: 'none', borderRadius: '8px', fontSize: '13px', fontWeight: 500, padding: '10px 20px', cursor: 'pointer', alignSelf: 'flex-start' },
-  catalogNote:  { fontSize: '11px', color: 'var(--text-disabled)', fontStyle: 'italic' },
+  fieldReadOnly: { color: 'var(--text-secondary)', fontSize: '13px', padding: '6px 0', minHeight: '18px' },
+  fieldReadOnlyMultiline: { color: 'var(--text-secondary)', fontSize: '13px', padding: '6px 0', whiteSpace: 'pre-wrap', minHeight: '18px', lineHeight: 1.5 },
+  checklist:    { display: 'flex', flexDirection: 'column', borderTop: '0.5px solid var(--border-subtle)' },
+  checklistRow: { display: 'flex', justifyContent: 'space-between', gap: '12px', padding: '5px 0', borderBottom: '0.5px solid var(--border-subtle)', color: 'var(--text-secondary)', fontSize: '12px' },
+  checklistAnswer: { color: 'var(--text-disabled)', fontSize: '11px', fontWeight: 500, whiteSpace: 'nowrap' },
+  checklistYes: { color: 'var(--color-signal)' },
+  checklistNo:  { color: 'var(--color-heat)' },
   logEmpty:     { fontSize: '13px', color: 'var(--text-disabled)' },
   logList:      { display: 'flex', flexDirection: 'column', gap: '12px' },
   logEntry:     { display: 'flex', flexDirection: 'column', gap: '2px' },

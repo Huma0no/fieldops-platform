@@ -522,10 +522,12 @@ GET /api/dispatch/history/address/:addressId
 
 PATCH /api/dispatch/visits/:id
   auth: dispatcher
-  body: any editable visit field (address, builder, equipment, items, notes, etc.)
-  effect: updates visit, recalculates total_price if items/services changed,
-          creates edit_log entry automatically
-  note: full editability — no restrictions by data origin
+  body: supported direct fields: orderNumber, scheduledTime, notes,
+        technicianId, status
+  effect: updates supported source fields and creates edit_log entry automatically
+  note: administrative source-data capability; it is not exposed by default
+        History Open and does not reopen technician Workspace or make the
+        terminal visit technician-editable
 
 GET /api/dispatch/visits/:id/edit-log
   auth: dispatcher

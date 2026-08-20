@@ -194,7 +194,7 @@ visitsRouter.get('/:id', async (req, res, next) => {
   try {
     const visitResult = await pool.query(
       `SELECT v.id, v.address_id, v.order_number, v.scheduled_time, v.status, v.technician_id,
-              v.has_multiple_systems, v.is_deferred, v.total_price, v.notes, v.work_type,
+              v.has_multiple_systems, v.is_deferred, v.total_price, v.notes, v.checklist_answers, v.work_type,
               v.company_notes, v.contact_name, v.contact_phone, v.contact_channel, v.updated_at,
               a.street, a.city, a.state, a.zip, a.subdivision, a.builder
        FROM visits v
@@ -247,6 +247,7 @@ visitsRouter.get('/:id', async (req, res, next) => {
       isDeferred: v.is_deferred,
       totalPrice: v.total_price ?? 0,
       notes: v.notes,
+      checklistAnswers: Array.isArray(v.checklist_answers) ? v.checklist_answers : [],
       workType: v.work_type,
       companyNotes: v.company_notes,
       contactName: v.contact_name,

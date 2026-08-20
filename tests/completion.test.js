@@ -31,10 +31,12 @@ describe('POST /api/visits/:id/complete', () => {
   it('completes a visit with AC service — returns report JSON and sets status=completed', async () => {
     const { visitId, token, street } = await seedAssignedVisit();
     await addService(visitId, 'AC');
+    const checklistAnswers = [{ item: 'pdrain_ecoil', answer: 'yes', photoCount: 0, reportText: null }];
 
     const res = await request(app)
       .post(`/api/visits/${visitId}/complete`)
-      .set('Authorization', `Bearer ${token}`);
+      .set('Authorization', `Bearer ${token}`)
+      .send({ checklistAnswers });
 
     expect(res.status).toBe(200);
     expect(res.body.id).toBe(visitId);
@@ -47,6 +49,11 @@ describe('POST /api/visits/:id/complete', () => {
     const row = await pool.query('SELECT status, completed_at FROM visits WHERE id = $1', [visitId]);
     expect(row.rows[0].status).toBe('completed');
     expect(row.rows[0].completed_at).toBeTruthy();
+
+    const detail = await request(app)
+      .get(`/api/visits/${visitId}`)
+      .set('Authorization', `Bearer ${token}`);
+    expect(detail.body.checklistAnswers).toEqual(checklistAnswers);
   });
 
   it('completes a Finish-only visit because it has a valid zero-priced Service selection', async () => {
@@ -159,6 +166,10 @@ describe('POST /api/visits/:id/complete', () => {
     );
     expect(visit.rows[0]).toMatchObject({ status: 'cancelled', total_price: 0, notes: 'Customer not present' });
     expect(visit.rows[0].checklist_answers).toEqual(checklistAnswers);
+    const detail = await request(app)
+      .get(`/api/visits/${visitId}`)
+      .set('Authorization', `Bearer ${token}`);
+    expect(detail.body.checklistAnswers).toEqual(checklistAnswers);
     await expect(pool.query('SELECT id FROM weigh_in_data WHERE address_id = $1', [addressId])).resolves.toMatchObject({ rowCount: 1 });
     await expect(pool.query('SELECT id FROM visit_photos WHERE visit_id = $1', [visitId])).resolves.toMatchObject({ rowCount: 2 });
   });

@@ -15,7 +15,9 @@ Two related views in Dispatch: the permanent record of completed visits (History
 - Row actions: **Detail**, **Property** (jumps to that address's Properties view).
 - No Total column in the list view.
 
-**Detail view:** generated canonical Completion Report text, plus a collapsed Weigh-In section — no itemized accessory/fix chips. Structured visit data is the source of truth; the displayed report text is derived from it.
+**Detail view:** opens read-only by default and shows the finalized structured visit context, including Notes, Checklist answers (Yes / No / unanswered), services/items where applicable, permitted evidence, Weigh-In context, property history, and edit log. Cancelled History keeps Notes and Checklist while normal work and work-specific evidence remain suppressed. Structured visit data is the source of truth; canonical report text remains derived from it.
+
+History does not expose general report/source editing. Administrative correction remains a separate Dispatch concern; it does not reopen technician Workspace or make a terminal visit technician-editable.
 
 ## Properties
 

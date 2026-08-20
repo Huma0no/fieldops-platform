@@ -22,4 +22,6 @@ Generate Report is the technician's operational finalization boundary: it places
 
 **What happens with it:** the Dispatcher sees it and applies any source-data change manually in Dispatch, at their discretion. The canonical Completion Report is regenerated from that authoritative visit data; report text is not independently editable. It's a courtesy Kristo extends to technicians, not a system obligation Kristo owes them.
 
+**Dispatch boundary:** History opens terminal visits read-only. Existing administrative source-data update capability is not a general History editor; its explicit Corrections-panel integration remains a separate implementation task. Any future administrative correction remains recorded in `edit_log` and never reopens technician Workspace.
+
 **The window:** open from submission until that visit's Ledger week auto-closes (the following Wednesday). At that point, any still-open correction is marked `expired`; there is no reopening of an already-closed Ledger week. Reviewing your own numbers on each Service Call is the technician's responsibility; if nothing is flagged before that week's Ledger closes, the technician carries that consequence. This keeps the mechanism from needing to handle edge cases around retroactive changes to paid weeks.

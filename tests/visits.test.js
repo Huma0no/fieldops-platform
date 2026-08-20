@@ -239,6 +239,31 @@ describe('GET /api/visits/:id', () => {
     expect(Array.isArray(v.items)).toBe(true);
     expect(Array.isArray(v.photos)).toBe(true);
     expect(Array.isArray(v.weighInData)).toBe(true);
+    expect(v.checklistAnswers).toEqual([]);
+  });
+
+  it('returns persisted checklist answers for Dispatch History detail', async () => {
+    const { token } = await seedTechnicianWithToken();
+    const { visitId } = await seedInLobbyVisit({ systemCount: 1 });
+    await request(app).post(`/api/visits/${visitId}/claim`).set('Authorization', `Bearer ${token}`);
+    const checklistAnswers = [
+      { item: 'pdrain_ecoil', answer: 'yes', photoCount: 0, reportText: null },
+      { item: 'gas_meter', answer: 'no', photoCount: 1, reportText: 'gas meter closed/missing' },
+    ];
+    await pool.query(
+      `UPDATE visits SET status = 'cancelled', notes = 'Customer unavailable',
+       checklist_answers = $2 WHERE id = $1`,
+      [visitId, JSON.stringify(checklistAnswers)]
+    );
+
+    const res = await request(app)
+      .get(`/api/visits/${visitId}`)
+      .set('Authorization', `Bearer ${token}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.status).toBe('cancelled');
+    expect(res.body.notes).toBe('Customer unavailable');
+    expect(res.body.checklistAnswers).toEqual(checklistAnswers);
   });
 
   it('returns persisted item ids, notes, and weigh-in data for Workspace rehydration', async () => {
