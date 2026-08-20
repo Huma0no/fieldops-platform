@@ -1,3 +1,4 @@
+const crypto = require('crypto');
 const request = require('supertest');
 const app = require('../src/index');
 const { pool, truncateTables } = require('./helpers/db');
@@ -237,6 +238,106 @@ describe('GET /api/visits/:id', () => {
     expect(Array.isArray(v.services)).toBe(true);
     expect(Array.isArray(v.items)).toBe(true);
     expect(Array.isArray(v.photos)).toBe(true);
+    expect(Array.isArray(v.weighInData)).toBe(true);
+  });
+
+  it('returns persisted item ids, notes, and weigh-in data for Workspace rehydration', async () => {
+    const { token } = await seedTechnicianWithToken();
+    const { visitId, addressId } = await seedInLobbyVisit({ systemCount: 1 });
+    const itemName = `Rehydration Accessory ${crypto.randomUUID()}`;
+    const configKey = `REHYDRATION-${crypto.randomUUID()}`;
+    await request(app).post(`/api/visits/${visitId}/claim`).set('Authorization', `Bearer ${token}`);
+    await pool.query(`UPDATE visits SET notes = 'Existing field note' WHERE id = $1`, [visitId]);
+    await pool.query(`
+      INSERT INTO catalog_items (item_name, category, default_price, tech_supplied)
+      VALUES ($1, 'accessory', 15, true)
+    `, [itemName]);
+    const item = await pool.query(`
+      INSERT INTO visit_items (id, visit_id, item_name, category, description, quantity, price, tech_supplied)
+      VALUES (gen_random_uuid()::text, $1, $2, 'accessory', 'Installed at return', 2, 15, true)
+      RETURNING id
+    `, [visitId, itemName]);
+    await pool.query(`
+      INSERT INTO catalog_lineset_configs (config_key, reference_length_ft, adjust_rate_oz_per_ft)
+      VALUES ($1, 25, 0.5)
+    `, [configKey]);
+    await pool.query(`
+      INSERT INTO weigh_in_data
+        (id, address_id, system_number, lineset_length, factory_line_config, approx_adjust_oz,
+         adjusted_oz, fan_speed_cfm, liquid_line_temp, suction_line_temp, condenser_sat_temp,
+         subcooling_value, oem_subcooling_goal, subcooling_deviation)
+      VALUES
+        (gen_random_uuid()::text, $1, 1, 35, $2, 5, 82, 1200, 90, 55, 105, 18, 10, 8)
+    `, [addressId, configKey]);
+
+    const res = await request(app)
+      .get(`/api/visits/${visitId}`)
+      .set('Authorization', `Bearer ${token}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.notes).toBe('Existing field note');
+    expect(res.body.items).toEqual([expect.objectContaining({
+      id: item.rows[0].id,
+      itemName,
+      description: 'Installed at return',
+      quantity: 2,
+      price: 15,
+    })]);
+    expect(res.body.weighInData).toEqual([expect.objectContaining({
+      addressId,
+      systemNumber: 1,
+      linesetLength: 35,
+      factoryLineConfig: configKey,
+      fanSpeedCfm: 1200,
+      subcoolingValue: 18,
+    })]);
+
+    const remove = await request(app)
+      .delete(`/api/visits/${visitId}/items/${res.body.items[0].id}`)
+      .set('Authorization', `Bearer ${token}`);
+    expect(remove.status).toBe(200);
+    expect((await pool.query('SELECT id FROM visit_items WHERE visit_id = $1', [visitId])).rows).toHaveLength(0);
+  });
+
+  it('suppresses Weigh-In photo metadata for a cancelled visit without deleting stored evidence', async () => {
+    const { token } = await seedTechnicianWithToken();
+    const { visitId } = await seedInLobbyVisit({ systemCount: 1 });
+    await request(app).post(`/api/visits/${visitId}/claim`).set('Authorization', `Bearer ${token}`);
+    await pool.query("UPDATE visits SET status = 'cancelled', total_price = 0 WHERE id = $1", [visitId]);
+    await pool.query(
+      `INSERT INTO visit_photos (id, visit_id, system_number, slug, tag, label, category, stored_at)
+       VALUES (gen_random_uuid()::text, $1, 1, 'CANCELLED-SCALE', 'SCALE', null, 'weigh_in_scale', null),
+              (gen_random_uuid()::text, $1, 1, 'CANCELLED-FAN', 'FAN', null, 'fan_speed', null),
+              (gen_random_uuid()::text, $1, null, 'CANCELLED-EVIDENCE', 'gas_meter', null, 'site_evidence', null)`,
+      [visitId]
+    );
+
+    const res = await request(app)
+      .get(`/api/visits/${visitId}`)
+      .set('Authorization', `Bearer ${token}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.photos).toEqual([expect.objectContaining({ tag: 'gas_meter', category: 'site_evidence' })]);
+    await expect(pool.query('SELECT id FROM visit_photos WHERE visit_id = $1', [visitId])).resolves.toMatchObject({ rowCount: 3 });
+  });
+
+  it('returns Weigh-In photo metadata for a normal completed visit', async () => {
+    const { token } = await seedTechnicianWithToken();
+    const { visitId } = await seedInLobbyVisit({ systemCount: 1 });
+    await request(app).post(`/api/visits/${visitId}/claim`).set('Authorization', `Bearer ${token}`);
+    await pool.query("UPDATE visits SET status = 'completed' WHERE id = $1", [visitId]);
+    await pool.query(
+      `INSERT INTO visit_photos (id, visit_id, system_number, slug, tag, label, category, stored_at)
+       VALUES (gen_random_uuid()::text, $1, 1, 'COMPLETED-SCALE', 'SCALE', null, 'weigh_in_scale', null)`,
+      [visitId]
+    );
+
+    const res = await request(app)
+      .get(`/api/visits/${visitId}`)
+      .set('Authorization', `Bearer ${token}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.photos).toEqual([expect.objectContaining({ tag: 'SCALE', category: 'weigh_in_scale' })]);
   });
 
   it('returns 403 if technician does not own the visit', async () => {

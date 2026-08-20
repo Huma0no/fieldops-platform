@@ -14,8 +14,23 @@
  */
 
 import { api }        from '../../../shared/api.js'
-import { getCatalog } from '../lib/db.js'
+import { getCatalog, getLocalVisitDraft, saveLocalVisitDraft } from '../lib/db.js'
 import { isCancelJustificationMissing } from '../lib/cancel-justification.mjs'
+import { cancelConfirmationStyles, showCancelConfirmation } from '../lib/cancel-confirmation.mjs'
+import {
+  createLocalVisitDraft,
+  consumeConfirmedCancelForVisit,
+  discardLegacyUnconfirmedCancelOrigin,
+  enterLocalVisitDraftCancelMode,
+  hasServiceSelection,
+  isConfirmedLocalVisitDraftCancelMode,
+  markLocalVisitDraftDirty,
+  migrateLegacyConfirmedCancelMode,
+  serviceNameFromState,
+  toggleServiceSelection,
+  toggleLocalVisitDraftChecklist,
+  updateLocalVisitDraftNotes,
+} from '../lib/workspace-visit.mjs'
 
 const CHECKLIST_ITEMS = [
   { key: 'pdrain_ecoil',   label: 'P-drain [eCoil]',            reportText: 'No/Incomplete pdrain at ecoil', reminder: 'Reviewing the P-drain is recommended before completing.' },
@@ -66,12 +81,14 @@ const GPS_STORAGE_KEY = 'fo_gps_state'
 let gps = { lat: null, lon: null, source: null, denied: false }
 let _gpsPhotosMissing = 0
 let _exifrLoaded = false
+let notesDraftTimer = null
 
 export default async function mount (appEl) {
   injectStyles()
   appEl.innerHTML = ''
   activeStep = 'service'
   completedSections.clear()
+  clearTimeout(notesDraftTimer)
 
   const visitId = sessionStorage.getItem('workspace:visitId')
   if (!visitId) { navigateBack(); return }
@@ -82,12 +99,30 @@ export default async function mount (appEl) {
   appEl.appendChild(loading)
 
   try {
-    ;[visit, catalogItems, linesetConfigs, equipmentCatalog] = await Promise.all([
-      api.get(`/visits/${visitId}`),
+    const [localDraft, cachedItems, cachedLinesetConfigs, cachedEquipment, catalogVersion] = await Promise.all([
+      getLocalVisitDraft(visitId),
       getCatalog('items').then(d => d ?? []),
-      api.get('/catalog/lineset-configs').catch(() => []),
-      api.get('/catalog/equipment').catch(() => []),
+      getCatalog('lineset-configs').then(d => d ?? []),
+      getCatalog('equipment').then(d => d ?? []),
+      getCatalog('version'),
     ])
+
+    catalogItems = cachedItems
+    linesetConfigs = cachedLinesetConfigs
+    equipmentCatalog = cachedEquipment
+
+    if (localDraft) {
+      visit = localDraft
+    } else {
+      const detail = await api.get(`/visits/${visitId}`)
+      visit = createLocalVisitDraft(detail, { catalogVersion })
+      await saveLocalVisitDraft(visit)
+    }
+
+    if (!catalogItems.length) catalogItems = await api.get('/catalog/items').catch(() => [])
+    if (!linesetConfigs.length) linesetConfigs = await api.get('/catalog/lineset-configs').catch(() => [])
+    if (!equipmentCatalog.length) equipmentCatalog = await api.get('/catalog/equipment').catch(() => [])
+
     if (!visit._service) {
       const svc = (visit.services ?? [])[0]
       visit._service = {
@@ -101,14 +136,24 @@ export default async function mount (appEl) {
         twoSystems:  visit.hasMultipleSystems ?? false,
       }
     }
-    if (!visit._items) visit._items = []
     if (!visit._checklist) visit._checklist = {}
     if (!visit._checklistPhotoCounts) visit._checklistPhotoCounts = {}
 
-    if (sessionStorage.getItem('workspace:cancelOrigin') === 'true') {
-      sessionStorage.removeItem('workspace:cancelOrigin')
-      visit._cancelOriginated = true
+    activeStep = visit._activeStep ?? 'service'
+    ;(visit._completedSteps ?? []).forEach(step => completedSections.add(step))
+
+    // A My Calls confirmation has already happened before navigation. Apply
+    // the Cancel mode only after the Workspace has loaded its durable draft.
+    if (consumeConfirmedCancelForVisit(sessionStorage, visitId)) {
+      enterLocalVisitDraftCancelMode(visit)
       activeStep = 'notes'
+      await persistCurrentDraft({ touch: false })
+    } else if (migrateLegacyConfirmedCancelMode(visit)) {
+      activeStep = 'notes'
+      await persistCurrentDraft({ touch: false })
+    } else if (discardLegacyUnconfirmedCancelOrigin(visit)) {
+      activeStep = 'service'
+      await persistCurrentDraft({ touch: false })
     }
   } catch (err) {
     console.error('Workspace load failed:', err)
@@ -203,10 +248,7 @@ function buildActiveJobBanner () {
   cancelBtn.className = 'ws-active-job-cancel-btn'
   cancelBtn.innerHTML = '✕'
   cancelBtn.setAttribute('aria-label', 'Cancel visit')
-  cancelBtn.addEventListener('click', () => {
-    visit._cancelOriginated = true
-    goToStep('notes')
-  })
+  cancelBtn.addEventListener('click', beginCancel)
   right.appendChild(price)
   right.appendChild(cancelBtn)
   el.appendChild(right)
@@ -233,8 +275,11 @@ function renderBody () {
 }
 
 function goToStep (stepId) {
+  if (isCancelMode() && stepId !== 'notes') return
   if (stepId === activeStep) return
   activeStep = stepId
+  visit._activeStep = stepId
+  persistCurrentDraft()
   renderBody()
   document.getElementById('ws-step-content')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
 }
@@ -257,6 +302,7 @@ function buildStepRail () {
     lbl.textContent = step.label
     btn.appendChild(icon)
     btn.appendChild(lbl)
+    btn.disabled = isCancelMode() && step.id !== 'notes'
     btn.addEventListener('click', () => goToStep(step.id))
     rail.appendChild(btn)
   })
@@ -293,6 +339,7 @@ function buildStepFooter (stepIndex) {
 }
 
 function buildStepContent (stepId) {
+  if (isCancelMode() && stepId !== 'notes') return buildCancelModeNotice()
   switch (stepId) {
     case 'service':     return buildServiceStepContent()
     case 'accessories': return stripTrailingButton(buildItemsSection('accessory'))
@@ -301,6 +348,17 @@ function buildStepContent (stepId) {
     case 'notes':       return buildNotesStepContent()
     default:            return document.createElement('div')
   }
+}
+
+function buildCancelModeNotice () {
+  const notice = document.createElement('div')
+  notice.className = 'ws-section-content ws-cancel-mode-notice'
+  notice.textContent = 'Cancel mode keeps Notes and Checklist available for the required justification. Work selections are cleared until Generate Report.'
+  return notice
+}
+
+function isCancelMode () {
+  return isConfirmedLocalVisitDraftCancelMode(visit)
 }
 
 // Removes the trailing Done/Skip/Generate button a content-builder function
@@ -383,6 +441,8 @@ function getSectionSummary (sectionId) {
 // buildStepFooter) — this just records completion, same Set as before.
 function markSectionComplete (sectionId) {
   completedSections.add(sectionId)
+  visit._completedSteps = [...completedSections]
+  persistCurrentDraft()
 }
 
 function buildPriceSummary () {
@@ -426,6 +486,7 @@ function buildServiceSection () {
     { key: 'ac', label: 'AC' }, { key: 'heat', label: 'Heat' },
     { key: 'prestart', label: 'Prestart' },
     { key: 'driveRun', label: 'Drive Run' },
+    { key: 'finish', label: 'Finish' },
   ]
 
   baseServices.forEach(({ key, label }) => {
@@ -434,19 +495,7 @@ function buildServiceSection () {
     btn.className = `ws-item-btn${cls}`
     btn.textContent = label
     btn.addEventListener('click', async () => {
-      if (key === 'cancel' && hasActiveItems()) {
-        const ok = await showCancelConfirm()
-        if (!ok) return
-        await clearAllItems()
-      }
-      svc[key] = !svc[key]
-      if (key === 'cancel' || key === 'driveRun') {
-        svc.ac = false; svc.heat = false; svc.prestart = false
-        if (key === 'cancel') svc.driveRun = false
-        if (key === 'driveRun') svc.cancel = false
-      } else if (['ac','heat','prestart'].includes(key)) {
-        svc.cancel = false; svc.driveRun = false
-      }
+      if (!toggleServiceSelection(svc, key)) return
       await syncService()
       refreshSection('service')
     })
@@ -462,7 +511,7 @@ function buildServiceSection () {
       btn.className = `ws-item-btn ws-btn--modifier${svc[key] ? ' ws-item-btn--active' : ''}`
       btn.textContent = label
       btn.addEventListener('click', async () => {
-        svc[key] = !svc[key]
+        if (!toggleServiceSelection(svc, key)) return
         await syncService()
         refreshSection('service')
       })
@@ -471,7 +520,7 @@ function buildServiceSection () {
     wrap.appendChild(modRow)
   }
 
-  const hasService = svc.ac || svc.heat || svc.prestart || svc.cancel || svc.driveRun
+  const hasService = hasServiceSelection(svc)
   if (hasService) {
     const doneBtn = document.createElement('button')
     doneBtn.className = 'ws-done-btn'
@@ -484,13 +533,7 @@ function buildServiceSection () {
 
 async function syncService () {
   const svc = visit._service
-  let serviceName = null
-  if (svc.ac && svc.heat)   serviceName = 'AC & Heat'
-  else if (svc.ac)          serviceName = 'AC'
-  else if (svc.heat)        serviceName = 'Heat'
-  else if (svc.prestart)    serviceName = 'Prestart'
-  else if (svc.cancel)      serviceName = 'Cancel'
-  else if (svc.driveRun)    serviceName = 'Drive Run'
+  const serviceName = serviceNameFromState(svc)
   if (!serviceName) return
   try {
     const result = await api.patch(`/visits/${visit.id}/services`, {
@@ -500,34 +543,16 @@ async function syncService () {
   } catch (err) { console.error('Service sync failed:', err) }
 }
 
-function hasActiveItems () { return (visit._items ?? []).length > 0 }
-
-async function clearAllItems () {
-  try {
-    const result = await api.patch(`/visits/${visit.id}/services`, { serviceName: 'Cancel', confirmed: true })
-    visit._items = []
-    if (result?.totalPrice !== undefined) updatePrice(result.totalPrice)
-    else updatePrice(0)
-  } catch (err) { console.error('Clear items failed:', err) }
-}
-
-function showCancelConfirm () {
-  return new Promise(resolve => {
-    const overlay = makeOverlay(() => resolve(false))
-    const modal = makeModal('Confirm cancel')
-    const items = visit._items ?? []
-    const body = document.createElement('p')
-    body.className = 'ws-modal-note'
-    body.textContent = `This will remove ${items.length} item${items.length !== 1 ? 's' : ''} and set the total to $0.`
-    const actions = makeActions(
-      [{ label: 'Go back', cls: 'secondary', fn: () => { overlay.remove(); resolve(false) } },
-       { label: 'Yes, cancel', cls: 'heat', fn: () => { overlay.remove(); resolve(true) } }]
-    )
-    modal.appendChild(body)
-    modal.appendChild(actions)
-    overlay.appendChild(modal)
-    document.getElementById('ws-screen')?.appendChild(overlay)
-  })
+async function beginCancel () {
+  if (isCancelMode()) return
+  const confirmed = await showCancelConfirmation(document.getElementById('ws-screen'))
+  if (!confirmed) return
+  enterLocalVisitDraftCancelMode(visit)
+  activeStep = 'notes'
+  completedSections.clear()
+  updatePrice(0)
+  await persistCurrentDraft({ touch: false })
+  renderBody()
 }
 
 function buildThermostatSection () {
@@ -620,7 +645,7 @@ function showQuantityModal (item, onConfirm) {
 function buildItemsSection (category) {
   const wrap = document.createElement('div')
   wrap.className = 'ws-section-content'
-  const isCancelled = visit._service?.cancel
+  const isCancelled = isCancelMode()
   const items       = catalogItems.filter(i => i.category === category)
   const activeItems = (visit._items ?? []).filter(i => i.category === category)
   const preIds      = category === 'accessory' ? (visit.pre_identified_accessories ?? []) : []
@@ -674,8 +699,23 @@ async function addItem (item, category, quantity, customPrice, description) {
     if (customPrice !== undefined) body.price = customPrice
     if (description !== undefined) body.description = description
     const result = await api.post(`/visits/${visit.id}/items`, body)
-    const newItem = { id: result.id, item_name: item.item_name, description, category, quantity, price: customPrice ?? item.default_price }
-    visit._items = [...(visit._items ?? []).filter(i => !result.removedItems?.includes(i.item_name)), newItem]
+    const newItem = result.item
+      ? {
+          id: result.item.id,
+          item_name: result.item.itemName,
+          description: result.item.description,
+          category: result.item.category,
+          quantity: result.item.quantity,
+          price: result.item.price,
+          tech_supplied: result.item.techSupplied,
+        }
+      : { id: result.id, item_name: item.item_name, description, category, quantity, price: customPrice ?? item.default_price }
+    visit._items = [
+      ...(visit._items ?? []).filter(i =>
+        !result.removedItems?.includes(i.item_name) && i.item_name !== newItem.item_name
+      ),
+      newItem,
+    ]
     if (result.totalPrice !== undefined) updatePrice(result.totalPrice)
     refreshSection(category === 'accessory' ? 'accessories' : 'fixes')
   } catch (err) { console.error('Add item failed:', err) }
@@ -736,6 +776,7 @@ function buildWeighInPanel (systemNum, showLabel) {
     ['condenserSatTemp','Condenser sat temp'],['subcoolingValue','Subcooling'],
   ]
   const numericKeys = NUMERIC_FIELDS.map(f => f[0])
+  const savedWeighIn = (visit._weighInData ?? []).find(data => data.systemNumber === systemNum)
 
   // Detect brand from equipment catalog using the outdoor unit model for this system
   const outdoorModel = visit.systems?.find(s => s.systemNumber === systemNum)?.outdoorModel
@@ -768,7 +809,22 @@ function buildWeighInPanel (systemNum, showLabel) {
     body.factoryChargeUsed = cfg?.revised_available
       ? (document.getElementById(`wi-${systemNum}-charge`)?.value || 'factory')
       : 'factory'
-    try { await api.put(`/visits/${visit.id}/weigh-in/${systemNum}`, body) }
+
+    // Preserve the technician's current measurements before attempting the
+    // transitional legacy API write. Pricing is not derived in the PWA.
+    visit._weighInData = [
+      ...(visit._weighInData ?? []).filter(data => data.systemNumber !== systemNum),
+      { ...(savedWeighIn ?? {}), ...body, systemNumber: systemNum },
+    ]
+    await persistCurrentDraft()
+    try {
+      const saved = await api.put(`/visits/${visit.id}/weigh-in/${systemNum}`, body)
+      visit._weighInData = [
+        ...(visit._weighInData ?? []).filter(data => data.systemNumber !== systemNum),
+        saved,
+      ]
+      persistCurrentDraft({ touch: false })
+    }
     catch (err) { console.error('Weigh-in sync failed:', err) }
   }
 
@@ -778,6 +834,7 @@ function buildWeighInPanel (systemNum, showLabel) {
     const lbl = document.createElement('label'); lbl.className='ws-field-label'; lbl.textContent=label; lbl.setAttribute('for',`wi-${systemNum}-${key}`)
     const input = document.createElement('input')
     input.type='number'; input.id=`wi-${systemNum}-${key}`; input.className='ws-field-input'; input.inputMode='decimal'
+    if (savedWeighIn?.[key] != null) input.value = savedWeighIn[key]
     input.addEventListener('blur', syncWeighIn)
     row.appendChild(lbl); row.appendChild(input); panel.appendChild(row)
   })
@@ -790,9 +847,10 @@ function buildWeighInPanel (systemNum, showLabel) {
   configSel.appendChild(emptyOpt)
   linesetConfigs.forEach(cfg => {
     const opt = document.createElement('option'); opt.value=cfg.config_key; opt.textContent=cfg.config_key
-    if (cfg.config_key === preselect) opt.selected = true
     configSel.appendChild(opt)
   })
+  const selectedConfig = savedWeighIn?.factoryLineConfig ?? preselect
+  if (selectedConfig) configSel.value = selectedConfig
   configRow.appendChild(configLbl); configRow.appendChild(configSel); panel.appendChild(configRow)
 
   // Factory/revised row — only visible when selected config has revised_available=true
@@ -802,6 +860,11 @@ function buildWeighInPanel (systemNum, showLabel) {
   ;[['factory','Factory'],['revised','Revised']].forEach(([val, txt]) => {
     const opt = document.createElement('option'); opt.value=val; opt.textContent=txt; chargeSel.appendChild(opt)
   })
+  const equipment = equipmentCatalog.find(e => e.model === outdoorModel)
+  if (savedWeighIn?.factoryChargeOz != null && equipment?.revised_charge_oz != null &&
+      savedWeighIn.factoryChargeOz === equipment.revised_charge_oz) {
+    chargeSel.value = 'revised'
+  }
   chargeSel.addEventListener('change', syncWeighIn)
   chargeRow.appendChild(chargeLbl); chargeRow.appendChild(chargeSel); panel.appendChild(chargeRow)
 
@@ -809,7 +872,7 @@ function buildWeighInPanel (systemNum, showLabel) {
     const cfg = linesetConfigs.find(c => c.config_key === configKey)
     chargeRow.classList.toggle('hidden', !cfg?.revised_available)
   }
-  updateChargeVisibility(preselect ?? '')
+  updateChargeVisibility(selectedConfig ?? '')
   configSel.addEventListener('change', () => { updateChargeVisibility(configSel.value); syncWeighIn() })
 
   // Scale/Fan photos — per-system, per WEIGHIN-SPEC.md items 13-14
@@ -949,8 +1012,8 @@ function buildChecklistItemRow (item) {
     btn.className = `ws-check-btn${answer === val ? ' ws-check-btn--active' : ''}`
     btn.textContent = txt
     btn.addEventListener('click', () => {
-      visit._checklist = visit._checklist ?? {}
-      visit._checklist[item.key] = visit._checklist[item.key] === val ? null : val
+      toggleLocalVisitDraftChecklist(visit, item.key, val)
+      persistCurrentDraft({ touch: false })
       refreshSection('startup')
     })
     btnGroup.appendChild(btn)
@@ -996,8 +1059,13 @@ function buildNotesSection () {
   const textarea = document.createElement('textarea')
   textarea.className='ws-notes-input'; textarea.placeholder='Field notes, observations…'
   textarea.value = visit.notes ?? ''; textarea.rows=5
+  textarea.addEventListener('input', () => {
+    updateLocalVisitDraftNotes(visit, textarea.value)
+    scheduleNotesDraftSave()
+  })
   textarea.addEventListener('blur', async () => {
-    visit.notes = textarea.value
+    updateLocalVisitDraftNotes(visit, textarea.value)
+    await flushNotesDraftSave()
     try { await api.patch(`/visits/${visit.id}/notes`, { notes: textarea.value }) }
     catch (err) { console.error('Notes sync failed:', err) }
   })
@@ -1120,7 +1188,7 @@ function buildChecklistAnswers () {
 }
 
 function openGenerateModal () {
-  if (visit._cancelOriginated && isCancelJustificationMissing({ notes: visit.notes, checklist: visit._checklist })) {
+  if (isCancelMode() && isCancelJustificationMissing({ notes: visit.notes, checklist: visit._checklist })) {
     showCancelJustificationBlock()
     return
   }
@@ -1167,7 +1235,7 @@ function openGenerateModalDirect () {
         await api.post(`/visits/${visit.id}/complete`, {
           checklistAnswers: buildChecklistAnswers(),
           notes: visit.notes ?? '',
-          cancel: visit._cancelOriginated === true,
+          cancel: isCancelMode(),
         })
         overlay.remove()
         sessionStorage.removeItem('workspace:visitId')
@@ -1242,11 +1310,31 @@ function buildItemChip (item) {
 // sectionId may be a pre-merge id (e.g. 'thermostat', 'startup') — map it to
 // the step that now owns it and re-render if that step is the one showing.
 function refreshSection (sectionId) {
+  // Legacy mutation handlers update the same runtime draft before they
+  // re-render. Persist that authoritative local state without recalculating.
+  persistCurrentDraft({ touch: false })
   const stepId = SECTION_TO_STEP[sectionId] ?? sectionId
   if (stepId === activeStep) renderBody()
 }
 
-function navigateBack () {
+function persistCurrentDraft ({ touch = true } = {}) {
+  if (!visit) return Promise.resolve()
+  if (touch) markLocalVisitDraftDirty(visit)
+  return saveLocalVisitDraft(visit).catch(err => console.error('Local draft save failed:', err))
+}
+
+function scheduleNotesDraftSave () {
+  clearTimeout(notesDraftTimer)
+  notesDraftTimer = setTimeout(() => { persistCurrentDraft({ touch: false }) }, 250)
+}
+
+async function flushNotesDraftSave () {
+  clearTimeout(notesDraftTimer)
+  await persistCurrentDraft({ touch: false })
+}
+
+async function navigateBack () {
+  await flushNotesDraftSave()
   window.dispatchEvent(new CustomEvent('app:navigate', { detail: { route: '/' } }))
 }
 
@@ -1373,6 +1461,8 @@ function injectStyles () {
   .ws-check-btns .ws-check-btn--active:last-child{color:var(--fo-no);}
   .ws-check-photo-row{padding-left:2px;}
   .ws-check-photo-btn{background:var(--fo-well);box-shadow:var(--fo-shadow-well);border:none;border-radius:var(--fo-radius-sm);color:var(--fo-no);font-size:var(--text-sm);padding:4px 10px;cursor:pointer;-webkit-tap-highlight-color:transparent;}
+  .ws-cancel-mode-notice{font-size:var(--text-sm);line-height:1.5;color:var(--fo-ink-soft);text-align:center;padding:var(--space-5) var(--space-2);}
+  ${cancelConfirmationStyles}
   `
   document.head.appendChild(style)
 }

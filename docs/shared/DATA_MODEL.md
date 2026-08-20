@@ -105,14 +105,14 @@ Base services and their pricing/modifier rules — the single source for the ser
 
 | Column | Type | Notes |
 |---|---|---|
-| service_name | text PK | "AC", "Heat", "AC & Heat", "Prestart", "Drive Run", "Cancel" |
+| service_name | text PK | "AC", "Heat", "AC & Heat", "Prestart", "Drive Run", "Finish", "Cancel" |
 | default_price | real | Base price before modifiers |
 | is_bundle | boolean | True for "AC & Heat" — priced as one service, not the sum of AC + Heat |
 | multiplies_by_system_count | boolean | True if this service is charged once per system on the visit (price × visit's system count) rather than once per visit. There is no fixed cap at two systems. |
 
 **Rules:**
 - Seed data source: `src/data.js` (ACstartup repo) — `SERVICES`, `DEFAULT_PRICES.SERVICE`.
-- Finish and Temporarily are modifiers applied on top of a base service (see `visit_services.is_finish` / `is_temporarily`), not separate rows here.
+- Finish and Temporarily use `visit_services.is_finish` / `is_temporarily`. The zero-priced `Finish` catalog entry exists only to persist Finish-only selection under the existing foreign key.
 - In the current service model, Finish + AC, Heat, or AC & Heat resolves that visit's service charge to a flat $20, replacing the normal AC/Heat charge rather than adding to it. The separate Finish + accessory addon (e.g. Weigh-In-Data + Finish = +$10) lives on `catalog_items.finish_addon_price`, because that addon is tied to which accessory is present.
 - This table backs the pricing engine described in `API_CONTRACT.md` §7 (bundle rule, system-count multiplier, Cancel rule) — built once, reused by both the technician Workspace and the dispatcher full-edit endpoint.
 
@@ -288,7 +288,7 @@ A service call to an address on a specific date, executed by a specific technici
 A technician-to-technician transfer does not introduce a separate status value here — the visit keeps its current status (typically `assigned` or `in_progress`) throughout. Transfer progress is tracked entirely in the `transfers` table (pending/accepted/rejected/expired); see that table's rules.
 
 **Rules:**
-- `cancelled` status deletes all visit_items and visit_services rows for the visit, sets `total_price = 0`. No accessories, fixes, or services are retained; notes and checklist answers remain as the recorded cancellation justification.
+- `cancelled` status deletes all visit_items and visit_services rows for the visit, sets `total_price = 0`, and records the Cancel service representation. No accessories, fixes, or normal services are retained; notes and checklist answers remain as the recorded cancellation justification. Entering Cancel mode changes only the Local Visit Draft until Generate Report finalization.
 - Generate Report creates a local immutable submission snapshot whose ACK moves an `assigned` or `in_progress` visit into one of these terminal states: `completed`, `temporarily`, or `cancelled`. There is no visit-level `closed` state. Post-completion technician corrections use `corrections`; the technician does not directly reopen source visit data. **IMPLEMENTATION GAP:** current schema/API behavior does not yet model the local snapshot/outbox lifecycle; see `OFFLINE-FIRST-CONTRACT.md`.
 - Any visit type can have child visits on future dates — lineage is tracked via address history.
 - `has_multiple_systems` is a denormalized convenience flag kept in sync with `visit_systems` row count.
@@ -320,13 +320,13 @@ Services performed during a visit.
 |---|---|---|
 | id | text PK | UUID |
 | visit_id | text FK | References visits.id |
-| service_name | text | "AC", "Heat", "AC & Heat", "Prestart", "Cancel", "Drive Run" — base service only, matches `catalog_services.service_name` exactly. Finish and Temporarily are never values of this column — see is_finish/is_temporarily below. |
-| is_finish | boolean | Finish modifier applied to service_name. With AC, Heat, or AC & Heat, resolves this visit's service price to $20; see rules below. |
+| service_name | text | "AC", "Heat", "AC & Heat", "Prestart", "Cancel", "Drive Run", or "Finish", matching `catalog_services.service_name`. "Finish" is the zero-priced persistence representation when Finish is selected without another base service. |
+| is_finish | boolean | Finish state. It is true for Finish-only and when Finish modifies a base service. With AC, Heat, or AC & Heat, resolves this visit's service price to $20; see rules below. |
 | is_temporarily | boolean | Temporarily modifier applied to service_name — label only, no pricing effect. Its only consequence is setting the visit's final status to "temporarily" instead of "completed". |
 | price | real | Resolved service price for this visit after current service rules are applied; it is the price consumed by the Completion Report generator, not merely the catalog base price. |
 
 **Rules:**
-- `is_finish` and `is_temporarily` are separate modifiers. "Finish/AC" = service_name "AC" + is_finish true.
+- `is_finish` and `is_temporarily` are separate modifiers. "Finish/AC" = service_name "AC" + is_finish true; Finish-only = service_name "Finish" + is_finish true + price 0.
 - Under the current service model, Finish + AC, Heat, or AC & Heat stores a resolved service price of $20. This replaces the normal AC/Heat service price; it is not an additional charge. The Weigh-In-Data Finish addon remains separate on the applicable visit item.
 - `generateReportText()` consumes this resolved, persisted service price and does not recreate Finish pricing independently.
 - Pricing rules (bundle, system-count multiplier, cancel) are applied by the server before storing price. The future per-system service model in `/docs/fieldops/workspace/SERVICE-MULTISYSTEM-SPEC.md` is outside this rule and remains deferred.

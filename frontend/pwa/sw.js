@@ -32,6 +32,7 @@ const SHELL_ASSETS = [
   '/src/lib/db.js',
   '/src/lib/sync.js',
   '/src/lib/queue.js',
+  '/src/lib/workspace-visit.mjs',
   '/shared/tokens.css',
 ]
 

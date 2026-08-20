@@ -12,9 +12,9 @@ TRUNCATE catalog_services, catalog_items, catalog_item_relations, catalog_equipm
 
 
 -- ─────────────────────────────────────────────────────────────────────────────
--- 1. catalog_services (6 rows)
---    "Finish" is a visit modifier (visit_services.is_finish), not a catalog
---    service — excluded intentionally.
+-- 1. catalog_services (7 rows)
+--    "Finish" is a $0 persistence entry for Finish-only selection. With a
+--    base service, Finish remains visit_services.is_finish instead.
 --    multiplies_by_system_count: only AC and Heat
 --    is_bundle: only AC & Heat (charged as one unit, not $30+$30)
 -- ─────────────────────────────────────────────────────────────────────────────
@@ -26,6 +26,7 @@ VALUES
   ('AC & Heat',  30, true,  false),
   ('Prestart',   20, false, false),
   ('Drive Run',  10, false, false),
+  ('Finish',      0, false, false),
   ('Cancel',      0, false, false)
 ON CONFLICT (service_name) DO NOTHING;
 

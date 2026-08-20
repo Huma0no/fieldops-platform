@@ -37,6 +37,7 @@ function formatPrice(value) {
 
 function formatService(service, systemCount) {
   if (!service) return null;
+  if (service.service_name === 'Finish') return null;
 
   const temporarily = service.is_temporarily ? ' (Temporarily)' : '';
   const serviceText = {
@@ -98,23 +99,27 @@ async function generateReportText(db, visitId) {
   const visit = visitRow.rows[0];
   const service = serviceRows.rows[0];
   const systemCount = systemRows.rows[0].count;
+  const isCancelled = visit.status === 'cancelled';
   const checklistFindings = (visit.checklist_answers ?? [])
     .filter(answer => answer.answer === 'no' && typeof answer.reportText === 'string' && answer.reportText.trim())
     .map(answer => answer.reportText.trim());
   const noteParts = [visit.notes?.trim(), ...checklistFindings].filter(Boolean);
-  const thermostatItems = itemRows.rows.filter(item => item.category === 'thermostat');
+  // Cancelled visits keep their justification but never render normal work,
+  // even if legacy data exists beside the terminal Cancel representation.
+  const reportItems = isCancelled ? [] : itemRows.rows;
+  const thermostatItems = reportItems.filter(item => item.category === 'thermostat');
   const thermostatText = thermostatItems
     .map(item => `${item.quantity} ${item.item_name} tstat${item.quantity === 1 ? '' : 's'}`)
     .join(', ');
-  const accessoryItems = itemRows.rows.filter(item => item.category === 'accessory');
-  const fixItems = itemRows.rows.filter(item => item.category === 'fix');
-  const serviceText = visit.status === 'cancelled'
+  const accessoryItems = reportItems.filter(item => item.category === 'accessory');
+  const fixItems = reportItems.filter(item => item.category === 'fix');
+  const serviceText = isCancelled
     ? 'service canceled $0'
     : formatService(service, systemCount);
   const parts = [visit.street?.trim()];
 
   if (noteParts.length) parts.push(noteParts.join(' | '));
-  if (service?.is_finish && !['AC', 'Heat', 'AC & Heat'].includes(service.service_name)) {
+  if (!isCancelled && (service?.is_finish || service?.service_name === 'Finish') && !['AC', 'Heat', 'AC & Heat'].includes(service.service_name)) {
     parts.push('Finish/');
   }
   if (serviceText) {
@@ -141,6 +146,7 @@ async function generateReportJSON(db, visitId) {
     [visitId]
   );
   const v = visitRow.rows[0];
+  const isCancelled = v.status === 'cancelled';
 
   const [systems, services, items, photos, weighIn] = await Promise.all([
     db.query(
@@ -156,7 +162,7 @@ async function generateReportJSON(db, visitId) {
       [visitId]
     ),
     db.query(
-      'SELECT slug FROM visit_photos WHERE visit_id = $1',
+      'SELECT slug, category FROM visit_photos WHERE visit_id = $1',
       [visitId]
     ),
     db.query(
@@ -192,13 +198,16 @@ async function generateReportJSON(db, visitId) {
       outdoorModel: s.outdoor_model,
       refrigerant: s.refrigerant,
     })),
-    services: services.rows.map((s) => ({
+    services: (isCancelled
+      ? services.rows.filter(s => s.service_name === 'Cancel')
+      : services.rows
+    ).map((s) => ({
       serviceName: s.service_name,
       isFinish: s.is_finish,
       isTemporarily: s.is_temporarily,
       price: s.price,
     })),
-    items: items.rows.map((i) => ({
+    items: (isCancelled ? [] : items.rows).map((i) => ({
       itemName: i.item_name,
       description: i.description,
       category: i.category,
@@ -206,8 +215,11 @@ async function generateReportJSON(db, visitId) {
       price: i.price,
       techSupplied: i.tech_supplied,
     })),
-    photos: photos.rows.map((p) => ({ slug: p.slug })),
-    weighInData: weighIn.rows.map((w) => ({
+    photos: (isCancelled
+      ? photos.rows.filter(p => !['weigh_in_scale', 'fan_speed'].includes(p.category))
+      : photos.rows
+    ).map((p) => ({ slug: p.slug })),
+    weighInData: (isCancelled ? [] : weighIn.rows).map((w) => ({
       systemNumber: w.system_number,
       linesetLength: w.lineset_length,
       factoryChargeOz: w.factory_charge_oz,

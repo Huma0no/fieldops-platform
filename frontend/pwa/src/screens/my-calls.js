@@ -15,6 +15,8 @@ import { NavBar, navBarStyles }         from '../components/nav-bar.js'
 import { JobCard, jobCardStyles }       from '../components/job-card.js'
 import { startSync, forceSync }         from '../lib/sync.js'
 import { NotificationBell, notificationStyles } from '../components/notifications.js'
+import { getAllLocalVisitDrafts }       from '../lib/db.js'
+import { confirmedLocalCancelVisitIds } from '../lib/workspace-visit.mjs'
 
 // ── Styles (injected once) ─────────────────────────────────
 
@@ -35,6 +37,8 @@ let isLoading     = true
 let isPulling     = false
 let screenEl      = null
 let loadSheetOpen = false
+let loadError     = null
+let cancelPendingVisitIds = new Set()
 
 // ── Mount ──────────────────────────────────────────────────
 
@@ -92,13 +96,26 @@ async function loadVisits () {
 
   try {
     visits = await api.get('/visits/mine')
+    loadError = null
   } catch (err) {
-    visits = []
+    loadError = err
     console.error('Failed to load visits:', err)
   } finally {
+    await refreshCancelPendingVisits()
     isLoading = false
     renderList()
     renderLoadSheet()
+  }
+}
+
+async function refreshCancelPendingVisits () {
+  try {
+    cancelPendingVisitIds = confirmedLocalCancelVisitIds(await getAllLocalVisitDrafts())
+  } catch (err) {
+    // A local-draft read failure must not alter shared visit state or imply
+    // cancellation. The normal server-derived card remains usable.
+    console.error('Failed to read local Cancel drafts:', err)
+    cancelPendingVisitIds = new Set()
   }
 }
 
@@ -142,7 +159,7 @@ function renderList () {
   )
 
   if (!activeVisits.length) {
-    listEl.appendChild(buildEmptyState())
+    listEl.appendChild(loadError ? buildLoadErrorState() : buildEmptyState())
     return
   }
 
@@ -157,6 +174,7 @@ function renderList () {
   sorted.forEach(visit => {
     const card = JobCard({
       visit,
+      isCancelPending: cancelPendingVisitIds.has(visit.id),
       onStart:         () => loadVisits(),   // reload after start
       onOpenWorkspace: id  => navigateTo(`/workspace?id=${id}`),
       onNavigate:      route => navigateTo(route),
@@ -338,6 +356,16 @@ function buildEmptyState () {
     </svg>
     <p class="empty-title">No visits assigned today</p>
     <p class="empty-sub">Check back later or pull down to refresh.</p>
+  `
+  return el
+}
+
+function buildLoadErrorState () {
+  const el = document.createElement('div')
+  el.className = 'empty-state'
+  el.innerHTML = `
+    <p class="empty-title">Unable to refresh My Calls</p>
+    <p class="empty-sub">Check your connection and pull down to try again.</p>
   `
   return el
 }

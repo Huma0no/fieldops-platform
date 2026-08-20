@@ -9,7 +9,17 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-const globalLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 100 });
+function skipGlobalRateLimit (req) {
+  // FieldOps polls this endpoint while the app is open; it must not consume
+  // the general request budget used to protect interactive API routes.
+  return req.path.startsWith('/api/sync/')
+}
+
+const globalLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 100,
+  skip: skipGlobalRateLimit,
+});
 app.use(globalLimiter);
 
 const inviteLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 10 });
@@ -81,3 +91,4 @@ if (require.main === module) {
 }
 
 module.exports = app;
+module.exports.skipGlobalRateLimit = skipGlobalRateLimit;

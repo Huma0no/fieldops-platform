@@ -2,7 +2,7 @@
 
 **Version:** 1.0
 **Date:** 2026-07-30
-**Status:** Closed design. Rail + step content built with neomorphic style. The Active Job banner described in §2 below is NOT built — current header is a back button + address only, no subdivision/builder/system-count/price/Cancel control.
+**Status:** Closed design. Rail, step content, and Active Job banner are built with neomorphic style.
 
 ## Purpose
 
@@ -26,7 +26,7 @@ Service, thermostat, accessories, fixes, Weigh-In, Checklist, Notes, and evidenc
 
 ## Cancel
 
-A small ✕ button lives in the Active Job banner (job-level). Tapping it opens the Notes step directly — no confirmation dialog. It is not part of the Service step's tile set. Full mechanism: `/docs/fieldops/CANCEL-SPEC.md`.
+A small ✕ button lives in the Active Job banner (job-level). Tapping it opens the shared Cancel confirmation dialog; only confirmation enters durable local Cancel mode and opens Notes. It is not part of the Service step's tile set. Full mechanism: `/docs/fieldops/CANCEL-SPEC.md`.
 
 ## Contextual tools (LV / Blower)
 

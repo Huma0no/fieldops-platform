@@ -356,23 +356,19 @@ The endpoints in this section document the current server API behavior when call
 PATCH /api/visits/:id/services
   auth: technician (must be assigned)
   body: { serviceName, isFinish, isTemporarily }
-  note: serviceName carries the base service value, including "Prestart"
-        and "Cancel" — those are NOT separate flags, they are values of
-        serviceName itself. isFinish and isTemporarily are modifiers that can
-        apply on top of any base service (e.g. serviceName: "AC", isFinish: true
-        → "Finish/AC"). hasMultipleSystems is NOT part of this payload — it lives on
+  note: serviceName carries the selected base value, including "Prestart".
+        Finish-only uses serviceName: "Finish" and is persisted
+        with isFinish: true and price 0; Finish + AC/Heat remains the same
+        isFinish modifier on that serviceName. isTemporarily remains a modifier.
+        hasMultipleSystems is NOT part of this payload — it lives on
         visits, not visit_services, since it describes the visit as a whole.
-  effect: creates/updates visit_services row, server recalculates price
-          (bundle rule, system-count multiplier, cancel rule)
+  effect: creates/updates visit_services row and server recalculates price
+          (bundle rule and system-count multiplier)
   
-  special case — switching to Cancel with existing items:
-    if visit_items exist:
-      → returns { requiresConfirmation: true, itemsToRemove: [...] }
-      → PWA shows warning modal before proceeding
-      → technician confirms → resend with { serviceName: "Cancel", confirmed: true }
-      → server deletes all visit_items and visit_services, total_price → 0
-    if no visit_items exist: proceeds directly, no confirmation needed
-    Cancel only accepts `notes` afterward — no other workspace field is editable.
+  Cancel is not an active-work mutation through this endpoint. The PWA keeps
+  confirmed Cancel mode in its Local Visit Draft; Generate Report submits
+  `cancel: true`, which is the server finalization boundary that clears the
+  persisted work and records the Cancel service representation.
   
   returns: updated visit with new total_price
 

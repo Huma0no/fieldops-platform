@@ -72,6 +72,12 @@ describe('generateReportText', () => {
     await expect(generateReportText(pool, visitId)).resolves.toBe(`${street}, Finish/, System Prestarted $20, total $20`);
   });
 
+  it('prints Finish-only without inventing a service price', async () => {
+    const { visitId, street } = await setupVisit({ serviceName: 'Finish', isFinish: true, servicePrice: 0, totalPrice: 10 });
+    await addItem(visitId, { itemName: 'Pressure Test', category: 'fix', price: 10 });
+    await expect(generateReportText(pool, visitId)).resolves.toBe(`${street}, Finish/, Pressure Test $10, total $10`);
+  });
+
   it('uses the actual current system count in the service phrase', async () => {
     const { visitId, street } = await setupVisit({ serviceName: 'Prestart', servicePrice: 60, totalPrice: 60, systemCount: 3 });
     await expect(generateReportText(pool, visitId)).resolves.toBe(`${street}, System Prestarted (3 Systems) $60, total $60`);
@@ -118,6 +124,32 @@ describe('generateReportText', () => {
   it('formats a cancelled visit without invalidated items and preserves notes', async () => {
     const { visitId, street } = await setupVisit({ serviceName: null, totalPrice: 0, notes: 'Customer requested cancellation', status: 'cancelled' });
     await expect(generateReportText(pool, visitId)).resolves.toBe(`${street}, Customer requested cancellation, service canceled $0, total $0`);
+  });
+
+  it('suppresses legacy normal work and address weigh-in data for a cancelled report', async () => {
+    const checklistAnswers = [{ answer: 'no', reportText: 'No/Incomplete pdrain' }];
+    const { visitId, street, addressId } = await setupVisit({
+      serviceName: 'AC', totalPrice: 0, notes: 'Customer requested cancellation', checklistAnswers, status: 'cancelled',
+    });
+    await addItem(visitId, { itemName: 'Weight-In-Data', category: 'accessory', price: 20 });
+    await pool.query(
+      `INSERT INTO catalog_lineset_configs (config_key, reference_length_ft, adjust_rate_oz_per_ft)
+       VALUES ('CANCEL-REPORT-LINESET', 15, 0.6)
+       ON CONFLICT (config_key) DO NOTHING`
+    );
+    await pool.query(
+      `INSERT INTO weigh_in_data (id, address_id, system_number, lineset_length, factory_line_config)
+       VALUES (gen_random_uuid()::text, $1, 1, 25, 'CANCEL-REPORT-LINESET')`,
+      [addressId]
+    );
+
+    await expect(generateReportText(pool, visitId)).resolves.toBe(
+      `${street}, Customer requested cancellation | No/Incomplete pdrain, service canceled $0, total $0`
+    );
+    const report = await generateReportJSON(pool, visitId);
+    expect(report.services).toEqual([]);
+    expect(report.items).toEqual([]);
+    expect(report.weighInData).toEqual([]);
   });
 
   it('has no empty or duplicate separators when optional sections are absent', async () => {

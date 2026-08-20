@@ -20,7 +20,8 @@ describe('PATCH /api/visits/:id/services', () => {
         ('AC & Heat', 175, true,  false),
         ('Cancel',     0, false, false),
         ('Prestart',  20, false, false),
-        ('Drive Run', 10, false, false)
+        ('Drive Run', 10, false, false),
+        ('Finish',     0, false, false)
       ON CONFLICT (service_name) DO NOTHING
     `);
   });
@@ -80,6 +81,48 @@ describe('PATCH /api/visits/:id/services', () => {
     expect(res.body.totalPrice).toBe(20);
     const service = await pool.query('SELECT price FROM visit_services WHERE visit_id = $1', [visitId]);
     expect(service.rows[0].price).toBe(20);
+  });
+
+  it('persists Finish-only as a zero-priced finish selection', async () => {
+    const { visitId, token } = await seedAssignedVisit();
+    const res = await request(app)
+      .patch(`/api/visits/${visitId}/services`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ serviceName: 'Finish' });
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual(expect.objectContaining({ serviceName: 'Finish', isFinish: true, totalPrice: 0 }));
+    const service = await pool.query(
+      'SELECT service_name, is_finish, price FROM visit_services WHERE visit_id = $1',
+      [visitId]
+    );
+    expect(service.rows).toEqual([{ service_name: 'Finish', is_finish: true, price: 0 }]);
+  });
+
+  it('applies the existing Weight-In-Data Finish price for Finish-only', async () => {
+    const { visitId, token } = await seedAssignedVisit();
+    await pool.query(
+      `INSERT INTO catalog_items
+         (item_name, category, default_price, tech_supplied, finish_addon_price)
+       VALUES ('Weight-In-Data', 'accessory', 10, false, 10)
+       ON CONFLICT (item_name) DO UPDATE
+       SET default_price = EXCLUDED.default_price,
+           finish_addon_price = EXCLUDED.finish_addon_price`
+    );
+
+    await request(app)
+      .patch(`/api/visits/${visitId}/services`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ serviceName: 'Finish' });
+    const res = await request(app)
+      .post(`/api/visits/${visitId}/items`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ category: 'accessory', itemName: 'Weight-In-Data' });
+
+    expect(res.status).toBe(200);
+    expect(res.body.totalPrice).toBe(20);
+    const item = await pool.query('SELECT price FROM visit_items WHERE visit_id = $1 AND item_name = $2', [visitId, 'Weight-In-Data']);
+    expect(item.rows[0].price).toBe(20);
   });
 
   it('persists Weight-In-Data at $20 when Finish is already active', async () => {
@@ -206,7 +249,7 @@ describe('PATCH /api/visits/:id/services', () => {
     expect(rows.rows[0].service_name).toBe('Heat');
   });
 
-  it('Cancel with items returns requiresConfirmation without modifying DB', async () => {
+  it('rejects Cancel as an active-work mutation without modifying DB', async () => {
     const { visitId, token } = await seedAssignedVisit();
     await pool.query(`
       INSERT INTO catalog_items (item_name, category, default_price, tech_supplied)
@@ -222,16 +265,18 @@ describe('PATCH /api/visits/:id/services', () => {
       .patch(`/api/visits/${visitId}/services`)
       .set('Authorization', `Bearer ${token}`)
       .send({ serviceName: 'Cancel' });
-    expect(res.status).toBe(200);
-    expect(res.body.requiresConfirmation).toBe(true);
-    expect(res.body.itemsToRemove).toHaveLength(1);
-    expect(res.body.itemsToRemove[0].itemName).toBe('WS-ITEM-X');
+    expect(res.status).toBe(400);
+    expect(res.body.error).toBe('Cancel is finalized by Generate Report');
     const items = await pool.query('SELECT * FROM visit_items WHERE visit_id = $1', [visitId]);
     expect(items.rows).toHaveLength(1); // unchanged
   });
 
-  it('legacy Cancel confirmation clears items, persists Cancel service, and sets totalPrice to 0', async () => {
+  it('does not clear persisted work before Cancel is finalized by Generate Report', async () => {
     const { visitId, token } = await seedAssignedVisit();
+    await request(app)
+      .patch(`/api/visits/${visitId}/services`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ serviceName: 'AC' });
     await pool.query(`
       INSERT INTO catalog_items (item_name, category, default_price, tech_supplied)
       VALUES ('WS-ITEM-X', 'accessory', 10, false)
@@ -242,19 +287,18 @@ describe('PATCH /api/visits/:id/services', () => {
        VALUES (gen_random_uuid()::text, $1, 'WS-ITEM-X', 'accessory', 1, 10, false)`,
       [visitId]
     );
+    await pool.query('UPDATE visits SET total_price = 160 WHERE id = $1', [visitId]);
     const res = await request(app)
       .patch(`/api/visits/${visitId}/services`)
       .set('Authorization', `Bearer ${token}`)
-      .send({ serviceName: 'Cancel', confirmed: true });
-    expect(res.status).toBe(200);
-    expect(res.body.totalPrice).toBe(0);
+      .send({ serviceName: 'Cancel' });
+    expect(res.status).toBe(400);
     const items = await pool.query('SELECT * FROM visit_items WHERE visit_id = $1', [visitId]);
-    expect(items.rows).toHaveLength(0);
+    expect(items.rows).toHaveLength(1);
     const visit = await pool.query('SELECT total_price FROM visits WHERE id = $1', [visitId]);
-    expect(visit.rows[0].total_price).toBe(0);
+    expect(visit.rows[0].total_price).toBe(160);
     const services = await pool.query('SELECT service_name, price FROM visit_services WHERE visit_id = $1', [visitId]);
-    expect(services.rows).toHaveLength(1);
-    expect(services.rows[0]).toMatchObject({ service_name: 'Cancel', price: 0 });
+    expect(services.rows).toEqual([expect.objectContaining({ service_name: 'AC', price: 150 })]);
   });
 
   it('returns 400 for unrecognised serviceName', async () => {
@@ -332,6 +376,31 @@ describe('POST /api/visits/:id/items', () => {
       [visitId]
     );
     expect(rows.rows.map(r => r.item_name)).toEqual(['TEST-COMPANION', 'TEST-PARENT']);
+  });
+
+  it('returns the existing item identity instead of creating a duplicate selection', async () => {
+    const { visitId, token } = await seedAssignedVisit();
+    const first = await request(app)
+      .post(`/api/visits/${visitId}/items`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ category: 'accessory', itemName: 'TEST-PARENT' });
+    const repeated = await request(app)
+      .post(`/api/visits/${visitId}/items`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ category: 'accessory', itemName: 'TEST-PARENT' });
+
+    expect(first.status).toBe(200);
+    expect(repeated.status).toBe(200);
+    expect(repeated.body).toMatchObject({
+      id: first.body.id,
+      alreadySelected: true,
+      item: { id: first.body.id, itemName: 'TEST-PARENT', category: 'accessory' },
+    });
+    const rows = await pool.query(
+      `SELECT id FROM visit_items WHERE visit_id = $1 AND item_name = 'TEST-PARENT'`,
+      [visitId]
+    );
+    expect(rows.rows).toHaveLength(1);
   });
 
   it('removes conflicting exclusion-group item (and its companion) when adding', async () => {
@@ -695,6 +764,54 @@ describe('PUT /api/visits/:id/weigh-in/:systemNumber', () => {
       [addressId]
     );
     expect(rows.rows).toHaveLength(1);
+  });
+
+  it('preserves hydrated weigh-in fields when one value is changed and the complete record is saved', async () => {
+    const { visitId, addressId, token } = await seedAssignedVisit();
+    await pool.query(
+      `UPDATE visit_systems SET outdoor_model = 'TEST-COND-WI' WHERE visit_id = $1 AND system_number = 1`,
+      [visitId]
+    );
+    await request(app)
+      .put(`/api/visits/${visitId}/weigh-in/1`)
+      .set('Authorization', `Bearer ${token}`)
+      .send(body);
+
+    const detail = await request(app)
+      .get(`/api/visits/${visitId}`)
+      .set('Authorization', `Bearer ${token}`);
+    const saved = detail.body.weighInData[0];
+    const update = await request(app)
+      .put(`/api/visits/${visitId}/weigh-in/1`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({
+        linesetLength: saved.linesetLength,
+        factoryLineConfig: saved.factoryLineConfig,
+        factoryChargeUsed: 'factory',
+        adjustedOz: saved.adjustedOz,
+        fanSpeedCfm: 1300,
+        liquidLineTemp: saved.liquidLineTemp,
+        suctionLineTemp: saved.suctionLineTemp,
+        condenserSatTemp: saved.condenserSatTemp,
+        subcoolingValue: saved.subcoolingValue,
+      });
+
+    expect(update.status).toBe(200);
+    const row = await pool.query(
+      `SELECT lineset_length, adjusted_oz, fan_speed_cfm, liquid_line_temp,
+              suction_line_temp, condenser_sat_temp, subcooling_value
+       FROM weigh_in_data WHERE address_id = $1 AND system_number = 1`,
+      [addressId]
+    );
+    expect(row.rows[0]).toMatchObject({
+      lineset_length: 35,
+      adjusted_oz: 82,
+      fan_speed_cfm: 1300,
+      liquid_line_temp: 90,
+      suction_line_temp: 55,
+      condenser_sat_temp: 105,
+      subcooling_value: 18,
+    });
   });
 
   it('uses revised_charge_oz when factoryChargeUsed is "revised"', async () => {

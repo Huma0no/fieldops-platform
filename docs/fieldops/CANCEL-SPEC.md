@@ -2,7 +2,7 @@
 
 **Version:** 1.0
 **Date:** 2026-07-30
-**Status:** Closed design — not yet built (Cancel is currently unreachable in code, see Open Items)
+**Status:** Closed design
 
 ## Purpose
 
@@ -18,9 +18,13 @@ Not a distinct flow — it reuses the Notes step and ends in the same Generate R
 
 ## Flow
 
-The ✕ button opens the Notes step directly — no intermediate confirmation dialog. Freely interruptible: leaving Workspace without Generate Report does not finalize cancellation. Any active-work edits remain in the Local Visit Draft under the offline-first contract; no cancellation is delivered until the Generate Report submission is acknowledged by the backend. See `/docs/OFFLINE-FIRST-CONTRACT.md`.
+Either entry point first shows the irreversible confirmation dialog: **“Cancel this call? This action is irreversible. Current Service, items, Weigh-In data, and pricing will be cleared. Notes and Checklist will be kept.”** Its actions are **Keep Working** and **Cancel Call**. Dismissing it leaves the current context and Local Visit Draft unchanged.
 
-Once in Notes, the technician sees the same Checklist + Notes + photo evidence structure as any normal visit — see `/docs/fieldops/workspace/CHECKLIST-NOTES-SPEC.md`. There is no separate "Cancel mode" for that step.
+After confirmation, FieldOps enters Cancel mode in the Local Visit Draft and opens the Notes step. Service/Finish, thermostat, accessories, fixes, Weight-In-Data, local Weigh-In work, and the local total are cleared; normal work options are unavailable. Existing Notes and Checklist answers remain available as the justification. This local mode is durable across reopen/offline recovery. It does not itself mutate shared visit work or finalize the visit.
+
+Freely interruptible: leaving Workspace without Generate Report does not finalize cancellation. The confirmed Cancel draft remains locally pending under the offline-first contract; no cancellation is delivered until the Generate Report submission is acknowledged by the backend. In My Calls, this local state is shown as **Cancel Pending** with **Continue Cancel**; it is not the backend terminal `cancelled` state, does not offer a second Cancel action, and opens the existing Notes/Checklist Cancel mode without another confirmation. See `/docs/OFFLINE-FIRST-CONTRACT.md`.
+
+Once in Notes, the technician sees the same Checklist + Notes + photo evidence structure as any normal visit — see `/docs/fieldops/workspace/CHECKLIST-NOTES-SPEC.md`. Cancel mode is not a separate workflow or screen; it is the active-draft state that leaves only this justification content editable.
 
 ## Justification rule
 
@@ -32,8 +36,4 @@ Same Generate Report button as any visit. Produces the Completion Report with em
 
 ## History
 
-Same record structure as any visit — empty work sections plus Notes communicate on their own that it was a no-action visit. No separate Cancel flag or distinct History treatment.
-
-## Open Items
-
-- Not yet built: the Active Job banner (address · subdivision · builder · system count · price · ✕) described in `/docs/fieldops/workspace/WORKSPACE-SHELL.md` doesn't currently exist in code, and Cancel has no other entry point in Workspace right now — a technician mid-job cannot currently cancel at all. The My Calls entry point also isn't built. Both need to be built for this design to be reachable.
+Same record structure as any visit — it shows the `Cancel $0` service representation, preserves Notes and Checklist as the justification, and suppresses normal work sections and work-specific evidence. No separate Cancel flag or distinct History treatment.

@@ -34,7 +34,7 @@ function embedGps(buffer, lat, lon) {
   return Buffer.from(newDataUrl.split(',')[1], 'base64');
 }
 
-const VALID_SERVICES = ['AC', 'Heat', 'AC & Heat', 'Prestart', 'Drive Run', 'Cancel'];
+const VALID_SERVICES = ['AC', 'Heat', 'AC & Heat', 'Prestart', 'Drive Run', 'Finish', 'Cancel'];
 const VALID_CATEGORIES = ['accessory', 'fix', 'thermostat'];
 const VALID_PHOTO_CATEGORIES = ['weigh_in_scale', 'fan_speed', 'site_evidence'];
 
@@ -162,36 +162,14 @@ router.patch(
   requireVisitOwnership,
   async (req, res, next) => {
     const { id } = req.params;
-    const { serviceName, isFinish = false, isTemporarily = false, confirmed = false } = req.body;
+    const { serviceName, isFinish = false, isTemporarily = false } = req.body;
     try {
       if (!VALID_SERVICES.includes(serviceName)) {
         return res.status(400).json({ error: 'Invalid service name' });
       }
 
       if (serviceName === 'Cancel') {
-        const items = await pool.query(
-          `SELECT id, item_name FROM visit_items WHERE visit_id = $1`,
-          [id]
-        );
-        if (items.rows.length > 0 && !confirmed) {
-          return res.json({
-            requiresConfirmation: true,
-            itemsToRemove: items.rows.map(r => ({ id: r.id, itemName: r.item_name })),
-          });
-        }
-        const now = new Date().toISOString();
-        await pool.query(`DELETE FROM visit_items WHERE visit_id = $1`, [id]);
-        await pool.query(`DELETE FROM visit_services WHERE visit_id = $1`, [id]);
-        await pool.query(
-          `INSERT INTO visit_services (id, visit_id, service_name, is_finish, is_temporarily, price)
-           VALUES (gen_random_uuid()::text, $1, 'Cancel', false, false, 0)`,
-          [id]
-        );
-        await pool.query(
-          `UPDATE visits SET total_price = 0, updated_at = $1 WHERE id = $2`,
-          [now, id]
-        );
-        return res.json({ id, serviceName: 'Cancel', isFinish: false, isTemporarily: false, totalPrice: 0 });
+        return res.status(400).json({ error: 'Cancel is finalized by Generate Report' });
       }
 
       const catalogRes = await pool.query(
@@ -201,15 +179,16 @@ router.patch(
       if (!catalogRes.rows.length) {
         return res.status(400).json({ error: 'Invalid service name' });
       }
-      const servicePrice = resolveServicePrice(serviceName, isFinish, catalogRes.rows[0].default_price);
+      const resolvedIsFinish = serviceName === 'Finish' || isFinish;
+      const servicePrice = resolveServicePrice(serviceName, resolvedIsFinish, catalogRes.rows[0].default_price);
 
       await pool.query(`DELETE FROM visit_services WHERE visit_id = $1`, [id]);
       await pool.query(
         `INSERT INTO visit_services (id, visit_id, service_name, is_finish, is_temporarily, price)
          VALUES (gen_random_uuid()::text, $1, $2, $3, $4, $5)`,
-        [id, serviceName, isFinish, isTemporarily, servicePrice]
+        [id, serviceName, resolvedIsFinish, isTemporarily, servicePrice]
       );
-      await syncWeightInDataPrice(pool, id, isFinish);
+      await syncWeightInDataPrice(pool, id, resolvedIsFinish);
 
       const totalPrice = await calculateVisitPrice(pool, id);
       const now = new Date().toISOString();
@@ -218,7 +197,7 @@ router.patch(
         [totalPrice, now, id]
       );
 
-      res.json({ id, serviceName, isFinish, isTemporarily, totalPrice });
+      res.json({ id, serviceName, isFinish: resolvedIsFinish, isTemporarily, totalPrice });
     } catch (err) {
       next(err);
     }
@@ -266,6 +245,37 @@ router.post(
           catalog.finish_addon_price,
           serviceRes.rows[0].is_finish
         );
+      }
+
+      // Workspace selection is one row per catalog item for a visit. This
+      // makes a repeated request idempotent instead of creating duplicate
+      // visit_items when a client restores stale selection state.
+      const existingRes = await pool.query(
+        `SELECT id, category, description, quantity, price, tech_supplied
+         FROM visit_items
+         WHERE visit_id = $1 AND item_name = $2
+         ORDER BY id
+         LIMIT 1`,
+        [id, itemName]
+      );
+      if (existingRes.rows.length > 0) {
+        const existing = existingRes.rows[0];
+        return res.json({
+          id: existing.id,
+          totalPrice: await calculateVisitPrice(pool, id),
+          addedItems: [itemName],
+          removedItems: [],
+          alreadySelected: true,
+          item: {
+            id: existing.id,
+            itemName,
+            category: existing.category,
+            description: existing.description,
+            quantity: existing.quantity,
+            price: existing.price,
+            techSupplied: existing.tech_supplied,
+          },
+        });
       }
 
       const insertRes = await pool.query(

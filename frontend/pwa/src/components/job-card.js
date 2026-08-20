@@ -15,8 +15,10 @@
 
 import { api } from '../../../shared/api.js'
 import { Badge, Tag } from './badge.js'
+import { cancelConfirmationStyles, showCancelConfirmation } from '../lib/cancel-confirmation.mjs'
+import { getJobCardActionState, openPendingCancelWorkspace, startJobAndOpenWorkspace } from '../lib/job-card-actions.mjs'
 
-export function JobCard ({ visit, onStart, onOpenWorkspace, onNavigate, onItemsLoaded }) {
+export function JobCard ({ visit, isCancelPending = false, onStart, onOpenWorkspace, onNavigate, onItemsLoaded }) {
   let expanded  = false
   let fullVisit = null   // loaded on first expand
   let loading   = false
@@ -122,7 +124,29 @@ export function JobCard ({ visit, onStart, onOpenWorkspace, onNavigate, onItemsL
       const actions = document.createElement('div')
       actions.className = 'jc-actions'
 
-      if (visit.status === 'in_progress') {
+      const actionState = getJobCardActionState(visit.status, isCancelPending)
+
+      if (actionState === 'cancel_pending') {
+        const pending = document.createElement('p')
+        pending.className = 'jc-cancel-pending'
+        pending.textContent = 'Cancel Pending'
+        actions.appendChild(pending)
+
+        const continueBtn = document.createElement('button')
+        continueBtn.className = 'jc-btn jc-btn--primary'
+        continueBtn.textContent = 'Continue Cancel'
+        continueBtn.addEventListener('click', e => {
+          e.stopPropagation()
+          openPendingCancelWorkspace({
+            visitId: visit.id,
+            setWorkspaceVisitId: id => sessionStorage.setItem('workspace:visitId', id),
+            openWorkspace: id => onOpenWorkspace?.(id),
+          })
+        })
+        actions.appendChild(continueBtn)
+      } else if (actionState === 'in_progress') {
+        const cancelBtn = buildCancelButton()
+        actions.appendChild(cancelBtn)
         const wsBtn = document.createElement('button')
         wsBtn.className   = 'jc-btn jc-btn--primary'
         wsBtn.textContent = 'Open Workspace'
@@ -132,17 +156,8 @@ export function JobCard ({ visit, onStart, onOpenWorkspace, onNavigate, onItemsL
           onOpenWorkspace?.(visit.id)
         })
         actions.appendChild(wsBtn)
-      } else if (visit.status === 'assigned' || visit.status === 'deferred') {
-        const cancelBtn = document.createElement('button')
-        cancelBtn.className   = 'jc-btn jc-btn--secondary'
-        cancelBtn.textContent = 'Cancel Visit'
-        cancelBtn.addEventListener('click', e => {
-          e.stopPropagation()
-          sessionStorage.setItem('workspace:visitId', visit.id)
-          sessionStorage.setItem('workspace:cancelOrigin', 'true')
-          onOpenWorkspace?.(visit.id)
-        })
-        actions.appendChild(cancelBtn)
+      } else if (actionState === 'assigned') {
+        actions.appendChild(buildCancelButton())
 
         const startBtn = document.createElement('button')
         startBtn.className   = 'jc-btn jc-btn--primary'
@@ -152,9 +167,14 @@ export function JobCard ({ visit, onStart, onOpenWorkspace, onNavigate, onItemsL
           startBtn.disabled    = true
           startBtn.textContent = 'Starting…'
           try {
-            await api.post(`/visits/${visit.id}/start`)
+            await startJobAndOpenWorkspace({
+              visitId: visit.id,
+              startVisit: () => api.post(`/visits/${visit.id}/start`),
+              setWorkspaceVisitId: id => sessionStorage.setItem('workspace:visitId', id),
+              onStarted: onStart,
+              openWorkspace: id => onOpenWorkspace?.(id),
+            })
             visit.status = 'in_progress'
-            render()
           } catch (err) {
             startBtn.disabled    = false
             startBtn.textContent = 'Start'
@@ -166,6 +186,21 @@ export function JobCard ({ visit, onStart, onOpenWorkspace, onNavigate, onItemsL
 
       el.appendChild(actions)
     }
+  }
+
+  function buildCancelButton () {
+    const cancelBtn = document.createElement('button')
+    cancelBtn.className = 'jc-btn jc-btn--secondary'
+    cancelBtn.textContent = 'Cancel Visit'
+    cancelBtn.addEventListener('click', async e => {
+      e.stopPropagation()
+      const confirmed = await showCancelConfirmation(document.body)
+      if (!confirmed) return
+      sessionStorage.setItem('workspace:visitId', visit.id)
+      sessionStorage.setItem('workspace:cancelConfirmedVisitId', visit.id)
+      onOpenWorkspace?.(visit.id)
+    })
+    return cancelBtn
   }
 
   async function toggleExpand (e) {
@@ -384,6 +419,7 @@ function formatTime (iso) {
 // ── Styles ────────────────────────────────────────────────
 
 export const jobCardStyles = `
+  ${cancelConfirmationStyles}
   .job-card {
     background: var(--fo-panel);
     border-radius: var(--fo-radius);
@@ -618,8 +654,20 @@ export const jobCardStyles = `
 
   .jc-actions {
     display: flex;
+    flex-wrap: wrap;
     gap: var(--space-2);
     padding: var(--space-3) var(--space-4) var(--space-4);
+  }
+
+  .jc-cancel-pending {
+    flex: 0 0 100%;
+    margin: 0;
+    color: var(--fo-warning, var(--fo-ink-soft));
+    font-family: var(--fo-font-mono);
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
   }
 
   .jc-btn {

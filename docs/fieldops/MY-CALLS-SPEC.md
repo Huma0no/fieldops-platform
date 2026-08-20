@@ -14,7 +14,7 @@ Minimal: address, subdivision, builder, and a Navigate button only. No delete/ed
 
 ## Expanded card
 
-Reveals, in order: work type label (single free-text field, no phase/scope split) → equipment/accessory chips (pre-specified thermostat + accessories + system count, already inserted as real visit items at visit creation) → intake notes line → per-system briefing → **Start Report**, alongside a **Cancel (✕)** entry point — full mechanism: `/docs/fieldops/CANCEL-SPEC.md`.
+Reveals, in order: work type label (single free-text field, no phase/scope split) → equipment/accessory chips (pre-specified thermostat + accessories + system count, already inserted as real visit items at visit creation) → intake notes line → per-system briefing → **Start Report**, alongside a **Cancel (✕)** entry point. Cancel first uses the shared confirmation dialog; dismissing keeps the technician on the card, while confirmation opens Workspace in durable Cancel mode. A card with a confirmed local Cancel draft, before backend acknowledgement, shows **Cancel Pending** and **Continue Cancel** instead of another Cancel entry point; it resumes the existing Notes/Checklist Cancel mode without another confirmation. Full mechanism: `/docs/fieldops/CANCEL-SPEC.md`.
 
 **Per-system briefing** shows: indoor model + outdoor model, indoor/outdoor type, tonnage, refrigerant, factory/revised charge (oz + lb), over-charge threshold, subcooling, ESP, CFM max/min. Each system block carries its own LV and Blower Data buttons, scoped to that system's equipment.
 

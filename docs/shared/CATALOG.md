@@ -20,11 +20,11 @@ The remaining future gap is catalog lifecycle management. The catalog tables do 
 
 ## Services
 
-Base services: AC · Heat · AC & Heat · Prestart · Drive Run · Cancel.
+Base services: AC · Heat · AC & Heat · Prestart · Drive Run · Cancel. Finish is also a valid standalone Service-section selection.
 
 - **Bundle** — AC & Heat is charged as one unit, not AC + Heat separately.
 - **Standalone** — Prestart, Drive Run, and Cancel are mutually exclusive with refrigeration services (AC/Heat/AC & Heat).
-- **Finish** is a modifier, not a catalog service — no standalone price, no catalog entry. In the current service model, Finish + AC, Heat, or AC & Heat resolves that visit's service charge to a flat $20, replacing the normal AC/Heat charge rather than adding to it. The Weigh-In-Data Finish addon remains a separate, independent charge.
+- **Finish** has no service price of its own. It is persisted with `is_finish=true`: alongside AC, Heat, or AC & Heat it resolves that visit's service charge to a flat $20, replacing the normal AC/Heat charge rather than adding to it; alone it uses the zero-priced `Finish` catalog persistence entry. The Weigh-In-Data Finish addon remains a separate, independent charge.
 
 ## Accessories
 

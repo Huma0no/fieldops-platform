@@ -37,8 +37,8 @@ Multi-system visits append the actual system count to the report (e.g. "3 System
 
 - Finish is a visual flag for the dispatcher — it signals that this visit is a return to an address that had a prior, incomplete visit, not a full first-time startup. It is not a description of the work performed.
 - **"Finish/ " (the word, a slash, a space) always prints when Finish is active — never skipped.** When AC and/or Heat are active, it immediately prefixes that service: "Finish/ AC started". Without AC/Heat, "Finish/ " prints as its own comma-separated marker before the remaining report content — see the 4th worked example below.
-- Finish has no price of its own. When AC and/or Heat are active alongside it, Finish sets the service's price to a flat $20 (replacing, not adding to, AC/Heat's normal $30). Weigh-In's own $10 Finish addon (see `/docs/shared/CATALOG.md`) is a separate, independent rule — it fires whenever Finish + Weigh-In-Data are both active, regardless of whether AC/Heat is active.
-- The Finish tile is disabled if the workspace is otherwise completely empty — Finish is never the only thing active.
+- Finish has no price of its own. Finish-only is a valid $0 Service-section selection and prints only its marker. When AC and/or Heat are active alongside it, Finish sets the service's price to a flat $20 (replacing, not adding to, AC/Heat's normal $30). Weigh-In's own $10 Finish addon (see `/docs/shared/CATALOG.md`) is a separate, independent rule — it fires whenever Finish + Weigh-In-Data are both active, regardless of whether AC/Heat is active.
+- Finish may be the first and only Service-section selection; it is not an invented AC/Heat/Prestart/Drive Run charge.
 - Temporarily is a valid, non-conflicting companion of Finish.
 
 **Service companion** — AC and/or Heat is the only service companion for the Finish prefix:

@@ -12,7 +12,9 @@ Service and thermostat selection/quantity are durable Local Visit Draft state wh
 
 ## Service
 
-Big tiles: **AC · Heat · Prestart · Finish · Drive Run · Cancel**. Base services per `/docs/shared/CATALOG.md`; Finish is a modifier tile, not a separate base service.
+Big tiles: **AC · Heat · Prestart · Finish · Drive Run · Cancel**. Finish is selectable by itself or alongside AC/Heat. Alone it is a valid zero-priced Finish selection; with AC/Heat it remains the documented pricing/report modifier.
+
+A non-cancelled visit may begin with no Service selection. Once any valid Service-section selection exists, tapping its final remaining selection does nothing: Workspace keeps the current selection in the UI and Local Visit Draft, rather than creating an empty state. Cancel remains the explicit clearing path.
 
 **Active-state color:**
 - AC active: `--fo-blue` text + blue inset glow ring.

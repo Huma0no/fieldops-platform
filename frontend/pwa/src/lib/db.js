@@ -92,6 +92,41 @@ export async function deleteVisit (id) {
   return promisify(store.delete(id))
 }
 
+// ── Local Visit Drafts ───────────────────────────────────
+
+export function isLocalVisitDraft (record) {
+  return record?.draftSchemaVersion === 1 &&
+    record.lifecycle === 'draft' &&
+    typeof record.id === 'string' &&
+    Array.isArray(record._items) &&
+    record._items.every(item => typeof item?.id === 'string' && item.id.length > 0)
+}
+
+export async function saveLocalVisitDraft (draft) {
+  if (!isLocalVisitDraft(draft)) throw new Error('Invalid Local Visit Draft')
+  return setVisit(draft)
+}
+
+export async function getLocalVisitDraft (id) {
+  const record = await getVisit(id)
+  return isLocalVisitDraft(record) ? record : null
+}
+
+export async function getAllLocalVisitDrafts () {
+  const records = await getAllVisits()
+  return records.filter(isLocalVisitDraft)
+}
+
+export async function deleteLocalVisitDraft (id) {
+  return deleteVisit(id)
+}
+
+// Safe to use when an app lifecycle or a focused test needs a fresh connection.
+export function closeLocalDatabase () {
+  if (_db) _db.close()
+  _db = null
+}
+
 // ── Offline queue ─────────────────────────────────────────
 
 export async function enqueue (entry) {

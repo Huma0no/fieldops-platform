@@ -26,6 +26,11 @@ async function seedToken(technicianId) {
 }
 
 describe('GET /api/sync/changes', () => {
+  it('exempts FieldOps sync polling from the global rate limit', () => {
+    expect(app.skipGlobalRateLimit({ path: '/api/sync/changes' })).toBe(true);
+    expect(app.skipGlobalRateLimit({ path: '/api/visits/mine' })).toBe(false);
+  });
+
   it('returns 400 when since is missing', async () => {
     const tech = await seedTech();
     const token = await seedToken(tech.id);

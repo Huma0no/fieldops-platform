@@ -49,6 +49,28 @@ describe('POST /api/visits/:id/complete', () => {
     expect(row.rows[0].completed_at).toBeTruthy();
   });
 
+  it('completes a Finish-only visit because it has a valid zero-priced Service selection', async () => {
+    const { visitId, token } = await seedAssignedVisit();
+    await pool.query(
+      `INSERT INTO catalog_services (service_name, default_price, is_bundle, multiplies_by_system_count)
+       VALUES ('Finish', 0, false, false)
+       ON CONFLICT (service_name) DO NOTHING`
+    );
+    await pool.query(
+      `INSERT INTO visit_services (id, visit_id, service_name, is_finish, is_temporarily, price)
+       VALUES (gen_random_uuid()::text, $1, 'Finish', true, false, 0)`,
+      [visitId]
+    );
+
+    const res = await request(app)
+      .post(`/api/visits/${visitId}/complete`)
+      .set('Authorization', `Bearer ${token}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.status).toBe('completed');
+    expect(res.body.services).toEqual([expect.objectContaining({ serviceName: 'Finish', isFinish: true, price: 0 })]);
+  });
+
   it('sets status=temporarily when is_temporarily=true on the service', async () => {
     const { visitId, token } = await seedAssignedVisit();
     await addService(visitId, 'AC', true);
@@ -89,7 +111,7 @@ describe('POST /api/visits/:id/complete', () => {
   });
 
   it('finalizes Cancel only on completion, clearing work data while preserving notes and checklist', async () => {
-    const { visitId, token } = await seedAssignedVisit();
+    const { visitId, token, addressId } = await seedAssignedVisit();
     await addService(visitId, 'AC');
     await pool.query(`
       INSERT INTO catalog_items (item_name, category, default_price, tech_supplied)
@@ -99,6 +121,22 @@ describe('POST /api/visits/:id/complete', () => {
     await pool.query(
       `INSERT INTO visit_items (id, visit_id, item_name, category, quantity, price, tech_supplied)
        VALUES (gen_random_uuid()::text, $1, 'COMPLETE-CANCEL-ITEM', 'accessory', 1, 10, false)`,
+      [visitId]
+    );
+    await pool.query(
+      `INSERT INTO catalog_lineset_configs (config_key, reference_length_ft, adjust_rate_oz_per_ft)
+       VALUES ('COMPLETE-CANCEL-LINESET', 15, 0.6)
+       ON CONFLICT (config_key) DO NOTHING`
+    );
+    await pool.query(
+      `INSERT INTO weigh_in_data (id, address_id, system_number, lineset_length, factory_line_config)
+       VALUES (gen_random_uuid()::text, $1, 1, 25, 'COMPLETE-CANCEL-LINESET')`,
+      [addressId]
+    );
+    await pool.query(
+      `INSERT INTO visit_photos (id, visit_id, system_number, slug, tag, label, category, stored_at)
+       VALUES (gen_random_uuid()::text, $1, 1, 'CANCEL_SCALE', 'SCALE', null, 'weigh_in_scale', null),
+              (gen_random_uuid()::text, $1, null, 'CANCEL_EVIDENCE', 'gas_meter', null, 'site_evidence', null)`,
       [visitId]
     );
     const checklistAnswers = [{ item: 'gas_meter', answer: 'no', photoCount: 0, reportText: 'gas meter closed/missing' }];
@@ -113,12 +151,16 @@ describe('POST /api/visits/:id/complete', () => {
     expect(res.body.totalPrice).toBe(0);
     expect(res.body.services).toEqual([expect.objectContaining({ serviceName: 'Cancel', price: 0 })]);
     expect(res.body.items).toEqual([]);
+    expect(res.body.weighInData).toEqual([]);
+    expect(res.body.photos).toEqual([{ slug: 'CANCEL_EVIDENCE' }]);
     const visit = await pool.query(
       'SELECT status, total_price, notes, checklist_answers FROM visits WHERE id = $1',
       [visitId]
     );
     expect(visit.rows[0]).toMatchObject({ status: 'cancelled', total_price: 0, notes: 'Customer not present' });
     expect(visit.rows[0].checklist_answers).toEqual(checklistAnswers);
+    await expect(pool.query('SELECT id FROM weigh_in_data WHERE address_id = $1', [addressId])).resolves.toMatchObject({ rowCount: 1 });
+    await expect(pool.query('SELECT id FROM visit_photos WHERE visit_id = $1', [visitId])).resolves.toMatchObject({ rowCount: 2 });
   });
 
   it('is idempotent — second call on terminal visit returns report without error', async () => {

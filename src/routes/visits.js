@@ -193,8 +193,9 @@ visitsRouter.get('/:id', async (req, res, next) => {
   const { id } = req.params;
   try {
     const visitResult = await pool.query(
-      `SELECT v.id, v.order_number, v.scheduled_time, v.status, v.technician_id,
-              v.has_multiple_systems, v.is_deferred, v.total_price,
+      `SELECT v.id, v.address_id, v.order_number, v.scheduled_time, v.status, v.technician_id,
+              v.has_multiple_systems, v.is_deferred, v.total_price, v.notes, v.work_type,
+              v.company_notes, v.contact_name, v.contact_phone, v.contact_channel, v.updated_at,
               a.street, a.city, a.state, a.zip, a.subdivision, a.builder
        FROM visits v
        JOIN addresses a ON a.id = v.address_id
@@ -208,7 +209,7 @@ visitsRouter.get('/:id', async (req, res, next) => {
       return res.status(403).json({ error: 'This visit is not assigned to you' });
     }
 
-    const [systems, services, items, photos] = await Promise.all([
+    const [systems, services, items, photos, weighInData] = await Promise.all([
       pool.query(
         'SELECT system_number, indoor_model, outdoor_model, refrigerant FROM visit_systems WHERE visit_id = $1 ORDER BY system_number',
         [id]
@@ -218,12 +219,20 @@ visitsRouter.get('/:id', async (req, res, next) => {
         [id]
       ),
       pool.query(
-        'SELECT category, item_name, description, quantity, price, tech_supplied FROM visit_items WHERE visit_id = $1',
+        'SELECT id, category, item_name, description, quantity, price, tech_supplied FROM visit_items WHERE visit_id = $1',
         [id]
       ),
       pool.query(
         'SELECT id, tag, label, category, system_number, stored_at FROM visit_photos WHERE visit_id = $1',
         [id]
+      ),
+      pool.query(
+        `SELECT id, address_id, system_number, lineset_length, factory_charge_oz,
+                factory_line_config, approx_adjust_oz, adjusted_oz, fan_speed_cfm,
+                liquid_line_temp, suction_line_temp, condenser_sat_temp,
+                subcooling_value, oem_subcooling_goal, subcooling_deviation
+         FROM weigh_in_data WHERE address_id = $1 ORDER BY system_number`,
+        [v.address_id]
       ),
     ]);
 
@@ -231,16 +240,45 @@ visitsRouter.get('/:id', async (req, res, next) => {
       id: v.id,
       orderNumber: v.order_number,
       scheduledTime: v.scheduled_time,
+      updatedAt: v.updated_at,
       status: v.status,
       technicianId: v.technician_id,
       hasMultipleSystems: v.has_multiple_systems,
       isDeferred: v.is_deferred,
       totalPrice: v.total_price ?? 0,
+      notes: v.notes,
+      workType: v.work_type,
+      companyNotes: v.company_notes,
+      contactName: v.contact_name,
+      contactPhone: v.contact_phone,
+      contactChannel: v.contact_channel,
       address: { street: v.street, city: v.city, state: v.state, zip: v.zip, subdivision: v.subdivision, builder: v.builder },
       systems: systems.rows.map((s) => ({ systemNumber: s.system_number, indoorModel: s.indoor_model, outdoorModel: s.outdoor_model, refrigerant: s.refrigerant })),
       services: services.rows.map((s) => ({ serviceName: s.service_name, isFinish: s.is_finish, isTemporarily: s.is_temporarily, price: s.price })),
-      items: items.rows.map((i) => ({ category: i.category, itemName: i.item_name, description: i.description, quantity: i.quantity, price: i.price, techSupplied: i.tech_supplied })),
-      photos: photos.rows.map((p) => ({ id: p.id, tag: p.tag, label: p.label, category: p.category, systemNumber: p.system_number, storedAt: p.stored_at })),
+      items: items.rows.map((i) => ({ id: i.id, category: i.category, itemName: i.item_name, description: i.description, quantity: i.quantity, price: i.price, techSupplied: i.tech_supplied })),
+      // Scale/Fan evidence belongs to Weigh-In work. Keep the historical rows
+      // intact, but do not expose that work evidence through a Cancelled visit.
+      photos: (v.status === 'cancelled'
+        ? photos.rows.filter(p => !['weigh_in_scale', 'fan_speed'].includes(p.category))
+        : photos.rows
+      ).map((p) => ({ id: p.id, tag: p.tag, label: p.label, category: p.category, systemNumber: p.system_number, storedAt: p.stored_at })),
+      weighInData: weighInData.rows.map((w) => ({
+        id: w.id,
+        addressId: w.address_id,
+        systemNumber: w.system_number,
+        linesetLength: w.lineset_length,
+        factoryChargeOz: w.factory_charge_oz,
+        factoryLineConfig: w.factory_line_config,
+        approxAdjustOz: w.approx_adjust_oz,
+        adjustedOz: w.adjusted_oz,
+        fanSpeedCfm: w.fan_speed_cfm,
+        liquidLineTemp: w.liquid_line_temp,
+        suctionLineTemp: w.suction_line_temp,
+        condenserSatTemp: w.condenser_sat_temp,
+        subcoolingValue: w.subcooling_value,
+        oemSubcoolingGoal: w.oem_subcooling_goal,
+        subcoolingDeviation: w.subcooling_deviation,
+      })),
     });
   } catch (err) {
     next(err);
