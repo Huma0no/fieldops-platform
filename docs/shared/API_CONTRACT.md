@@ -480,29 +480,42 @@ Full design: `/docs/shared/CORRECTIONS.md`. Technicians edit source visit data o
 POST /api/visits/:id/request-correction
   auth: technician (must be original assignee)
   requires: visit status = completed/temporarily/cancelled (already submitted)
-            visit's Ledger week (pay_periods) status = "open" — otherwise 409,
-            the window has already expired
-  body: { message }
+            terminal visit ownership and a nonblank technician request message
+  body: { message } (legacy { reason } is accepted during transition)
   effect: creates a corrections row, status "open"
   returns: { correctionId, status: "open" }
 
 PATCH /api/dispatch/corrections/:id/apply
   auth: dispatcher
-  effect: corrections.status → "applied", applied_at set
-          dispatcher separately edits the visit via the standard
-            PATCH /api/dispatch/visits/:id (§10) — no corrected-fields
-            diff to approve, the dispatcher makes the edit directly
-          that PATCH creates its own edit_log entry, as any dispatcher
-            edit does
+  body: { changes, note? } — domain-oriented, validated structured changes;
+        note is optional administrative context
+  changes: jobContext (including scheduled date/time), propertyContext, systems (existing system equipment
+           only), services, items, weighIn, checklistAnswers, notes
+  derived/read-only: totalPrice, generated report text, terminal status,
+                     assignment, audit fields, and system count/topology
+  effect: applies permitted source changes transactionally, preserves terminal
+          visit status, records before/after audit and marks correction applied
   returns: updated correction
 
 GET /api/dispatch/corrections
   auth: dispatcher
   query: ?status?
   returns: [] of corrections, open first by default
+
+POST /api/dispatch/corrections
+  auth: dispatcher
+  body: { visitId, note? }
+  effect: creates a dispatcher-initiated open correction for a terminal visit
+
+GET /api/dispatch/corrections/finder
+  auth: dispatcher
+  query: one or more of ?orderNumber? ?address? ?technician? ?date? ?dateFrom? ?dateTo?
+  date semantics: terminal completion date in the server's canonical ISO date;
+                  dateFrom/dateTo are inclusive
+  returns: terminal visits matching the supplied read-only Finder criteria
 ```
 
-**Window:** a correction can only be requested while its visit's Ledger week is still "open" (see §11). When that week auto-closes, any of its still-"open" corrections flip to "expired" — no endpoint needed, this happens as part of the week-close job. There is no reopening of an already-closed week; past that point it's the technician's own responsibility to have flagged the issue in time.
+**Ledger reconciliation:** a priced change in an open source period uses normal recalculation. A closed or paid source period remains immutable: Apply records at most one signed correction adjustment, destined for the first eligible later open period or pending until one exists. Retrying Apply cannot duplicate the adjustment.
 
 **Derived artifacts (JSON to Dispatch, CSV, report to The Company) are never edited directly.** They are always regenerated on demand from current `visits` data, so a correction automatically propagates to all three the next time they're generated — no manual file sync required.
 
@@ -522,12 +535,10 @@ GET /api/dispatch/history/address/:addressId
 
 PATCH /api/dispatch/visits/:id
   auth: dispatcher
-  body: supported direct fields: orderNumber, scheduledTime, notes,
-        technicianId, status
+  body: supported direct fields for nonterminal visits: orderNumber,
+        scheduledTime, notes, technicianId
   effect: updates supported source fields and creates edit_log entry automatically
-  note: administrative source-data capability; it is not exposed by default
-        History Open and does not reopen technician Workspace or make the
-        terminal visit technician-editable
+  note: terminal visits must use Corrections; this route cannot change status
 
 GET /api/dispatch/visits/:id/edit-log
   auth: dispatcher

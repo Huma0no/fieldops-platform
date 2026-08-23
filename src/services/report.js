@@ -136,7 +136,7 @@ async function generateReportText(db, visitId) {
 
 async function generateReportJSON(db, visitId) {
   const visitRow = await db.query(
-    `SELECT v.id, v.order_number, v.scheduled_time, v.status, v.technician_id,
+    `SELECT v.id, v.order_number, v.date, v.scheduled_time, v.status, v.technician_id,
             v.has_multiple_systems, v.total_price, v.completed_at,
             v.address_id,
             a.street, a.city, a.state, a.zip, a.subdivision, a.builder
@@ -150,7 +150,7 @@ async function generateReportJSON(db, visitId) {
 
   const [systems, services, items, photos, weighIn] = await Promise.all([
     db.query(
-      'SELECT system_number, indoor_model, outdoor_model, refrigerant FROM visit_systems WHERE visit_id = $1 ORDER BY system_number',
+      'SELECT system_number, indoor_model, outdoor_model, coil_model, refrigerant FROM visit_systems WHERE visit_id = $1 ORDER BY system_number',
       [visitId]
     ),
     db.query(
@@ -178,6 +178,7 @@ async function generateReportJSON(db, visitId) {
   return {
     id: v.id,
     orderNumber: v.order_number,
+    scheduledDate: v.date,
     scheduledTime: v.scheduled_time,
     status: v.status,
     completedAt: v.completed_at,
@@ -196,6 +197,7 @@ async function generateReportJSON(db, visitId) {
       systemNumber: s.system_number,
       indoorModel: s.indoor_model,
       outdoorModel: s.outdoor_model,
+      coilModel: s.coil_model,
       refrigerant: s.refrigerant,
     })),
     services: (isCancelled

@@ -35,12 +35,24 @@ async function ensureCurrentPeriodExists() {
   while (cursor <= currentMonday) {
     const weekStart = toDateStr(cursor);
     const weekEnd = toDateStr(addDays(cursor, 6));
-    await pool.query(
+    const created = await pool.query(
       `INSERT INTO pay_periods (id, week_start, week_end, status)
        VALUES ($1, $2, $3, 'open')
-       ON CONFLICT (week_start) DO NOTHING`,
+       ON CONFLICT (week_start) DO NOTHING
+       RETURNING id`,
       [crypto.randomUUID(), weekStart, weekEnd]
     );
+    const periodId = created.rows[0]?.id;
+    if (periodId) {
+      // A pending correction delta is never lost: the first subsequently
+      // created open period becomes its deterministic destination.
+      await pool.query(
+        `UPDATE pay_period_adjustments
+         SET destination_pay_period_id = $1, status = 'applied', applied_at = $2
+         WHERE status = 'pending' AND destination_pay_period_id IS NULL`,
+        [periodId, new Date().toISOString()]
+      );
+    }
     cursor = addDays(cursor, 7);
   }
 }

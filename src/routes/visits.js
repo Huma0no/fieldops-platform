@@ -193,12 +193,14 @@ visitsRouter.get('/:id', async (req, res, next) => {
   const { id } = req.params;
   try {
     const visitResult = await pool.query(
-      `SELECT v.id, v.address_id, v.order_number, v.scheduled_time, v.status, v.technician_id,
+      `SELECT v.id, v.address_id, v.order_number, v.date, v.scheduled_time, v.status, v.technician_id,
               v.has_multiple_systems, v.is_deferred, v.total_price, v.notes, v.checklist_answers, v.work_type,
-              v.company_notes, v.contact_name, v.contact_phone, v.contact_channel, v.updated_at,
-              a.street, a.city, a.state, a.zip, a.subdivision, a.builder
+              v.company_notes, v.contact_name, v.contact_phone, v.contact_channel, v.completed_at, v.updated_at,
+              a.street, a.city, a.state, a.zip, a.subdivision, a.builder,
+              t.name AS technician_name
        FROM visits v
        JOIN addresses a ON a.id = v.address_id
+       LEFT JOIN technicians t ON t.id = v.technician_id
        WHERE v.id = $1`,
       [id]
     );
@@ -211,7 +213,7 @@ visitsRouter.get('/:id', async (req, res, next) => {
 
     const [systems, services, items, photos, weighInData] = await Promise.all([
       pool.query(
-        'SELECT system_number, indoor_model, outdoor_model, refrigerant FROM visit_systems WHERE visit_id = $1 ORDER BY system_number',
+        'SELECT system_number, indoor_model, outdoor_model, coil_model, refrigerant FROM visit_systems WHERE visit_id = $1 ORDER BY system_number',
         [id]
       ),
       pool.query(
@@ -239,10 +241,13 @@ visitsRouter.get('/:id', async (req, res, next) => {
     res.json({
       id: v.id,
       orderNumber: v.order_number,
+      scheduledDate: v.date,
       scheduledTime: v.scheduled_time,
+      completedAt: v.completed_at,
       updatedAt: v.updated_at,
       status: v.status,
       technicianId: v.technician_id,
+      technician: { id: v.technician_id, name: v.technician_name },
       hasMultipleSystems: v.has_multiple_systems,
       isDeferred: v.is_deferred,
       totalPrice: v.total_price ?? 0,
@@ -254,7 +259,7 @@ visitsRouter.get('/:id', async (req, res, next) => {
       contactPhone: v.contact_phone,
       contactChannel: v.contact_channel,
       address: { street: v.street, city: v.city, state: v.state, zip: v.zip, subdivision: v.subdivision, builder: v.builder },
-      systems: systems.rows.map((s) => ({ systemNumber: s.system_number, indoorModel: s.indoor_model, outdoorModel: s.outdoor_model, refrigerant: s.refrigerant })),
+      systems: systems.rows.map((s) => ({ systemNumber: s.system_number, indoorModel: s.indoor_model, outdoorModel: s.outdoor_model, coilModel: s.coil_model, refrigerant: s.refrigerant })),
       services: services.rows.map((s) => ({ serviceName: s.service_name, isFinish: s.is_finish, isTemporarily: s.is_temporarily, price: s.price })),
       items: items.rows.map((i) => ({ id: i.id, category: i.category, itemName: i.item_name, description: i.description, quantity: i.quantity, price: i.price, techSupplied: i.tech_supplied })),
       // Scale/Fan evidence belongs to Weigh-In work. Keep the historical rows

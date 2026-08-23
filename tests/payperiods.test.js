@@ -241,8 +241,8 @@ describe('POST /api/dispatch/pay-periods/close', () => {
     async function seedCorrection(visitId, status) {
       const id = crypto.randomUUID();
       await pool.query(
-        `INSERT INTO corrections (id, visit_id, requested_by, message, status, requested_at)
-         VALUES ($1, $2, $3, 'msg', $4, $5)`,
+        `INSERT INTO corrections (id, visit_id, initiator_id, origin, request_message, status, requested_at)
+         VALUES ($1, $2, $3, 'technician_requested', 'msg', $4, $5)`,
         [id, visitId, tech.id, status, new Date().toISOString()]
       );
       return id;

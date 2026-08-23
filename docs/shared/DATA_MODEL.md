@@ -310,6 +310,7 @@ Equipment per system per visit. One row per system (system_number = 1, 2, 3...).
 **Rules:**
 - `refrigerant` is read from the equipment catalog at visit creation and stored explicitly. If the catalog changes later, historical records are unaffected.
 - `system_number` increments sequentially per visit starting at 1.
+- Corrections may update equipment fields on an existing system through catalog-backed selection; they do not add, remove, or renumber systems because system topology remains outside the current correction contract.
 
 ---
 
@@ -390,6 +391,7 @@ Refrigerant charge data per system per address. Captured during a visit but belo
 - `oem_subcooling_goal` is read from the catalog at capture time and stored explicitly for immutable history.
 - `approx_adjust_oz` is calculated dynamically from `lineset_length` and `factory_line_config` but stored as evidence of what the technician saw in field.
 - `subcooling_deviation` is calculated by the server: positive = overcharged, negative = undercharged.
+- Corrections may change recorded raw measurement inputs through the existing address/system row. `approx_adjust_oz`, `subcooling_value`, and `subcooling_deviation` remain server-derived rather than direct inputs.
 
 ---
 
@@ -533,17 +535,24 @@ Per-technician breakdown within a Ledger week.
 ---
 
 ### pay_period_adjustments
-A technician's own Add/Deduct lines within a Ledger week — free-form, technician-specific (e.g. a tool advance deducted, a bonus added).
+Signed Add/Deduct lines within a Ledger week. They may be manual open-period adjustments or immutable financial reconciliation for an applied correction.
 
 | Column | Type | Notes |
 |---|---|---|
 | id | text PK | UUID |
-| pay_period_id | text FK | References pay_periods.id |
+| correction_id | text FK, unique nullable | Applied correction; unique for idempotency |
+| visit_id | text FK nullable | Corrected visit |
+| original_pay_period_id | text FK nullable | Closed/paid source period whose historic lines remain unchanged |
+| destination_pay_period_id | text FK nullable | Eligible open period receiving the delta; null while pending |
 | technician_id | text FK | References technicians.id |
-| description | text | Free text |
-| amount | real | Positive (Add) or negative (Deduct) |
+| reason | text | Correction reason or manual explanation |
+| actor_id | text FK nullable | Dispatcher applying a correction |
+| original_amount | real nullable | Historically recognized compensation |
+| corrected_amount | real nullable | Corrected compensation using that historical rate |
+| delta_amount | real | Positive Add / negative Deduct |
+| status | text | `pending` or `applied` |
 
-As of 2026-07-30, the running code identifies an adjustment by (`pay_period_id`, `technician_id`) rather than a single FK to a `pay_period_lines` row — corrected above from an earlier draft that documented a `line_id` FK.
+Correction adjustments never rewrite closed/paid pay-period lines. A pending adjustment automatically attaches to the next eligible open period.
 
 ---
 
@@ -625,16 +634,21 @@ A one-way message from a technician to the Dispatcher flagging a possible error 
 |---|---|---|
 | id | text PK | UUID |
 | visit_id | text FK | References visits.id |
-| requested_by | text FK | References technicians.id — the technician flagging the issue on their own submitted visit |
-| message | text | Technician's free-text description of the issue |
+| initiator_id | text FK | References technicians.id — the technician or dispatcher initiating the correction |
+| origin | text | `technician_requested` or `dispatcher_initiated` |
+| request_message | text nullable | Original technician Request Correction message; Dispatcher-created corrections have none |
+| note | text nullable | Optional administrative correction context |
 | status | text | "open" (unread/unapplied), "applied" (dispatcher made the change), "expired" (that visit's Ledger week auto-closed with no action taken) |
 | requested_at | text | ISO 8601 |
 | applied_at | text | ISO 8601 — null until the dispatcher applies it |
+| applied_by | text FK | Dispatcher/owner who applied it |
+| affected_domains | jsonb | Applied structured domains |
+| before_state / after_state | jsonb | Structured correction audit snapshots |
 
 **Rules:**
-- Only the technician who was originally assigned to the visit can flag a correction for it.
+- Only the technician who was originally assigned to the visit can create a `technician_requested` correction; Dispatch may create a `dispatcher_initiated` correction.
 - A visit must already be submitted (status completed/temporarily/cancelled) for a correction to apply. Technician source-data edits occur in Workspace before Generate Report; post-completion corrections never directly reopen the visit for the technician.
-- Applying a correction is a manual dispatcher action, at their discretion — a courtesy extended to technicians, not a system obligation. The dispatcher edits the visit directly in Dispatch (there is no `corrected_fields` diff to approve); an `edit_log` row is created for the change as with any dispatcher edit.
+- Applying a correction is a manual dispatcher action, at their discretion. It changes permitted structured source data transactionally, preserves terminal status, stores before/after state and affected domains, and writes a linked `edit_log` entry.
 - A row's window closes automatically when the visit's Ledger week auto-closes (the following Wednesday) — status flips to "expired" and no further action is expected. No reopening of an already-closed Ledger week.
 
 ---
@@ -649,6 +663,8 @@ Change history for visits — what changed and when, not who requested it.
 | changed_at | text | ISO 8601 |
 | summary | text | Human-readable description of what changed |
 | source | text | "dispatch_direct" — every dispatcher edit to a visit via `PATCH /api/dispatch/visits/:id`, unconditionally. This includes edits made because of a technician's correction message (see `corrections`) — applying a correction and editing the visit are two separate, independent dispatcher actions (see `/docs/shared/CORRECTIONS.md`), so there is no distinct source value for correction-driven edits. |
+| actor_id | text FK | Null only for legacy rows; actor applying an administrative correction/edit |
+| correction_id | text FK | Linked correction when source is `correction_approved` |
 
 **Rules:**
 - One row per edit action — not per field.

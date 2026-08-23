@@ -8,7 +8,7 @@ const router = express.Router();
 // GET /api/dispatch/history
 router.get('/history', requireRole('owner', 'dispatcher'), async (req, res, next) => {
   try {
-    const { addressId, technicianId, dateFrom, dateTo, status } = req.query;
+    const { addressId, technicianId, technician, builder, dateFrom, dateTo, status } = req.query;
     const conditions = [];
     const params = [];
 
@@ -20,13 +20,21 @@ router.get('/history', requireRole('owner', 'dispatcher'), async (req, res, next
       params.push(technicianId);
       conditions.push(`v.technician_id = $${params.length}`);
     }
+    if (technician) {
+      params.push(`%${technician}%`);
+      conditions.push(`t.name ILIKE $${params.length}`);
+    }
+    if (builder) {
+      params.push(`%${builder}%`);
+      conditions.push(`a.builder ILIKE $${params.length}`);
+    }
     if (dateFrom) {
       params.push(dateFrom);
-      conditions.push(`v.completed_at >= $${params.length}`);
+      conditions.push(`v.completed_at::date >= $${params.length}::date`);
     }
     if (dateTo) {
       params.push(dateTo);
-      conditions.push(`v.completed_at <= $${params.length}`);
+      conditions.push(`v.completed_at::date <= $${params.length}::date`);
     }
     if (status) {
       params.push(status);
@@ -37,9 +45,11 @@ router.get('/history', requireRole('owner', 'dispatcher'), async (req, res, next
 
     const result = await pool.query(
       `SELECT v.id, v.order_number, v.status, v.completed_at, v.total_price, v.technician_id,
-              v.address_id, a.street, a.city, a.subdivision, a.builder
+              v.address_id, a.street, a.city, a.subdivision, a.builder,
+              t.name AS technician_name
        FROM visits v
        JOIN addresses a ON a.id = v.address_id
+       LEFT JOIN technicians t ON t.id = v.technician_id
        ${where}
        ORDER BY v.completed_at DESC`,
       params
@@ -52,6 +62,7 @@ router.get('/history', requireRole('owner', 'dispatcher'), async (req, res, next
       completedAt: r.completed_at,
       totalPrice: r.total_price,
       technicianId: r.technician_id,
+      technicianName: r.technician_name,
       addressId: r.address_id,
       address: { street: r.street, city: r.city, subdivision: r.subdivision, builder: r.builder },
     })));
@@ -96,16 +107,18 @@ router.patch('/visits/:id', requireRole('owner', 'dispatcher'), async (req, res,
   try {
     const { id } = req.params;
 
-    const visitResult = await pool.query('SELECT id FROM visits WHERE id = $1', [id]);
+    const visitResult = await pool.query('SELECT id, status FROM visits WHERE id = $1', [id]);
     if (visitResult.rows.length === 0) return res.status(404).json({ error: 'Visit not found' });
+    if (['completed', 'temporarily', 'cancelled'].includes(visitResult.rows[0].status)) {
+      return res.status(409).json({ error: 'Terminal visits must be changed through Corrections' });
+    }
 
-    const EDITABLE = ['orderNumber', 'scheduledTime', 'notes', 'technicianId', 'status'];
+    const EDITABLE = ['orderNumber', 'scheduledTime', 'notes', 'technicianId'];
     const DB_FIELD = {
       orderNumber: 'order_number',
       scheduledTime: 'scheduled_time',
       notes: 'notes',
       technicianId: 'technician_id',
-      status: 'status',
     };
 
     const fieldsToUpdate = EDITABLE.filter((f) => req.body[f] !== undefined);

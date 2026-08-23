@@ -359,11 +359,17 @@ CREATE TABLE notifications (
 CREATE TABLE corrections (
   id           text PRIMARY KEY DEFAULT gen_random_uuid()::text,
   visit_id     text NOT NULL REFERENCES visits(id),
-  requested_by text NOT NULL REFERENCES technicians(id),
-  message      text NOT NULL,
+  initiator_id text NOT NULL REFERENCES technicians(id),
+  origin       text NOT NULL CHECK (origin IN ('technician_requested', 'dispatcher_initiated')),
+  request_message text,
+  note           text,
   status       text NOT NULL CHECK (status IN ('open', 'applied', 'expired')),
   requested_at text NOT NULL,
-  applied_at   text
+  applied_at   text,
+  applied_by   text REFERENCES technicians(id),
+  affected_domains jsonb,
+  before_state jsonb,
+  after_state  jsonb
 );
 
 -- 27. edit_log
@@ -372,10 +378,34 @@ CREATE TABLE edit_log (
   visit_id   text NOT NULL REFERENCES visits(id),
   changed_at text NOT NULL,
   summary    text NOT NULL,
-  source     text NOT NULL CHECK (source IN ('dispatch_direct', 'correction_approved'))
+  source     text NOT NULL CHECK (source IN ('dispatch_direct', 'correction_approved')),
+  actor_id   text REFERENCES technicians(id),
+  correction_id text REFERENCES corrections(id)
 );
 
--- 28. device_tokens (auth layer)
+-- 28. pay_period_adjustments
+-- Manual adjustments retain their historic amount/reason shape. Corrections add
+-- immutable source-period and before/after compensation provenance.
+CREATE TABLE pay_period_adjustments (
+  id                           text PRIMARY KEY DEFAULT gen_random_uuid()::text,
+  correction_id                text UNIQUE REFERENCES corrections(id),
+  visit_id                     text REFERENCES visits(id),
+  technician_id                text NOT NULL REFERENCES technicians(id),
+  original_pay_period_id       text REFERENCES pay_periods(id),
+  destination_pay_period_id    text REFERENCES pay_periods(id),
+  reason                       text,
+  actor_id                     text REFERENCES technicians(id),
+  original_amount              real,
+  corrected_amount             real,
+  delta_amount                 real NOT NULL,
+  status                       text NOT NULL DEFAULT 'applied' CHECK (status IN ('pending', 'applied')),
+  created_at                   text NOT NULL,
+  applied_at                   text
+);
+CREATE INDEX pay_period_adjustments_destination_period_idx ON pay_period_adjustments (destination_pay_period_id);
+CREATE INDEX pay_period_adjustments_pending_idx ON pay_period_adjustments (technician_id, status);
+
+-- 29. device_tokens (auth layer)
 CREATE TABLE device_tokens (
   token          text PRIMARY KEY,
   technician_id  text NOT NULL REFERENCES technicians(id),
@@ -411,17 +441,6 @@ CREATE INDEX pay_period_lines_period_id_idx ON pay_period_lines (period_id);
 CREATE INDEX pay_period_lines_technician_id_idx ON pay_period_lines (technician_id);
 
 CREATE UNIQUE INDEX pay_periods_week_start_idx ON pay_periods (week_start);
-
--- 23. pay_period_adjustments
-CREATE TABLE pay_period_adjustments (
-  id             text PRIMARY KEY DEFAULT gen_random_uuid()::text,
-  pay_period_id  text NOT NULL REFERENCES pay_periods(id),
-  technician_id  text NOT NULL REFERENCES technicians(id),
-  amount         real NOT NULL,
-  note           text,
-  created_at     text NOT NULL
-);
-CREATE INDEX pay_period_adjustments_period_idx ON pay_period_adjustments (pay_period_id);
 
 CREATE INDEX inventory_assignments_technician_id_idx ON inventory_assignments (technician_id);
 CREATE INDEX device_tokens_technician_id_idx ON device_tokens (technician_id);

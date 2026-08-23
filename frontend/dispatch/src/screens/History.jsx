@@ -23,7 +23,7 @@ const CHECKLIST_ITEMS = [
   ['gas_valve', 'Gas Valve'],
 ]
 
-export default function History () {
+export default function History ({ onCorrectReport }) {
   const [visits, setVisits]       = useState([])
   const [loading, setLoading]     = useState(true)
   const [selected, setSelected]   = useState(null)   // full visit detail
@@ -75,6 +75,7 @@ export default function History () {
         editLog={editLog}
         propertyHistory={propertyHistory}
         onBack={() => setSelected(null)}
+        onCorrectReport={onCorrectReport}
       />
     )
   }
@@ -123,7 +124,7 @@ export default function History () {
           <table style={styles.table}>
             <thead>
               <tr>
-                {['Address','Date','Technician','Service','Total','Status',''].map(h => (
+                {['Order #','Address','Date','Technician','Service','Total','Status',''].map(h => (
                   <th key={h} style={styles.th}>{h}</th>
                 ))}
               </tr>
@@ -131,9 +132,10 @@ export default function History () {
             <tbody>
               {visits.map(v => (
                 <tr key={v.id} style={styles.tr}>
+                  <td style={styles.td}>{v.orderNumber ?? '—'}</td>
                   <td style={styles.td}>{v.address?.street ?? '—'}</td>
                   <td style={styles.td}>{formatDate(v.completedAt)}</td>
-                  <td style={styles.td}>{v.technicianId ?? '—'}</td>
+                  <td style={styles.td}>{v.technicianName ?? '—'}</td>
                   <td style={styles.td}>{v.workType ?? '—'}</td>
                   <td style={styles.td}>
                     {formatPrice(v.totalPrice)}
@@ -143,7 +145,10 @@ export default function History () {
                     <span style={styles.statusBadge}>{v.status}</span>
                   </td>
                   <td style={styles.td}>
-                    <button style={styles.openBtn} onClick={() => openVisit(v)}>Open</button>
+                    <div style={{ display:'flex', gap:'6px' }}>
+                      <button style={styles.openBtn} onClick={() => openVisit(v)}>Details</button>
+                      <button style={styles.openBtn} onClick={() => onCorrectReport?.(v.id)}>Correct</button>
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -213,13 +218,18 @@ function ChecklistSection ({ answers }) {
   )
 }
 
-function VisitDetail ({ visit, editLog, propertyHistory, onBack }) {
+function VisitDetail ({ visit, editLog, propertyHistory, onBack, onCorrectReport }) {
   const FIELDS = [
     { label: 'Address',        value: visit.address?.street },
     { label: 'Order #',        value: visit.orderNumber },
+    { label: 'Technician',     value: visit.technician?.name },
     { label: 'Builder',        value: visit.address?.builder },
+    { label: 'Subdivision',    value: visit.address?.subdivision },
     { label: 'Work type',      value: visit.workType },
+    { label: 'Scheduled date', value: formatDate(visit.scheduledDate) },
     { label: 'Scheduled time', value: visit.scheduledTime },
+    { label: 'Completed',      value: formatDate(visit.completedAt) },
+    { label: 'Status',         value: visit.status },
     { label: 'Notes',          value: visit.notes, multiline: true },
   ]
 
@@ -228,6 +238,7 @@ function VisitDetail ({ visit, editLog, propertyHistory, onBack }) {
       <div style={styles.detailHeader}>
         <button style={styles.backBtn} onClick={onBack}>← History</button>
         <h2 style={styles.title}>{visit.address?.street ?? 'Visit'}</h2>
+        <button style={styles.openBtn} onClick={() => onCorrectReport?.(visit.id)}>Correct Report</button>
         {visit.has_price_anomaly && (
           <span style={styles.anomalyBanner}>⚠ Price outside catalog range</span>
         )}
@@ -247,6 +258,16 @@ function VisitDetail ({ visit, editLog, propertyHistory, onBack }) {
               </div>
             ))}
           </div>
+
+          {(visit.systems ?? []).length > 0 && <>
+            <div style={styles.sectionTitle}>Systems and equipment</div>
+            {visit.systems.map(system => <div key={system.systemNumber} style={{ fontSize:'12px', padding:'6px 0', borderBottom:'0.5px solid var(--border-subtle)', color:'var(--text-secondary)' }}>
+              <strong>System {system.systemNumber}</strong>
+              <div>Indoor: {system.indoorModel ?? '—'} · Outdoor: {system.outdoorModel ?? '—'}</div>
+              {system.coilModel && <div>Coil: {system.coilModel}</div>}
+              {system.refrigerant && <div>Refrigerant: {system.refrigerant}</div>}
+            </div>)}
+          </>}
 
           <ChecklistSection answers={visit.checklistAnswers} />
 
@@ -270,7 +291,7 @@ function VisitDetail ({ visit, editLog, propertyHistory, onBack }) {
               <tbody>
                 {visit.items.map((item, i) => (
                   <tr key={i} style={{ borderBottom: '0.5px solid var(--border-subtle)' }}>
-                    <td style={{ padding: '4px 0', color: 'var(--text-secondary)' }}>{item.itemName}</td>
+                  <td style={{ padding: '4px 0', color: 'var(--text-secondary)' }}>{item.itemName}{item.description ? ` — ${item.description}` : ''}</td>
                     <td style={{ padding: '4px 0', color: 'var(--text-muted)', textAlign: 'right', whiteSpace: 'nowrap' }}>
                       {item.quantity} × ${Number(item.price ?? 0).toFixed(2)}
                     </td>
@@ -292,7 +313,7 @@ function VisitDetail ({ visit, editLog, propertyHistory, onBack }) {
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '5px' }}>
               {visit.photos.map(p => (
                 <span key={p.id} style={{ fontSize: '11px', color: 'var(--text-muted)', background: 'var(--surface-3)', padding: '2px 8px', borderRadius: '99px', border: '0.5px solid var(--border-subtle)' }}>
-                  {[p.tag, p.category].filter(Boolean).join(' · ')}
+                  {p.label || p.tag || p.category || 'Evidence'}{p.systemNumber ? ` · System ${p.systemNumber}` : ''}
                 </span>
               ))}
             </div>

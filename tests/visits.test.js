@@ -266,6 +266,25 @@ describe('GET /api/visits/:id', () => {
     expect(res.body.checklistAnswers).toEqual(checklistAnswers);
   });
 
+  it('returns canonical History context, including completed timing and equipment', async () => {
+    const { token } = await seedTechnicianWithToken();
+    const { visitId, addressId } = await seedInLobbyVisit({ systemCount: 1 });
+    await request(app).post(`/api/visits/${visitId}/claim`).set('Authorization', `Bearer ${token}`);
+    await pool.query(`UPDATE addresses SET builder = 'Context Builder', subdivision = 'Context Subdivision' WHERE id = $1`, [addressId]);
+    await pool.query(`UPDATE visits SET status = 'completed', date = '2026-08-22', completed_at = '2026-08-22T18:00:00Z' WHERE id = $1`, [visitId]);
+    await pool.query(`UPDATE visit_systems SET indoor_model = 'Indoor Context', outdoor_model = 'Outdoor Context', refrigerant = 'R-32' WHERE visit_id = $1`, [visitId]);
+
+    const res = await request(app).get(`/api/visits/${visitId}`).set('Authorization', `Bearer ${token}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({
+      scheduledDate: '2026-08-22',
+      address: { builder: 'Context Builder', subdivision: 'Context Subdivision' },
+    });
+    expect(res.body.completedAt).toBeDefined();
+    expect(res.body.systems[0]).toMatchObject({ indoorModel: 'Indoor Context', outdoorModel: 'Outdoor Context', refrigerant: 'R-32' });
+  });
+
   it('returns persisted item ids, notes, and weigh-in data for Workspace rehydration', async () => {
     const { token } = await seedTechnicianWithToken();
     const { visitId, addressId } = await seedInLobbyVisit({ systemCount: 1 });

@@ -46,7 +46,7 @@ router.get('/changes', async (req, res, next) => {
     // Corrections — technicians see their own requests; owner/dispatcher see pending
     const corrResult = isTech
       ? await pool.query(
-          `SELECT * FROM corrections WHERE requested_by = $1 AND requested_at > $2`,
+          `SELECT * FROM corrections WHERE initiator_id = $1 AND requested_at > $2`,
           [callerId, since]
         )
       : await pool.query(

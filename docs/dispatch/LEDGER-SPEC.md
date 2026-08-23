@@ -24,6 +24,7 @@ One screen: the single check for the period, covering every technician in it —
 - At week close, the rate in effect is snapshotted as `commission_rate_applied` on that week's line — editing a technician's rate later never rewrites historical weeks.
 - **Payout = gross × (1 − commission_rate_applied), ± that technician's own Add/Deduct lines.** Nothing else touches it. (Default 20% commission → technician nets 80% of gross.)
 - **Add/Deduct:** free-form lines per technician per week (e.g. "+$78 bonus", "−$40 tool advance") — as many as needed, added directly on their row.
+- **Correction reconciliation:** a priced correction to a closed or paid source week never changes that week's historical payout line. The system calculates the signed difference using the source line's snapshotted commission rate and records one auditable adjustment for the first eligible later open period. If no such period exists, it remains pending and attaches automatically when one is created. Positive is additional compensation; negative is a deduction.
 - **Exclude from this run:** a checkbox per technician. Unchecking removes them from this week's run without losing their data — checking it back in restores them with their numbers intact.
 
 ## Ghost Deduction — owner-only

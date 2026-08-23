@@ -41,7 +41,9 @@ async function fetchPeriodWithLines(periodId) {
       [periodId]
     ),
     pool.query(
-      'SELECT * FROM pay_period_adjustments WHERE pay_period_id = $1 ORDER BY created_at',
+      `SELECT * FROM pay_period_adjustments
+       WHERE destination_pay_period_id = $1 AND status = 'applied'
+       ORDER BY created_at`,
       [periodId]
     ),
     pool.query(
@@ -56,7 +58,13 @@ async function fetchPeriodWithLines(periodId) {
   const adjByTech = {};
   for (const a of adjResult.rows) {
     if (!adjByTech[a.technician_id]) adjByTech[a.technician_id] = [];
-    adjByTech[a.technician_id].push({ id: a.id, amount: Number(a.amount), note: a.note, createdAt: a.created_at });
+    adjByTech[a.technician_id].push({
+      id: a.id,
+      amount: Number(a.delta_amount),
+      note: a.reason,
+      correctionId: a.correction_id,
+      createdAt: a.created_at,
+    });
   }
 
   const lines = lResult.rows.map(row => {
@@ -221,8 +229,9 @@ router.post('/pay-periods/:id/adjustments', requireRole('owner', 'dispatcher'), 
     }
     const now = new Date().toISOString();
     await pool.query(
-      `INSERT INTO pay_period_adjustments (id, pay_period_id, technician_id, amount, note, created_at)
-       VALUES ($1, $2, $3, $4, $5, $6)`,
+      `INSERT INTO pay_period_adjustments
+         (id, destination_pay_period_id, technician_id, delta_amount, reason, status, created_at, applied_at)
+       VALUES ($1, $2, $3, $4, $5, 'applied', $6, $6)`,
       [crypto.randomUUID(), id, technicianId, amount, note ?? null, now]
     );
     const data = await fetchPeriodWithLines(id);

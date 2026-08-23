@@ -94,6 +94,7 @@ const SCREENS = {
 function AppRoutes () {
   const { session }         = useAuth()
   const [active, setActive] = useState('intake')
+  const [screenState, setScreenState] = useState(null)
   const { toasts, dismiss } = useCompletionToasts(!!session)
 
   if (!session) return <Auth />
@@ -102,8 +103,11 @@ function AppRoutes () {
 
   return (
     <div style={{ display:'flex', flexDirection:'column', height:'100dvh', background:'var(--surface-base)', fontFamily:'var(--font-sans)', color:'var(--text-primary)' }}>
-      <NavBar active={active} onNavigate={setActive} />
-      <Screen />
+      <NavBar active={active} onNavigate={(next) => { setActive(next); setScreenState(null) }} />
+      <Screen
+        initialVisitId={active === 'corrections' ? screenState?.visitId : undefined}
+        onCorrectReport={(visitId) => { setScreenState({ visitId }); setActive('corrections') }}
+      />
       {toasts.length > 0 && (
         <div style={{ position:'fixed', bottom:'20px', right:'20px', display:'flex', flexDirection:'column', gap:'8px', zIndex:9999 }}>
           {toasts.map(t => <Toast key={t.id} id={t.id} msg={t.msg} onDismiss={dismiss} />)}

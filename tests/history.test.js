@@ -26,7 +26,15 @@ describe('GET /api/dispatch/history', () => {
     expect(item.address).toBeDefined();
     expect(item.address.street).toBeDefined();
     expect(item.technicianId).toBe(technicianId);
+    expect(item.technicianName).toBeDefined();
     expect(item.completedAt).toBeDefined();
+    await pool.query(`UPDATE addresses SET builder = 'History Builder', subdivision = 'History Subdivision' WHERE id = $1`, [item.addressId]);
+    await pool.query(`UPDATE visits SET order_number = 'HISTORY-42' WHERE id = $1`, [visitId]);
+    const populated = await request(app).get('/api/dispatch/history').set('Authorization', `Bearer ${token}`);
+    expect(populated.body.find(v => v.id === visitId)).toMatchObject({
+      orderNumber: 'HISTORY-42',
+      address: { builder: 'History Builder', subdivision: 'History Subdivision' },
+    });
   });
 
   it('filters by technicianId', async () => {
@@ -57,6 +65,19 @@ describe('GET /api/dispatch/history', () => {
     const ids = res.body.map((v) => v.id);
     expect(ids).toContain(v1);
     expect(ids).not.toContain(v2);
+  });
+
+  it('filters by human-readable technician and inclusive completion-date range', async () => {
+    const { token } = await seedDispatcherWithToken();
+    const { visitId, technicianId } = await seedCompletedVisit();
+    await pool.query(`UPDATE visits SET completed_at = '2026-08-20T23:30:00Z' WHERE id = $1`, [visitId]);
+    const tech = (await pool.query('SELECT name FROM technicians WHERE id = $1', [technicianId])).rows[0];
+    const res = await request(app)
+      .get(`/api/dispatch/history?technician=${encodeURIComponent(tech.name)}&dateFrom=2026-08-20&dateTo=2026-08-20`)
+      .set('Authorization', `Bearer ${token}`);
+    expect(res.status).toBe(200);
+    expect(res.body.map(v => v.id)).toContain(visitId);
+    expect(res.body.find(v => v.id === visitId).technicianName).toBe(tech.name);
   });
 
   it('returns 403 for technician role', async () => {
@@ -108,7 +129,7 @@ describe('GET /api/dispatch/history/address/:addressId', () => {
 // ── PATCH /api/dispatch/visits/:id ───────────────────────────────────────────
 
 describe('PATCH /api/dispatch/visits/:id', () => {
-  it('updates notes and creates an edit_log row', async () => {
+  it('rejects terminal source edits outside Corrections', async () => {
     const { token } = await seedDispatcherWithToken();
     const { visitId } = await seedCompletedVisit();
 
@@ -117,19 +138,17 @@ describe('PATCH /api/dispatch/visits/:id', () => {
       .set('Authorization', `Bearer ${token}`)
       .send({ notes: 'updated notes' });
 
-    expect(res.status).toBe(200);
-    expect(res.body.id).toBe(visitId);
+    expect(res.status).toBe(409);
+    expect(res.body.error).toMatch(/Corrections/);
 
     const log = await pool.query(
       `SELECT * FROM edit_log WHERE visit_id = $1`,
       [visitId]
     );
-    expect(log.rows).toHaveLength(1);
-    expect(log.rows[0].summary).toContain('notes');
-    expect(log.rows[0].source).toBe('dispatch_direct');
+    expect(log.rows).toHaveLength(0);
   });
 
-  it('only updates provided fields — other fields unchanged', async () => {
+  it('leaves terminal fields unchanged outside Corrections', async () => {
     const { token } = await seedDispatcherWithToken();
     const { visitId } = await seedCompletedVisit();
 
@@ -142,10 +161,10 @@ describe('PATCH /api/dispatch/visits/:id', () => {
 
     const row = await pool.query(`SELECT order_number, notes FROM visits WHERE id = $1`, [visitId]);
     expect(row.rows[0].order_number).toBe('ORD-123');
-    expect(row.rows[0].notes).toBe('only notes');
+    expect(row.rows[0].notes).toBeNull();
   });
 
-  it('returns 400 if technicianId is invalid', async () => {
+  it('rejects a terminal reassignment before validating a technician', async () => {
     const { token } = await seedDispatcherWithToken();
     const { visitId } = await seedCompletedVisit();
 
@@ -154,8 +173,7 @@ describe('PATCH /api/dispatch/visits/:id', () => {
       .set('Authorization', `Bearer ${token}`)
       .send({ technicianId: 'nonexistent-id' });
 
-    expect(res.status).toBe(400);
-    expect(res.body.error).toContain('Technician');
+    expect(res.status).toBe(409);
   });
 
   it('returns 404 for unknown visit', async () => {
@@ -185,7 +203,7 @@ describe('PATCH /api/dispatch/visits/:id', () => {
 // ── GET /api/dispatch/visits/:id/edit-log ─────────────────────────────────────
 
 describe('GET /api/dispatch/visits/:id/edit-log', () => {
-  it('returns edit_log entries ordered by changedAt ASC', async () => {
+  it('does not create edit-log entries when terminal direct edits are rejected', async () => {
     const { token } = await seedDispatcherWithToken();
     const { visitId } = await seedCompletedVisit();
 
@@ -206,12 +224,7 @@ describe('GET /api/dispatch/visits/:id/edit-log', () => {
 
     expect(res.status).toBe(200);
     expect(Array.isArray(res.body)).toBe(true);
-    expect(res.body.length).toBeGreaterThanOrEqual(2);
-    const entry = res.body[0];
-    expect(entry.id).toBeDefined();
-    expect(entry.changedAt).toBeDefined();
-    expect(entry.summary).toBeDefined();
-    expect(entry.source).toBe('dispatch_direct');
+    expect(res.body).toEqual([]);
   });
 
   it('returns empty array for visit with no edits', async () => {

@@ -54,8 +54,8 @@ describe('autoClosePeriods', () => {
 
     const corrId = crypto.randomUUID();
     await pool.query(
-      `INSERT INTO corrections (id, visit_id, requested_by, message, status, requested_at)
-       VALUES ($1, $2, $3, 'msg', 'open', $4)`,
+      `INSERT INTO corrections (id, visit_id, initiator_id, origin, request_message, status, requested_at)
+       VALUES ($1, $2, $3, 'technician_requested', 'msg', 'open', $4)`,
       [corrId, visitId, tech.id, new Date().toISOString()]
     );
 
@@ -95,6 +95,26 @@ describe('ensureCurrentPeriodExists', () => {
     expect(all.rows[0].week_start).toBe(toDateStr(monday));
     expect(all.rows[0].week_end).toBe(toDateStr(addDays(monday, 6)));
     expect(all.rows[0].status).toBe('open');
+  });
+
+  it('attaches each pending correction adjustment when it creates the next open period', async () => {
+    const technician = (await pool.query(
+      `INSERT INTO technicians (id, name, role, is_active, created_at)
+       VALUES (gen_random_uuid()::text, 'Pending-adjustment tech', 'technician', true, now()::text)
+       RETURNING id`
+    )).rows[0];
+    const adjustmentId = crypto.randomUUID();
+    await pool.query(
+      `INSERT INTO pay_period_adjustments (id, technician_id, delta_amount, status, created_at)
+       VALUES ($1, $2, -25, 'pending', now()::text)`, [adjustmentId, technician.id]
+    );
+    await ensureCurrentPeriodExists();
+    const adjustment = (await pool.query('SELECT status, destination_pay_period_id, applied_at FROM pay_period_adjustments WHERE id = $1', [adjustmentId])).rows[0];
+    expect(adjustment.status).toBe('applied');
+    expect(adjustment.destination_pay_period_id).toBeTruthy();
+    expect(adjustment.applied_at).toBeTruthy();
+    await ensureCurrentPeriodExists();
+    expect((await pool.query('SELECT count(*)::int AS count FROM pay_period_adjustments WHERE id = $1', [adjustmentId])).rows[0].count).toBe(1);
   });
 
   it('is idempotent — calling it twice in the same week creates no duplicate row', async () => {
