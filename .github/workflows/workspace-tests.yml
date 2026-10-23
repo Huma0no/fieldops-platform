@@ -47,4 +47,4 @@ jobs:
           npm run db:migrate
           npm run db:migrate2
       - name: Run focused workspace tests
-        run: npm test -- --runTestsByPath tests/workspace.test.js --testNamePattern="stores weigh-in against address_id|upserts on second call|persists an editable OEM subcooling goal|rejects a non-finite OEM subcooling goal"
+        run: npm test -- --runTestsByPath tests/workspace.test.js --testNamePattern="stores weigh-in against address_id|upserts on second call|preserves hydrated weigh-in fields when one value is changed and the complete record is saved|persists an editable OEM subcooling goal|rejects a non-finite OEM subcooling goal"
