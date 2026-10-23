@@ -1,8 +1,8 @@
 # Weigh-In
 
-**Version:** 1.0
-**Date:** 2026-07-30
-**Status:** Closed design — built, neomorphic style applied (system switcher deferred, see end)
+**Version:** 1.1
+**Date:** 2026-10-23
+**Status:** Canonical behavior specified; implementation and QA pending
 
 ## Purpose
 
@@ -24,11 +24,20 @@ Per-system data-entry form with a System 1/2 (etc.) switcher. Header shows syste
 8. Suction Temp °F
 9. Condenser Sat °F
 10. Subcooling °F (computed: Condenser Sat − Liquid Temp). Tooltip: "Auto-calculated: Condenser Sat − Liquid Temp. Take both readings first."
-11. OEM SC Goal °F (fixed at 10°F for every system — not derived per-equipment from the catalog)
-12. SC Deviation °F (computed)
+11. OEM SC Goal °F (numeric field, defaults to 10°F for each system, editable independently by the technician)
+12. SC Deviation °F (computed: measured Subcooling − saved OEM SC Goal)
 13. Scale photo — GPS/EXIF required, see `/docs/shared/PHOTOS-GPS-INTEGRATIONS.md`
 14. Fan Speed photo — GPS/EXIF required
 15. New Total Charge — computed, read-only output for the technician to write on the outdoor unit
+
+## OEM subcooling goal
+
+- Initialize the goal to 10°F for each system when no saved value exists.
+- The technician can edit the goal independently for each system during the visit.
+- Persist the goal in the per-system Local Visit Draft and server `weigh_in_data` record.
+- When reopening or switching systems, restore the saved goal; do not reset an existing value to 10°F.
+- For legacy records with a missing/null goal, use 10°F as the compatibility default.
+- Calculate `SC Deviation = measured Subcooling − OEM SC Goal` using the effective saved/default goal.
 
 ## Charge toggle
 
