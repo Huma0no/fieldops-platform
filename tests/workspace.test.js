@@ -180,7 +180,7 @@ describe('PATCH /api/visits/:id/services', () => {
       .send({ category: 'accessory', itemName: 'WS-UNCHANGED' });
 
     let items = await pool.query(
-      'SELECT item_name, price FROM visit_items WHERE visit_id = $1 ORDER BY item_name COLLATE "C"',
+      'SELECT item_name, price FROM visit_items WHERE visit_id = $1 ORDER BY item_name COLLATE "C" COLLATE "C"',
       [visitId]
     );
     expect(items.rows).toEqual([
@@ -195,7 +195,7 @@ describe('PATCH /api/visits/:id/services', () => {
     expect(res.body.totalPrice).toBe(47);
 
     items = await pool.query(
-      'SELECT item_name, price FROM visit_items WHERE visit_id = $1 ORDER BY item_name',
+      'SELECT item_name, price FROM visit_items WHERE visit_id = $1 ORDER BY item_name COLLATE "C"',
       [visitId]
     );
     expect(items.rows).toEqual([
@@ -210,7 +210,7 @@ describe('PATCH /api/visits/:id/services', () => {
     expect(res.body.totalPrice).toBe(167);
 
     items = await pool.query(
-      'SELECT item_name, price FROM visit_items WHERE visit_id = $1 ORDER BY item_name',
+      'SELECT item_name, price FROM visit_items WHERE visit_id = $1 ORDER BY item_name COLLATE "C"',
       [visitId]
     );
     expect(items.rows).toEqual([
