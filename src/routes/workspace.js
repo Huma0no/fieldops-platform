@@ -437,8 +437,14 @@ router.put(
       suctionLineTemp,
       condenserSatTemp,
       subcoolingValue,
+      oemSubcoolingGoal: requestedOemSubcoolingGoal,
     } = req.body;
     const addressId = req.visit.address_id;
+
+    const oemSubcoolingGoal = requestedOemSubcoolingGoal == null ? 10 : Number(requestedOemSubcoolingGoal);
+    if (!Number.isFinite(oemSubcoolingGoal)) {
+      return res.status(400).json({ error: 'OEM subcooling goal must be a finite number' });
+    }
 
     try {
       const linesetRes = await pool.query(
@@ -470,8 +476,9 @@ router.put(
         }
       }
 
-      const oemSubcoolingGoal = 10;
-      const subcoolingDeviation = subcoolingValue - oemSubcoolingGoal;
+      const subcoolingDeviation = subcoolingValue == null
+        ? null
+        : Number(subcoolingValue) - oemSubcoolingGoal;
 
       const upsertRes = await pool.query(
         `INSERT INTO weigh_in_data

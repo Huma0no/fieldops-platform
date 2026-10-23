@@ -107,7 +107,7 @@ The index is derived from `docs/OVERVIEW.md` and the feature specifications it r
 | Adjusted charge | SPEC CLOSED | IMPLEMENTED | Technician input. |
 | Fan CFM / temperatures | SPEC CLOSED | IMPLEMENTED | Numeric capture. |
 | Subcooling calculation | SPEC CLOSED | IMPLEMENTED | Computed. |
-| OEM SC goal | SPEC CLOSED | SPEC CONFLICT / USER RULE NEEDS CANONICALIZATION | Current spec fixes 10°F for every system. User's current field rule indicates the goal may need to come from equipment/manual data. Do not change code until the canonical rule is decided and documented. |
+| OEM SC goal | SPEC CLOSED | IMPLEMENTED / QA PENDING | Canonical rule: default to 10°F per system; technician may edit each system's goal. Persist locally and server-side; restore saved values; legacy missing values default to 10°F. Deviation = measured SC − effective goal. |
 | SC deviation | SPEC CLOSED | IMPLEMENTED | Computed. |
 | Scale photo GPS/EXIF | SPEC CLOSED | IMPLEMENTED | Required for Company form compliance. |
 | Fan Speed photo GPS/EXIF | SPEC CLOSED | IMPLEMENTED | Required for Company form compliance. |
@@ -222,9 +222,9 @@ Commit `a5461691e597b8e51ead41dd9e6af64f81a63fb9` implements the separate Active
 
 The implementation now matches `CHECKLIST-NOTES-SPEC.md`: P-drain is a static inline reminder with no submission-time popup/advisory and no Generate Report gate. Existing Yes/No and report-text behavior was preserved.
 
-### R-04 — Weigh-In OEM SC goal requires canonical business rule
+### R-04 — Weigh-In OEM SC goal rule resolved; implementation pending
 
-The current Weigh-In spec says the OEM SC goal is fixed at 10°F for every system. The field requirement discussed during product discovery indicates that equipment-specific information may determine the correct goal. This is a product/business rule question, not an implementation bug. Until resolved, the current 10°F rule remains the documented rule.
+The canonical rule is 10°F as the default for every system, with a technician-editable goal stored independently per system. Existing saved values must survive system switching, navigation, refresh, and reopening; legacy records with a missing/null goal use 10°F. SC deviation is measured Subcooling minus the effective saved/default goal. The database already contains `oem_subcooling_goal` and `subcooling_deviation` columns; the current UI/API implementation still needs to expose and persist the editable value, and focused tests plus runtime verification remain required.
 
 ### R-05 — Navigation and My Calls specifications are genuinely closed
 
@@ -249,7 +249,7 @@ Dispatch → Catalog already provides the administrative create/edit surface, in
 The next pass should focus on the highest-value reconciliation items in this order:
 
 1. PWA QA reconciliation — revalidate P-01 visually, perform the manual/device verification required for P-02, and reconcile P-03 as obsolete under the current rail/Back-Next design.
-2. Weigh-In — reconcile the current 10°F OEM SC goal with the canonical equipment/OEM rule.
+2. Weigh-In — implement and verify the canonical 10°F default with per-system editable OEM SC goal.
 3. Company Google Form integration — verify the end-to-end prefill and required-photo behavior.
 4. Properties — perform the implementation audit for the address-level rollup.
 5. Load Sheet Summary — perform the implementation audit for the My Calls aggregate.

@@ -38,7 +38,7 @@ This index is the entity-level companion to `/docs/ARCHITECTURE-MAP.md`. It reco
 ## Current contract boundaries
 
 - **Multi-system Service:** **CONTRACT OPEN** — the per-system Service redesign is deferred; do not infer a future persistence model from current visit-level behavior.
-- **OEM SC goal:** **CONTRACT OPEN** — current specification/code reconciliation remains unresolved; do not change measurement behavior until its canonical rule is established.
+- **OEM SC goal:** **CONTRACT CLOSED** — defaults to 10°F per system, is technician-editable and independently persisted per system; saved values survive reopening, legacy missing values default to 10°F, and SC deviation is measured Subcooling minus the effective goal. Owning specification: `workspace/WEIGHIN-SPEC.md`. Implementation/QA status remains tracked in `docs/status/MASTER-FUNCTION-INDEX.md`.
 - **Catalog lifecycle:** **CONTRACT OPEN** — create/edit exists, but deactivate/reactivate and selector filtering are future work.
 - **Restock consumption model:** **CONTRACT OPEN** — existing `tech_supplied` aggregation is current behavior, not the future consumption-state model.
 - **Offline conflict and terminal evidence policy:** **CONTRACT OPEN** — offline reassignment/cancellation, token recovery, two-device work, stale catalog references, and whether evidence upload is required before terminal ACK are governed by `OFFLINE-FIRST-CONTRACT.md` and must not be inferred.

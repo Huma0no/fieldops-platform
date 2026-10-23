@@ -773,7 +773,7 @@ function buildWeighInPanel (systemNum, showLabel) {
   const NUMERIC_FIELDS = [
     ['linesetLength','Lineset length (ft)'],['adjustedOz','Adjusted oz'],['fanSpeedCfm','Fan speed CFM'],
     ['liquidLineTemp','Liquid line temp (°F)'],['suctionLineTemp','Suction line temp (°F)'],
-    ['condenserSatTemp','Condenser sat temp'],['subcoolingValue','Subcooling'],
+    ['condenserSatTemp','Condenser sat temp'],['subcoolingValue','Subcooling'],['oemSubcoolingGoal','OEM subcooling goal (°F)'],
   ]
   const numericKeys = NUMERIC_FIELDS.map(f => f[0])
   const savedWeighIn = (visit._weighInData ?? []).find(data => data.systemNumber === systemNum)
@@ -835,9 +835,31 @@ function buildWeighInPanel (systemNum, showLabel) {
     const input = document.createElement('input')
     input.type='number'; input.id=`wi-${systemNum}-${key}`; input.className='ws-field-input'; input.inputMode='decimal'
     if (savedWeighIn?.[key] != null) input.value = savedWeighIn[key]
+    else if (key === 'oemSubcoolingGoal') input.value = '10'
     input.addEventListener('blur', syncWeighIn)
     row.appendChild(lbl); row.appendChild(input); panel.appendChild(row)
   })
+
+  // Read-only deviation is derived from measured subcooling and the editable OEM goal.
+  const deviationRow = document.createElement('div'); deviationRow.className='ws-field-row'
+  const deviationLbl = document.createElement('label'); deviationLbl.className='ws-field-label'
+  deviationLbl.textContent = 'SC deviation (°F)'; deviationLbl.setAttribute('for', `wi-${systemNum}-subcoolingDeviation`)
+  const deviationOutput = document.createElement('output')
+  deviationOutput.id = `wi-${systemNum}-subcoolingDeviation`
+  deviationOutput.className = 'ws-field-input'
+  deviationOutput.setAttribute('aria-live', 'polite')
+  function updateSubcoolingDeviation () {
+    const measured = parseFloat(document.getElementById(`wi-${systemNum}-subcoolingValue`)?.value)
+    const goal = parseFloat(document.getElementById(`wi-${systemNum}-oemSubcoolingGoal`)?.value)
+    deviationOutput.textContent = Number.isFinite(measured) && Number.isFinite(goal)
+      ? (measured - goal).toFixed(1)
+      : '—'
+  }
+  ;['subcoolingValue', 'oemSubcoolingGoal'].forEach(key => {
+    document.getElementById(`wi-${systemNum}-${key}`)?.addEventListener('input', updateSubcoolingDeviation)
+  })
+  updateSubcoolingDeviation()
+  deviationRow.appendChild(deviationLbl); deviationRow.appendChild(deviationOutput); panel.appendChild(deviationRow)
 
   // Lineset config dropdown
   const configRow = document.createElement('div'); configRow.className='ws-field-row'
