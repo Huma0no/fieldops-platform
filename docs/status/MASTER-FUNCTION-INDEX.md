@@ -107,7 +107,7 @@ The index is derived from `docs/OVERVIEW.md` and the feature specifications it r
 | Adjusted charge | SPEC CLOSED | IMPLEMENTED | Technician input. |
 | Fan CFM / temperatures | SPEC CLOSED | IMPLEMENTED | Numeric capture. |
 | Subcooling calculation | SPEC CLOSED | IMPLEMENTED | Computed. |
-| OEM SC goal | SPEC CLOSED | IMPLEMENTATION GAP / QA PENDING | Canonical rule: default to 10°F per system; technician may edit each system's goal. Persist locally and server-side; restore saved values; legacy missing values default to 10°F. Deviation = measured SC − effective goal. |
+| OEM SC goal | SPEC CLOSED | IMPLEMENTED / QA PENDING | Canonical rule: default to 10°F per system; technician may edit each system's goal. Persist locally and server-side; restore saved values; legacy missing values default to 10°F. Deviation = measured SC − effective goal. |
 | SC deviation | SPEC CLOSED | IMPLEMENTED | Computed. |
 | Scale photo GPS/EXIF | SPEC CLOSED | IMPLEMENTED | Required for Company form compliance. |
 | Fan Speed photo GPS/EXIF | SPEC CLOSED | IMPLEMENTED | Required for Company form compliance. |

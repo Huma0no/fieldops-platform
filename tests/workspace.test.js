@@ -730,7 +730,7 @@ describe('PUT /api/visits/:id/weigh-in/:systemNumber', () => {
     expect(res.body.systemNumber).toBe(1);
     // approxAdjustOz = (35 - 25) * 0.5 = 5.0
     expect(res.body.approxAdjustOz).toBeCloseTo(5.0);
-    // oemSubcoolingGoal hardcoded to 10
+    // OEM subcooling goal defaults to 10°F when omitted
     expect(res.body.oemSubcoolingGoal).toBe(10);
     // subcoolingDeviation = 18 - 10 = 8
     expect(res.body.subcoolingDeviation).toBeCloseTo(8);
@@ -752,13 +752,14 @@ describe('PUT /api/visits/:id/weigh-in/:systemNumber', () => {
       .put(`/api/visits/${visitId}/weigh-in/1`)
       .set('Authorization', `Bearer ${token}`)
       .send(body);
-    const secondBody = { ...body, subcoolingValue: 12 };
+    const secondBody = { ...body, subcoolingValue: 12, oemSubcoolingGoal: 14 };
     const res = await request(app)
       .put(`/api/visits/${visitId}/weigh-in/1`)
       .set('Authorization', `Bearer ${token}`)
       .send(secondBody);
     expect(res.status).toBe(200);
-    expect(res.body.subcoolingDeviation).toBeCloseTo(2); // 12 - 10
+    expect(res.body.oemSubcoolingGoal).toBe(14);
+    expect(res.body.subcoolingDeviation).toBeCloseTo(-2); // 12 - 14
     const rows = await pool.query(
       `SELECT * FROM weigh_in_data WHERE address_id = $1 AND system_number = 1`,
       [addressId]
@@ -794,6 +795,7 @@ describe('PUT /api/visits/:id/weigh-in/:systemNumber', () => {
         suctionLineTemp: saved.suctionLineTemp,
         condenserSatTemp: saved.condenserSatTemp,
         subcoolingValue: saved.subcoolingValue,
+        oemSubcoolingGoal: saved.oemSubcoolingGoal,
       });
 
     expect(update.status).toBe(200);
@@ -812,6 +814,40 @@ describe('PUT /api/visits/:id/weigh-in/:systemNumber', () => {
       condenser_sat_temp: 105,
       subcooling_value: 18,
     });
+  });
+
+  it('persists an editable OEM subcooling goal and calculates deviation from it', async () => {
+    const { visitId, addressId, token } = await seedAssignedVisit();
+    await pool.query(
+      `UPDATE visit_systems SET outdoor_model = 'TEST-COND-WI' WHERE visit_id = $1 AND system_number = 1`,
+      [visitId]
+    );
+
+    const res = await request(app)
+      .put(`/api/visits/${visitId}/weigh-in/1`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ ...body, oemSubcoolingGoal: 15 });
+
+    expect(res.status).toBe(200);
+    expect(res.body.oemSubcoolingGoal).toBe(15);
+    expect(res.body.subcoolingDeviation).toBeCloseTo(3);
+
+    const row = await pool.query(
+      `SELECT oem_subcooling_goal, subcooling_deviation
+       FROM weigh_in_data WHERE address_id = $1 AND system_number = 1`,
+      [addressId]
+    );
+    expect(row.rows[0]).toEqual({ oem_subcooling_goal: 15, subcooling_deviation: 3 });
+  });
+
+  it('rejects a non-finite OEM subcooling goal', async () => {
+    const { visitId, token } = await seedAssignedVisit();
+    const res = await request(app)
+      .put(`/api/visits/${visitId}/weigh-in/1`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ ...body, oemSubcoolingGoal: 'not-a-number' });
+    expect(res.status).toBe(400);
+    expect(res.body.error).toBe('OEM subcooling goal must be a finite number');
   });
 
   it('uses revised_charge_oz when factoryChargeUsed is "revised"', async () => {

@@ -773,7 +773,7 @@ function buildWeighInPanel (systemNum, showLabel) {
   const NUMERIC_FIELDS = [
     ['linesetLength','Lineset length (ft)'],['adjustedOz','Adjusted oz'],['fanSpeedCfm','Fan speed CFM'],
     ['liquidLineTemp','Liquid line temp (°F)'],['suctionLineTemp','Suction line temp (°F)'],
-    ['condenserSatTemp','Condenser sat temp'],['subcoolingValue','Subcooling'],
+    ['condenserSatTemp','Condenser sat temp'],['subcoolingValue','Subcooling'],['oemSubcoolingGoal','OEM subcooling goal (°F)'],
   ]
   const numericKeys = NUMERIC_FIELDS.map(f => f[0])
   const savedWeighIn = (visit._weighInData ?? []).find(data => data.systemNumber === systemNum)
@@ -835,6 +835,7 @@ function buildWeighInPanel (systemNum, showLabel) {
     const input = document.createElement('input')
     input.type='number'; input.id=`wi-${systemNum}-${key}`; input.className='ws-field-input'; input.inputMode='decimal'
     if (savedWeighIn?.[key] != null) input.value = savedWeighIn[key]
+    else if (key === 'oemSubcoolingGoal') input.value = '10'
     input.addEventListener('blur', syncWeighIn)
     row.appendChild(lbl); row.appendChild(input); panel.appendChild(row)
   })
