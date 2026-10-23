@@ -840,6 +840,27 @@ function buildWeighInPanel (systemNum, showLabel) {
     row.appendChild(lbl); row.appendChild(input); panel.appendChild(row)
   })
 
+  // Read-only deviation is derived from measured subcooling and the editable OEM goal.
+  const deviationRow = document.createElement('div'); deviationRow.className='ws-field-row'
+  const deviationLbl = document.createElement('label'); deviationLbl.className='ws-field-label'
+  deviationLbl.textContent = 'SC deviation (°F)'; deviationLbl.setAttribute('for', `wi-${systemNum}-subcoolingDeviation`)
+  const deviationOutput = document.createElement('output')
+  deviationOutput.id = `wi-${systemNum}-subcoolingDeviation`
+  deviationOutput.className = 'ws-field-input'
+  deviationOutput.setAttribute('aria-live', 'polite')
+  function updateSubcoolingDeviation () {
+    const measured = parseFloat(document.getElementById(`wi-${systemNum}-subcoolingValue`)?.value)
+    const goal = parseFloat(document.getElementById(`wi-${systemNum}-oemSubcoolingGoal`)?.value)
+    deviationOutput.textContent = Number.isFinite(measured) && Number.isFinite(goal)
+      ? (measured - goal).toFixed(1)
+      : '—'
+  }
+  ;['subcoolingValue', 'oemSubcoolingGoal'].forEach(key => {
+    document.getElementById(`wi-${systemNum}-${key}`)?.addEventListener('input', updateSubcoolingDeviation)
+  })
+  updateSubcoolingDeviation()
+  deviationRow.appendChild(deviationLbl); deviationRow.appendChild(deviationOutput); panel.appendChild(deviationRow)
+
   // Lineset config dropdown
   const configRow = document.createElement('div'); configRow.className='ws-field-row'
   const configLbl = document.createElement('label'); configLbl.className='ws-field-label'; configLbl.textContent='Lineset config'; configLbl.setAttribute('for',`wi-${systemNum}-config`)
