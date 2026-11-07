@@ -234,7 +234,9 @@ router.post(
         return res.status(400).json({ error: 'description is required for this item' });
       }
 
-      let resolvedPrice = catalog.custom_price ? price : (catalog.default_price ?? 0);
+      let resolvedPrice = catalog.category === 'thermostat'
+        ? (catalog.default_price ?? null)
+        : (catalog.custom_price ? price : catalog.default_price);
       if (itemName === 'Weight-In-Data') {
         const serviceRes = await pool.query(
           'SELECT COALESCE(BOOL_OR(is_finish), false) AS is_finish FROM visit_services WHERE visit_id = $1',

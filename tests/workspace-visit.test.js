@@ -40,6 +40,23 @@ describe('Local Visit Draft seeding', () => {
     expect(draft._weighInData).toEqual([{ systemNumber: 1, linesetLength: 35, factoryLineConfig: 'STANDARD-25' }])
   })
 
+  it('preserves NULL price for thermostat items in local draft while keeping billable item prices', () => {
+    const detail = {
+      id: 'visit-tstat',
+      items: [
+        { id: 'item-tstat', itemName: 'S1200', category: 'thermostat', quantity: 2, price: null, techSupplied: true },
+        { id: 'item-acc', itemName: 'FIN180P', category: 'accessory', quantity: 1, price: 10, techSupplied: false },
+      ],
+    }
+
+    const draft = createLocalVisitDraft(detail, { now: '2026-08-18T11:00:00.000Z' })
+
+    expect(draft._items).toEqual([
+      { id: 'item-tstat', item_name: 'S1200', category: 'thermostat', description: null, quantity: 2, price: null, tech_supplied: true },
+      { id: 'item-acc', item_name: 'FIN180P', category: 'accessory', description: null, quantity: 1, price: 10, tech_supplied: false },
+    ])
+  })
+
   it('uses safe defaults for empty server work state', () => {
     const draft = createLocalVisitDraft({ id: 'visit-empty' }, { now: '2026-08-18T11:00:00.000Z' })
 

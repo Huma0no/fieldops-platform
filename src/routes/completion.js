@@ -54,10 +54,15 @@ async function applySnapshotWork(client, visit, snapshot) {
     if (!Number.isInteger(quantity) || quantity < 1) {
       throw Object.assign(new Error('Invalid item quantity'), { status: 400 });
     }
-    let price = catalog.custom_price ? Number(item.price) : (catalog.default_price ?? 0);
-    if (!Number.isFinite(price) || price < 0) throw Object.assign(new Error('Invalid item price'), { status: 400 });
-    if (item.item_name === 'Weight-In-Data') {
-      price = resolveWeightInDataPrice(catalog.default_price, catalog.finish_addon_price, isFinish);
+    let price;
+    if (catalog.category === 'thermostat') {
+      price = catalog.default_price ?? null;
+    } else {
+      price = catalog.custom_price ? Number(item.price) : catalog.default_price;
+      if (!Number.isFinite(price) || price < 0) throw Object.assign(new Error('Invalid item price'), { status: 400 });
+      if (item.item_name === 'Weight-In-Data') {
+        price = resolveWeightInDataPrice(catalog.default_price, catalog.finish_addon_price, isFinish);
+      }
     }
     await client.query(
       `INSERT INTO visit_items (id, visit_id, item_name, category, description, quantity, price, tech_supplied)

@@ -519,6 +519,66 @@ describe('POST /api/visits/:id/complete', () => {
       expect(completeRes.body.totalPrice).toBe(150);
       expect(completeRes.body.items).toEqual([]);
     });
+
+    it('completes a visit with a NULL-price thermostat and priced accessory without coercing thermostat price to 0', async () => {
+      const { visitId, token } = await seedAssignedVisit();
+      await addService(visitId, 'AC');
+      await pool.query(
+        `INSERT INTO catalog_items (item_name, category, default_price, tech_supplied, multiplies_by_system_count, custom_price)
+         VALUES ('S1200', 'thermostat', NULL, true, false, false),
+                ('FIN180P', 'accessory', 10, false, false, false)
+         ON CONFLICT (item_name) DO UPDATE SET default_price = EXCLUDED.default_price`
+      );
+
+      const snapshot = {
+        version: 1,
+        submissionId: 'sub-null-thermostat-price',
+        visitId,
+        createdAt: '2026-08-23T10:00:00.000Z',
+        terminalIntent: 'completed',
+        cancel: false,
+        service: { serviceName: 'AC', ac: true },
+        items: [
+          { item_name: 'S1200', category: 'thermostat', quantity: 2, price: null },
+          { item_name: 'FIN180P', category: 'accessory', quantity: 1, price: 10 },
+        ],
+        weighInData: [],
+        systems: [],
+        notes: 'Completed with S1200',
+        checklistAnswers: [],
+        evidenceRefs: [],
+        totalPrice: 160,
+      };
+
+      const completeRes = await request(app)
+        .post(`/api/visits/${visitId}/complete`)
+        .set('Authorization', `Bearer ${token}`)
+        .send({ submissionId: snapshot.submissionId, snapshot });
+
+      expect(completeRes.status).toBe(200);
+      expect(completeRes.body.totalPrice).toBe(160);
+      expect(completeRes.body.items).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ itemName: 'S1200', category: 'thermostat', quantity: 2, price: null }),
+          expect.objectContaining({ itemName: 'FIN180P', category: 'accessory', quantity: 1, price: 10 }),
+        ])
+      );
+
+      const previewRes = await request(app)
+        .get(`/api/visits/${visitId}/report-preview`)
+        .set('Authorization', `Bearer ${token}`);
+      expect(previewRes.status).toBe(200);
+      expect(previewRes.body.reportText).toContain('AC started 2 S1200 tstats $150, FIN180P wired and set $10, total $160');
+
+      const dbItems = await pool.query(
+        'SELECT item_name, category, quantity, price FROM visit_items WHERE visit_id = $1 ORDER BY category',
+        [visitId]
+      );
+      expect(dbItems.rows).toEqual([
+        { item_name: 'FIN180P', category: 'accessory', quantity: 1, price: 10 },
+        { item_name: 'S1200', category: 'thermostat', quantity: 2, price: null },
+      ]);
+    });
   });
 
   describe('Weigh-In derived value preservation during snapshot completion', () => {

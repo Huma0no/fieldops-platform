@@ -180,7 +180,11 @@ async function validateChanges(db, changes) {
       const description = typeof input.description === 'string' ? input.description.trim() : null;
       if ((item.item_name === 'Other' || item.item_name === 'Other Fix') && !description) return { error: 'Other items require a description' };
       if (item.custom_price && !Number.isFinite(Number(input.price))) return { error: 'custom-price items require price' };
-      normalized.push({ item, quantity, description, price: item.custom_price ? Number(input.price) : Number(item.default_price ?? 0) });
+      const price = item.category === 'thermostat'
+        ? (item.default_price == null ? null : Number(item.default_price))
+        : (item.custom_price ? Number(input.price) : Number(item.default_price));
+      if (item.category !== 'thermostat' && (!Number.isFinite(price) || price < 0)) return { error: 'item price is required' };
+      normalized.push({ item, quantity, description, price });
     }
     updates.items = normalized;
     domains.push('items');

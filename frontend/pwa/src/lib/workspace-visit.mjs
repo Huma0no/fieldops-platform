@@ -141,7 +141,7 @@ function itemsFromDetail (items = []) {
     category: item.category,
     description: item.description ?? null,
     quantity: item.quantity ?? 1,
-    price: item.price ?? 0,
+    price: item.category === 'thermostat' ? (item.price ?? null) : (item.price ?? 0),
     tech_supplied: item.techSupplied ?? false,
   }))
 }

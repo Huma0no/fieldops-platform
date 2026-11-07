@@ -502,6 +502,30 @@ describe('POST /api/visits/:id/items', () => {
     ]));
   });
 
+  it('persists NULL price when adding a thermostat without default_price in Workspace', async () => {
+    const { visitId, token } = await seedAssignedVisit();
+    await pool.query(
+      `INSERT INTO catalog_items (item_name, category, default_price, tech_supplied, multiplies_by_system_count, custom_price)
+       VALUES ('S1200', 'thermostat', NULL, true, false, false)
+       ON CONFLICT (item_name) DO UPDATE SET default_price = NULL`
+    );
+
+    const res = await request(app)
+      .post(`/api/visits/${visitId}/items`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ category: 'thermostat', itemName: 'S1200', quantity: 2 });
+    expect(res.status).toBe(200);
+    expect(res.body.totalPrice).toBe(0);
+
+    const rows = await pool.query(
+      'SELECT item_name, category, quantity, price, tech_supplied FROM visit_items WHERE visit_id = $1',
+      [visitId]
+    );
+    expect(rows.rows).toEqual([
+      { item_name: 'S1200', category: 'thermostat', quantity: 2, price: null, tech_supplied: true },
+    ]);
+  });
+
   it('returns 403 when token belongs to a different technician', async () => {
     const { visitId } = await seedAssignedVisit();
     const { token: otherToken } = await seedTechnicianWithToken({ name: 'Other-Tech' });

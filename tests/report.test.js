@@ -1,6 +1,7 @@
 const { pool, truncateTables } = require('./helpers/db');
 const { seedAssignedVisit } = require('./helpers/seeds');
 const { generateReportText, generateReportJSON } = require('../src/services/report');
+const { calculateVisitPrice } = require('../src/services/pricing');
 
 beforeEach(truncateTables);
 afterAll(() => pool.end());
@@ -101,6 +102,25 @@ describe('generateReportText', () => {
     const { visitId, street } = await setupVisit({ servicePrice: 30, totalPrice: 30 });
     await addItem(visitId, { itemName: 'T-6', category: 'thermostat', quantity: 2, price: 0 });
     await expect(generateReportText(pool, visitId)).resolves.toBe(`${street}, AC started 2 T-6 tstats $30, total $30`);
+  });
+
+  it('calculates visit price and generates report text/JSON when thermostat has price = NULL', async () => {
+    const { visitId, street } = await setupVisit({ servicePrice: 30, totalPrice: 40 });
+    await addItem(visitId, { itemName: 'S1200', category: 'thermostat', quantity: 2, price: null });
+    await addItem(visitId, { itemName: 'FIN180P', category: 'accessory', quantity: 1, price: 10 });
+
+    await expect(calculateVisitPrice(pool, visitId)).resolves.toBe(40);
+    await expect(generateReportText(pool, visitId)).resolves.toBe(
+      `${street}, AC started 2 S1200 tstats $30, FIN180P wired and set $10, total $40`
+    );
+
+    const json = await generateReportJSON(pool, visitId);
+    expect(json.items).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ itemName: 'S1200', category: 'thermostat', quantity: 2, price: null }),
+        expect.objectContaining({ itemName: 'FIN180P', category: 'accessory', quantity: 1, price: 10 }),
+      ])
+    );
   });
 
   it('formats multiple accessories, fixes, custom descriptions, and persisted item prices', async () => {

@@ -236,9 +236,10 @@ CREATE TABLE visit_items (
   category      text NOT NULL CHECK (category IN ('accessory', 'fix', 'thermostat')),
   description   text,
   quantity      integer NOT NULL DEFAULT 1,
-  price         real NOT NULL,
+  price         real,
   tech_supplied boolean NOT NULL,
-  CONSTRAINT visit_item_qty_positive CHECK (quantity > 0)
+  CONSTRAINT visit_item_qty_positive CHECK (quantity > 0),
+  CONSTRAINT visit_item_price_required CHECK (category = 'thermostat' OR price IS NOT NULL)
 );
 
 -- 16. weigh_in_data

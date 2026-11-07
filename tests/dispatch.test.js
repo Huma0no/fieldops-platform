@@ -237,6 +237,42 @@ describe('POST /api/dispatch/batch/:batchId/call/:index/confirm', () => {
     expect(items.rows.find(r => r.category === 'accessory')).toMatchObject({ item_name: accessory, quantity: 1 });
   });
 
+  it('creates a confirmed PDF visit when thermostat has price = NULL while preserving accessory prices', async () => {
+    const { token } = await seedDispatcherWithToken();
+    const thermostat = uniqueCatalogName('S1200');
+    const accessory = uniqueCatalogName('PDF priced accessory');
+    await insertCatalogItem(thermostat, 'thermostat', null);
+    await insertCatalogItem(accessory, 'accessory', 25);
+    const { batchId } = await parsePdf(token);
+
+    const res = await request(app)
+      .post(`/api/dispatch/batch/${batchId}/call/1/confirm`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({
+        orderNumber: 'ORD-S1200',
+        address: '52 INTAKE ST',
+        city: 'Houston',
+        state: 'TX',
+        zip: '77001',
+        workType: 'AC',
+        systemCount: 1,
+        preSpecifiedThermostat: thermostat,
+        preSpecifiedThermostatQty: 2,
+        preIdentifiedAccessories: [accessory],
+      });
+
+    expect(res.status).toBe(200);
+    expect(res.body.created).toBe(true);
+    const items = await pool.query(
+      `SELECT category, item_name, quantity, price FROM visit_items WHERE visit_id = $1 ORDER BY category`,
+      [res.body.visitId]
+    );
+    expect(items.rows).toEqual([
+      { category: 'accessory', item_name: accessory, quantity: 1, price: 25 },
+      { category: 'thermostat', item_name: thermostat, quantity: 2, price: null },
+    ]);
+  });
+
   it('rejects an unknown PDF accessory before creating a visit', async () => {
     const { token } = await seedDispatcherWithToken();
     const { batchId } = await parsePdf(token);
@@ -441,6 +477,78 @@ describe('POST /api/dispatch/visits/create-manual', () => {
       expect.objectContaining({ item_name: thermostat, category: 'thermostat', default_price: 90, tech_supplied: true }),
       expect.objectContaining({ item_name: accessory, category: 'accessory', default_price: 60, tech_supplied: true }),
     ]));
+  });
+
+  it('creates manual visits with one or multiple NULL-price thermostats while preserving accessory prices and non-thermostat price constraints', async () => {
+    const { token } = await seedDispatcherWithToken();
+    const thermostat = uniqueCatalogName('S1200');
+    const accessoryA = uniqueCatalogName('Accessory-A');
+    const accessoryB = uniqueCatalogName('Accessory-B');
+    await insertCatalogItem(thermostat, 'thermostat', null);
+    await insertCatalogItem(accessoryA, 'accessory', 10);
+    await insertCatalogItem(accessoryB, 'accessory', 35);
+
+    const singleRes = await request(app)
+      .post('/api/dispatch/visits/create-manual')
+      .set('Authorization', `Bearer ${token}`)
+      .send({
+        orderNumber: 'MANUAL-S1200-1',
+        address: '610 S1200 RD',
+        city: 'Houston',
+        state: 'TX',
+        zip: '77006',
+        workType: 'AC',
+        systems: [{ indoorModel: 'IN-1', outdoorModel: 'OUT-1' }],
+        thermostat,
+        thermostatQty: 1,
+        accessories: accessoryA,
+      });
+
+    expect(singleRes.status).toBe(200);
+    const singleItems = await pool.query(
+      `SELECT category, item_name, quantity, price FROM visit_items WHERE visit_id = $1 ORDER BY category`,
+      [singleRes.body.visitId]
+    );
+    expect(singleItems.rows).toEqual([
+      { category: 'accessory', item_name: accessoryA, quantity: 1, price: 10 },
+      { category: 'thermostat', item_name: thermostat, quantity: 1, price: null },
+    ]);
+
+    const multiRes = await request(app)
+      .post('/api/dispatch/visits/create-manual')
+      .set('Authorization', `Bearer ${token}`)
+      .send({
+        orderNumber: 'MANUAL-S1200-2',
+        address: '612 S1200 RD',
+        city: 'Houston',
+        state: 'TX',
+        zip: '77006',
+        workType: 'AC',
+        systems: [{ indoorModel: 'IN-1', outdoorModel: 'OUT-1' }, { indoorModel: 'IN-2', outdoorModel: 'OUT-2' }],
+        thermostat,
+        thermostatQty: 2,
+        accessories: `${accessoryA}, ${accessoryB}`,
+      });
+
+    expect(multiRes.status).toBe(200);
+    const multiItems = await pool.query(
+      `SELECT category, item_name, quantity, price FROM visit_items WHERE visit_id = $1 ORDER BY category, item_name`,
+      [multiRes.body.visitId]
+    );
+    expect(multiItems.rows).toEqual([
+      { category: 'accessory', item_name: accessoryA, quantity: 2, price: 10 },
+      { category: 'accessory', item_name: accessoryB, quantity: 2, price: 35 },
+      { category: 'thermostat', item_name: thermostat, quantity: 2, price: null },
+    ]);
+
+    // Billable categories (accessory, fix) still reject NULL price at the DB constraint level
+    await expect(
+      pool.query(
+        `INSERT INTO visit_items (visit_id, item_name, category, quantity, price, tech_supplied)
+         VALUES ($1, $2, 'accessory', 1, NULL, true)`,
+        [multiRes.body.visitId, accessoryA]
+      )
+    ).rejects.toThrow(/visit_item_price_required/);
   });
 
   it.each([

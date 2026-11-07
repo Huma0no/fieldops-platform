@@ -361,7 +361,7 @@ Accessories, fixes, and thermostats installed during a visit. Unified into one t
 | category | text | "accessory", "fix", "thermostat" — fixed set, enforced via CHECK constraint, matching `catalog_items.category` exactly |
 | description | text | Nullable technician-entered description. Normal catalog items do not require it; `Other` and `Other Fix` require a nonblank description. |
 | quantity | integer | Default 1 |
-| price | real | Resolved item price for this visit. For ordinary items, this normally equals the selected/custom price; for Weight-In-Data + Finish, it is $20 ($10 base + $10 addon). |
+| price | real | Nullable for `thermostat` (thermostats have no price contribution); NOT NULL for `accessory` and `fix`. For ordinary billable items, this equals the selected/custom price; for Weight-In-Data + Finish, it is $20 ($10 base + $10 addon). |
 | tech_supplied | boolean | True if item impacts restock |
 
 **Rules:**
