@@ -102,8 +102,57 @@ async function calculateVisitPrice(db, visitId) {
   return serviceTotal + itemTotal + finishAddonTotal;
 }
 
+async function resolveCompanionCascade(db, visitId, itemName, mode) {
+  const relRes = await db.query(
+    `SELECT related_item_name FROM catalog_item_relations
+     WHERE item_name = $1 AND relation_type = 'companion'`,
+    [itemName]
+  );
+  const companions = relRes.rows.map(r => r.related_item_name);
+  if (companions.length === 0) return [];
+
+  if (mode === 'remove') {
+    const existingRes = await db.query(
+      `SELECT item_name FROM visit_items WHERE visit_id = $1 AND item_name = ANY($2)`,
+      [visitId, companions]
+    );
+    const actualCompanions = existingRes.rows.map(r => r.item_name);
+
+    if (actualCompanions.length > 0) {
+      await db.query(
+        `DELETE FROM visit_items WHERE visit_id = $1 AND item_name = ANY($2)`,
+        [visitId, actualCompanions]
+      );
+    }
+    return actualCompanions;
+  }
+
+  const added = [];
+  for (const name of companions) {
+    const existing = await db.query(
+      `SELECT id FROM visit_items WHERE visit_id = $1 AND item_name = $2`,
+      [visitId, name]
+    );
+    if (existing.rows.length > 0) continue;
+    const cat = await db.query(
+      `SELECT default_price, tech_supplied, category FROM catalog_items WHERE item_name = $1`,
+      [name]
+    );
+    if (cat.rows.length === 0) continue;
+    const c = cat.rows[0];
+    await db.query(
+      `INSERT INTO visit_items (id, visit_id, item_name, category, quantity, price, tech_supplied)
+       VALUES (gen_random_uuid()::text, $1, $2, $3, 1, $4, $5)`,
+      [visitId, name, c.category, c.default_price ?? 0, c.tech_supplied]
+    );
+    added.push(name);
+  }
+  return added;
+}
+
 module.exports = {
   calculateVisitPrice,
+  resolveCompanionCascade,
   resolveServicePrice,
   resolveWeightInDataPrice,
   syncWeightInDataPrice,

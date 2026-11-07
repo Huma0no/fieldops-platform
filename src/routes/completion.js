@@ -5,6 +5,7 @@ const { createNotification } = require('../helpers/notify');
 const { generateReportText, generateReportJSON } = require('../services/report');
 const {
   calculateVisitPrice,
+  resolveCompanionCascade,
   resolveServicePrice,
   resolveWeightInDataPrice,
 } = require('../services/pricing');
@@ -12,6 +13,7 @@ const {
 const router = express.Router();
 
 const TERMINAL_STATUSES = ['completed', 'temporarily', 'cancelled'];
+const MAX_SUBMISSION_ID_LENGTH = 120;
 
 async function applySnapshotWork(client, visit, snapshot) {
   const service = snapshot.service ?? {};
@@ -63,6 +65,9 @@ async function applySnapshotWork(client, visit, snapshot) {
       [visit.id, item.item_name, catalog.category, description, quantity, price, catalog.tech_supplied]
     );
   }
+  for (const itemName of itemNames) {
+    await resolveCompanionCascade(client, visit.id, itemName, 'add');
+  }
 
   // Weigh-In remains address/system structured data. Snapshot delivery may
   // update an existing measurement but never changes visit system topology.
@@ -77,9 +82,9 @@ async function applySnapshotWork(client, visit, snapshot) {
        VALUES (gen_random_uuid()::text, $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
        ON CONFLICT (address_id, system_number) DO UPDATE SET
          lineset_length = EXCLUDED.lineset_length,
-         factory_charge_oz = EXCLUDED.factory_charge_oz,
+         factory_charge_oz = COALESCE(EXCLUDED.factory_charge_oz, weigh_in_data.factory_charge_oz),
          factory_line_config = EXCLUDED.factory_line_config,
-         approx_adjust_oz = EXCLUDED.approx_adjust_oz,
+         approx_adjust_oz = COALESCE(EXCLUDED.approx_adjust_oz, weigh_in_data.approx_adjust_oz),
          adjusted_oz = EXCLUDED.adjusted_oz,
          fan_speed_cfm = EXCLUDED.fan_speed_cfm,
          liquid_line_temp = EXCLUDED.liquid_line_temp,
@@ -87,7 +92,7 @@ async function applySnapshotWork(client, visit, snapshot) {
          condenser_sat_temp = EXCLUDED.condenser_sat_temp,
          subcooling_value = EXCLUDED.subcooling_value,
          oem_subcooling_goal = EXCLUDED.oem_subcooling_goal,
-         subcooling_deviation = EXCLUDED.subcooling_deviation`,
+         subcooling_deviation = COALESCE(EXCLUDED.subcooling_deviation, weigh_in_data.subcooling_deviation)`,
       [visit.address_id, systemNumber,
         data.linesetLength ?? data.lineset_length ?? null,
         data.factoryChargeOz ?? data.factory_charge_oz ?? null,
@@ -109,11 +114,33 @@ async function applySnapshotWork(client, visit, snapshot) {
 // POST /api/visits/:id/complete
 router.post('/:id/complete', requireRole('technician'), async (req, res, next) => {
   const { id } = req.params;
+  let normalizedSubmissionId = null;
   try {
-    const { submissionId, snapshot } = req.body ?? {};
-    if (submissionId != null && (typeof submissionId !== 'string' || !snapshot || snapshot.submissionId !== submissionId || snapshot.visitId !== id)) {
+    const { submissionId: rawSubmissionId, snapshot } = req.body ?? {};
+    const submissionId = typeof rawSubmissionId === 'string' ? rawSubmissionId.trim() : null;
+    const snapshotSubmissionId = typeof snapshot?.submissionId === 'string' ? snapshot.submissionId.trim() : null;
+    if (
+      rawSubmissionId != null && (
+        typeof rawSubmissionId !== 'string' ||
+        !submissionId ||
+        submissionId.length > MAX_SUBMISSION_ID_LENGTH ||
+        !snapshot ||
+        snapshotSubmissionId !== submissionId ||
+        snapshot.visitId !== id
+      )
+    ) {
       return res.status(400).json({ error: 'Invalid completion submission' });
     }
+    if (rawSubmissionId == null && snapshot?.submissionId != null) {
+      if (
+        typeof snapshot.submissionId !== 'string' ||
+        !snapshotSubmissionId ||
+        snapshotSubmissionId.length > MAX_SUBMISSION_ID_LENGTH
+      ) {
+        return res.status(400).json({ error: 'Invalid completion submission' });
+      }
+    }
+    normalizedSubmissionId = submissionId;
 
     if (submissionId) {
       const existingSubmission = await pool.query(
@@ -135,11 +162,7 @@ router.post('/:id/complete', requireRole('technician'), async (req, res, next) =
        WHERE v.id = $1`,
       [id]
     );
-
-    if (visitResult.rows.length === 0) {
-      return res.status(404).json({ error: 'Visit not found' });
-    }
-
+    if (visitResult.rows.length === 0) return res.status(404).json({ error: 'Visit not found' });
     const visit = visitResult.rows[0];
 
     if (TERMINAL_STATUSES.includes(visit.status)) {
@@ -156,81 +179,132 @@ router.post('/:id/complete', requireRole('technician'), async (req, res, next) =
 
     const completionData = snapshot ?? req.body ?? {};
     const { checklistAnswers, notes, cancel = false } = completionData;
-    const serviceResult = await pool.query(
-      'SELECT service_name, is_temporarily FROM visit_services WHERE visit_id = $1',
-      [id]
-    );
-    if (serviceResult.rows.length === 0 && !cancel && !snapshot?.service?.serviceName) {
-      return res.status(400).json({ error: 'No service selected' });
-    }
-    const svc = serviceResult.rows[0];
-    const isCancel = cancel === true || svc?.service_name === 'Cancel';
-    const resolvedNotes = typeof notes === 'string' ? notes : visit.notes;
-    const hasNotes = typeof resolvedNotes === 'string' && resolvedNotes.trim().length > 0;
-    const hasChecklistAnswer = Array.isArray(checklistAnswers)
-      && checklistAnswers.some(answer => answer?.answer === 'yes' || answer?.answer === 'no');
-
-    if (isCancel && !hasNotes && !hasChecklistAnswer) {
-      return res.status(400).json({ error: 'Cancel requires notes or a checklist answer' });
-    }
-
-    let finalStatus;
-    if (isCancel) {
-      finalStatus = 'cancelled';
-    } else if ((snapshot?.service?.temporarily ?? svc?.is_temporarily) === true) {
-      finalStatus = 'temporarily';
-    } else {
-      finalStatus = 'completed';
-    }
-
     const now = new Date().toISOString();
     const client = await pool.connect();
     let expiredRows = [];
+    let alreadyTerminal = false;
     try {
       await client.query('BEGIN');
+      const lockedVisitResult = await client.query(
+        `SELECT id, status, technician_id, notes, address_id
+         FROM visits
+         WHERE id = $1
+         FOR UPDATE`,
+        [id]
+      );
+      if (lockedVisitResult.rows.length === 0) {
+        await client.query('ROLLBACK');
+        return res.status(404).json({ error: 'Visit not found' });
+      }
+      const lockedVisit = lockedVisitResult.rows[0];
+
       if (submissionId) {
-        await client.query(
-          `INSERT INTO completion_submissions
-             (submission_id, visit_id, technician_id, terminal_intent, snapshot, accepted_at)
-           VALUES ($1, $2, $3, $4, $5, $6)`,
-          [submissionId, id, req.technician.id, finalStatus, JSON.stringify(snapshot), now]
+        const existingInTx = await client.query(
+          'SELECT visit_id FROM completion_submissions WHERE submission_id = $1',
+          [submissionId]
         );
+        if (existingInTx.rows.length > 0) {
+          await client.query('ROLLBACK');
+          if (existingInTx.rows[0].visit_id !== id) {
+            return res.status(409).json({ error: 'Submission belongs to a different visit' });
+          }
+          const report = await generateReportJSON(pool, id);
+          return res.json({ ...report, acknowledged: true, submissionId });
+        }
       }
-      let resolvedTotal = null;
-      if (snapshot && !isCancel) {
-        resolvedTotal = await applySnapshotWork(client, visit, snapshot);
-      }
-      if (isCancel) {
-        await client.query('DELETE FROM visit_items WHERE visit_id = $1', [id]);
-        await client.query('DELETE FROM visit_services WHERE visit_id = $1', [id]);
-        await client.query(
-          `INSERT INTO visit_services (id, visit_id, service_name, is_finish, is_temporarily, price)
-           VALUES (gen_random_uuid()::text, $1, 'Cancel', false, false, 0)`,
+
+      if (TERMINAL_STATUSES.includes(lockedVisit.status)) {
+        alreadyTerminal = true;
+        await client.query('ROLLBACK');
+      } else {
+        if (lockedVisit.technician_id !== req.technician.id) {
+          await client.query('ROLLBACK');
+          return res.status(403).json({ error: 'This visit is not assigned to you' });
+        }
+
+        if (!['assigned', 'in_progress'].includes(lockedVisit.status)) {
+          await client.query('ROLLBACK');
+          return res.status(400).json({ error: `Visit cannot be completed — current status: ${lockedVisit.status}` });
+        }
+
+        const serviceResult = await client.query(
+          'SELECT service_name, is_temporarily FROM visit_services WHERE visit_id = $1',
           [id]
         );
+        if (serviceResult.rows.length === 0 && !cancel && !snapshot?.service?.serviceName) {
+          await client.query('ROLLBACK');
+          return res.status(400).json({ error: 'No service selected' });
+        }
+        const svc = serviceResult.rows[0];
+        const isCancel = cancel === true || svc?.service_name === 'Cancel';
+        const resolvedNotes = typeof notes === 'string' ? notes : lockedVisit.notes;
+        const hasNotes = typeof resolvedNotes === 'string' && resolvedNotes.trim().length > 0;
+        const hasChecklistAnswer = Array.isArray(checklistAnswers)
+          && checklistAnswers.some(answer => answer?.answer === 'yes' || answer?.answer === 'no');
+
+        if (isCancel && !hasNotes && !hasChecklistAnswer) {
+          await client.query('ROLLBACK');
+          return res.status(400).json({ error: 'Cancel requires notes or a checklist answer' });
+        }
+
+        let finalStatus;
+        if (isCancel) {
+          finalStatus = 'cancelled';
+        } else if ((snapshot?.service?.temporarily ?? svc?.is_temporarily) === true) {
+          finalStatus = 'temporarily';
+        } else {
+          finalStatus = 'completed';
+        }
+
+        if (submissionId) {
+          await client.query(
+            `INSERT INTO completion_submissions
+               (submission_id, visit_id, technician_id, terminal_intent, snapshot, accepted_at)
+             VALUES ($1, $2, $3, $4, $5, $6)`,
+            [submissionId, id, req.technician.id, finalStatus, JSON.stringify(snapshot), now]
+          );
+        }
+        let resolvedTotal = null;
+        if (snapshot && !isCancel) {
+          resolvedTotal = await applySnapshotWork(client, lockedVisit, snapshot);
+        }
+        if (isCancel) {
+          await client.query('DELETE FROM visit_items WHERE visit_id = $1', [id]);
+          await client.query('DELETE FROM visit_services WHERE visit_id = $1', [id]);
+          await client.query(
+            `INSERT INTO visit_services (id, visit_id, service_name, is_finish, is_temporarily, price)
+             VALUES (gen_random_uuid()::text, $1, 'Cancel', false, false, 0)`,
+            [id]
+          );
+        }
+        await client.query(
+          `UPDATE visits
+           SET status = $1, total_price = CASE WHEN $5 THEN 0 WHEN $7::real IS NOT NULL THEN $7::real ELSE total_price END,
+               notes = COALESCE($6, notes), completed_at = $2, updated_at = $2,
+               checklist_answers = $4
+           WHERE id = $3`,
+          [finalStatus, now, id, JSON.stringify(checklistAnswers ?? null), isCancel, typeof notes === 'string' ? notes : null, resolvedTotal]
+        );
+        const expiredResult = await client.query(
+          `UPDATE transfers SET status = 'expired', resolved_at = $1
+           WHERE visit_id = $2 AND status = 'pending'
+           RETURNING to_tech_id`,
+          [now, id]
+        );
+        expiredRows = expiredResult.rows;
+        await client.query('COMMIT');
       }
-      await client.query(
-        `UPDATE visits
-         SET status = $1, total_price = CASE WHEN $5 THEN 0 WHEN $7::real IS NOT NULL THEN $7::real ELSE total_price END,
-             notes = COALESCE($6, notes), completed_at = $2, updated_at = $2,
-             checklist_answers = $4
-         WHERE id = $3`,
-        [finalStatus, now, id, JSON.stringify(checklistAnswers ?? null), isCancel, typeof notes === 'string' ? notes : null, resolvedTotal]
-      );
-      const expiredResult = await client.query(
-        `UPDATE transfers SET status = 'expired', resolved_at = $1
-         WHERE visit_id = $2 AND status = 'pending'
-         RETURNING to_tech_id`,
-        [now, id]
-      );
-      expiredRows = expiredResult.rows;
-      await client.query('COMMIT');
     } catch (err) {
       await client.query('ROLLBACK').catch(() => {});
       throw err;
     } finally {
       client.release();
     }
+
+    if (alreadyTerminal) {
+      return res.json({ ...(await generateReportJSON(pool, id)), acknowledged: true, submissionId: submissionId ?? null });
+    }
+
     // Notifications remain outside transaction (soft failures OK)
     for (const row of expiredRows) {
       await createNotification(pool, {
@@ -259,17 +333,17 @@ router.post('/:id/complete', requireRole('technician'), async (req, res, next) =
     // submission identity is still authoritative: once the competing
     // transaction committed, return its ACK rather than treating a retry as a
     // report failure.
-    if (err?.code === '23505' && req.body?.submissionId) {
+    if (err?.code === '23505' && normalizedSubmissionId) {
       try {
         const accepted = await pool.query(
           'SELECT visit_id FROM completion_submissions WHERE submission_id = $1 OR visit_id = $2',
-          [req.body.submissionId, id]
+          [normalizedSubmissionId, id]
         );
         if (accepted.rows.some(row => row.visit_id === id)) {
           return res.json({
             ...(await generateReportJSON(pool, id)),
             acknowledged: true,
-            submissionId: req.body.submissionId,
+            submissionId: normalizedSubmissionId,
           });
         }
       } catch (_) {

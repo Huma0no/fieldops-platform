@@ -327,6 +327,519 @@ describe('POST /api/visits/:id/complete', () => {
     expect(notif.rows).toHaveLength(1);
     expect(notif.rows[0].body).toContain('expired');
   });
+
+  describe('Zone Board companion items and snapshot reconstruction', () => {
+    async function seedZoneBoardCatalog() {
+      await pool.query(`
+        DELETE FROM catalog_item_relations
+        WHERE item_name IN ('HZ322', 'UT3000', 'Harmony')
+           OR related_item_name IN ('HZ322', 'UT3000', 'Harmony', 'Bypass', 'DAPC', 'eBypass', 'Ecoil Wire')
+      `);
+      await pool.query(`
+        INSERT INTO catalog_items
+          (item_name, category, default_price, tech_supplied, multiplies_by_system_count, custom_price)
+        VALUES
+          ('HZ322',      'accessory', 30, true,  false, false),
+          ('UT3000',     'accessory', 30, true,  false, false),
+          ('Harmony',    'accessory', 40, true,  false, false),
+          ('Bypass',     'accessory',  5, false, false, false),
+          ('DAPC',       'accessory', 10, true,  false, false),
+          ('eBypass',    'accessory', 10, false, false, false),
+          ('Ecoil Wire', 'accessory', 10, false, true,  false)
+        ON CONFLICT (item_name) DO UPDATE SET
+          category = EXCLUDED.category,
+          default_price = EXCLUDED.default_price,
+          tech_supplied = EXCLUDED.tech_supplied,
+          multiplies_by_system_count = EXCLUDED.multiplies_by_system_count,
+          custom_price = EXCLUDED.custom_price
+      `);
+      await pool.query(`
+        INSERT INTO catalog_item_relations (id, item_name, relation_type, related_item_name, exclusion_group_id)
+        VALUES
+          (gen_random_uuid()::text, 'HZ322',   'companion',       'Bypass',     null),
+          (gen_random_uuid()::text, 'UT3000',  'companion',       'DAPC',       null),
+          (gen_random_uuid()::text, 'UT3000',  'companion',       'eBypass',    null),
+          (gen_random_uuid()::text, 'UT3000',  'companion',       'Ecoil Wire', null),
+          (gen_random_uuid()::text, 'HZ322',   'exclusion_group', 'Harmony',    'zone-boards'),
+          (gen_random_uuid()::text, 'HZ322',   'exclusion_group', 'UT3000',     'zone-boards'),
+          (gen_random_uuid()::text, 'Harmony', 'exclusion_group', 'HZ322',      'zone-boards'),
+          (gen_random_uuid()::text, 'Harmony', 'exclusion_group', 'UT3000',     'zone-boards'),
+          (gen_random_uuid()::text, 'UT3000',  'exclusion_group', 'HZ322',      'zone-boards'),
+          (gen_random_uuid()::text, 'UT3000',  'exclusion_group', 'Harmony',    'zone-boards')
+      `);
+    }
+
+    it('reconstructs HZ322 companion (Bypass) and includes its price in final visit and report', async () => {
+      const { visitId, token } = await seedAssignedVisit();
+      await addService(visitId, 'AC');
+      await seedZoneBoardCatalog();
+
+      const addRes = await request(app)
+        .post(`/api/visits/${visitId}/items`)
+        .set('Authorization', `Bearer ${token}`)
+        .send({ category: 'accessory', itemName: 'HZ322' });
+      expect(addRes.status).toBe(200);
+      expect(addRes.body.addedItems).toEqual(['HZ322', 'Bypass']);
+      expect(addRes.body.totalPrice).toBe(185); // 150 AC + 30 HZ322 + 5 Bypass
+
+      // Simulate a snapshot that only lists the primary trigger item HZ322
+      const snapshot = {
+        version: 1,
+        submissionId: 'sub-hz322-only',
+        visitId,
+        createdAt: '2026-08-23T10:00:00.000Z',
+        terminalIntent: 'completed',
+        cancel: false,
+        service: { serviceName: 'AC', ac: true },
+        items: [{ id: addRes.body.id, item_name: 'HZ322', category: 'accessory', quantity: 1, price: 30 }],
+        weighInData: [],
+        systems: [],
+        notes: 'HZ322 installed',
+        checklistAnswers: [],
+        evidenceRefs: [],
+        totalPrice: 185,
+      };
+
+      const completeRes = await request(app)
+        .post(`/api/visits/${visitId}/complete`)
+        .set('Authorization', `Bearer ${token}`)
+        .send({ submissionId: snapshot.submissionId, snapshot });
+
+      expect(completeRes.status).toBe(200);
+      expect(completeRes.body.totalPrice).toBe(185);
+      expect(completeRes.body.items.map(i => i.itemName).sort()).toEqual(['Bypass', 'HZ322']);
+
+      const persistedItems = await pool.query(
+        'SELECT item_name, price FROM visit_items WHERE visit_id = $1 ORDER BY item_name',
+        [visitId]
+      );
+      expect(persistedItems.rows).toEqual([
+        { item_name: 'Bypass', price: 5 },
+        { item_name: 'HZ322', price: 30 },
+      ]);
+    });
+
+    it('reconstructs UT3000 companions (DAPC, eBypass, Ecoil Wire) without duplicates on completion and retry', async () => {
+      const { visitId, token } = await seedAssignedVisit();
+      await addService(visitId, 'AC');
+      await seedZoneBoardCatalog();
+
+      const addRes = await request(app)
+        .post(`/api/visits/${visitId}/items`)
+        .set('Authorization', `Bearer ${token}`)
+        .send({ category: 'accessory', itemName: 'UT3000' });
+      expect(addRes.status).toBe(200);
+      expect(addRes.body.addedItems).toEqual(expect.arrayContaining(['UT3000', 'DAPC', 'eBypass', 'Ecoil Wire']));
+      expect(addRes.body.totalPrice).toBe(210); // 150 AC + 30 UT3000 + 10 DAPC + 10 eBypass + 10 Ecoil Wire
+
+      // Snapshot already includes some/all companions as reconciled by Workspace
+      const snapshot = {
+        version: 1,
+        submissionId: 'sub-ut3000-reconciled',
+        visitId,
+        createdAt: '2026-08-23T10:00:00.000Z',
+        terminalIntent: 'completed',
+        cancel: false,
+        service: { serviceName: 'AC', ac: true },
+        items: [
+          { id: addRes.body.id, item_name: 'UT3000', category: 'accessory', quantity: 1, price: 30 },
+          { id: `${addRes.body.id}:DAPC`, item_name: 'DAPC', category: 'accessory', quantity: 1, price: 10 },
+        ],
+        weighInData: [],
+        systems: [],
+        notes: 'UT3000 installed',
+        checklistAnswers: [],
+        evidenceRefs: [],
+        totalPrice: 210,
+      };
+
+      const first = await request(app)
+        .post(`/api/visits/${visitId}/complete`)
+        .set('Authorization', `Bearer ${token}`)
+        .send({ submissionId: snapshot.submissionId, snapshot });
+      const retry = await request(app)
+        .post(`/api/visits/${visitId}/complete`)
+        .set('Authorization', `Bearer ${token}`)
+        .send({ submissionId: snapshot.submissionId, snapshot });
+
+      expect(first.status).toBe(200);
+      expect(retry.status).toBe(200);
+      expect(first.body.totalPrice).toBe(210);
+      expect(retry.body.totalPrice).toBe(210);
+      expect(first.body.items.map(i => i.itemName).sort()).toEqual(['DAPC', 'Ecoil Wire', 'UT3000', 'eBypass']);
+
+      const persistedItems = await pool.query(
+        'SELECT item_name FROM visit_items WHERE visit_id = $1 ORDER BY item_name',
+        [visitId]
+      );
+      expect(persistedItems.rows.map(r => r.item_name)).toEqual(['DAPC', 'Ecoil Wire', 'UT3000', 'eBypass']);
+    });
+
+    it('does not leave orphaned companions when a Zone Board is removed before completion', async () => {
+      const { visitId, token } = await seedAssignedVisit();
+      await addService(visitId, 'AC');
+      await seedZoneBoardCatalog();
+
+      const addRes = await request(app)
+        .post(`/api/visits/${visitId}/items`)
+        .set('Authorization', `Bearer ${token}`)
+        .send({ category: 'accessory', itemName: 'UT3000' });
+      expect(addRes.status).toBe(200);
+
+      const delRes = await request(app)
+        .delete(`/api/visits/${visitId}/items/${addRes.body.id}`)
+        .set('Authorization', `Bearer ${token}`);
+      expect(delRes.status).toBe(200);
+      expect(delRes.body.removedItems).toEqual(expect.arrayContaining(['UT3000', 'DAPC', 'eBypass', 'Ecoil Wire']));
+      expect(delRes.body.totalPrice).toBe(150);
+
+      const snapshot = {
+        version: 1,
+        submissionId: 'sub-ut3000-removed',
+        visitId,
+        createdAt: '2026-08-23T10:00:00.000Z',
+        terminalIntent: 'completed',
+        cancel: false,
+        service: { serviceName: 'AC', ac: true },
+        items: [],
+        weighInData: [],
+        systems: [],
+        notes: 'Zone board removed',
+        checklistAnswers: [],
+        evidenceRefs: [],
+        totalPrice: 150,
+      };
+
+      const completeRes = await request(app)
+        .post(`/api/visits/${visitId}/complete`)
+        .set('Authorization', `Bearer ${token}`)
+        .send({ submissionId: snapshot.submissionId, snapshot });
+
+      expect(completeRes.status).toBe(200);
+      expect(completeRes.body.totalPrice).toBe(150);
+      expect(completeRes.body.items).toEqual([]);
+    });
+  });
+
+  describe('Weigh-In derived value preservation during snapshot completion', () => {
+    it('preserves existing derived weigh-in values when the completion snapshot omits them, while applying explicitly supplied values', async () => {
+      const { visitId, addressId, token } = await seedAssignedVisit();
+      await addService(visitId, 'AC');
+      await pool.query(`
+        INSERT INTO catalog_lineset_configs (config_key, reference_length_ft, adjust_rate_oz_per_ft)
+        VALUES ('STANDARD-25', 25, 0.5)
+        ON CONFLICT (config_key) DO NOTHING
+      `);
+      await pool.query(`
+        INSERT INTO catalog_equipment (model, unit_type, brand, factory_charge_oz, revised_charge_oz)
+        VALUES ('TEST-COND-WI-COMP', 'outdoor', 'TEST', 80, 70)
+        ON CONFLICT (model) DO NOTHING
+      `);
+      await pool.query(
+        `UPDATE visit_systems SET outdoor_model = 'TEST-COND-WI-COMP' WHERE visit_id = $1 AND system_number = 1`,
+        [visitId]
+      );
+
+      // Server calculates factoryChargeOz=80, approxAdjustOz=5, subcoolingDeviation=8
+      const putRes = await request(app)
+        .put(`/api/visits/${visitId}/weigh-in/1`)
+        .set('Authorization', `Bearer ${token}`)
+        .send({
+          linesetLength: 35,
+          factoryLineConfig: 'STANDARD-25',
+          factoryChargeUsed: 'factory',
+          adjustedOz: 82,
+          fanSpeedCfm: 1200,
+          liquidLineTemp: 90,
+          suctionLineTemp: 55,
+          condenserSatTemp: 105,
+          subcoolingValue: 18,
+          oemSubcoolingGoal: 10,
+        });
+      expect(putRes.status).toBe(200);
+      expect(putRes.body.factoryChargeOz).toBe(80);
+      expect(putRes.body.approxAdjustOz).toBeCloseTo(5.0);
+      expect(putRes.body.subcoolingDeviation).toBeCloseTo(8.0);
+
+      // Snapshot omits factoryChargeOz and approxAdjustOz (null/undefined) but supplies an explicit subcoolingDeviation and updated fanSpeedCfm
+      const snapshot = {
+        version: 1,
+        submissionId: 'sub-weighin-preserve',
+        visitId,
+        createdAt: '2026-08-23T10:00:00.000Z',
+        terminalIntent: 'completed',
+        cancel: false,
+        service: { serviceName: 'AC', ac: true },
+        items: [],
+        weighInData: [{
+          systemNumber: 1,
+          linesetLength: 35,
+          factoryLineConfig: 'STANDARD-25',
+          adjustedOz: 82,
+          fanSpeedCfm: 1350,
+          liquidLineTemp: 90,
+          suctionLineTemp: 55,
+          condenserSatTemp: 105,
+          subcoolingValue: 16,
+          oemSubcoolingGoal: 10,
+          subcoolingDeviation: 6,
+        }],
+        systems: [],
+        notes: 'Weigh-in preserved',
+        checklistAnswers: [],
+        evidenceRefs: [],
+        totalPrice: 150,
+      };
+
+      const completeRes = await request(app)
+        .post(`/api/visits/${visitId}/complete`)
+        .set('Authorization', `Bearer ${token}`)
+        .send({ submissionId: snapshot.submissionId, snapshot });
+
+      expect(completeRes.status).toBe(200);
+      expect(completeRes.body.weighInData).toEqual([
+        expect.objectContaining({
+          systemNumber: 1,
+          linesetLength: 35,
+          factoryChargeOz: 80,
+          approxAdjustOz: 5,
+          fanSpeedCfm: 1350,
+          subcoolingValue: 16,
+          oemSubcoolingGoal: 10,
+          subcoolingDeviation: 6,
+        }),
+      ]);
+
+      const dbRow = await pool.query(
+        'SELECT factory_charge_oz, approx_adjust_oz, subcooling_deviation, fan_speed_cfm FROM weigh_in_data WHERE address_id = $1 AND system_number = 1',
+        [addressId]
+      );
+      expect(dbRow.rows[0]).toEqual({
+        factory_charge_oz: 80,
+        approx_adjust_oz: 5,
+        subcooling_deviation: 6,
+        fan_speed_cfm: 1350,
+      });
+    });
+
+    it('preserves server-derived weigh-in values across repeated edits when a later edit omits derived fields before completion', async () => {
+      const { visitId, addressId, token } = await seedAssignedVisit();
+      await addService(visitId, 'AC');
+      await pool.query(`
+        INSERT INTO catalog_lineset_configs (config_key, reference_length_ft, adjust_rate_oz_per_ft)
+        VALUES ('STANDARD-25', 25, 0.5)
+        ON CONFLICT (config_key) DO NOTHING
+      `);
+      await pool.query(`
+        INSERT INTO catalog_equipment (model, unit_type, brand, factory_charge_oz, revised_charge_oz)
+        VALUES ('TEST-COND-WI-REPEAT', 'outdoor', 'TEST', 80, 70)
+        ON CONFLICT (model) DO NOTHING
+      `);
+      await pool.query(
+        `UPDATE visit_systems SET outdoor_model = 'TEST-COND-WI-REPEAT' WHERE visit_id = $1 AND system_number = 1`,
+        [visitId]
+      );
+
+      // First edit returns server-derived values
+      const firstSave = await request(app)
+        .put(`/api/visits/${visitId}/weigh-in/1`)
+        .set('Authorization', `Bearer ${token}`)
+        .send({
+          linesetLength: 35,
+          factoryLineConfig: 'STANDARD-25',
+          factoryChargeUsed: 'factory',
+          adjustedOz: 82,
+          fanSpeedCfm: 1100,
+          liquidLineTemp: 90,
+          suctionLineTemp: 55,
+          condenserSatTemp: 105,
+          subcoolingValue: 18,
+          oemSubcoolingGoal: 10,
+        });
+      expect(firstSave.status).toBe(200);
+
+      // Simulate repeated local edit in Workspace merging against current visit._weighInData
+      let currentWeighInData = [firstSave.body];
+      const applyRepeatedEdit = (patch) => {
+        const current = currentWeighInData.find(d => d.systemNumber === 1);
+        currentWeighInData = [
+          ...currentWeighInData.filter(d => d.systemNumber !== 1),
+          { ...(current ?? {}), ...patch, systemNumber: 1 },
+        ];
+      };
+      applyRepeatedEdit({ fanSpeedCfm: 1250 });
+      applyRepeatedEdit({ adjustedOz: 84 });
+
+      expect(currentWeighInData[0]).toMatchObject({
+        systemNumber: 1,
+        factoryChargeOz: 80,
+        approxAdjustOz: 5,
+        subcoolingDeviation: 8,
+        fanSpeedCfm: 1250,
+        adjustedOz: 84,
+      });
+
+      const snapshot = {
+        version: 1,
+        submissionId: 'sub-weighin-repeated-edits',
+        visitId,
+        createdAt: '2026-08-23T10:00:00.000Z',
+        terminalIntent: 'completed',
+        cancel: false,
+        service: { serviceName: 'AC', ac: true },
+        items: [],
+        weighInData: currentWeighInData,
+        systems: [],
+        notes: 'Repeated weigh-in edits preserved',
+        checklistAnswers: [],
+        evidenceRefs: [],
+        totalPrice: 150,
+      };
+
+      const completeRes = await request(app)
+        .post(`/api/visits/${visitId}/complete`)
+        .set('Authorization', `Bearer ${token}`)
+        .send({ submissionId: snapshot.submissionId, snapshot });
+
+      expect(completeRes.status).toBe(200);
+      expect(completeRes.body.weighInData).toEqual([
+        expect.objectContaining({
+          systemNumber: 1,
+          factoryChargeOz: 80,
+          approxAdjustOz: 5,
+          subcoolingDeviation: 8,
+          fanSpeedCfm: 1250,
+          adjustedOz: 84,
+        }),
+      ]);
+
+      const dbRow = await pool.query(
+        'SELECT factory_charge_oz, approx_adjust_oz, subcooling_deviation, fan_speed_cfm, adjusted_oz FROM weigh_in_data WHERE address_id = $1 AND system_number = 1',
+        [addressId]
+      );
+      expect(dbRow.rows[0]).toEqual({
+        factory_charge_oz: 80,
+        approx_adjust_oz: 5,
+        subcooling_deviation: 8,
+        fan_speed_cfm: 1250,
+        adjusted_oz: 84,
+      });
+    });
+  });
+
+  describe('submissionId validation and transaction concurrency protection', () => {
+    it('accepts valid trimmed submissionId, preserves max length (120), and rejects empty or whitespace-only submissionId', async () => {
+      const { visitId, token } = await seedAssignedVisit();
+      await addService(visitId, 'AC');
+
+      const baseSnapshot = {
+        version: 1,
+        visitId,
+        createdAt: '2026-08-23T10:00:00.000Z',
+        terminalIntent: 'completed',
+        cancel: false,
+        service: { serviceName: 'AC', ac: true },
+        items: [],
+        weighInData: [],
+        systems: [],
+        notes: 'Validation test',
+        checklistAnswers: [],
+        evidenceRefs: [],
+        totalPrice: 150,
+      };
+
+      const emptyRes = await request(app)
+        .post(`/api/visits/${visitId}/complete`)
+        .set('Authorization', `Bearer ${token}`)
+        .send({ submissionId: '', snapshot: { ...baseSnapshot, submissionId: '' } });
+      expect(emptyRes.status).toBe(400);
+      expect(emptyRes.body.error).toBe('Invalid completion submission');
+
+      const whitespaceRes = await request(app)
+        .post(`/api/visits/${visitId}/complete`)
+        .set('Authorization', `Bearer ${token}`)
+        .send({ submissionId: '    ', snapshot: { ...baseSnapshot, submissionId: '    ' } });
+      expect(whitespaceRes.status).toBe(400);
+      expect(whitespaceRes.body.error).toBe('Invalid completion submission');
+
+      const tooLongId = 'x'.repeat(121);
+      const tooLongRes = await request(app)
+        .post(`/api/visits/${visitId}/complete`)
+        .set('Authorization', `Bearer ${token}`)
+        .send({ submissionId: tooLongId, snapshot: { ...baseSnapshot, submissionId: tooLongId } });
+      expect(tooLongRes.status).toBe(400);
+      expect(tooLongRes.body.error).toBe('Invalid completion submission');
+
+      const maxLenId = 's'.repeat(120);
+      const validRes = await request(app)
+        .post(`/api/visits/${visitId}/complete`)
+        .set('Authorization', `Bearer ${token}`)
+        .send({
+          submissionId: `  ${maxLenId}  `,
+          snapshot: { ...baseSnapshot, submissionId: maxLenId },
+        });
+      expect(validRes.status).toBe(200);
+      expect(validRes.body).toMatchObject({
+        acknowledged: true,
+        submissionId: maxLenId,
+        status: 'completed',
+      });
+    });
+
+    it('serializes concurrent completion requests with different submissionIds via row lock without duplicate side effects', async () => {
+      const { visitId, token } = await seedAssignedVisit();
+      await addService(visitId, 'AC');
+      const { dispatcher } = await seedDispatcherWithToken();
+
+      const makeSnapshot = (subId, note) => ({
+        version: 1,
+        submissionId: subId,
+        visitId,
+        createdAt: '2026-08-23T10:00:00.000Z',
+        terminalIntent: 'completed',
+        cancel: false,
+        service: { serviceName: 'AC', ac: true },
+        items: [],
+        weighInData: [],
+        systems: [],
+        notes: note,
+        checklistAnswers: [],
+        evidenceRefs: [],
+        totalPrice: 150,
+      });
+
+      const snapA = makeSnapshot('concurrent-sub-a', 'First concurrent note');
+      const snapB = makeSnapshot('concurrent-sub-b', 'Second concurrent note');
+
+      const [resA, resB] = await Promise.all([
+        request(app)
+          .post(`/api/visits/${visitId}/complete`)
+          .set('Authorization', `Bearer ${token}`)
+          .send({ submissionId: snapA.submissionId, snapshot: snapA }),
+        request(app)
+          .post(`/api/visits/${visitId}/complete`)
+          .set('Authorization', `Bearer ${token}`)
+          .send({ submissionId: snapB.submissionId, snapshot: snapB }),
+      ]);
+
+      expect(resA.status).toBe(200);
+      expect(resB.status).toBe(200);
+      expect(resA.body.acknowledged).toBe(true);
+      expect(resB.body.acknowledged).toBe(true);
+
+      const submissionsRows = await pool.query(
+        'SELECT submission_id FROM completion_submissions WHERE visit_id = $1',
+        [visitId]
+      );
+      expect(submissionsRows.rows).toHaveLength(1);
+
+      const notifs = await pool.query(
+        `SELECT * FROM notifications WHERE recipient_id = $1 AND type = 'completion_received'`,
+        [dispatcher.id]
+      );
+      expect(notifs.rows).toHaveLength(1);
+    });
+  });
 });
 
 // ── GET /api/visits/:id/report-preview ───────────────────────────────────────

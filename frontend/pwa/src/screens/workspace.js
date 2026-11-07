@@ -668,7 +668,8 @@ function buildItemsSection (category) {
         if (existing) {
           const result = await api.delete(`/visits/${visit.id}/items/${existing.id}`)
           if (result.totalPrice !== undefined) updatePrice(result.totalPrice)
-          visit._items = (visit._items ?? []).filter(i => i.id !== existing.id)
+          const removedNames = new Set(result.removedItems ?? [existing.item_name])
+          visit._items = (visit._items ?? []).filter(i => i.id !== existing.id && !removedNames.has(i.item_name))
           refreshSection(sectionId)
         }
         return
@@ -710,13 +711,37 @@ async function addItem (item, category, quantity, customPrice, description) {
           price: result.item.price,
           tech_supplied: result.item.techSupplied,
         }
-      : { id: result.id, item_name: item.item_name, description, category, quantity, price: customPrice ?? item.default_price }
-    visit._items = [
-      ...(visit._items ?? []).filter(i =>
-        !result.removedItems?.includes(i.item_name) && i.item_name !== newItem.item_name
-      ),
-      newItem,
-    ]
+      : {
+          id: result.id,
+          item_name: item.item_name,
+          description: description ?? null,
+          category,
+          quantity,
+          price: customPrice ?? item.default_price,
+          tech_supplied: item.tech_supplied ?? false,
+        }
+    const removedNames = new Set(result.removedItems ?? [])
+    const retainedItems = (visit._items ?? []).filter(i =>
+      !removedNames.has(i.item_name) && i.item_name !== newItem.item_name
+    )
+    const existingNames = new Set(retainedItems.map(i => i.item_name))
+    existingNames.add(newItem.item_name)
+    const companionItems = []
+    for (const addedName of result.addedItems ?? []) {
+      if (!addedName || existingNames.has(addedName) || removedNames.has(addedName)) continue
+      const companionCatalog = catalogItems.find(c => c.item_name === addedName)
+      companionItems.push({
+        id: `${newItem.id}:${addedName}`,
+        item_name: addedName,
+        description: null,
+        category: companionCatalog?.category ?? category,
+        quantity: 1,
+        price: companionCatalog?.default_price ?? 0,
+        tech_supplied: companionCatalog?.tech_supplied ?? false,
+      })
+      existingNames.add(addedName)
+    }
+    visit._items = [...retainedItems, newItem, ...companionItems]
     if (result.totalPrice !== undefined) updatePrice(result.totalPrice)
     refreshSection(category === 'accessory' ? 'accessories' : 'fixes')
   } catch (err) { console.error('Add item failed:', err) }
@@ -811,18 +836,28 @@ function buildWeighInPanel (systemNum, showLabel) {
       ? (document.getElementById(`wi-${systemNum}-charge`)?.value || 'factory')
       : 'factory'
 
+    const currentWeighIn = (visit._weighInData ?? []).find(
+      data => (data.systemNumber ?? data.system_number) === systemNum
+    )
     // Preserve the technician's current measurements before attempting the
     // transitional legacy API write. Pricing is not derived in the PWA.
     visit._weighInData = [
-      ...(visit._weighInData ?? []).filter(data => data.systemNumber !== systemNum),
-      { ...(savedWeighIn ?? {}), ...body, systemNumber: systemNum },
+      ...(visit._weighInData ?? []).filter(
+        data => (data.systemNumber ?? data.system_number) !== systemNum
+      ),
+      { ...(currentWeighIn ?? {}), ...body, systemNumber: systemNum },
     ]
     await persistCurrentDraft()
     try {
       const saved = await api.put(`/visits/${visit.id}/weigh-in/${systemNum}`, body)
+      const latestWeighIn = (visit._weighInData ?? []).find(
+        data => (data.systemNumber ?? data.system_number) === systemNum
+      )
       visit._weighInData = [
-        ...(visit._weighInData ?? []).filter(data => data.systemNumber !== systemNum),
-        saved,
+        ...(visit._weighInData ?? []).filter(
+          data => (data.systemNumber ?? data.system_number) !== systemNum
+        ),
+        { ...(latestWeighIn ?? {}), ...saved, systemNumber: systemNum },
       ]
       persistCurrentDraft({ touch: false })
     }
@@ -1308,7 +1343,8 @@ function buildItemChip (item) {
     try {
       const result = await api.delete(`/visits/${visit.id}/items/${item.id}`)
       if (result.totalPrice !== undefined) updatePrice(result.totalPrice)
-      visit._items = (visit._items ?? []).filter(i => i.id !== item.id)
+      const removedNames = new Set(result.removedItems ?? [item.item_name])
+      visit._items = (visit._items ?? []).filter(i => i.id !== item.id && !removedNames.has(i.item_name))
       const sectionId = item.category==='thermostat' ? 'thermostat' : item.category==='accessory' ? 'accessories' : 'fixes'
       refreshSection(sectionId)
     } catch (err) { console.error('Delete item failed:', err) }
