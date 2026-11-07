@@ -159,6 +159,34 @@ describe('GET /api/visits/mine', () => {
     const res = await request(app).get('/api/visits/mine').set('Authorization', `Bearer ${token}`);
     expect(res.status).toBe(403);
   });
+
+  it('returns only terminal visits with work_type, total_price, and completed_at when status=completed', async () => {
+    const { token } = await seedTechnicianWithToken();
+    const { visitId: activeVisitId } = await seedInLobbyVisit();
+    const { visitId: completedVisitId } = await seedInLobbyVisit();
+    await request(app).post(`/api/visits/${activeVisitId}/claim`).set('Authorization', `Bearer ${token}`);
+    await request(app).post(`/api/visits/${completedVisitId}/claim`).set('Authorization', `Bearer ${token}`);
+    await pool.query(
+      `UPDATE visits
+       SET status = 'completed', work_type = 'ac_startup', total_price = 175, completed_at = '2026-08-23T15:30:00.000Z'
+       WHERE id = $1`,
+      [completedVisitId]
+    );
+
+    const res = await request(app)
+      .get('/api/visits/mine?status=completed&today=true')
+      .set('Authorization', `Bearer ${token}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveLength(1);
+    expect(res.body[0]).toMatchObject({
+      id: completedVisitId,
+      status: 'completed',
+      work_type: 'ac_startup',
+      total_price: 175,
+      completed_at: '2026-08-23T15:30:00.000Z',
+    });
+  });
 });
 
 // ── POST /api/visits/:id/start ───────────────────────────────────────────────

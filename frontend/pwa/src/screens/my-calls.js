@@ -15,8 +15,9 @@ import { NavBar, navBarStyles }         from '../components/nav-bar.js'
 import { JobCard, jobCardStyles }       from '../components/job-card.js'
 import { startSync, forceSync }         from '../lib/sync.js'
 import { NotificationBell, notificationStyles } from '../components/notifications.js'
-import { getAllLocalVisitDrafts }       from '../lib/db.js'
+import { cacheMyCallsVisits, getAllCompletionSubmissions, getAllLocalVisitDrafts, getCachedMyCallsVisits } from '../lib/db.js'
 import { confirmedLocalCancelVisitIds } from '../lib/workspace-visit.mjs'
+import { localMyCallsVisits, mergeMyCallsVisits, shouldShowMyCallsLoadError } from '../lib/my-calls-visit.mjs'
 
 // ── Styles (injected once) ─────────────────────────────────
 
@@ -39,6 +40,7 @@ let screenEl      = null
 let loadSheetOpen = false
 let loadError     = null
 let cancelPendingVisitIds = new Set()
+let loadSequence = 0
 
 // ── Mount ──────────────────────────────────────────────────
 
@@ -90,34 +92,64 @@ export default function mount (appEl) {
 // ── Data ───────────────────────────────────────────────────
 
 async function loadVisits () {
+  const sequence = ++loadSequence
   isLoading = true
   renderList()
   renderLoadSheet()
 
+  // Local draft recovery is independent of server refresh and outbox retry.
+  // It must be able to end the skeleton state even when the API is offline.
+  void refreshLocalDraftState().then(() => {
+    if (sequence !== loadSequence) return
+    visits = mergeMyCallsVisits(visits, localVisits)
+    if (isLoading) isLoading = false
+    renderList()
+    renderLoadSheet()
+  })
+
   try {
-    visits = await api.get('/visits/mine')
+    const remoteVisits = await api.get('/visits/mine')
+    if (sequence !== loadSequence) return
+    visits = mergeMyCallsVisits(remoteVisits, localVisits)
     loadError = null
+    // A cache write cannot delay rendering or turn a working server response
+    // into an error state. It is only used by the next offline boot.
+    void cacheMyCallsVisits(remoteVisits).catch(err => console.error('Failed to cache My Calls:', err))
   } catch (err) {
+    if (sequence !== loadSequence) return
     loadError = err
     console.error('Failed to load visits:', err)
   } finally {
-    await refreshCancelPendingVisits()
+    if (sequence !== loadSequence) return
     isLoading = false
     renderList()
     renderLoadSheet()
   }
 }
 
-async function refreshCancelPendingVisits () {
+let localDrafts = []
+let localVisits = []
+
+async function refreshLocalDraftState () {
   try {
-    cancelPendingVisitIds = confirmedLocalCancelVisitIds(await getAllLocalVisitDrafts())
+    const [drafts, cachedVisits, completionSubmissions] = await Promise.all([
+      getAllLocalVisitDrafts(),
+      getCachedMyCallsVisits(),
+      getAllCompletionSubmissions(),
+    ])
+    localDrafts = drafts
+    localVisits = localMyCallsVisits({ drafts, cachedVisits, completionSubmissions })
+    cancelPendingVisitIds = confirmedLocalCancelVisitIds(localDrafts)
   } catch (err) {
-    // A local-draft read failure must not alter shared visit state or imply
+    // A local read failure must not alter shared visit state or imply
     // cancellation. The normal server-derived card remains usable.
-    console.error('Failed to read local Cancel drafts:', err)
+    console.error('Failed to read local My Calls data:', err)
+    localDrafts = []
+    localVisits = []
     cancelPendingVisitIds = new Set()
   }
 }
+
 
 function onSyncUpdate (e) {
   const { visits: updated } = e.detail ?? {}
@@ -159,7 +191,7 @@ function renderList () {
   )
 
   if (!activeVisits.length) {
-    listEl.appendChild(loadError ? buildLoadErrorState() : buildEmptyState())
+    listEl.appendChild(shouldShowMyCallsLoadError(loadError, visits) ? buildLoadErrorState() : buildEmptyState())
     return
   }
 

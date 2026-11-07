@@ -15,6 +15,7 @@
 
 import { api }        from '../../../shared/api.js'
 import { getCatalog, getLocalVisitDraft, saveLocalVisitDraft } from '../lib/db.js'
+import { createPendingCompletionSubmission, deliverCompletionSubmission } from '../lib/completion-submission.mjs'
 import { isCancelJustificationMissing } from '../lib/cancel-justification.mjs'
 import { cancelConfirmationStyles, showCancelConfirmation } from '../lib/cancel-confirmation.mjs'
 import {
@@ -1252,20 +1253,26 @@ function openGenerateModalDirect () {
   const actions = makeActions([
     { label: 'Go back', cls: 'secondary', fn: () => overlay.remove() },
     { label: 'Submit report', cls: 'primary', fn: async (btn) => {
-      btn.disabled=true; btn.textContent='Submitting…'
+      btn.disabled=true; btn.textContent='Saving report…'
       try {
-        await api.post(`/visits/${visit.id}/complete`, {
+        // Persist the immutable submission before any transport attempt. A
+        // retry will use this record, never the mutable Workspace draft.
+        await persistCurrentDraft({ touch: false })
+        const draft = await getLocalVisitDraft(visit.id) ?? visit
+        const submission = await createPendingCompletionSubmission(draft, {
           checklistAnswers: buildChecklistAnswers(),
-          notes: visit.notes ?? '',
-          cancel: isCancelMode(),
         })
+        try {
+          await deliverCompletionSubmission(submission)
+        } catch (err) {
+          if (navigator.onLine) console.warn('Report saved locally; delivery remains pending:', err)
+        }
         overlay.remove()
         sessionStorage.removeItem('workspace:visitId')
         window.dispatchEvent(new CustomEvent('app:navigate', { detail: { route: '/reports' } }))
       } catch (err) {
         btn.disabled=false; btn.textContent='Submit report'
-        if (!navigator.onLine) { overlay.remove(); showOfflineModal() }
-        else console.error('Submit failed:', err)
+        console.error('Could not save report locally:', err)
       }
     }},
   ])
@@ -1275,24 +1282,6 @@ function openGenerateModalDirect () {
   }
   modal.appendChild(summary); modal.appendChild(note); modal.appendChild(actions)
   overlay.appendChild(modal)
-  document.getElementById('ws-screen')?.appendChild(overlay)
-}
-
-function showOfflineModal () {
-  const overlay = makeOverlay()
-  const modal = makeModal('No connection')
-  const note = document.createElement('p'); note.className='ws-modal-note'
-  note.textContent = "You're offline. Download the report now or wait for a connection."
-  modal.appendChild(note)
-  const actions = makeActions([
-    { label: 'Download', cls: 'secondary', fn: () => { downloadLocalReport(); overlay.remove() } },
-    { label: 'Wait', cls: 'primary', fn: async () => {
-      const { enqueue } = await import('../lib/queue.js')
-      await enqueue({ visitId: visit.id, queuedAt: new Date().toISOString() })
-      overlay.remove(); navigateBack()
-    }},
-  ])
-  modal.appendChild(actions); overlay.appendChild(modal)
   document.getElementById('ws-screen')?.appendChild(overlay)
 }
 

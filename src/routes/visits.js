@@ -130,6 +130,39 @@ visitsRouter.post('/:id/claim', requireRole('technician'), async (req, res, next
 // GET /api/visits/mine — declared before /:id to prevent param capture
 visitsRouter.get('/mine', requireRole('technician'), async (req, res, next) => {
   try {
+    if (req.query.status === 'completed') {
+      const result = await pool.query(
+        `SELECT v.id, v.order_number, v.scheduled_time, v.has_multiple_systems,
+                v.is_deferred, v.status, v.technician_id,
+                v.work_type, v.total_price, v.completed_at,
+                a.street, a.city, a.subdivision, a.builder
+         FROM visits v
+         JOIN addresses a ON a.id = v.address_id
+         WHERE v.technician_id = $1
+           AND v.status IN ('completed', 'temporarily', 'cancelled')
+         ORDER BY v.completed_at DESC NULLS LAST, v.updated_at DESC NULLS LAST`,
+        [req.technician.id]
+      );
+
+      return res.json(result.rows.map((r) => ({
+        id: r.id,
+        orderNumber: r.order_number,
+        scheduledTime: r.scheduled_time,
+        technicianId: r.technician_id,
+        status: r.status,
+        workType: r.work_type,
+        work_type: r.work_type,
+        totalPrice: r.total_price ?? 0,
+        total_price: r.total_price ?? 0,
+        completedAt: r.completed_at,
+        completed_at: r.completed_at,
+        address: { street: r.street, city: r.city, subdivision: r.subdivision, builder: r.builder },
+        hasMultipleSystems: r.has_multiple_systems,
+        isDeferred: r.is_deferred,
+        tags: buildTags(r.has_multiple_systems, false),
+      })));
+    }
+
     const result = await pool.query(
       `SELECT v.id, v.order_number, v.scheduled_time, v.has_multiple_systems,
               v.is_deferred, v.status, v.technician_id,

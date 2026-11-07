@@ -289,11 +289,27 @@ A technician-to-technician transfer does not introduce a separate status value h
 
 **Rules:**
 - `cancelled` status deletes all visit_items and visit_services rows for the visit, sets `total_price = 0`, and records the Cancel service representation. No accessories, fixes, or normal services are retained; notes and checklist answers remain as the recorded cancellation justification. Entering Cancel mode changes only the Local Visit Draft until Generate Report finalization.
-- Generate Report creates a local immutable submission snapshot whose ACK moves an `assigned` or `in_progress` visit into one of these terminal states: `completed`, `temporarily`, or `cancelled`. There is no visit-level `closed` state. Post-completion technician corrections use `corrections`; the technician does not directly reopen source visit data. **IMPLEMENTATION GAP:** current schema/API behavior does not yet model the local snapshot/outbox lifecycle; see `OFFLINE-FIRST-CONTRACT.md`.
+- Generate Report creates a local immutable submission snapshot whose ACK moves an `assigned` or `in_progress` visit into one of these terminal states: `completed`, `temporarily`, or `cancelled`. There is no visit-level `closed` state. Post-completion technician corrections use `corrections`; the technician does not directly reopen source visit data.
 - Any visit type can have child visits on future dates — lineage is tracked via address history.
 - `has_multiple_systems` is a denormalized convenience flag kept in sync with `visit_systems` row count.
 
 ---
+
+### completion_submissions
+Server-side acknowledgement records for immutable FieldOps completion snapshots.
+
+| Column | Type | Notes |
+|---|---|---|
+| submission_id | text PK | Client-generated stable idempotency identity. |
+| visit_id | text FK | Visit finalized by this submission. |
+| technician_id | text FK | Technician whose authenticated submission was accepted. |
+| terminal_intent | text | `completed`, `temporarily`, or `cancelled`. |
+| snapshot | jsonb | Immutable accepted structured source snapshot. |
+| accepted_at | text | ISO 8601 acceptance time. |
+
+**Rules:** A repeated `submission_id` returns the same logical ACK and cannot
+repeat completion effects. The browser retains its own durable pending/delivered
+record; this table is the server-side idempotency and audit anchor, not a queue.
 
 ### visit_systems
 Equipment per system per visit. One row per system (system_number = 1, 2, 3...).

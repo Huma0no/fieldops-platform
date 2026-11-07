@@ -77,13 +77,20 @@ const routes = {
 }
 
 const appEl = document.getElementById('app')
+let navSeq = 0
 
 async function navigate (path) {
+  const seq    = ++navSeq
   // Strip query string for route matching
   const base   = path.split('?')[0]
   const loader = routes[base] ?? routes['/']
-  const mod    = await loader()
-  mod.default(appEl)
+  try {
+    const mod = await loader()
+    if (seq !== navSeq) return
+    await mod.default(appEl)
+  } catch (err) {
+    console.error('Navigation failed:', err)
+  }
 }
 
 // ── Bootstrap ──────────────────────────────────────────────
@@ -104,6 +111,7 @@ function boot () {
 
   const session = getSession()
   if (session) {
+    import('./src/lib/queue.js').then(({ startQueueRetry }) => startQueueRetry())
     preloadCatalog()
     navigate('/')
   } else {

@@ -86,6 +86,7 @@ async function loadLobby () {
 }
 
 function onSyncUpdate () {
+  if (!document.getElementById('lobby-list')) return
   loadLobby()
 }
 

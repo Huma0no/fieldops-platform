@@ -12,11 +12,19 @@
 
 import { api }                  from '../../../shared/api.js'
 import { NavBar, navBarStyles } from '../components/nav-bar.js'
-import { getQueue }             from '../lib/db.js'
+import {
+  getAllCompletionSubmissions,
+  getPendingCompletionSubmissions,
+} from '../lib/db.js'
+import {
+  deliverCompletionSubmission,
+  retryPendingCompletionSubmissions,
+} from '../lib/completion-submission.mjs'
 import { startSync }            from '../lib/sync.js'
 import { CorrectionModal, correctionModalStyles } from '../components/correction-modal.js'
 
 const STYLES_ID = 'styles-reports'
+const TERMINAL_VISIT_STATUSES = new Set(['completed', 'temporarily', 'cancelled'])
 
 function injectStyles () {
   if (document.getElementById(STYLES_ID)) return
@@ -28,7 +36,10 @@ function injectStyles () {
 
 let completions  = []
 let queuedIds    = new Set()
+let pendingSubmissions = []
 let downloadedIds = new Set()
+let retryingIds  = new Set()
+let retryErrors  = new Map()
 let isLoading    = true
 
 export default async function mount (appEl) {
@@ -54,35 +65,94 @@ export default async function mount (appEl) {
 
   appEl.appendChild(screen)
 
-  await loadReports()
-  startSync()
   window.removeEventListener('sync:update', onSyncUpdate)
   window.addEventListener('sync:update', onSyncUpdate)
-  window.removeEventListener('queue:sent', onQueueSent)
-  window.addEventListener('queue:sent',  onQueueSent)
+  window.removeEventListener('completion:delivered', onQueueSent)
+  window.addEventListener('completion:delivered', onQueueSent)
+
+  await loadReports()
+  startSync()
+  if (navigator.onLine !== false && pendingSubmissions.length > 0) {
+    void retryPendingCompletionSubmissions().catch(err => {
+      console.error('Background completion retry failed:', err)
+    })
+  }
+}
+
+function completionFromSubmissionRecord (entry) {
+  const snapshot = entry?.snapshot ?? {}
+  return {
+    id: entry.visitId,
+    status: snapshot.terminalIntent ?? 'completed',
+    address: snapshot.address ?? {},
+    work_type: snapshot.workType ?? (snapshot.cancel ? 'cancel' : null),
+    total_price: snapshot.totalPrice ?? 0,
+    completed_at: entry.deliveredAt ?? snapshot.createdAt ?? entry.createdAt ?? null,
+    snapshot,
+  }
 }
 
 async function loadReports () {
   isLoading = true
   renderList()
 
+  let localPending = []
+  let localAll = []
   try {
-    const [visits, queue] = await Promise.all([
-      api.get('/visits/mine?status=completed&today=true'),
-      getQueue(),
+    ;[localPending, localAll] = await Promise.all([
+      getPendingCompletionSubmissions(),
+      getAllCompletionSubmissions(),
     ])
-    completions = visits ?? []
-    queuedIds   = new Set(queue.map(e => e.visitId))
   } catch (err) {
-    completions = []
+    console.error('Failed to read local completion submissions:', err)
+  }
+
+  pendingSubmissions = localPending ?? []
+  queuedIds = new Set(pendingSubmissions.map(e => e.visitId))
+
+  const localDeliveredMap = new Map()
+  for (const entry of localAll ?? []) {
+    if (entry?.lifecycle === 'delivered' && entry.visitId) {
+      localDeliveredMap.set(entry.visitId, completionFromSubmissionRecord(entry))
+    }
+  }
+
+  try {
+    const visits = await api.get('/visits/mine?status=completed&today=true')
+    const terminalVisits = (visits ?? []).filter(v =>
+      !v?.status || TERMINAL_VISIT_STATUSES.has(v.status) || localDeliveredMap.has(v.id)
+    ).map(v => {
+      const localDelivered = localDeliveredMap.get(v.id)
+      return {
+        ...localDelivered,
+        ...v,
+        work_type: v.work_type ?? v.workType ?? localDelivered?.work_type ?? null,
+        total_price: v.total_price ?? v.totalPrice ?? localDelivered?.total_price ?? 0,
+        completed_at: v.completed_at ?? v.completedAt ?? localDelivered?.completed_at ?? null,
+      }
+    })
+    const seenIds = new Set(terminalVisits.map(v => v.id))
+    for (const [visitId, localComp] of localDeliveredMap.entries()) {
+      if (!seenIds.has(visitId)) {
+        terminalVisits.push(localComp)
+      }
+    }
+    completions = terminalVisits
+  } catch (err) {
+    completions = Array.from(localDeliveredMap.values())
     console.error('Failed to load reports:', err)
   } finally {
+    const deliveredSet = new Set(completions.map(c => c.id))
+    pendingSubmissions = pendingSubmissions.filter(entry => !deliveredSet.has(entry.visitId))
+    queuedIds = new Set(pendingSubmissions.map(e => e.visitId))
     isLoading = false
     renderList()
+    updateHeaderRetryBtn()
   }
 }
 
 function onSyncUpdate (e) {
+  if (!document.getElementById('reports-list')) return
   const { completedVisits } = e.detail ?? {}
   if (!completedVisits) return
   completedVisits.forEach(v => {
@@ -91,12 +161,64 @@ function onSyncUpdate (e) {
     else completions.push(v)
   })
   renderList()
+  updateHeaderRetryBtn()
 }
 
 function onQueueSent (e) {
-  const { visitId } = e.detail ?? {}
-  if (visitId) queuedIds.delete(visitId)
+  const { visitId, submissionId, record } = e.detail ?? {}
+  const matchingPending = pendingSubmissions.find(
+    entry => (visitId && entry.visitId === visitId) || (submissionId && entry.submissionId === submissionId)
+  )
+  const resolvedVisitId = visitId ?? record?.visitId ?? matchingPending?.visitId
+  if (resolvedVisitId) {
+    queuedIds.delete(resolvedVisitId)
+    retryingIds.delete(resolvedVisitId)
+    retryErrors.delete(resolvedVisitId)
+    pendingSubmissions = pendingSubmissions.filter(entry => entry.visitId !== resolvedVisitId)
+    const sourceRecord = record ?? matchingPending
+    if (sourceRecord && !completions.some(c => c.id === resolvedVisitId)) {
+      completions.unshift(completionFromSubmissionRecord({
+        ...sourceRecord,
+        deliveredAt: sourceRecord.deliveredAt ?? new Date().toISOString(),
+      }))
+    }
+  }
   renderList()
+  updateHeaderRetryBtn()
+}
+
+async function retrySingleSubmission (visit) {
+  const visitId = visit.id
+  if (!visitId || retryingIds.has(visitId)) return
+  retryingIds.add(visitId)
+  retryErrors.delete(visitId)
+  renderList()
+  updateHeaderRetryBtn()
+
+  try {
+    const entry = visit._submissionRecord
+      ?? pendingSubmissions.find(item => item.visitId === visitId)
+      ?? visitId
+    await deliverCompletionSubmission(entry)
+  } catch (err) {
+    retryErrors.set(visitId, err?.message || 'Retry failed')
+    console.error('Manual completion retry failed:', err)
+  } finally {
+    retryingIds.delete(visitId)
+    renderList()
+    updateHeaderRetryBtn()
+  }
+}
+
+async function retryAllPending () {
+  const uniqueVisitIds = Array.from(new Set(pendingSubmissions.map(e => e.visitId)))
+  if (!uniqueVisitIds.length) return
+  for (const visitId of uniqueVisitIds) {
+    const entry = pendingSubmissions.find(e => e.visitId === visitId)
+    if (entry) {
+      await retrySingleSubmission({ id: visitId, _submissionRecord: entry })
+    }
+  }
 }
 
 function renderList () {
@@ -109,20 +231,39 @@ function renderList () {
     return
   }
 
-  if (!completions.length && !queuedIds.size) {
-    listEl.appendChild(buildEmptyState())
-    return
-  }
-
   const sorted = [...completions].sort(
     (a, b) => new Date(b.completed_at ?? 0) - new Date(a.completed_at ?? 0)
   )
 
-  sorted.forEach(visit => listEl.appendChild(buildReportCard(visit)))
+  const deliveredIds = new Set(sorted.map(visit => visit.id))
+  const seenPendingVisits = new Set()
+  const pendingCards = []
+  for (const entry of pendingSubmissions) {
+    if (!entry?.visitId || deliveredIds.has(entry.visitId) || seenPendingVisits.has(entry.visitId)) {
+      continue
+    }
+    seenPendingVisits.add(entry.visitId)
+    pendingCards.push({
+      id: entry.visitId,
+      address: entry.snapshot?.address ?? {},
+      work_type: entry.snapshot?.workType ?? (entry.snapshot?.cancel ? 'cancel' : null),
+      total_price: entry.snapshot?.totalPrice ?? 0,
+      snapshot: entry.snapshot,
+      _submissionRecord: entry,
+      _localPending: true,
+    })
+  }
+
+  if (!sorted.length && !pendingCards.length) {
+    listEl.appendChild(buildEmptyState())
+    return
+  }
+
+  ;[...pendingCards, ...sorted].forEach(visit => listEl.appendChild(buildReportCard(visit)))
 }
 
 function buildReportCard (visit) {
-  const isPending    = queuedIds.has(visit.id)
+  const isPending    = visit._localPending || queuedIds.has(visit.id)
   const isDownloaded = downloadedIds.has(visit.id)
 
   const card = document.createElement('div')
@@ -151,16 +292,18 @@ function buildReportCard (visit) {
   const statusIcon = buildStatusIcon(isPending, isDownloaded)
   rightWrap.appendChild(statusIcon)
 
-  // ··· menu — low-frequency actions
-  const menuBtn = document.createElement('button')
-  menuBtn.className   = 'rc-menu-btn'
-  menuBtn.textContent = '···'
-  menuBtn.setAttribute('aria-label', 'More options')
-  menuBtn.addEventListener('click', e => {
-    e.stopPropagation()
-    showCardMenu(menuBtn, visit)
-  })
-  rightWrap.appendChild(menuBtn)
+  if (!isPending) {
+    // ··· menu — low-frequency actions are available only after delivery.
+    const menuBtn = document.createElement('button')
+    menuBtn.className   = 'rc-menu-btn'
+    menuBtn.textContent = '···'
+    menuBtn.setAttribute('aria-label', 'More options')
+    menuBtn.addEventListener('click', e => {
+      e.stopPropagation()
+      showCardMenu(menuBtn, visit)
+    })
+    rightWrap.appendChild(menuBtn)
+  }
 
   top.appendChild(left)
   top.appendChild(rightWrap)
@@ -168,14 +311,52 @@ function buildReportCard (visit) {
 
   // Status label
   const statusLabel = document.createElement('p')
-  if (isPending)         { statusLabel.textContent = 'Pending send — will retry when online'; statusLabel.className = 'rc-status rc-status--pending' }
-  else if (isDownloaded) { statusLabel.textContent = 'Downloaded locally — not sent'; statusLabel.className = 'rc-status rc-status--downloaded' }
-  else                   { statusLabel.textContent = 'Sent'; statusLabel.className = 'rc-status rc-status--sent' }
+  if (isPending) {
+    const isRetrying = retryingIds.has(visit.id)
+    const errText = retryErrors.get(visit.id)
+    statusLabel.textContent = isRetrying
+      ? 'Sending report…'
+      : errText
+        ? `Pending send — ${errText}`
+        : 'Pending send — will retry when online'
+    statusLabel.className = 'rc-status rc-status--pending'
+  } else if (isDownloaded) {
+    statusLabel.textContent = 'Downloaded locally — not sent'
+    statusLabel.className = 'rc-status rc-status--downloaded'
+  } else {
+    statusLabel.textContent = 'Sent'
+    statusLabel.className = 'rc-status rc-status--sent'
+  }
   card.appendChild(statusLabel)
 
   // Actions
   const actions = document.createElement('div')
   actions.className = 'rc-actions'
+
+  if (isPending) {
+    const isRetrying = retryingIds.has(visit.id)
+    const retryBtn = document.createElement('button')
+    retryBtn.className   = 'rc-btn rc-btn--secondary'
+    retryBtn.disabled    = isRetrying
+    retryBtn.textContent = isRetrying ? 'Sending…' : 'Retry send'
+    retryBtn.addEventListener('click', e => {
+      e.stopPropagation()
+      void retrySingleSubmission(visit)
+    })
+    actions.appendChild(retryBtn)
+
+    const previewBtn = document.createElement('button')
+    previewBtn.className   = 'rc-btn rc-btn--ghost'
+    previewBtn.textContent = 'View report'
+    previewBtn.addEventListener('click', e => {
+      e.stopPropagation()
+      openReportPreview(visit)
+    })
+    actions.appendChild(previewBtn)
+
+    card.appendChild(actions)
+    return card
+  }
 
   const previewBtn = document.createElement('button')
   previewBtn.className   = 'rc-btn rc-btn--secondary'
@@ -248,6 +429,27 @@ function buildStatusIcon (isPending, isDownloaded) {
   return wrap
 }
 
+function formatLocalSnapshotPreview (visit) {
+  const snap = visit?.snapshot
+  if (!snap) return null
+  const lines = [
+    `${snap.address?.street ?? visit.address?.street ?? '—'}`,
+    `Status: ${snap.terminalIntent ?? 'pending'} (Pending send)`,
+    `Service: ${snap.cancel ? 'Cancel' : (snap.service?.serviceName ?? '—')}`,
+    `Total: ${formatPrice(snap.totalPrice ?? visit.total_price ?? 0)}`,
+  ]
+  if (Array.isArray(snap.items) && snap.items.length > 0) {
+    lines.push(
+      'Items:',
+      ...snap.items.map(item => `  - ${item.item_name ?? item.itemName} x${item.quantity ?? 1}`)
+    )
+  }
+  if (snap.notes) {
+    lines.push(`Notes: ${snap.notes}`)
+  }
+  return lines.join('\n')
+}
+
 async function openReportPreview (visit) {
   const overlay = document.createElement('div')
   overlay.className = 'rp-overlay'
@@ -277,14 +479,32 @@ async function openReportPreview (visit) {
   overlay.appendChild(modal)
   document.body.appendChild(overlay)
 
+  if (visit._localPending && visit.snapshot) {
+    body.innerHTML = ''
+    const pre = document.createElement('pre')
+    pre.className   = 'rp-preview-text'
+    pre.textContent = formatLocalSnapshotPreview(visit)
+    body.appendChild(pre)
+    return
+  }
+
   try {
     const preview = await api.get(`/visits/${visit.id}/report-preview`)
     body.innerHTML = ''
     const pre = document.createElement('pre')
     pre.className   = 'rp-preview-text'
-    pre.textContent = preview?.text ?? JSON.stringify(preview, null, 2)
+    pre.textContent = preview?.reportText ?? preview?.text ?? JSON.stringify(preview, null, 2)
     body.appendChild(pre)
   } catch (err) {
+    const fallback = formatLocalSnapshotPreview(visit)
+    if (fallback) {
+      body.innerHTML = ''
+      const pre = document.createElement('pre')
+      pre.className   = 'rp-preview-text'
+      pre.textContent = fallback
+      body.appendChild(pre)
+      return
+    }
     body.textContent = 'Could not load report preview.'
     console.error('Preview failed:', err)
   }
@@ -314,7 +534,27 @@ function buildHeader () {
   title.className   = 'screen-title'
   title.textContent = 'Reports'
   header.appendChild(title)
+
+  const retryAllBtn = document.createElement('button')
+  retryAllBtn.id = 'reports-retry-all-btn'
+  retryAllBtn.className = 'rc-btn rc-btn--secondary'
+  retryAllBtn.style.display = 'none'
+  retryAllBtn.textContent = 'Retry pending'
+  retryAllBtn.addEventListener('click', () => {
+    void retryAllPending()
+  })
+  header.appendChild(retryAllBtn)
   return header
+}
+
+function updateHeaderRetryBtn () {
+  const btn = document.getElementById('reports-retry-all-btn')
+  if (!btn) return
+  const hasPending = pendingSubmissions.length > 0
+  btn.style.display = hasPending ? '' : 'none'
+  const anyRetrying = retryingIds.size > 0
+  btn.disabled = anyRetrying
+  btn.textContent = anyRetrying ? 'Sending…' : 'Retry pending'
 }
 
 function buildEmptyState () {

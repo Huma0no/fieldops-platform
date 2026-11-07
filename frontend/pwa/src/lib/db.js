@@ -10,7 +10,7 @@
  */
 
 const DB_NAME    = 'fieldops'
-const DB_VERSION = 1
+const DB_VERSION = 2
 
 let _db = null
 
@@ -32,6 +32,11 @@ function openDB () {
       if (!db.objectStoreNames.contains('queue')) {
         db.createObjectStore('queue', { keyPath: 'id', autoIncrement: true })
       }
+      if (!db.objectStoreNames.contains('completionSubmissions')) {
+        const submissions = db.createObjectStore('completionSubmissions', { keyPath: 'submissionId' })
+        submissions.createIndex('lifecycle', 'lifecycle', { unique: false })
+        submissions.createIndex('visitId', 'visitId', { unique: false })
+      }
       if (!db.objectStoreNames.contains('photos')) {
         const photos = db.createObjectStore('photos', { keyPath: 'id', autoIncrement: true })
         photos.createIndex('visitId', 'visitId', { unique: false })
@@ -40,8 +45,15 @@ function openDB () {
 
     req.onsuccess = event => {
       _db = event.target.result
+      // Let a later application version upgrade this database instead of
+      // leaving an old tab's connection permanently blocked.
+      _db.onversionchange = () => {
+        _db.close()
+        _db = null
+      }
       resolve(_db)
     }
+    req.onblocked = () => reject(new Error('Local database upgrade is blocked by another open FieldOps tab'))
     req.onerror = () => reject(req.error)
   })
 }
@@ -117,6 +129,29 @@ export async function getAllLocalVisitDrafts () {
   return records.filter(isLocalVisitDraft)
 }
 
+// My Calls summaries share the existing visit cache without replacing the
+// mutable Local Visit Draft stored for the same visit ID. The server summary
+// is only a downloadable card representation; Workspace remains draft-backed.
+export async function cacheMyCallsVisits (visits) {
+  const records = await getAllVisits()
+  const byId = new Map(records.map(record => [record.id, record]))
+
+  await Promise.all((visits ?? []).map(async visit => {
+    const existing = byId.get(visit.id)
+    if (isLocalVisitDraft(existing)) {
+      return setVisit({ ...existing, _myCallsSummary: visit })
+    }
+    return setVisit({ id: visit.id, _myCallsSummary: visit })
+  }))
+}
+
+export async function getCachedMyCallsVisits () {
+  const records = await getAllVisits()
+  return records
+    .map(record => record._myCallsSummary)
+    .filter(Boolean)
+}
+
 export async function deleteLocalVisitDraft (id) {
   return deleteVisit(id)
 }
@@ -142,6 +177,43 @@ export async function getQueue () {
 export async function dequeue (id) {
   const store = await tx('queue', 'readwrite')
   return promisify(store.delete(id))
+}
+
+// ── Completion submissions ───────────────────────────────
+
+export async function saveCompletionSubmission (submission) {
+  const store = await tx('completionSubmissions', 'readwrite')
+  return promisify(store.put(submission))
+}
+
+export async function getCompletionSubmission (submissionId) {
+  const store = await tx('completionSubmissions')
+  return promisify(store.get(submissionId))
+}
+
+export async function getPendingCompletionSubmissions () {
+  const store = await tx('completionSubmissions')
+  const index = store.index('lifecycle')
+  return promisify(index.getAll('pending'))
+}
+
+export async function getAllCompletionSubmissions () {
+  const store = await tx('completionSubmissions')
+  return promisify(store.getAll())
+}
+
+export async function markCompletionSubmissionDelivered (submissionId, acknowledgment) {
+  const submission = await getCompletionSubmission(submissionId)
+  if (!submission) return null
+  const delivered = {
+    ...submission,
+    lifecycle: 'delivered',
+    deliveredAt: new Date().toISOString(),
+    lastError: null,
+    acknowledgment,
+  }
+  await saveCompletionSubmission(delivered)
+  return delivered
 }
 
 // ── Photos ────────────────────────────────────────────────

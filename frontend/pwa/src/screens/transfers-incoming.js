@@ -91,6 +91,7 @@ async function loadTransfers () {
 }
 
 function onSyncUpdate () {
+  if (!document.getElementById('ti-list')) return
   loadTransfers()
 }
 

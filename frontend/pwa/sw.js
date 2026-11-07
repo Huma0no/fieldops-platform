@@ -8,13 +8,14 @@
  *   - Sync and auth endpoints: Network Only
  */
 
-const SHELL_CACHE  = 'fieldops-shell-v1'
+const SHELL_CACHE  = 'fieldops-shell-v2'
 const CATALOG_CACHE = 'fieldops-catalog-v1'
 
 const SHELL_ASSETS = [
   '/',
   '/index.html',
   '/app.js',
+  '/shared/api.js',
   '/src/screens/auth.js',
   '/src/screens/my-calls.js',
   '/src/screens/lobby.js',
@@ -24,14 +25,23 @@ const SHELL_ASSETS = [
   '/src/screens/settings.js',
   '/src/screens/pay.js',
   '/src/screens/transfers.js',
+  '/src/screens/transfers-incoming.js',
   '/src/components/job-card.js',
   '/src/components/nav-bar.js',
   '/src/components/badge.js',
+  '/src/components/calc-panel.js',
   '/src/components/correction-modal.js',
+  '/src/components/menu-sheet.js',
   '/src/components/notifications.js',
   '/src/lib/db.js',
   '/src/lib/sync.js',
   '/src/lib/queue.js',
+  '/src/lib/cancel-confirmation.mjs',
+  '/src/lib/cancel-justification.mjs',
+  '/src/lib/completion-submission.mjs',
+  '/src/lib/job-card-actions.mjs',
+  '/src/lib/menu-badge.mjs',
+  '/src/lib/my-calls-visit.mjs',
   '/src/lib/workspace-visit.mjs',
   '/shared/tokens.css',
 ]
@@ -49,26 +59,53 @@ const NETWORK_ONLY_PATHS = [
   '/api/sync/',
 ]
 
+const REFRESH_ON_INSTALL = new Set([
+  '/app.js',
+  '/src/screens/reports.js',
+  '/src/lib/completion-submission.mjs',
+  '/src/screens/lobby.js',
+  '/src/screens/transfers-incoming.js',
+])
+
 // ── Install: pre-cache the app shell ──────────────────────
 self.addEventListener('install', event => {
   event.waitUntil(
-    caches.open(SHELL_CACHE).then(cache => cache.addAll(SHELL_ASSETS))
+    caches.open(SHELL_CACHE).then(cache =>
+      Promise.all(
+        SHELL_ASSETS.map(async asset => {
+          try {
+            const isStyle = asset.endsWith('.css')
+            if (!REFRESH_ON_INSTALL.has(asset)) {
+              const existing = await cache.match(asset)
+              if (existing && existing.ok && (!isStyle || (existing.headers.get('content-type') || '').includes('text/css'))) {
+                return
+              }
+            }
+            const req = isStyle
+              ? new Request(asset, { headers: { Accept: 'text/css,*/*;q=0.1' } })
+              : new Request(asset)
+            const res = await fetch(req)
+            if (res.ok && (!isStyle || (res.headers.get('content-type') || '').includes('text/css'))) {
+              await cache.put(asset, res)
+            }
+          } catch (_) {
+            // Keep install resilient if an individual asset fetch fails offline
+          }
+        })
+      )
+    )
   )
   self.skipWaiting()
 })
 
 // ── Activate: remove old caches ───────────────────────────
 self.addEventListener('activate', event => {
-  event.waitUntil(
-    caches.keys().then(keys =>
-      Promise.all(
-        keys
-          .filter(k => k !== SHELL_CACHE && k !== CATALOG_CACHE)
-          .map(k => caches.delete(k))
-      )
-    )
-  )
-  self.clients.claim()
+  event.waitUntil((async () => {
+    const keys = await caches.keys()
+    const staleKeys = keys.filter(k => k !== SHELL_CACHE && k !== CATALOG_CACHE)
+    await Promise.all(staleKeys.map(k => caches.delete(k)))
+    await self.clients.claim()
+  })())
 })
 
 // ── Fetch: route by strategy ──────────────────────────────
@@ -78,6 +115,15 @@ self.addEventListener('fetch', event => {
 
   // Non-GET or cross-origin: pass through
   if (request.method !== 'GET' || url.origin !== self.location.origin) {
+    return
+  }
+
+  // Vite dev client and internal paths: pass through without caching
+  if (
+    url.pathname.startsWith('/@vite/') ||
+    url.pathname.startsWith('/@fs/') ||
+    url.pathname.startsWith('/node_modules/')
+  ) {
     return
   }
 
@@ -103,14 +149,31 @@ self.addEventListener('fetch', event => {
 })
 
 async function shellStrategy (request) {
-  const cached = await caches.match(request)
-  if (cached) return cached
-  const response = await fetch(request)
-  if (response.ok) {
-    const cache = await caches.open(SHELL_CACHE)
-    cache.put(request, response.clone())
+  const url = new URL(request.url)
+  const isStyle = request.destination === 'style' || url.pathname.endsWith('.css')
+  const isValidResponse = res =>
+    res && res.ok && (!isStyle || (res.headers.get('content-type') || '').includes('text/css'))
+
+  const cached = (await caches.match(request)) ?? (await caches.match(url.pathname))
+  if (isValidResponse(cached)) {
+    return cached
   }
-  return response
+
+  const fetchReq = isStyle
+    ? new Request(request.url, { headers: { Accept: 'text/css,*/*;q=0.1' } })
+    : request
+
+  try {
+    const response = await fetch(fetchReq)
+    if (isValidResponse(response)) {
+      const cache = await caches.open(SHELL_CACHE)
+      await cache.put(url.pathname, response.clone())
+    }
+    return response
+  } catch (err) {
+    if (cached) return cached
+    throw err
+  }
 }
 
 async function catalogStrategy (request) {

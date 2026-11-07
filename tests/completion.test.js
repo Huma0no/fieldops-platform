@@ -1,4 +1,5 @@
 const request = require('supertest');
+const { randomUUID } = require('crypto');
 const app = require('../src/index');
 const { pool, truncateTables } = require('./helpers/db');
 const { seedAssignedVisit, seedDispatcherWithToken, seedTechnicianWithToken } = require('./helpers/seeds');
@@ -188,6 +189,45 @@ describe('POST /api/visits/:id/complete', () => {
 
     expect(res.status).toBe(200);
     expect(res.body.status).toBe('completed');
+  });
+
+  it('acknowledges one immutable submission identity without duplicate completion effects', async () => {
+    const { visitId, token } = await seedAssignedVisit();
+    await addService(visitId, 'AC');
+    const itemName = `SUBMISSION-ITEM-${randomUUID()}`;
+    await pool.query(
+      `INSERT INTO catalog_items (item_name, category, default_price, tech_supplied)
+       VALUES ($1, 'accessory', 10, true)`, [itemName]
+    );
+    const snapshot = {
+      version: 1,
+      submissionId: 'completion-submission-1',
+      visitId,
+      createdAt: '2026-08-23T10:00:00.000Z',
+      terminalIntent: 'completed',
+      cancel: false,
+      service: { serviceName: 'AC', ac: true },
+      items: [{ id: 'local-item', item_name: itemName, category: 'accessory', quantity: 1, price: 10 }],
+      weighInData: [], systems: [], notes: 'Submitted once',
+      checklistAnswers: [], evidenceRefs: [], totalPrice: 150,
+    };
+
+    const first = await request(app)
+      .post(`/api/visits/${visitId}/complete`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ submissionId: snapshot.submissionId, snapshot });
+    const retry = await request(app)
+      .post(`/api/visits/${visitId}/complete`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ submissionId: snapshot.submissionId, snapshot });
+
+    expect(first.status).toBe(200);
+    expect(retry.status).toBe(200);
+    expect(first.body).toMatchObject({ acknowledged: true, submissionId: snapshot.submissionId, status: 'completed' });
+    expect(retry.body).toMatchObject({ acknowledged: true, submissionId: snapshot.submissionId, status: 'completed' });
+    expect(first.body.items).toEqual([expect.objectContaining({ itemName, price: 10 })]);
+    await expect(pool.query('SELECT * FROM completion_submissions WHERE submission_id = $1', [snapshot.submissionId]))
+      .resolves.toMatchObject({ rowCount: 1 });
   });
 
   it('idempotency check fires before ownership check — different token still gets 200 on terminal visit', async () => {

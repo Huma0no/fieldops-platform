@@ -13,6 +13,7 @@
 
 DROP TABLE IF EXISTS edit_log CASCADE;
 DROP TABLE IF EXISTS corrections CASCADE;
+DROP TABLE IF EXISTS completion_submissions CASCADE;
 DROP TABLE IF EXISTS notifications CASCADE;
 DROP TABLE IF EXISTS chat_reads CASCADE;
 DROP TABLE IF EXISTS chat_messages CASCADE;
@@ -193,6 +194,18 @@ CREATE TABLE visits (
   completed_at         text,
   is_priority          boolean NOT NULL DEFAULT false
 );
+
+-- 12a. completion_submissions
+CREATE TABLE completion_submissions (
+  submission_id text PRIMARY KEY,
+  visit_id text NOT NULL REFERENCES visits(id),
+  technician_id text NOT NULL REFERENCES technicians(id),
+  terminal_intent text NOT NULL CHECK (terminal_intent IN ('completed', 'temporarily', 'cancelled')),
+  snapshot jsonb NOT NULL,
+  accepted_at text NOT NULL
+);
+
+CREATE INDEX completion_submissions_visit_id_idx ON completion_submissions(visit_id);
 
 -- 13. visit_systems
 CREATE TABLE visit_systems (

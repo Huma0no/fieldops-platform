@@ -350,7 +350,7 @@ Note: POST /api/dispatch/catalog/services does not exist — the service list is
 
 The endpoints in this section document the current server API behavior when called; their per-edit effects do not make immediate backend persistence a FieldOps correctness requirement. Under the offline-first contract, active Workspace state belongs to the durable Local Visit Draft and Generate Report delivers a complete submission snapshot.
 
-**IMPLEMENTATION GAP:** the current API contract does not yet define the snapshot/outbox payload, stable submission identity, or ACK-driven delivery lifecycle required by `/docs/OFFLINE-FIRST-CONTRACT.md`. Do not treat the existing mutation endpoints or `/api/sync/changes` as that future delivery mechanism.
+Active-work mutation endpoints remain transitional. Completion delivery is defined by the immutable submission payload and explicit ACK below; `/api/sync/changes` is not a bidirectional Workspace mutation protocol.
 
 ```
 PATCH /api/visits/:id/services
@@ -444,6 +444,13 @@ PATCH /api/visits/:id/notes
 ```
 POST /api/visits/:id/complete
   auth: technician (must be assigned)
+  body: { submissionId, snapshot }
+  snapshot: immutable Local Visit Draft finalization record including terminal
+            intent, service/modifiers, items, Weigh-In data, notes, checklist
+            answers, evidence references, resolved total, and createdAt
+  idempotency: submissionId is stable across retries. The server stores the
+               accepted identity and returns the same ACK for a retry; a retry
+               cannot create duplicate completion effects.
   requires: at least one visit_service exists (unless service = Cancel)
   effect: status set to final outcome per selected service (see visits.status in DATA_MODEL.md)
           completed_at timestamp set
@@ -451,7 +458,7 @@ POST /api/visits/:id/complete
           notification created for dispatcher: "completion_received"
           if any pending transfers exist for this visit → marked "expired",
           recipient's notification cleared automatically
-  returns: full completion record
+  returns: full completion record plus { acknowledged: true, submissionId }
 
 GET /api/visits/:id/report-preview
   auth: technician (must be assigned) or dispatcher
@@ -468,7 +475,10 @@ GET /api/visits/:id/download
 
 Generate Report validates and finalizes the Local Visit Draft, durably creates a complete immutable submission snapshot, then attempts delivery. The visit is `delivered` only after explicit backend ACK accepting and persisting its intended terminal outcome (`completed`, `temporarily`, or `cancelled`). The canonical Completion Report is generated from accepted authoritative visit data; it is not an editable text snapshot. After delivery, the technician cannot directly reopen or edit source visit data. Any post-completion correction uses §9.
 
-**IMPLEMENTATION GAP:** `POST /api/visits/:id/complete` above describes the current immediate server-finalization endpoint. It does not by itself implement the required durable local snapshot, stable idempotency identity, retry behavior, or ACK-driven `pending → delivered` lifecycle. Those target requirements are owned by `/docs/OFFLINE-FIRST-CONTRACT.md`.
+FieldOps stores the immutable snapshot locally as `pending` before any request.
+It changes the local record to `delivered` only when this endpoint returns the
+explicit matching ACK. Startup and connectivity restoration retry pending
+records using the same `submissionId`; a transport failure remains pending.
 
 ---
 
