@@ -1,7 +1,6 @@
 /**
  * src/screens/auth.js
- * Invite code redemption screen.
- * Shown only on first launch or after token revocation.
+ * Shared username and password login for FieldOps.
  */
 
 import { api } from '../../../shared/api.js'
@@ -22,53 +21,48 @@ export function AuthScreen ({ onSuccess }) {
         </svg>
       </div>
       <h1 class="auth-title">Field Ops</h1>
-      <p class="auth-subtitle">Enter your invite code to get started.</p>
+      <p class="auth-subtitle">Sign in to Field Ops.</p>
 
       <div class="auth-form">
         <input
-          id="invite-input"
+          id="username-input"
           class="auth-input"
           type="text"
-          inputmode="text"
-          autocomplete="off"
-          autocapitalize="characters"
+          autocomplete="username"
+          autocapitalize="none"
           spellcheck="false"
-          placeholder="XXXX-XXXX"
-          maxlength="9"
+          placeholder="Username"
         />
+        <input id="password-input" class="auth-input" type="password" autocomplete="current-password" placeholder="Password" />
         <p id="auth-error" class="auth-error" aria-live="polite"></p>
         <button id="auth-submit" class="auth-btn">
-          <span id="auth-btn-label">Activate device</span>
+          <span id="auth-btn-label">Sign in</span>
           <span id="auth-btn-spinner" class="spinner hidden" aria-hidden="true"></span>
         </button>
       </div>
 
-      <p class="auth-help">Contact your dispatcher if you don't have a code.</p>
+      <p class="auth-help">Contact your Dispatch Owner if you need access.</p>
     </div>
   `
 
-  const input   = el.querySelector('#invite-input')
+  const input   = el.querySelector('#username-input')
+  const passwordInput = el.querySelector('#password-input')
   const btn     = el.querySelector('#auth-submit')
   const label   = el.querySelector('#auth-btn-label')
   const spinner = el.querySelector('#auth-btn-spinner')
   const error   = el.querySelector('#auth-error')
 
-  // Auto-format input as user types: insert dash after 4 chars
   input.addEventListener('input', () => {
-    let val = input.value.replace(/[^A-Z0-9a-z]/g, '').toUpperCase()
-    if (val.length > 4) val = val.slice(0, 4) + '-' + val.slice(4, 8)
-    input.value = val
     error.textContent = ''
   })
 
-  input.addEventListener('keydown', e => {
+  for (const field of [input, passwordInput]) field.addEventListener('keydown', e => {
     if (e.key === 'Enter') btn.click()
   })
 
   btn.addEventListener('click', async () => {
-    const code = input.value.replace('-', '').trim()
-    if (code.length < 8) {
-      error.textContent = 'Enter a valid 8-character code.'
+    if (!input.value.trim() || !passwordInput.value) {
+      error.textContent = 'Enter your username and password.'
       input.focus()
       return
     }
@@ -77,15 +71,17 @@ export function AuthScreen ({ onSuccess }) {
     error.textContent = ''
 
     try {
-      const data = await api.post('/auth/redeem-invite', { inviteCode: code })
-      localStorage.setItem('deviceToken', data.deviceToken)
-      localStorage.setItem('technician', JSON.stringify(data.technician))
-      onSuccess(data.technician)
+      const data = await api.post('/auth/login', { username: input.value, password: passwordInput.value })
+      if (data.user.role !== 'TECHNICIAN') {
+        await api.post('/auth/logout', {}).catch(() => {})
+        error.textContent = 'This account does not have FieldOps access.'
+        return
+      }
+      localStorage.setItem('technician', JSON.stringify(data.user))
+      onSuccess(data.user)
     } catch (err) {
-      if (err.status === 400 || err.status === 404) {
-        error.textContent = 'Invalid or expired invite code. Check with your dispatcher.'
-      } else if (err.status === 409) {
-        error.textContent = 'This code has already been used. Contact your dispatcher.'
+      if (err.status === 401) {
+        error.textContent = 'Invalid username or password.'
       } else {
         error.textContent = 'Connection error. Check your internet and try again.'
       }
@@ -97,10 +93,46 @@ export function AuthScreen ({ onSuccess }) {
 
   function setLoading (loading) {
     btn.disabled = loading
-    label.textContent = loading ? 'Activating…' : 'Activate device'
+    label.textContent = loading ? 'Signing in…' : 'Sign in'
     spinner.classList.toggle('hidden', !loading)
   }
 
+  return el
+}
+
+export function PasswordChangeScreen ({ onSuccess }) {
+  const el = document.createElement('div')
+  el.className = 'auth-screen'
+  el.innerHTML = `<form class="auth-inner">
+    <h1 class="auth-title">Change your temporary password</h1>
+    <p class="auth-subtitle">Choose a password with at least 12 characters.</p>
+    <input id="current-password" class="auth-input" type="password" autocomplete="current-password" placeholder="Temporary password" required />
+    <input id="new-password" class="auth-input" type="password" autocomplete="new-password" placeholder="New password" required minlength="12" />
+    <input id="confirm-password" class="auth-input" type="password" autocomplete="new-password" placeholder="Confirm new password" required minlength="12" />
+    <p id="password-error" class="auth-error" aria-live="polite"></p>
+    <button class="auth-btn" type="submit">Update password</button>
+  </form>`
+  const form = el.querySelector('form')
+  const error = el.querySelector('#password-error')
+  form.addEventListener('submit', async event => {
+    event.preventDefault()
+    const currentPassword = el.querySelector('#current-password').value
+    const newPassword = el.querySelector('#new-password').value
+    const confirmedPassword = el.querySelector('#confirm-password').value
+    if (newPassword !== confirmedPassword) {
+      error.textContent = 'Passwords do not match.'
+      return
+    }
+    try {
+      await api.post('/auth/change-password', { currentPassword, newPassword })
+      const user = JSON.parse(localStorage.getItem('technician') ?? '{}')
+      user.mustChangePassword = false
+      localStorage.setItem('technician', JSON.stringify(user))
+      onSuccess(user)
+    } catch (err) {
+      error.textContent = err.message ?? 'Password change failed.'
+    }
+  })
   return el
 }
 

@@ -3,9 +3,11 @@
  * Handles auth guard, routing, and service worker registration.
  */
 
-import { AuthScreen, authStyles } from './src/screens/auth.js'
+import { AuthScreen, PasswordChangeScreen, authStyles } from './src/screens/auth.js'
 import { api }                   from './shared/api.js'
 import { setCatalog, getCatalog } from './src/lib/db.js'
+import { stopSync }              from './src/lib/sync.js'
+import { stopCompletionSubmissionRetry } from './src/lib/completion-submission.mjs'
 
 // Bump when catalog data changes server-side (e.g. after a DB cleanup) so
 // cached IndexedDB catalog data on already-installed clients gets replaced.
@@ -48,19 +50,25 @@ const baseStyles = `
 
 // ── Auth state ─────────────────────────────────────────────
 function getSession () {
-  const token = localStorage.getItem('deviceToken')
   const raw   = localStorage.getItem('technician')
-  if (!token || !raw) return null
+  if (!raw) return null
   try {
-    return { token, technician: JSON.parse(raw) }
+    return { technician: JSON.parse(raw) }
   } catch (_) {
     return null
   }
 }
 
 function clearSession () {
-  localStorage.removeItem('deviceToken')
+  stopSync()
+  stopCompletionSubmissionRetry()
   localStorage.removeItem('technician')
+  if (typeof sessionStorage !== 'undefined' && sessionStorage) {
+    sessionStorage.removeItem('workspace:visitId')
+    sessionStorage.removeItem('workspace:cancelConfirmedVisitId')
+    sessionStorage.removeItem('workspace:cancelConfirmed')
+    sessionStorage.removeItem('fo_gps_state')
+  }
 }
 
 // ── Routing ────────────────────────────────────────────────
@@ -111,9 +119,21 @@ function boot () {
 
   const session = getSession()
   if (session) {
-    import('./src/lib/queue.js').then(({ startQueueRetry }) => startQueueRetry())
-    preloadCatalog()
-    navigate('/')
+    if (!['TECHNICIAN', 'technician'].includes(session.technician.role)) {
+      localStorage.removeItem('technician')
+      showAuth()
+      return
+    }
+    api.get('/auth/me').then(({ user }) => {
+      if (user.role !== 'TECHNICIAN') throw new Error('This account does not have FieldOps access')
+      localStorage.setItem('technician', JSON.stringify(user))
+      showAuthenticated(user)
+    }).catch(() => {
+      // Preserve offline operation when a previously authenticated technician has no network.
+      if (navigator.onLine === false && session.technician.mustChangePassword) showPasswordChange()
+      else if (navigator.onLine === false) showAuthenticated(session.technician)
+      else showAuth()
+    })
   } else {
     showAuth()
   }
@@ -122,17 +142,21 @@ function boot () {
 async function preloadCatalog () {
   try {
     const storedVersion = await getCatalog('version')
-    if (storedVersion === CATALOG_VERSION) return
+    const cachedRelations = await getCatalog('item-relations')
+    const catalogIsCurrent = storedVersion === CATALOG_VERSION
+    if (catalogIsCurrent && Array.isArray(cachedRelations)) return
 
-    const [items, equipment, linesetConfigs] = await Promise.all([
-      api.get('/catalog/items'),
-      api.get('/catalog/equipment'),
-      api.get('/catalog/lineset-configs'),
+    const [items, equipment, linesetConfigs, itemRelations] = await Promise.all([
+      catalogIsCurrent ? getCatalog('items') : api.get('/catalog/items'),
+      catalogIsCurrent ? getCatalog('equipment') : api.get('/catalog/equipment'),
+      catalogIsCurrent ? getCatalog('lineset-configs') : api.get('/catalog/lineset-configs'),
+      Array.isArray(cachedRelations) ? cachedRelations : api.get('/catalog/item-relations'),
     ])
     await Promise.all([
-      setCatalog('items', items),
-      setCatalog('equipment', equipment),
-      setCatalog('lineset-configs', linesetConfigs),
+      items && setCatalog('items', items),
+      equipment && setCatalog('equipment', equipment),
+      linesetConfigs && setCatalog('lineset-configs', linesetConfigs),
+      setCatalog('item-relations', itemRelations),
     ])
     await setCatalog('version', CATALOG_VERSION)
   } catch (_) {
@@ -141,15 +165,22 @@ async function preloadCatalog () {
 }
 
 function showAuth () {
+  ++navSeq
   appEl.innerHTML = ''
-  const screen = AuthScreen({
-    onSuccess: () => {
-      import('./src/lib/queue.js').then(({ startQueueRetry }) => startQueueRetry())
-      preloadCatalog()
-      navigate('/')
-    }
-  })
+  const screen = AuthScreen({ onSuccess: user => user.mustChangePassword ? showPasswordChange() : showAuthenticated(user) })
   appEl.appendChild(screen)
+}
+
+function showPasswordChange () {
+  ++navSeq
+  appEl.innerHTML = ''
+  appEl.appendChild(PasswordChangeScreen({ onSuccess: showAuthenticated }))
+}
+
+function showAuthenticated () {
+  import('./src/lib/queue.js').then(({ startQueueRetry }) => startQueueRetry())
+  preloadCatalog()
+  navigate('/')
 }
 
 boot()

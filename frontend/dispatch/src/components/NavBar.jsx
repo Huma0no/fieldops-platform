@@ -18,7 +18,7 @@ const TABS = [
   { id: 'reports',     label: 'Reports',      icon: '📊' },
 ]
 
-export default function NavBar ({ active, onNavigate }) {
+export default function NavBar ({ active, onNavigate, onLogout }) {
   return (
     <nav style={styles.nav}>
       <div style={styles.logo}>Field Ops</div>
@@ -37,6 +37,7 @@ export default function NavBar ({ active, onNavigate }) {
           </button>
         ))}
       </div>
+      <button style={styles.logout} onClick={onLogout}>Sign out</button>
     </nav>
   )
 }
@@ -62,6 +63,15 @@ const styles = {
   tabs: {
     display: 'flex',
     gap: '4px',
+  },
+  logout: {
+    marginLeft: 'auto',
+    border: '0.5px solid var(--border-default)',
+    borderRadius: '6px',
+    background: 'transparent',
+    color: 'var(--text-muted)',
+    padding: '6px 10px',
+    cursor: 'pointer',
   },
   tab: {
     display: 'flex',

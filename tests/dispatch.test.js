@@ -30,8 +30,8 @@ describe('POST /api/dispatch/parse-pdf', () => {
       [new Date().toISOString()]
     );
     const token = crypto.randomBytes(32).toString('hex');
-    await p.query('INSERT INTO device_tokens (token, technician_id, created_at) VALUES ($1, $2, $3)',
-      [token, tech.rows[0].id, new Date().toISOString()]);
+    await p.query('INSERT INTO auth_sessions (token_hash, technician_id, created_at) VALUES ($1, $2, $3)',
+      [crypto.createHash('sha256').update(token).digest('hex'), tech.rows[0].id, new Date().toISOString()]);
 
     const res = await request(app)
       .post('/api/dispatch/parse-pdf')

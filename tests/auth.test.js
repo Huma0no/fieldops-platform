@@ -1,160 +1,185 @@
 const request = require('supertest');
+const crypto = require('crypto');
 const app = require('../src/index');
+const auth = require('../src/routes/auth');
+const { pool: appPool } = require('../src/db/pool');
 const { pool, truncateTables } = require('./helpers/db');
 
 beforeEach(truncateTables);
-afterAll(() => pool.end());
+afterAll(async () => Promise.all([pool.end(), appPool.end()]));
 
-async function seedTech({ role = 'technician', isActive = true } = {}) {
-  const r = await pool.query(
-    `INSERT INTO technicians (id, name, role, is_active, created_at)
-     VALUES (gen_random_uuid()::text, $1, $2, $3, $4)
-     RETURNING id, name, role`,
-    [`Tech ${role}`, role, isActive, new Date().toISOString()]
+async function seedAccount({ role = 'technician', username = `user-${crypto.randomBytes(4).toString('hex')}`, password = 'TemporaryPassword123!', active = true, mustChange = false } = {}) {
+  const passwordHash = await auth.hashPassword(password);
+  const result = await pool.query(
+    `INSERT INTO technicians (id, name, role, is_active, created_at, username, password_hash, must_change_password)
+     VALUES (gen_random_uuid()::text, $1, $2, $3, $4, $5, $6, $7) RETURNING id, username, role`,
+    [`Test ${role}`, role, active, new Date().toISOString(), username, passwordHash, mustChange]
   );
-  return r.rows[0];
+  return { ...result.rows[0], password };
 }
 
-async function seedDispatcher() {
-  return seedTech({ role: 'dispatcher' });
+async function login(account) {
+  return request(app).post('/api/auth/login').send({ username: account.username, password: account.password });
 }
 
-async function seedToken(technicianId) {
-  const token = require('crypto').randomBytes(32).toString('hex');
-  await pool.query(
-    `INSERT INTO device_tokens (token, technician_id, created_at) VALUES ($1, $2, $3)`,
-    [token, technicianId, new Date().toISOString()]
-  );
+async function seedSession(technicianId) {
+  const token = crypto.randomBytes(32).toString('hex');
+  const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
+  await pool.query('INSERT INTO auth_sessions (token_hash, technician_id, created_at) VALUES ($1, $2, $3)', [tokenHash, technicianId, new Date().toISOString()]);
   return token;
 }
 
-describe('POST /api/auth/generate-invite', () => {
-  it('returns 403 for technician role', async () => {
-    const tech = await seedTech();
-    const token = await seedToken(tech.id);
-    const res = await request(app)
-      .post('/api/auth/generate-invite')
-      .set('Authorization', `Bearer ${token}`)
-      .send({ technicianId: tech.id });
-    expect(res.status).toBe(403);
-  });
-
-  it('returns 400 for inactive technician', async () => {
-    const dispatcher = await seedDispatcher();
-    const dispToken = await seedToken(dispatcher.id);
-    const inactiveTech = await seedTech({ isActive: false });
-
-    const res = await request(app)
-      .post('/api/auth/generate-invite')
-      .set('Authorization', `Bearer ${dispToken}`)
-      .send({ technicianId: inactiveTech.id });
-    expect(res.status).toBe(400);
-    expect(res.body.error).toBe('Technician is inactive. Reactivate before generating an invite.');
-  });
-
-  it('generates an 8-char uppercase code and returns expiresAt', async () => {
-    const dispatcher = await seedDispatcher();
-    const dispToken = await seedToken(dispatcher.id);
-    const tech = await seedTech();
-
-    const res = await request(app)
-      .post('/api/auth/generate-invite')
-      .set('Authorization', `Bearer ${dispToken}`)
-      .send({ technicianId: tech.id });
-
-    expect(res.status).toBe(200);
-    expect(res.body.inviteCode).toMatch(/^[A-Z0-9]{8}$/);
-    expect(res.body.expiresAt).toBeDefined();
-  });
-
-  it('replaces existing unused invite for same technician', async () => {
-    const dispatcher = await seedDispatcher();
-    const dispToken = await seedToken(dispatcher.id);
-    const tech = await seedTech();
-
-    await request(app)
-      .post('/api/auth/generate-invite')
-      .set('Authorization', `Bearer ${dispToken}`)
-      .send({ technicianId: tech.id });
-    await request(app)
-      .post('/api/auth/generate-invite')
-      .set('Authorization', `Bearer ${dispToken}`)
-      .send({ technicianId: tech.id });
-
-    const codes = await pool.query(
-      'SELECT * FROM invite_codes WHERE technician_id = $1',
-      [tech.id]
+async function waitForLockingQuery(pattern) {
+  const deadline = Date.now() + 5000;
+  while (Date.now() < deadline) {
+    const result = await pool.query(
+      `SELECT 1 FROM pg_stat_activity WHERE datname = current_database()
+       AND state = 'active' AND wait_event_type = 'Lock' AND query ILIKE $1 LIMIT 1`,
+      [pattern]
     );
-    expect(codes.rows).toHaveLength(1);
+    if (result.rowCount) return;
+    await new Promise(resolve => setTimeout(resolve, 20));
+  }
+  throw new Error(`Timed out waiting for database lock query ${pattern}`);
+}
+
+describe('username and password authentication', () => {
+  it('authenticates by case-insensitive username and issues an HttpOnly server-managed cookie', async () => {
+    const account = await seedAccount({ username: 'CaseUser' });
+    const response = await login(account);
+    expect(response.status).toBe(200);
+    expect(response.body.user).toMatchObject({ id: account.id, username: 'CaseUser', role: 'TECHNICIAN' });
+    expect(response.body.deviceToken).toBeUndefined();
+    expect(response.headers['set-cookie'][0]).toMatch(/fieldops_session=.*HttpOnly.*SameSite=Strict/);
+    expect(response.headers['set-cookie'][0]).toMatch(/Path=\/api/);
+    const stored = await pool.query('SELECT token_hash FROM auth_sessions WHERE technician_id = $1', [account.id]);
+    expect(stored.rowCount).toBe(1);
+    expect(stored.rows[0].token_hash).not.toBe(response.headers['set-cookie'][0].match(/fieldops_session=([^;]+)/)[1]);
+  });
+
+  it('rejects invalid credentials and inactive accounts', async () => {
+    const account = await seedAccount({ username: 'invalid-check' });
+    expect((await request(app).post('/api/auth/login').send({ username: account.username, password: 'wrong-password' })).status).toBe(401);
+    const inactive = await seedAccount({ username: 'inactive-check', active: false });
+    expect((await login(inactive)).status).toBe(401);
+  });
+
+  it('blocks operational routes until a temporary password is changed', async () => {
+    const account = await seedAccount({ username: 'temp-account', mustChange: true });
+    const response = await login(account);
+    const cookie = response.headers['set-cookie'][0].split(';')[0];
+    const denied = await request(app).get('/api/visits/mine').set('Cookie', cookie);
+    expect(denied.status).toBe(403);
+    expect(denied.body.code).toBe('PASSWORD_CHANGE_REQUIRED');
+    const changed = await request(app).post('/api/auth/change-password').set('Cookie', cookie)
+      .set('X-FieldOps-Request', '1').send({ currentPassword: account.password, newPassword: 'ChangedPassword456!' });
+    expect(changed.status).toBe(200);
+    const saved = await pool.query('SELECT must_change_password FROM technicians WHERE id = $1', [account.id]);
+    expect(saved.rows[0].must_change_password).toBe(false);
+    expect((await request(app).get('/api/visits/mine').set('Cookie', cookie)).status).toBe(200);
+  });
+
+  it('requires the CSRF request header for cookie-authenticated mutations', async () => {
+    const account = await seedAccount({ username: 'csrf-account' });
+    const response = await login(account);
+    const cookie = response.headers['set-cookie'][0].split(';')[0];
+    const denied = await request(app).post('/api/auth/logout').set('Cookie', cookie).send({});
+    expect(denied.status).toBe(403);
+    const accepted = await request(app).post('/api/auth/logout').set('Cookie', cookie).set('X-FieldOps-Request', '1').send({});
+    expect(accepted.status).toBe(200);
+    expect((await request(app).get('/api/auth/me').set('Cookie', cookie)).status).toBe(401);
+  });
+
+  it('does not grant Dispatch endpoints to a technician account', async () => {
+    const account = await seedAccount({ role: 'technician', username: 'field-user' });
+    const response = await login(account);
+    const cookie = response.headers['set-cookie'][0].split(';')[0];
+    expect((await request(app).get('/api/dispatch/history').set('Cookie', cookie)).status).toBe(403);
+  });
+
+  it('serializes login and deactivation so a login queued first is revoked before deactivation completes', async () => {
+    const tech = await seedAccount({ username: 'login-wins' });
+    const owner = await seedAccount({ role: 'owner', username: 'lock-owner' });
+    const ownerToken = await seedSession(owner.id);
+    const blocker = await pool.connect();
+    await blocker.query('BEGIN');
+    await blocker.query('SELECT id FROM technicians WHERE id = $1 FOR UPDATE', [tech.id]);
+    const loginPromise = login(tech).then(response => response);
+    let deactivatePromise;
+    try {
+      await waitForLockingQuery('%FROM technicians WHERE lower(username)%');
+      deactivatePromise = request(app).patch(`/api/dispatch/technicians/${tech.id}/deactivate`)
+        .set('Authorization', `Bearer ${ownerToken}`).then(response => response);
+      await waitForLockingQuery('%UPDATE technicians SET is_active = false%');
+    } finally {
+      await blocker.query('ROLLBACK').catch(() => {});
+      blocker.release();
+    }
+    const [loginResponse, deactivateResponse] = await Promise.all([loginPromise, deactivatePromise]);
+    expect(loginResponse.status).toBe(200);
+    expect(deactivateResponse.status).toBe(200);
+    const cookie = loginResponse.headers['set-cookie'][0].split(';')[0];
+    expect((await request(app).get('/api/visits/mine').set('Cookie', cookie)).status).toBe(401);
+  });
+
+  it('rejects login queued behind deactivation', async () => {
+    const tech = await seedAccount({ username: 'deactivation-wins' });
+    const owner = await seedAccount({ role: 'owner', username: 'lock-owner-2' });
+    const ownerToken = await seedSession(owner.id);
+    const blocker = await pool.connect();
+    await blocker.query('BEGIN');
+    await blocker.query('SELECT id FROM technicians WHERE id = $1 FOR UPDATE', [tech.id]);
+    const deactivatePromise = request(app).patch(`/api/dispatch/technicians/${tech.id}/deactivate`)
+      .set('Authorization', `Bearer ${ownerToken}`).then(response => response);
+    let loginPromise;
+    try {
+      await waitForLockingQuery('%UPDATE technicians SET is_active = false%');
+      loginPromise = login(tech).then(response => response);
+      await waitForLockingQuery('%FROM technicians WHERE lower(username)%');
+    } finally {
+      await blocker.query('ROLLBACK').catch(() => {});
+      blocker.release();
+    }
+    const [deactivateResponse, loginResponse] = await Promise.all([deactivatePromise, loginPromise]);
+    expect(deactivateResponse.status).toBe(200);
+    expect(loginResponse.status).toBe(401);
   });
 });
 
-describe('POST /api/auth/redeem-invite', () => {
-  it('returns 401 for unknown code', async () => {
-    const res = await request(app)
-      .post('/api/auth/redeem-invite')
-      .send({ inviteCode: 'XXXXXX' });
-    expect(res.status).toBe(401);
-    expect(res.body.error).toBe('Invalid invite code');
+describe('initial Dispatch Owner bootstrap', () => {
+  it('is concurrency safe, creates the Dispatcher account once, and never resets it', async () => {
+    const prior = process.env.DISPATCH_BOOTSTRAP_PASSWORD;
+    process.env.DISPATCH_BOOTSTRAP_PASSWORD = 'BootstrapPassword123!';
+    try {
+      const outcomes = await Promise.all([auth.bootstrapInitialOwner(), auth.bootstrapInitialOwner()]);
+      expect(outcomes.filter(result => result.initialized)).toHaveLength(1);
+      expect(outcomes.filter(result => result.alreadyInitialized)).toHaveLength(1);
+      const account = await pool.query("SELECT id, role, username, must_change_password, password_hash FROM technicians WHERE lower(username) = 'dispatcher'");
+      expect(account.rows).toHaveLength(1);
+      expect(account.rows[0]).toMatchObject({ role: 'owner', username: 'Dispatcher', must_change_password: true });
+      expect(account.rows[0].password_hash).not.toContain('BootstrapPassword123!');
+      process.env.DISPATCH_BOOTSTRAP_PASSWORD = '';
+      expect(await auth.bootstrapInitialOwner()).toMatchObject({ alreadyInitialized: true });
+    } finally {
+      if (prior === undefined) delete process.env.DISPATCH_BOOTSTRAP_PASSWORD;
+      else process.env.DISPATCH_BOOTSTRAP_PASSWORD = prior;
+    }
   });
 
-  it('returns 401 for expired code', async () => {
-    const tech = await seedTech();
-    const expiredAt = new Date(Date.now() - 1000).toISOString();
-    await pool.query(
-      `INSERT INTO invite_codes (code, technician_id, expires_at) VALUES ('EXPIRY', $1, $2)`,
-      [tech.id, expiredAt]
+  it('reuses the unique legacy owner identity without changing its technician ID', async () => {
+    const owner = await pool.query(
+      `INSERT INTO technicians (name, role, is_active, created_at) VALUES ('Original Owner', 'owner', true, $1) RETURNING id`,
+      [new Date().toISOString()]
     );
-    const res = await request(app)
-      .post('/api/auth/redeem-invite')
-      .send({ inviteCode: 'EXPIRY' });
-    expect(res.status).toBe(401);
-    expect(res.body.error).toBe('Invite code has expired');
-  });
-
-  it('exchanges valid code for device token and deletes code', async () => {
-    const tech = await seedTech();
-    const expiresAt = new Date(Date.now() + 86400000).toISOString();
-    await pool.query(
-      `INSERT INTO invite_codes (code, technician_id, expires_at) VALUES ('VALID1', $1, $2)`,
-      [tech.id, expiresAt]
-    );
-
-    const res = await request(app)
-      .post('/api/auth/redeem-invite')
-      .send({ inviteCode: 'VALID1' });
-
-    expect(res.status).toBe(200);
-    expect(res.body.deviceToken).toHaveLength(64);
-    expect(res.body.technician.id).toBe(tech.id);
-    expect(res.body.technician.name).toBe('Tech technician');
-    expect(res.body.technician.role).toBe('technician');
-
-    const remaining = await pool.query('SELECT * FROM invite_codes WHERE code = $1', ['VALID1']);
-    expect(remaining.rows).toHaveLength(0);
-  });
-});
-
-describe('POST /api/auth/revoke', () => {
-  it('deletes all device tokens for a technician', async () => {
-    const dispatcher = await seedDispatcher();
-    const dispToken = await seedToken(dispatcher.id);
-    const tech = await seedTech();
-    await seedToken(tech.id);
-    await seedToken(tech.id);
-
-    const res = await request(app)
-      .post('/api/auth/revoke')
-      .set('Authorization', `Bearer ${dispToken}`)
-      .send({ technicianId: tech.id });
-
-    expect(res.status).toBe(200);
-    expect(res.body.revoked).toBe(true);
-
-    const remaining = await pool.query(
-      'SELECT * FROM device_tokens WHERE technician_id = $1',
-      [tech.id]
-    );
-    expect(remaining.rows).toHaveLength(0);
+    const prior = process.env.DISPATCH_BOOTSTRAP_PASSWORD;
+    process.env.DISPATCH_BOOTSTRAP_PASSWORD = 'BootstrapPassword123!';
+    try {
+      await auth.bootstrapInitialOwner();
+      const row = await pool.query('SELECT id, name, username FROM technicians WHERE username = $1', ['Dispatcher']);
+      expect(row.rows[0]).toEqual({ id: owner.rows[0].id, name: 'Original Owner', username: 'Dispatcher' });
+    } finally {
+      if (prior === undefined) delete process.env.DISPATCH_BOOTSTRAP_PASSWORD;
+      else process.env.DISPATCH_BOOTSTRAP_PASSWORD = prior;
+    }
   });
 });

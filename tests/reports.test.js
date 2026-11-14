@@ -165,8 +165,8 @@ describe('GET /api/dispatch/reports/equipment', () => {
     const crypto = require('crypto');
     const rawToken = crypto.randomBytes(32).toString('hex');
     await pool.query(
-      `INSERT INTO device_tokens (token, technician_id, created_at) VALUES ($1, $2, $3)`,
-      [rawToken, techRes.rows[0].id, now]
+      `INSERT INTO auth_sessions (token_hash, technician_id, created_at) VALUES ($1, $2, $3)`,
+      [crypto.createHash('sha256').update(rawToken).digest('hex'), techRes.rows[0].id, now]
     );
 
     const res = await request(app)
@@ -239,8 +239,8 @@ describe('GET /api/dispatch/reports/refrigerant', () => {
     const crypto = require('crypto');
     const rawToken = crypto.randomBytes(32).toString('hex');
     await pool.query(
-      `INSERT INTO device_tokens (token, technician_id, created_at) VALUES ($1, $2, $3)`,
-      [rawToken, techRes.rows[0].id, now]
+      `INSERT INTO auth_sessions (token_hash, technician_id, created_at) VALUES ($1, $2, $3)`,
+      [crypto.createHash('sha256').update(rawToken).digest('hex'), techRes.rows[0].id, now]
     );
 
     const res = await request(app)

@@ -7,7 +7,7 @@ import { useState, useEffect, useRef } from 'react'
 import { AuthProvider, useAuth } from './lib/auth.jsx'
 import { api } from '@shared/api.js'
 import NavBar            from './components/NavBar.jsx'
-import Auth              from './screens/Auth.jsx'
+import Auth, { PasswordChange } from './screens/Auth.jsx'
 import CallIntake        from './screens/CallIntake.jsx'
 import History           from './screens/History.jsx'
 import Inventory         from './screens/Inventory.jsx'
@@ -92,18 +92,20 @@ const SCREENS = {
 }
 
 function AppRoutes () {
-  const { session }         = useAuth()
+  const { session, logout }  = useAuth()
   const [active, setActive] = useState('intake')
   const [screenState, setScreenState] = useState(null)
   const { toasts, dismiss } = useCompletionToasts(!!session)
 
   if (!session) return <Auth />
+  if (!['DISPATCH_OWNER', 'DISPATCHER', 'owner', 'dispatcher'].includes(session.dispatcher.role)) return <Auth />
+  if (session.dispatcher.mustChangePassword) return <PasswordChange />
 
   const Screen = SCREENS[active] ?? CallIntake
 
   return (
     <div style={{ display:'flex', flexDirection:'column', height:'100dvh', background:'var(--surface-base)', fontFamily:'var(--font-sans)', color:'var(--text-primary)' }}>
-      <NavBar active={active} onNavigate={(next) => { setActive(next); setScreenState(null) }} />
+      <NavBar active={active} onNavigate={(next) => { setActive(next); setScreenState(null) }} onLogout={logout} />
       <Screen
         initialVisitId={active === 'corrections' ? screenState?.visitId : undefined}
         onCorrectReport={(visitId) => { setScreenState({ visitId }); setActive('corrections') }}

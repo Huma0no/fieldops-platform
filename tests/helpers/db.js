@@ -16,6 +16,7 @@ async function truncateTables() {
     DELETE FROM notifications;
     DELETE FROM invite_codes;
     DELETE FROM device_tokens;
+    DELETE FROM auth_sessions;
     DELETE FROM visit_photos;
     DELETE FROM weigh_in_data;
     DELETE FROM visit_items;

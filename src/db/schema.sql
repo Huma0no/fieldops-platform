@@ -141,8 +141,21 @@ CREATE TABLE technicians (
   role             text NOT NULL CHECK (role IN ('owner', 'dispatcher', 'technician')),
   commission_rate  real NOT NULL DEFAULT 20,
   is_active        boolean NOT NULL DEFAULT true,
-  created_at       text NOT NULL DEFAULT now()::text
+  created_at       text NOT NULL DEFAULT now()::text,
+  username         text,
+  password_hash    text,
+  must_change_password boolean NOT NULL DEFAULT false
 );
+
+CREATE UNIQUE INDEX technicians_username_ci_idx ON technicians (lower(username)) WHERE username IS NOT NULL;
+
+CREATE TABLE auth_sessions (
+  token_hash    text PRIMARY KEY,
+  technician_id text NOT NULL REFERENCES technicians(id) ON DELETE CASCADE,
+  created_at    text NOT NULL,
+  revoked_at    text
+);
+CREATE INDEX auth_sessions_technician_id_idx ON auth_sessions (technician_id);
 
 -- 10. technician_settings
 CREATE TABLE technician_settings (

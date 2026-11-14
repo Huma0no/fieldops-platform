@@ -67,6 +67,19 @@ function renderSettings (container, settings) {
   loadInventory(invSection.querySelector('.st-section-body'))
 
   inner.appendChild(buildSection('Pay', buildPayLink()))
+  inner.appendChild(buildSection('Account', buildSignOut()))
+}
+
+function buildSignOut () {
+  const button = document.createElement('button')
+  button.className = 'st-pay-link'
+  button.textContent = 'Sign out'
+  button.addEventListener('click', async () => {
+    try { await api.post('/auth/logout', {}) } catch (_) {}
+    localStorage.removeItem('technician')
+    window.dispatchEvent(new CustomEvent('auth:expired'))
+  })
+  return button
 }
 
 // ── Layout helper ──────────────────────────────────────────

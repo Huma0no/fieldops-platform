@@ -3,7 +3,7 @@ const express = require('express');
 const cors = require('cors');
 const rateLimit = require('express-rate-limit');
 const { pool } = require('./db/pool');
-const { authenticate } = require('./middleware/auth');
+const { authenticate, requirePasswordChanged, requireRole } = require('./middleware/auth');
 
 const app = express();
 app.use(cors());
@@ -22,7 +22,7 @@ const globalLimiter = rateLimit({
 });
 app.use(globalLimiter);
 
-const inviteLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 10 });
+const loginLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 10 });
 
 app.get('/api/health', async (req, res) => {
   try {
@@ -33,12 +33,16 @@ app.get('/api/health', async (req, res) => {
   }
 });
 
-// Auth routes mount BEFORE global authenticate (redeem-invite is unauthenticated)
-app.post('/api/auth/redeem-invite', inviteLimiter);
+// Authentication routes include the public login and their own authenticated handlers.
+app.post('/api/auth/login', loginLimiter);
 app.use('/api/auth', require('./routes/auth'));
 
-// All routes below require a valid bearer token
-app.use(authenticate);
+// All operational routes require a valid server-side session. Temporary passwords
+// can access only the authentication routes until replaced.
+app.use(authenticate, requirePasswordChanged);
+
+// Enforce application access at the route boundary as well as within sensitive handlers.
+app.use('/api/dispatch', requireRole('owner', 'dispatcher'));
 
 app.use('/api/dispatch/technicians', require('./routes/technicians'));
 app.use('/api/dispatch', require('./routes/dispatch'));
@@ -78,16 +82,23 @@ app.use((err, req, res, _next) => {
 
 const PORT = process.env.PORT || 3001;
 if (require.main === module) {
-  app.listen(PORT, () => {
-    console.log(`FieldOps server listening on port ${PORT}`);
+  const { bootstrapInitialOwner } = require('./routes/auth');
+  bootstrapInitialOwner().then(() => {
+    app.listen(PORT, () => {
+      console.log(`FieldOps server listening on port ${PORT}`);
+    });
+    const { autoClosePeriods, ensureCurrentPeriodExists } = require('./services/autoClose');
+    async function runPayPeriodJob() {
+      await ensureCurrentPeriodExists();
+      await autoClosePeriods();
+    }
+    runPayPeriodJob();
+    setInterval(runPayPeriodJob, 24 * 60 * 60 * 1000);
+  }).catch(err => {
+    console.error(`Authentication bootstrap failed: ${err.message}`);
+    process.exitCode = 1;
+    pool.end().catch(() => {});
   });
-  const { autoClosePeriods, ensureCurrentPeriodExists } = require('./services/autoClose');
-  async function runPayPeriodJob() {
-    await ensureCurrentPeriodExists();
-    await autoClosePeriods();
-  }
-  runPayPeriodJob();
-  setInterval(runPayPeriodJob, 24 * 60 * 60 * 1000);
 }
 
 module.exports = app;

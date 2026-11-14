@@ -1,19 +1,13 @@
-/**
- * src/lib/auth.jsx
- * Auth context for Dispatch panel.
- * Provides session state and expiry handling app-wide.
- */
-
+/** Shared session state for the Dispatch panel. */
 import { createContext, useContext, useState, useEffect } from 'react'
+import { api } from '@shared/api.js'
 
 const AuthContext = createContext(null)
 
 function getSession () {
-  const token = localStorage.getItem('deviceToken')
-  const raw   = localStorage.getItem('technician')
-  if (!token || !raw) return null
   try {
-    return { token, dispatcher: JSON.parse(raw) }
+    const raw = localStorage.getItem('technician')
+    return raw ? { dispatcher: JSON.parse(raw) } : null
   } catch (_) {
     return null
   }
@@ -24,31 +18,31 @@ export function AuthProvider ({ children }) {
 
   useEffect(() => {
     function onExpired () {
-      localStorage.removeItem('deviceToken')
       localStorage.removeItem('technician')
       setSession(null)
     }
     window.addEventListener('auth:expired', onExpired)
+    if (session) {
+      api.get('/auth/me').then(({ user }) => {
+        if (!['DISPATCH_OWNER', 'DISPATCHER'].includes(user.role)) throw new Error('This account does not have Dispatch access')
+        login(user)
+      }).catch(() => {})
+    }
     return () => window.removeEventListener('auth:expired', onExpired)
   }, [])
 
-  function login (token, dispatcher) {
-    localStorage.setItem('deviceToken', token)
-    localStorage.setItem('technician', JSON.stringify(dispatcher))
-    setSession({ token, dispatcher })
+  function login (user) {
+    localStorage.setItem('technician', JSON.stringify(user))
+    setSession({ dispatcher: user })
   }
 
-  function logout () {
-    localStorage.removeItem('deviceToken')
+  async function logout () {
+    try { await api.post('/auth/logout', {}) } catch (_) {}
     localStorage.removeItem('technician')
     setSession(null)
   }
 
-  return (
-    <AuthContext.Provider value={{ session, login, logout }}>
-      {children}
-    </AuthContext.Provider>
-  )
+  return <AuthContext.Provider value={{ session, login, logout }}>{children}</AuthContext.Provider>
 }
 
 export function useAuth () {

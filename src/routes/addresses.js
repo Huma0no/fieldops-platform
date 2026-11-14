@@ -9,7 +9,7 @@ const router = express.Router();
 const VALID_ACTIONS = ['create_new', 'merge_keep_new', 'merge_keep_existing'];
 
 // GET /api/addresses/search?q=
-router.get('/search', async (req, res, next) => {
+router.get('/search', requireRole('owner', 'dispatcher'), async (req, res, next) => {
   try {
     const q = (req.query.q || '').trim().toUpperCase();
     if (q.length < 3) return res.json([]);
