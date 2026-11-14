@@ -100,6 +100,45 @@ Do not implement features listed as intentionally out of scope unless explicitly
 
 Do not reactivate archived or deferred functionality merely because related code exists.
 
+## Engineering Principles
+
+- Prefer the simplest implementation that correctly solves a demonstrated problem.
+- Minimize code, dependencies, abstractions, database entities, and operational complexity.
+- Do not introduce speculative features or infrastructure for unlikely future scenarios without a demonstrated requirement.
+- Reuse existing architecture when it is suitable.
+- Prefer explicit, deterministic, maintainable behavior.
+- Keep changes strictly within the authorized scope.
+- Every additional layer of complexity must have a concrete justification.
+- Do not optimize for hypothetical scale or requirements that do not currently exist.
+
+## Self-Review and Verification
+
+For every implementation task:
+
+1. Inspect the relevant existing implementation before changing it.
+2. Identify the actual root cause.
+3. Select the smallest viable solution.
+4. Implement only the authorized changes.
+5. Review the complete diff, including surrounding code.
+6. Identify possible regressions, error paths, race conditions, and unnecessary complexity.
+7. Run relevant tests.
+8. Add or correct tests for demonstrated failure scenarios.
+9. Repeat review, correction, and testing until acceptance criteria are met.
+10. Report remaining limitations honestly.
+
+Do not treat passing tests as sufficient proof of correctness when the implementation has not been reviewed.
+
+## Language Policy
+
+Use the following language conventions consistently:
+
+- User-facing planning and discussion: Spanish.
+- Instructions, prompts, and technical reports directed to Codex: English.
+- Source code, identifiers, comments, tests, test descriptions, commits, logs, and repository documentation: English.
+- Product UI: Spanish and English through the existing i18n architecture.
+
+Do not introduce Spanish identifiers, comments, or technical documentation into the repository.
+
 ## Completion Requirement
 
 Before considering a task complete, report:
