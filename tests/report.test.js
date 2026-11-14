@@ -1,13 +1,13 @@
 const { pool, truncateTables } = require('./helpers/db');
 const { seedAssignedVisit } = require('./helpers/seeds');
-const { generateReportText, generateReportJSON } = require('../src/services/report');
+const { createCanonicalReportSnapshot, generateReportText, generateReportJSON } = require('../src/services/report');
 const { calculateVisitPrice } = require('../src/services/pricing');
 
 beforeEach(truncateTables);
 afterAll(() => pool.end());
 
 async function setupVisit({ serviceName = 'AC', isFinish = false, isTemporarily = false, servicePrice = 30, totalPrice = servicePrice, systemCount = 1, notes, checklistAnswers, status = 'assigned' } = {}) {
-  const { visitId, street, addressId } = await seedAssignedVisit();
+  const { visitId, street, addressId, tech } = await seedAssignedVisit();
   for (let systemNumber = 2; systemNumber <= systemCount; systemNumber += 1) {
     await pool.query(
       `INSERT INTO visit_systems (id, visit_id, system_number)
@@ -35,7 +35,7 @@ async function setupVisit({ serviceName = 'AC', isFinish = false, isTemporarily 
      WHERE id = $5`,
     [totalPrice, notes ?? null, checklistAnswers ? JSON.stringify(checklistAnswers) : null, status, visitId]
   );
-  return { visitId, street, addressId };
+  return { visitId, street, addressId, tech };
 }
 
 async function addItem(visitId, { itemName, category, price, quantity = 1, description = null }) {
@@ -181,6 +181,74 @@ describe('generateReportText', () => {
 });
 
 describe('generateReportJSON', () => {
+  it('freezes every JSON and text Report field in the accepted snapshot', async () => {
+    const { visitId, addressId, tech } = await setupVisit({
+      status: 'completed',
+      notes: 'Frozen note',
+      checklistAnswers: [{ item: 'drain', answer: 'no', reportText: 'Check the drain' }],
+    });
+    await addItem(visitId, { itemName: 'TEST-ITEM', category: 'accessory', price: 25, quantity: 2 });
+    await pool.query('UPDATE visits SET order_number = $1, has_multiple_systems = true WHERE id = $2', ['ORD-SNAPSHOT', visitId]);
+    await pool.query(
+      `INSERT INTO visit_photos (id, visit_id, system_number, slug, tag, label, category, stored_at)
+       VALUES ('photo-snapshot', $1, 1, 'FROZEN_SLUG', 'SCALE', 'Scale proof', 'weigh_in_scale', 'stored-at-acceptance')`,
+      [visitId]
+    );
+    await pool.query(
+      `INSERT INTO catalog_lineset_configs (config_key, reference_length_ft, adjust_rate_oz_per_ft)
+       VALUES ('SNAPSHOT-LINESET', 15, 0.6) ON CONFLICT (config_key) DO NOTHING`
+    );
+    await pool.query(
+      `INSERT INTO weigh_in_data
+         (id, address_id, system_number, lineset_length, factory_charge_oz, factory_line_config,
+          approx_adjust_oz, adjusted_oz, fan_speed_cfm, liquid_line_temp, suction_line_temp,
+          condenser_sat_temp, subcooling_value, oem_subcooling_goal, subcooling_deviation)
+       VALUES ('weigh-snapshot', $1, 1, 25, 80, 'SNAPSHOT-LINESET', 6, 86, 1200, 95, 110, 120, 25, 10, 15)`,
+      [addressId]
+    );
+    const submissionId = 'complete-field-inventory';
+    const acceptedAt = '2026-11-12T12:00:00.000Z';
+    const sourceSubmission = { version: 1, submissionId, visitId, technicianId: tech.id, createdAt: acceptedAt };
+    const snapshot = await createCanonicalReportSnapshot(pool, visitId, {
+      submissionId, technicianId: tech.id, generatedAt: acceptedAt, acceptedAt, sourceSubmission,
+    });
+    await pool.query(
+      `INSERT INTO completion_submissions
+         (submission_id, visit_id, technician_id, terminal_intent, snapshot, accepted_at)
+       VALUES ($1, $2, $3, 'completed', $4, $5)`,
+      [submissionId, visitId, tech.id, JSON.stringify(snapshot), acceptedAt]
+    );
+
+    const report = await generateReportJSON(pool, visitId);
+    expect(report).toMatchObject({
+      id: visitId, submissionId, orderNumber: 'ORD-SNAPSHOT', status: 'completed',
+      technicianId: tech.id, technicianName: tech.name, propertyId: addressId,
+      totalPrice: 30, hasMultipleSystems: true,
+    });
+    expect(report.address).toMatchObject({ street: expect.any(String), city: 'Houston', state: null, zip: null, subdivision: 'TEST SUB', builder: 'DR HORTON' });
+    expect(report.systems[0]).toMatchObject({ systemNumber: 1, indoorModel: null, outdoorModel: null, coilModel: null, refrigerant: null });
+    expect(report.services[0]).toMatchObject({ serviceName: 'AC', isFinish: false, isTemporarily: false, price: 30 });
+    expect(report.items[0]).toMatchObject({ itemName: 'TEST-ITEM', category: 'accessory', description: null, quantity: 2, price: 25, techSupplied: false });
+    expect(report.photos).toEqual([{ slug: 'FROZEN_SLUG' }]);
+    expect(report.weighInData[0]).toMatchObject({
+      systemNumber: 1, linesetLength: 25, factoryChargeOz: 80, factoryLineConfig: 'SNAPSHOT-LINESET',
+      approxAdjustOz: 6, adjustedOz: 86, fanSpeedCfm: 1200, liquidLineTemp: 95,
+      suctionLineTemp: 110, condenserSatTemp: 120, subcoolingValue: 25,
+      oemSubcoolingGoal: 10, subcoolingDeviation: 15,
+    });
+    expect(snapshot.photoEvidence[0]).toMatchObject({
+      id: 'photo-snapshot', visit_id: visitId, system_number: 1, slug: 'FROZEN_SLUG',
+      tag: 'SCALE', label: 'Scale proof', category: 'weigh_in_scale', stored_at: 'stored-at-acceptance',
+    });
+    expect(snapshot).toMatchObject({
+      generatedAt: acceptedAt, acceptedAt, notes: 'Frozen note',
+      checklistAnswers: [{ answer: 'no', reportText: 'Check the drain' }],
+    });
+    await expect(generateReportText(pool, visitId)).resolves.toBe(
+      `${report.address.street}, Frozen note | Check the drain, AC started $30, 2 TEST-ITEM $25, total $30`
+    );
+  });
+
   it('returns visit with nested address, systems, services, items, photos, weighInData', async () => {
     const { visitId, addressId } = await setupVisit();
     await addItem(visitId, { itemName: 'TEST-ITEM', category: 'accessory', price: 25 });

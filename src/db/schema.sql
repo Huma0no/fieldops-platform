@@ -218,7 +218,7 @@ CREATE TABLE completion_submissions (
   accepted_at text NOT NULL
 );
 
-CREATE INDEX completion_submissions_visit_id_idx ON completion_submissions(visit_id);
+CREATE UNIQUE INDEX completion_submissions_visit_id_unique_idx ON completion_submissions(visit_id);
 
 -- 13. visit_systems
 CREATE TABLE visit_systems (

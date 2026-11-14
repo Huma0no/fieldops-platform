@@ -1,8 +1,10 @@
 const express = require('express');
+const crypto = require('node:crypto');
+const { isDeepStrictEqual } = require('node:util');
 const { pool } = require('../db/pool');
 const { requireRole } = require('../middleware/auth');
 const { createNotification } = require('../helpers/notify');
-const { generateReportText, generateReportJSON } = require('../services/report');
+const reportService = require('../services/report');
 const {
   calculateVisitPrice,
   resolveCompanionCascade,
@@ -120,46 +122,47 @@ async function applySnapshotWork(client, visit, snapshot) {
 router.post('/:id/complete', requireRole('technician'), async (req, res, next) => {
   const { id } = req.params;
   let normalizedSubmissionId = null;
+  let normalizedSnapshot = null;
   try {
-    const { submissionId: rawSubmissionId, snapshot } = req.body ?? {};
+    const { submissionId: rawSubmissionId, technicianId: rawBodyTechnicianId, snapshot } = req.body ?? {};
+    const isPlainSnapshot = Boolean(snapshot) && typeof snapshot === 'object' && !Array.isArray(snapshot);
     const submissionId = typeof rawSubmissionId === 'string' ? rawSubmissionId.trim() : null;
-    const snapshotSubmissionId = typeof snapshot?.submissionId === 'string' ? snapshot.submissionId.trim() : null;
-    if (
-      rawSubmissionId != null && (
+    const snapshotSubmissionId = isPlainSnapshot && typeof snapshot.submissionId === 'string'
+      ? snapshot.submissionId.trim()
+      : null;
+    const snapshotTechnicianId = isPlainSnapshot && typeof snapshot.technicianId === 'string'
+      ? snapshot.technicianId.trim()
+      : null;
+    const bodyTechnicianId = typeof rawBodyTechnicianId === 'string'
+      ? rawBodyTechnicianId.trim()
+      : null;
+
+    if (rawBodyTechnicianId !== undefined && !bodyTechnicianId) {
+      return res.status(400).json({ error: 'Invalid completion submission' });
+    }
+
+    if (rawSubmissionId != null || snapshot != null) {
+      if (
         typeof rawSubmissionId !== 'string' ||
         !submissionId ||
         submissionId.length > MAX_SUBMISSION_ID_LENGTH ||
-        !snapshot ||
+        !isPlainSnapshot ||
         snapshotSubmissionId !== submissionId ||
-        snapshot.visitId !== id
-      )
-    ) {
-      return res.status(400).json({ error: 'Invalid completion submission' });
-    }
-    if (rawSubmissionId == null && snapshot?.submissionId != null) {
-      if (
-        typeof snapshot.submissionId !== 'string' ||
-        !snapshotSubmissionId ||
-        snapshotSubmissionId.length > MAX_SUBMISSION_ID_LENGTH
+        snapshot.visitId !== id ||
+        !snapshotTechnicianId ||
+        (rawBodyTechnicianId !== undefined && bodyTechnicianId !== snapshotTechnicianId)
       ) {
         return res.status(400).json({ error: 'Invalid completion submission' });
       }
     }
-    normalizedSubmissionId = submissionId;
 
-    if (submissionId) {
-      const existingSubmission = await pool.query(
-        'SELECT visit_id FROM completion_submissions WHERE submission_id = $1',
-        [submissionId]
-      );
-      if (existingSubmission.rows.length > 0) {
-        if (existingSubmission.rows[0].visit_id !== id) {
-          return res.status(409).json({ error: 'Submission belongs to a different visit' });
-        }
-        const report = await generateReportJSON(pool, id);
-        return res.json({ ...report, acknowledged: true, submissionId });
-      }
+    const declaredTechnicianId = snapshotTechnicianId ?? bodyTechnicianId;
+    if (declaredTechnicianId && declaredTechnicianId !== req.technician.id) {
+      return res.status(403).json({ error: 'This visit is not assigned to you' });
     }
+    normalizedSubmissionId = submissionId;
+    normalizedSnapshot = snapshot;
+
     const visitResult = await pool.query(
       `SELECT v.id, v.status, v.technician_id, v.notes, v.address_id, a.street
        FROM visits v
@@ -170,24 +173,12 @@ router.post('/:id/complete', requireRole('technician'), async (req, res, next) =
     if (visitResult.rows.length === 0) return res.status(404).json({ error: 'Visit not found' });
     const visit = visitResult.rows[0];
 
-    if (TERMINAL_STATUSES.includes(visit.status)) {
-      return res.json({ ...(await generateReportJSON(pool, id)), acknowledged: true, submissionId: submissionId ?? null });
-    }
-
-    if (visit.technician_id !== req.technician.id) {
-      return res.status(403).json({ error: 'This visit is not assigned to you' });
-    }
-
-    if (!['assigned', 'in_progress'].includes(visit.status)) {
-      return res.status(400).json({ error: `Visit cannot be completed — current status: ${visit.status}` });
-    }
-
     const completionData = snapshot ?? req.body ?? {};
     const { checklistAnswers, notes, cancel = false } = completionData;
     const now = new Date().toISOString();
     const client = await pool.connect();
     let expiredRows = [];
-    let alreadyTerminal = false;
+    let completedReport = null;
     try {
       await client.query('BEGIN');
       const lockedVisitResult = await client.query(
@@ -205,109 +196,152 @@ router.post('/:id/complete', requireRole('technician'), async (req, res, next) =
 
       if (submissionId) {
         const existingInTx = await client.query(
-          'SELECT visit_id FROM completion_submissions WHERE submission_id = $1',
+          `SELECT submission_id, visit_id, technician_id, snapshot
+           FROM completion_submissions WHERE submission_id = $1`,
           [submissionId]
         );
         if (existingInTx.rows.length > 0) {
-          await client.query('ROLLBACK');
-          if (existingInTx.rows[0].visit_id !== id) {
+          const existing = existingInTx.rows[0];
+          if (existing.visit_id !== id) {
+            await client.query('ROLLBACK');
             return res.status(409).json({ error: 'Submission belongs to a different visit' });
           }
-          const report = await generateReportJSON(pool, id);
+          if (existing.technician_id !== req.technician.id) {
+            await client.query('ROLLBACK');
+            return res.status(403).json({ error: 'This visit is not assigned to you' });
+          }
+          if (existing.snapshot?.sourceSubmission
+              && !isDeepStrictEqual(existing.snapshot.sourceSubmission, snapshot)) {
+            await client.query('ROLLBACK');
+            return res.status(409).json({ error: 'Submission ID is already accepted with different content' });
+          }
+          const report = await reportService.generateReportJSON(client, id);
+          await client.query('ROLLBACK');
           return res.json({ ...report, acknowledged: true, submissionId });
         }
       }
 
-      if (TERMINAL_STATUSES.includes(lockedVisit.status)) {
-        alreadyTerminal = true;
+      if (lockedVisit.technician_id !== req.technician.id) {
         await client.query('ROLLBACK');
+        return res.status(403).json({ error: 'This visit is not assigned to you' });
+      }
+
+      if (TERMINAL_STATUSES.includes(lockedVisit.status)) {
+        if (submissionId) {
+          await client.query('ROLLBACK');
+          return res.status(409).json({ error: 'Visit already has a different accepted submission' });
+        }
+        const report = await reportService.generateReportJSON(client, id);
+        await client.query('ROLLBACK');
+        return res.json({ ...report, acknowledged: true, submissionId: submissionId ?? null });
+      }
+
+      if (!['assigned', 'in_progress'].includes(lockedVisit.status)) {
+        await client.query('ROLLBACK');
+        return res.status(400).json({ error: `Visit cannot be completed — current status: ${lockedVisit.status}` });
+      }
+
+      const serviceResult = await client.query(
+        'SELECT service_name, is_temporarily FROM visit_services WHERE visit_id = $1',
+        [id]
+      );
+      if (serviceResult.rows.length === 0 && !cancel && !snapshot?.service?.serviceName) {
+        await client.query('ROLLBACK');
+        return res.status(400).json({ error: 'No service selected' });
+      }
+      const svc = serviceResult.rows[0];
+      const isCancel = cancel === true || svc?.service_name === 'Cancel';
+      const resolvedNotes = typeof notes === 'string' ? notes : lockedVisit.notes;
+      const hasNotes = typeof resolvedNotes === 'string' && resolvedNotes.trim().length > 0;
+      const hasChecklistAnswer = Array.isArray(checklistAnswers)
+        && checklistAnswers.some(answer => answer?.answer === 'yes' || answer?.answer === 'no');
+
+      if (isCancel && !hasNotes && !hasChecklistAnswer) {
+        await client.query('ROLLBACK');
+        return res.status(400).json({ error: 'Cancel requires notes or a checklist answer' });
+      }
+
+      let finalStatus;
+      if (isCancel) {
+        finalStatus = 'cancelled';
+      } else if ((snapshot?.service?.temporarily ?? svc?.is_temporarily) === true) {
+        finalStatus = 'temporarily';
       } else {
-        if (lockedVisit.technician_id !== req.technician.id) {
-          await client.query('ROLLBACK');
-          return res.status(403).json({ error: 'This visit is not assigned to you' });
-        }
+        finalStatus = 'completed';
+      }
 
-        if (!['assigned', 'in_progress'].includes(lockedVisit.status)) {
-          await client.query('ROLLBACK');
-          return res.status(400).json({ error: `Visit cannot be completed — current status: ${lockedVisit.status}` });
-        }
-
-        const serviceResult = await client.query(
-          'SELECT service_name, is_temporarily FROM visit_services WHERE visit_id = $1',
+      let resolvedTotal = null;
+      if (snapshot && !isCancel) {
+        resolvedTotal = await applySnapshotWork(client, lockedVisit, snapshot);
+      }
+      if (isCancel) {
+        await client.query('DELETE FROM visit_items WHERE visit_id = $1', [id]);
+        await client.query('DELETE FROM visit_services WHERE visit_id = $1', [id]);
+        await client.query(
+          `INSERT INTO visit_services (id, visit_id, service_name, is_finish, is_temporarily, price)
+           VALUES (gen_random_uuid()::text, $1, 'Cancel', false, false, 0)`,
           [id]
         );
-        if (serviceResult.rows.length === 0 && !cancel && !snapshot?.service?.serviceName) {
-          await client.query('ROLLBACK');
-          return res.status(400).json({ error: 'No service selected' });
-        }
-        const svc = serviceResult.rows[0];
-        const isCancel = cancel === true || svc?.service_name === 'Cancel';
-        const resolvedNotes = typeof notes === 'string' ? notes : lockedVisit.notes;
-        const hasNotes = typeof resolvedNotes === 'string' && resolvedNotes.trim().length > 0;
-        const hasChecklistAnswer = Array.isArray(checklistAnswers)
-          && checklistAnswers.some(answer => answer?.answer === 'yes' || answer?.answer === 'no');
-
-        if (isCancel && !hasNotes && !hasChecklistAnswer) {
-          await client.query('ROLLBACK');
-          return res.status(400).json({ error: 'Cancel requires notes or a checklist answer' });
-        }
-
-        let finalStatus;
-        if (isCancel) {
-          finalStatus = 'cancelled';
-        } else if ((snapshot?.service?.temporarily ?? svc?.is_temporarily) === true) {
-          finalStatus = 'temporarily';
-        } else {
-          finalStatus = 'completed';
-        }
-
-        if (submissionId) {
-          await client.query(
-            `INSERT INTO completion_submissions
-               (submission_id, visit_id, technician_id, terminal_intent, snapshot, accepted_at)
-             VALUES ($1, $2, $3, $4, $5, $6)`,
-            [submissionId, id, req.technician.id, finalStatus, JSON.stringify(snapshot), now]
-          );
-        }
-        let resolvedTotal = null;
-        if (snapshot && !isCancel) {
-          resolvedTotal = await applySnapshotWork(client, lockedVisit, snapshot);
-        }
-        if (isCancel) {
-          await client.query('DELETE FROM visit_items WHERE visit_id = $1', [id]);
-          await client.query('DELETE FROM visit_services WHERE visit_id = $1', [id]);
-          await client.query(
-            `INSERT INTO visit_services (id, visit_id, service_name, is_finish, is_temporarily, price)
-             VALUES (gen_random_uuid()::text, $1, 'Cancel', false, false, 0)`,
-            [id]
-          );
-        }
-        await client.query(
-          `UPDATE visits
-           SET status = $1, total_price = CASE WHEN $5 THEN 0 WHEN $7::real IS NOT NULL THEN $7::real ELSE total_price END,
-               notes = COALESCE($6, notes), completed_at = $2, updated_at = $2,
-               checklist_answers = $4
-           WHERE id = $3`,
-          [finalStatus, now, id, JSON.stringify(checklistAnswers ?? null), isCancel, typeof notes === 'string' ? notes : null, resolvedTotal]
-        );
-        const expiredResult = await client.query(
-          `UPDATE transfers SET status = 'expired', resolved_at = $1
-           WHERE visit_id = $2 AND status = 'pending'
-           RETURNING to_tech_id`,
-          [now, id]
-        );
-        expiredRows = expiredResult.rows;
-        await client.query('COMMIT');
       }
+      await client.query(
+        `UPDATE visits
+         SET status = $1, total_price = CASE WHEN $5 THEN 0 WHEN $7::real IS NOT NULL THEN $7::real ELSE total_price END,
+             notes = COALESCE($6, notes), completed_at = $2, updated_at = $2,
+             checklist_answers = $4
+         WHERE id = $3`,
+        [finalStatus, now, id, JSON.stringify(checklistAnswers ?? null), isCancel, typeof notes === 'string' ? notes : null, resolvedTotal]
+      );
+      const expiredResult = await client.query(
+        `UPDATE transfers SET status = 'expired', resolved_at = $1
+         WHERE visit_id = $2 AND status = 'pending'
+         RETURNING to_tech_id`,
+        [now, id]
+      );
+      expiredRows = expiredResult.rows;
+
+      const acceptedAt = new Date().toISOString();
+      const acceptedSubmissionId = submissionId ?? crypto.randomUUID();
+      normalizedSubmissionId = acceptedSubmissionId;
+      const sourceSubmission = snapshot ?? {
+        version: 1,
+        visitId: id,
+        technicianId: req.technician.id,
+        createdAt: acceptedAt,
+        terminalIntent: finalStatus,
+        notes: typeof notes === 'string' ? notes : lockedVisit.notes,
+        checklistAnswers: checklistAnswers ?? [],
+        cancel: isCancel,
+      };
+      await client.query(
+        `INSERT INTO completion_submissions
+           (submission_id, visit_id, technician_id, terminal_intent, snapshot, accepted_at)
+         VALUES ($1, $2, $3, $4, $5, $6)`,
+        [acceptedSubmissionId, id, req.technician.id, finalStatus, JSON.stringify(sourceSubmission), acceptedAt]
+      );
+      const canonicalSnapshot = await reportService.createCanonicalReportSnapshot(client, id, {
+        submissionId: acceptedSubmissionId,
+        technicianId: req.technician.id,
+        generatedAt: snapshot?.createdAt ?? acceptedAt,
+        acceptedAt,
+        sourceSubmission,
+      });
+      if (snapshot && !reportService.reportContentMatchesSubmission(snapshot, canonicalSnapshot)) {
+        throw Object.assign(
+          new Error('Server validation changed Report content. Correct and resubmit the Report.'),
+          { status: 409, code: 'REPORT_CONTENT_MISMATCH' }
+        );
+      }
+      await client.query(
+        'UPDATE completion_submissions SET snapshot = $1 WHERE submission_id = $2',
+        [JSON.stringify(canonicalSnapshot), acceptedSubmissionId]
+      );
+      completedReport = await reportService.generateReportJSON(client, id);
+      await client.query('COMMIT');
     } catch (err) {
       await client.query('ROLLBACK').catch(() => {});
       throw err;
     } finally {
       client.release();
-    }
-
-    if (alreadyTerminal) {
-      return res.json({ ...(await generateReportJSON(pool, id)), acknowledged: true, submissionId: submissionId ?? null });
     }
 
     // Notifications remain outside transaction (soft failures OK)
@@ -332,27 +366,80 @@ router.post('/:id/complete', requireRole('technician'), async (req, res, next) =
 
     console.log('Drive upload pending for visit', id);
 
-    res.json({ ...(await generateReportJSON(pool, id)), acknowledged: true, submissionId: submissionId ?? null });
+    res.json({ ...completedReport, acknowledged: true, submissionId: normalizedSubmissionId });
   } catch (err) {
+    if (err?.code === 'REPORT_CONTENT_MISMATCH') {
+      return res.status(409).json({ error: err.message, code: err.code });
+    }
     // Two delivery attempts can cross after both preflight reads. The unique
     // submission identity is still authoritative: once the competing
-    // transaction committed, return its ACK rather than treating a retry as a
-    // report failure.
+    // transaction committed, verify ownership under a row lock and return its
+    // ACK rather than treating a retry as a report failure.
     if (err?.code === '23505' && normalizedSubmissionId) {
+      let recoveryClient = null;
+      let txStarted = false;
       try {
-        const accepted = await pool.query(
-          'SELECT visit_id FROM completion_submissions WHERE submission_id = $1 OR visit_id = $2',
-          [normalizedSubmissionId, id]
+        recoveryClient = await pool.connect();
+        await recoveryClient.query('BEGIN');
+        txStarted = true;
+        const lockedRecoveryVisit = await recoveryClient.query(
+          'SELECT id, technician_id FROM visits WHERE id = $1 FOR UPDATE',
+          [id]
         );
-        if (accepted.rows.some(row => row.visit_id === id)) {
+        if (lockedRecoveryVisit.rows.length === 0) {
+          await recoveryClient.query('ROLLBACK');
+          txStarted = false;
+          return res.status(404).json({ error: 'Visit not found' });
+        }
+        const accepted = await recoveryClient.query(
+          `SELECT submission_id, visit_id, technician_id, snapshot
+           FROM completion_submissions WHERE submission_id = $1`,
+          [normalizedSubmissionId]
+        );
+        const matchingSubmission = accepted.rows[0];
+        if (matchingSubmission) {
+          if (matchingSubmission.visit_id !== id) {
+            await recoveryClient.query('ROLLBACK');
+            txStarted = false;
+            return res.status(409).json({ error: 'Submission belongs to a different visit' });
+          }
+          if (matchingSubmission.technician_id !== req.technician.id) {
+            await recoveryClient.query('ROLLBACK');
+            txStarted = false;
+            return res.status(403).json({ error: 'This visit is not assigned to you' });
+          }
+        }
+        if (!matchingSubmission && lockedRecoveryVisit.rows[0].technician_id !== req.technician.id) {
+          await recoveryClient.query('ROLLBACK');
+          txStarted = false;
+          return res.status(403).json({ error: 'This visit is not assigned to you' });
+        }
+        if (matchingSubmission?.snapshot?.sourceSubmission
+            && !isDeepStrictEqual(matchingSubmission.snapshot.sourceSubmission, normalizedSnapshot)) {
+          await recoveryClient.query('ROLLBACK');
+          txStarted = false;
+          return res.status(409).json({ error: 'Submission ID is already accepted with different content' });
+        }
+        if (matchingSubmission) {
+          const report = await reportService.generateReportJSON(recoveryClient, id);
+          await recoveryClient.query('ROLLBACK');
+          txStarted = false;
           return res.json({
-            ...(await generateReportJSON(pool, id)),
+            ...report,
             acknowledged: true,
             submissionId: normalizedSubmissionId,
           });
         }
-      } catch (_) {
-        // Preserve the original completion error below.
+        await recoveryClient.query('ROLLBACK');
+        txStarted = false;
+      } catch {
+        if (recoveryClient && txStarted) {
+          await recoveryClient.query('ROLLBACK').catch(() => {});
+        }
+      } finally {
+        if (recoveryClient) {
+          recoveryClient.release();
+        }
       }
     }
     next(err);
@@ -374,7 +461,7 @@ router.get('/:id/report-preview', async (req, res, next) => {
       return res.status(403).json({ error: 'This visit is not assigned to you' });
     }
 
-    const reportText = await generateReportText(pool, id);
+    const reportText = await reportService.generateReportText(pool, id);
     res.json({ reportText });
   } catch (err) {
     next(err);
@@ -396,7 +483,7 @@ router.get('/:id/download', async (req, res, next) => {
       return res.status(403).json({ error: 'This visit is not assigned to you' });
     }
 
-    res.json(await generateReportJSON(pool, id));
+    res.json(await reportService.generateReportJSON(pool, id));
   } catch (err) {
     next(err);
   }

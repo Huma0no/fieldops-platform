@@ -10,6 +10,7 @@
     "db:schema": "psql $DATABASE_URL -f src/db/schema.sql",
     "db:migrate": "psql $DATABASE_URL -f src/db/migrations/001_invite_codes.sql",
     "db:migrate2": "psql $DATABASE_URL -f src/db/migrations/002_visits_updated_at_deferred.sql",
+    "db:migrate025": "psql \"$DATABASE_URL\" -v ON_ERROR_STOP=1 -f src/db/migrations/025_completion_submissions_one_per_visit.sql",
     "db:seed:catalog": "node src/db/seed/catalog.js",
     "db:seed:roles": "node src/db/seed/roles.js",
     "db:migrate026": "psql \"$DATABASE_URL\" -v ON_ERROR_STOP=1 -f src/db/migrations/026_username_password_auth.sql"

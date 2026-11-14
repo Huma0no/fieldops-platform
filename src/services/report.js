@@ -1,3 +1,5 @@
+const { isDeepStrictEqual } = require('node:util');
+
 const ITEM_REPORT_TEXT = {
   UT3000: 'UT3000 zone board',
   HZ322: 'HZ322 zone board',
@@ -37,9 +39,12 @@ function formatPrice(value) {
 
 function formatService(service, systemCount) {
   if (!service) return null;
-  if (service.service_name === 'Finish') return null;
+  const serviceName = service.service_name ?? service.serviceName;
+  const isTemporarily = service.is_temporarily ?? service.isTemporarily;
+  const isFinish = service.is_finish ?? service.isFinish;
+  if (serviceName === 'Finish') return null;
 
-  const temporarily = service.is_temporarily ? ' (Temporarily)' : '';
+  const temporarily = isTemporarily ? ' (Temporarily)' : '';
   const serviceText = {
     AC: `AC${temporarily} started`,
     Heat: `Heat${temporarily} started`,
@@ -47,27 +52,28 @@ function formatService(service, systemCount) {
     Prestart: 'System Prestarted',
     'Drive Run': 'Drive Run',
     Cancel: 'service canceled',
-  }[service.service_name];
+  }[serviceName];
   if (!serviceText) return null;
 
-  const hasAcOrHeat = ['AC', 'Heat', 'AC & Heat'].includes(service.service_name);
-  const prefix = service.is_finish && hasAcOrHeat ? 'Finish/ ' : '';
-  const systemSuffix = service.service_name !== 'Cancel' && systemCount > 1
+  const hasAcOrHeat = ['AC', 'Heat', 'AC & Heat'].includes(serviceName);
+  const prefix = isFinish && hasAcOrHeat ? 'Finish/ ' : '';
+  const systemSuffix = serviceName !== 'Cancel' && systemCount > 1
     ? ` (${systemCount} Systems)`
     : '';
   return `${prefix}${serviceText}${systemSuffix} $${formatPrice(service.price)}`;
 }
 
 function formatItem(item) {
-  const text = (item.item_name === 'Other' || item.item_name === 'Other Fix')
+  const itemName = item.item_name ?? item.itemName;
+  const text = (itemName === 'Other' || itemName === 'Other Fix')
     ? item.description
-    : ITEM_REPORT_TEXT[item.item_name] ?? item.item_name;
+    : ITEM_REPORT_TEXT[itemName] ?? itemName;
   if (!text) return null;
   const quantity = item.quantity > 1 ? `${item.quantity} ` : '';
   return `${quantity}${text} $${formatPrice(item.price)}`;
 }
 
-async function generateReportText(db, visitId) {
+async function generateLiveReportText(db, visitId) {
   const [visitRow, serviceRows, systemRows, itemRows] = await Promise.all([
     db.query(
       `SELECT v.status, v.total_price, v.notes, v.checklist_answers, a.street
@@ -134,7 +140,7 @@ async function generateReportText(db, visitId) {
   return parts.filter(Boolean).join(', ');
 }
 
-async function generateReportJSON(db, visitId) {
+async function generateLiveReportJSON(db, visitId) {
   const visitRow = await db.query(
     `SELECT v.id, v.order_number, v.date, v.scheduled_time, v.status, v.technician_id,
             v.has_multiple_systems, v.total_price, v.completed_at,
@@ -239,4 +245,250 @@ async function generateReportJSON(db, visitId) {
   };
 }
 
-module.exports = { generateReportText, generateReportJSON };
+async function createCanonicalReportSnapshot(db, visitId, {
+  submissionId,
+  technicianId,
+  generatedAt,
+  acceptedAt,
+  sourceSubmission,
+}) {
+  const report = await generateLiveReportJSON(db, visitId);
+  const [contextResult, technicianResult, evidenceResult] = await Promise.all([
+    db.query(
+      `SELECT v.address_id, v.work_type, v.notes, v.checklist_answers
+       FROM visits v WHERE v.id = $1`,
+      [visitId]
+    ),
+    db.query('SELECT name FROM technicians WHERE id = $1', [technicianId]),
+    db.query(
+      `SELECT id, visit_id, system_number, slug, tag, label, category, stored_at
+       FROM visit_photos WHERE visit_id = $1 ORDER BY id`,
+      [visitId]
+    ),
+  ]);
+  const context = contextResult.rows[0];
+  const technicianName = technicianResult.rows[0]?.name;
+  if (!context || !technicianName) {
+    throw Object.assign(new Error('Could not resolve accepted Report identity'), { status: 409 });
+  }
+
+  return {
+    version: 2,
+    submissionId,
+    visitId,
+    technicianId,
+    technicianName,
+    propertyId: context.address_id,
+    workType: context.work_type,
+    generatedAt: generatedAt || acceptedAt,
+    acceptedAt,
+    terminalIntent: report.status,
+    notes: context.notes ?? '',
+    checklistAnswers: context.checklist_answers ?? [],
+    evidenceRefs: sourceSubmission?.evidenceRefs ?? [],
+    photoEvidence: evidenceResult.rows,
+    sourceSubmission,
+    ...report,
+  };
+}
+
+function reportJSONFromSnapshot(snapshot, submission) {
+  return {
+    id: snapshot.id ?? submission.visit_id,
+    submissionId: submission.submission_id,
+    orderNumber: snapshot.orderNumber,
+    scheduledDate: snapshot.scheduledDate,
+    scheduledTime: snapshot.scheduledTime,
+    status: snapshot.status ?? submission.terminal_intent,
+    completedAt: snapshot.completedAt,
+    technicianId: submission.technician_id,
+    technicianName: snapshot.technicianName,
+    propertyId: snapshot.propertyId,
+    totalPrice: snapshot.totalPrice,
+    hasMultipleSystems: snapshot.hasMultipleSystems,
+    address: snapshot.address,
+    systems: snapshot.systems,
+    services: snapshot.services,
+    items: snapshot.items,
+    photos: snapshot.photos,
+    weighInData: snapshot.weighInData,
+    workType: snapshot.workType,
+    generatedAt: snapshot.generatedAt ?? snapshot.createdAt,
+    acceptedAt: submission.accepted_at,
+  };
+}
+
+function getSubmittedValue(object, ...keys) {
+  for (const key of keys) {
+    if (Object.prototype.hasOwnProperty.call(object ?? {}, key)) return object[key];
+  }
+  return undefined;
+}
+
+function sameReportNumber(submitted, accepted) {
+  return Number.isFinite(Number(submitted)) && Number.isFinite(Number(accepted))
+    && Math.abs(Number(submitted) - Number(accepted)) <= 0.005;
+}
+
+function reportContentMatchesSubmission(submitted, accepted) {
+  const exactFields = [
+    ['orderNumber', accepted.orderNumber],
+    ['scheduledDate', accepted.scheduledDate],
+    ['scheduledTime', accepted.scheduledTime],
+    ['propertyId', accepted.propertyId],
+    ['workType', accepted.workType],
+    ['hasMultipleSystems', accepted.hasMultipleSystems],
+    ['terminalIntent', accepted.terminalIntent],
+  ];
+  if (exactFields.some(([key, expected]) => submitted[key] !== expected)) return false;
+  if (!sameReportNumber(submitted.totalPrice, accepted.totalPrice)) return false;
+
+  const addressFields = ['street', 'city', 'state', 'zip', 'subdivision', 'builder'];
+  if (!submitted.address || addressFields.some(field =>
+    !Object.prototype.hasOwnProperty.call(submitted.address, field)
+      || submitted.address[field] !== accepted.address?.[field]
+  )) return false;
+
+  const acceptedService = accepted.services?.[0];
+  const submittedService = submitted.service;
+  if (!acceptedService || !submittedService
+      || submittedService.serviceName !== acceptedService.serviceName
+      || getSubmittedValue(submittedService, 'isFinish', 'is_finish', 'finish') !== acceptedService.isFinish
+      || getSubmittedValue(submittedService, 'isTemporarily', 'is_temporarily', 'temporarily') !== acceptedService.isTemporarily
+      || !sameReportNumber(submittedService.price, acceptedService.price)) return false;
+  if ((accepted.services ?? []).length !== 1) return false;
+
+  const compareRows = (suppliedRows, acceptedRows, fields, aliases = {}) => {
+    if (!Array.isArray(suppliedRows) || suppliedRows.length !== acceptedRows.length) return false;
+    const sortKey = row => fields.map(field => String(getSubmittedValue(row, ...(aliases[field] ?? [field])) ?? '')).join('\u0000');
+    const supplied = [...suppliedRows].sort((a, b) => sortKey(a).localeCompare(sortKey(b)));
+    const expected = [...acceptedRows].sort((a, b) => sortKey(a).localeCompare(sortKey(b)));
+    return supplied.every((row, index) => fields.every(field => {
+      const value = getSubmittedValue(row, ...(aliases[field] ?? [field]));
+      const expectedValue = expected[index][field];
+      return typeof expectedValue === 'number'
+        ? sameReportNumber(value, expectedValue)
+        : value === expectedValue;
+    }));
+  };
+
+  if (!compareRows(submitted.items, accepted.items ?? [], [
+    'itemName', 'category', 'description', 'quantity', 'price', 'techSupplied',
+  ], {
+    itemName: ['itemName', 'item_name'],
+    description: ['description'],
+    quantity: ['quantity'],
+    techSupplied: ['techSupplied', 'tech_supplied'],
+  })) return false;
+
+  if (!compareRows(submitted.systems, accepted.systems ?? [], [
+    'systemNumber', 'indoorModel', 'outdoorModel', 'coilModel', 'refrigerant',
+  ], {
+    systemNumber: ['systemNumber', 'system_number'],
+    indoorModel: ['indoorModel', 'indoor_model'],
+    outdoorModel: ['outdoorModel', 'outdoor_model'],
+    coilModel: ['coilModel', 'coil_model'],
+  })) return false;
+
+  const weighInFields = [
+    'systemNumber', 'linesetLength', 'factoryChargeOz', 'factoryLineConfig',
+    'approxAdjustOz', 'adjustedOz', 'fanSpeedCfm', 'liquidLineTemp',
+    'suctionLineTemp', 'condenserSatTemp', 'subcoolingValue',
+    'oemSubcoolingGoal', 'subcoolingDeviation',
+  ];
+  const weighInAliases = Object.fromEntries(weighInFields.map(field => [
+    field,
+    field.replace(/[A-Z]/g, letter => `_${letter.toLowerCase()}`),
+  ]));
+  if (!compareRows(submitted.weighInData, accepted.weighInData ?? [], weighInFields,
+    Object.fromEntries(Object.entries(weighInAliases).map(([field, snake]) => [field, [field, snake]])))) return false;
+
+  if (typeof submitted.notes !== 'string'
+      || submitted.notes.trim() !== String(accepted.notes ?? '').trim()) return false;
+  const reportFindings = answers => Array.isArray(answers)
+    ? answers
+      .filter(answer => answer.answer === 'no' && typeof answer.reportText === 'string' && answer.reportText.trim())
+      .map(answer => answer.reportText.trim())
+    : null;
+  if (!Array.isArray(submitted.checklistAnswers)
+      || !isDeepStrictEqual(reportFindings(submitted.checklistAnswers), reportFindings(accepted.checklistAnswers))) return false;
+
+  const evidenceFields = ['id', 'slug', 'tag', 'label', 'category', 'systemNumber', 'storedAt'];
+  const acceptedEvidence = (accepted.photoEvidence ?? []).map(photo => ({
+    id: photo.id,
+    slug: photo.slug,
+    tag: photo.tag,
+    label: photo.label,
+    category: photo.category,
+    systemNumber: photo.system_number,
+    storedAt: photo.stored_at,
+  }));
+  return compareRows(submitted.evidenceRefs, acceptedEvidence, evidenceFields);
+}
+
+async function findAcceptedSubmission(db, visitId) {
+  const result = await db.query(
+    `SELECT submission_id, visit_id, technician_id, terminal_intent, snapshot, accepted_at
+     FROM completion_submissions WHERE visit_id = $1`,
+    [visitId]
+  );
+  if (result.rows.length > 1) {
+    throw new Error(`Multiple accepted submissions found for visit ${visitId}`);
+  }
+  return result.rows[0] ?? null;
+}
+
+function reportTextFromSnapshot(snapshot) {
+  const isCancelled = snapshot.status === 'cancelled';
+  const checklistFindings = (snapshot.checklistAnswers ?? [])
+    .filter(answer => answer.answer === 'no' && typeof answer.reportText === 'string' && answer.reportText.trim())
+    .map(answer => answer.reportText.trim());
+  const noteParts = [snapshot.notes?.trim(), ...checklistFindings].filter(Boolean);
+  const services = snapshot.services ?? [];
+  const service = services[0];
+  const systemCount = (snapshot.systems ?? []).length;
+  const items = isCancelled ? [] : (snapshot.items ?? []);
+  const thermostatItems = items.filter(item => item.category === 'thermostat');
+  const thermostatText = thermostatItems
+    .map(item => `${item.quantity} ${item.itemName} tstat${item.quantity === 1 ? '' : 's'}`)
+    .join(', ');
+  const accessoryItems = items.filter(item => item.category === 'accessory');
+  const fixItems = items.filter(item => item.category === 'fix');
+  const serviceText = isCancelled ? 'service canceled $0' : formatService(service, systemCount);
+  const parts = [snapshot.address?.street?.trim()];
+
+  if (noteParts.length) parts.push(noteParts.join(' | '));
+  if (!isCancelled && (service?.isFinish || service?.serviceName === 'Finish')
+      && !['AC', 'Heat', 'AC & Heat'].includes(service.serviceName)) {
+    parts.push('Finish/');
+  }
+  if (serviceText) {
+    parts.push(thermostatText ? serviceText.replace(/ \$[^ ]+$/, ` ${thermostatText}$&`) : serviceText);
+  } else if (thermostatText) {
+    parts.push(thermostatText);
+  }
+  parts.push(...accessoryItems.map(formatItem).filter(Boolean));
+  parts.push(...fixItems.map(formatItem).filter(Boolean));
+  parts.push(`total $${formatPrice(snapshot.totalPrice)}`);
+  return parts.filter(Boolean).join(', ');
+}
+
+async function generateReportJSON(db, visitId) {
+  const accepted = await findAcceptedSubmission(db, visitId);
+  if (!accepted) return generateLiveReportJSON(db, visitId);
+  return reportJSONFromSnapshot(accepted.snapshot, accepted);
+}
+
+async function generateReportText(db, visitId) {
+  const accepted = await findAcceptedSubmission(db, visitId);
+  if (!accepted) return generateLiveReportText(db, visitId);
+  return reportTextFromSnapshot(accepted.snapshot);
+}
+
+module.exports = {
+  createCanonicalReportSnapshot,
+  findAcceptedSubmission,
+  reportContentMatchesSubmission,
+  generateReportText,
+  generateReportJSON,
+};

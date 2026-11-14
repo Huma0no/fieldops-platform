@@ -2,7 +2,7 @@ const request = require('supertest');
 const crypto = require('crypto');
 const app = require('../src/index');
 const { pool, truncateTables } = require('./helpers/db');
-const { generateReportJSON } = require('../src/services/report');
+const { createCanonicalReportSnapshot, generateReportJSON, generateReportText } = require('../src/services/report');
 const {
   seedDispatcherWithToken, seedTechnicianWithToken, seedTech,
   seedCompletedVisit,
@@ -245,6 +245,45 @@ describe('PATCH /api/dispatch/corrections/:id/apply', () => {
     expect(row.rows[0].affected_domains).toEqual(['notes']);
     expect(row.rows[0].before_state.notes).not.toBe('corrected notes');
     expect(row.rows[0].after_state.notes).toBe('corrected notes');
+  });
+
+  it('keeps an accepted snapshot Report unchanged when correction Apply changes operational data', async () => {
+    const { token } = await seedDispatcherWithToken();
+    const { tech } = await seedTechnicianWithToken();
+    const { visitId, addressId } = await seedCompletedVisit({ technicianId: tech.id });
+    const submissionId = crypto.randomUUID();
+    const acceptedAt = new Date().toISOString();
+    const sourceSubmission = {
+      version: 1, submissionId, visitId, technicianId: tech.id,
+      createdAt: acceptedAt, terminalIntent: 'completed', notes: null, checklistAnswers: [],
+    };
+    const snapshot = await createCanonicalReportSnapshot(pool, visitId, {
+      submissionId, technicianId: tech.id, generatedAt: acceptedAt, acceptedAt, sourceSubmission,
+    });
+    await pool.query(
+      `INSERT INTO completion_submissions
+         (submission_id, visit_id, technician_id, terminal_intent, snapshot, accepted_at)
+       VALUES ($1, $2, $3, 'completed', $4, $5)`,
+      [submissionId, visitId, tech.id, JSON.stringify(snapshot), acceptedAt]
+    );
+    const reportBefore = await generateReportJSON(pool, visitId);
+    const textBefore = await generateReportText(pool, visitId);
+    const corrId = await seedOpenCorrection(visitId, tech.id);
+
+    const applied = await request(app)
+      .patch(`/api/dispatch/corrections/${corrId}/apply`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ changes: { propertyContext: { builder: 'Corrected Builder' }, notes: 'Corrected operational notes' } });
+
+    expect(applied.status).toBe(200);
+    await expect(generateReportJSON(pool, visitId)).resolves.toEqual(reportBefore);
+    await expect(generateReportText(pool, visitId)).resolves.toBe(textBefore);
+    expect((await pool.query('SELECT status, before_state, after_state FROM corrections WHERE id = $1', [corrId])).rows[0])
+      .toMatchObject({ status: 'applied', after_state: expect.objectContaining({ notes: 'Corrected operational notes' }) });
+    expect((await pool.query('SELECT snapshot FROM completion_submissions WHERE submission_id = $1', [submissionId])).rows[0].snapshot)
+      .toEqual(snapshot);
+    expect((await pool.query('SELECT builder FROM addresses WHERE id = $1', [addressId])).rows[0].builder)
+      .toBe('Corrected Builder');
   });
 
   it('persists an optional administrative Note without changing technician request content', async () => {
