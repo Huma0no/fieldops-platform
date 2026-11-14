@@ -14,6 +14,7 @@
  */
 
 import { api } from '../../../shared/api.js'
+import { getActiveTechnicianId } from './db.js'
 
 const POLL_INTERVAL = 20_000   // 20 seconds
 const STORAGE_KEY   = 'sync:lastAt'
@@ -21,20 +22,29 @@ const STORAGE_KEY   = 'sync:lastAt'
 let _timer    = null
 let _running  = false
 
-function getLastAt () {
-  return localStorage.getItem(STORAGE_KEY) ?? new Date(0).toISOString()
+function storageKeyForTechnician (technicianId) {
+  return `${STORAGE_KEY}:${technicianId}`
 }
 
-function setLastAt (iso) {
-  localStorage.setItem(STORAGE_KEY, iso)
+function getLastAt (technicianId) {
+  return localStorage.getItem(storageKeyForTechnician(technicianId)) ?? new Date(0).toISOString()
+}
+
+function setLastAt (technicianId, iso) {
+  localStorage.setItem(storageKeyForTechnician(technicianId), iso)
 }
 
 async function poll () {
-  const since = getLastAt()
+  const technicianId = getActiveTechnicianId()
+  if (!technicianId) {
+    stopSync()
+    return
+  }
+  const since = getLastAt(technicianId)
   try {
     const data = await api.get(`/sync/changes?since=${encodeURIComponent(since)}`)
-    if (data) {
-      setLastAt(data.serverTime ?? new Date().toISOString())
+    if (data && getActiveTechnicianId() === technicianId) {
+      setLastAt(technicianId, data.serverTime ?? new Date().toISOString())
       window.dispatchEvent(new CustomEvent('sync:update', { detail: data }))
     }
   } catch (err) {
@@ -69,6 +79,7 @@ function resume () {
 
 export function startSync () {
   if (_running) return
+  if (!getActiveTechnicianId()) return
   _running = true
   document.addEventListener('visibilitychange', onVisibilityChange)
   resume()

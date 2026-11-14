@@ -15,7 +15,7 @@ import { NavBar, navBarStyles }         from '../components/nav-bar.js'
 import { JobCard, jobCardStyles }       from '../components/job-card.js'
 import { startSync, forceSync }         from '../lib/sync.js'
 import { NotificationBell, notificationStyles } from '../components/notifications.js'
-import { cacheMyCallsVisits, getAllCompletionSubmissions, getAllLocalVisitDrafts, getCachedMyCallsVisits } from '../lib/db.js'
+import { cacheMyCallsVisits, getActiveTechnicianId, getAllCompletionSubmissions, getAllLocalVisitDrafts, getCachedMyCallsVisits } from '../lib/db.js'
 import { confirmedLocalCancelVisitIds } from '../lib/workspace-visit.mjs'
 import { localMyCallsVisits, mergeMyCallsVisits, shouldShowMyCallsLoadError } from '../lib/my-calls-visit.mjs'
 
@@ -93,13 +93,14 @@ export default function mount (appEl) {
 
 async function loadVisits () {
   const sequence = ++loadSequence
+  const activeTechnicianId = getActiveTechnicianId()
   isLoading = true
   renderList()
   renderLoadSheet()
 
   // Local draft recovery is independent of server refresh and outbox retry.
   // It must be able to end the skeleton state even when the API is offline.
-  void refreshLocalDraftState().then(() => {
+  void refreshLocalDraftState(activeTechnicianId).then(() => {
     if (sequence !== loadSequence) return
     visits = mergeMyCallsVisits(visits, localVisits)
     if (isLoading) isLoading = false
@@ -114,7 +115,7 @@ async function loadVisits () {
     loadError = null
     // A cache write cannot delay rendering or turn a working server response
     // into an error state. It is only used by the next offline boot.
-    void cacheMyCallsVisits(remoteVisits).catch(err => console.error('Failed to cache My Calls:', err))
+    void cacheMyCallsVisits(remoteVisits, activeTechnicianId).catch(err => console.error('Failed to cache My Calls:', err))
   } catch (err) {
     if (sequence !== loadSequence) return
     loadError = err
@@ -130,12 +131,12 @@ async function loadVisits () {
 let localDrafts = []
 let localVisits = []
 
-async function refreshLocalDraftState () {
+async function refreshLocalDraftState (activeTechnicianId = getActiveTechnicianId()) {
   try {
     const [drafts, cachedVisits, completionSubmissions] = await Promise.all([
-      getAllLocalVisitDrafts(),
-      getCachedMyCallsVisits(),
-      getAllCompletionSubmissions(),
+      getAllLocalVisitDrafts(activeTechnicianId),
+      getCachedMyCallsVisits(activeTechnicianId),
+      getAllCompletionSubmissions(activeTechnicianId),
     ])
     localDrafts = drafts
     localVisits = localMyCallsVisits({ drafts, cachedVisits, completionSubmissions })

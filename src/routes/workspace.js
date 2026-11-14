@@ -197,7 +197,7 @@ router.patch(
         [totalPrice, now, id]
       );
 
-      res.json({ id, serviceName, isFinish: resolvedIsFinish, isTemporarily, totalPrice });
+      res.json({ id, serviceName, isFinish: resolvedIsFinish, isTemporarily, servicePrice, totalPrice });
     } catch (err) {
       next(err);
     }
@@ -211,10 +211,14 @@ router.post(
   requireVisitOwnership,
   async (req, res, next) => {
     const { id } = req.params;
+    const quantityProvided = Object.prototype.hasOwnProperty.call(req.body ?? {}, 'quantity');
     const { category, itemName, quantity = 1, price, description } = req.body;
     try {
       if (!VALID_CATEGORIES.includes(category)) {
         return res.status(400).json({ error: 'Invalid category' });
+      }
+      if (!Number.isInteger(quantity) || quantity < 1) {
+        return res.status(400).json({ error: 'quantity must be a positive integer' });
       }
 
       const catRes = await pool.query(
@@ -262,6 +266,15 @@ router.post(
       );
       if (existingRes.rows.length > 0) {
         const existing = existingRes.rows[0];
+        if (quantityProvided && existing.quantity !== quantity) {
+          await pool.query('UPDATE visit_items SET quantity = $1 WHERE id = $2', [quantity, existing.id]);
+          const totalPrice = await calculateVisitPrice(pool, id);
+          await pool.query(
+            'UPDATE visits SET total_price = $1, updated_at = $2 WHERE id = $3',
+            [totalPrice, new Date().toISOString(), id]
+          );
+          existing.quantity = quantity;
+        }
         return res.json({
           id: existing.id,
           totalPrice: await calculateVisitPrice(pool, id),

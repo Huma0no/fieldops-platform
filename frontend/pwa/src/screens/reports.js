@@ -13,6 +13,7 @@
 import { api }                  from '../../../shared/api.js'
 import { NavBar, navBarStyles } from '../components/nav-bar.js'
 import {
+  getActiveTechnicianId,
   getAllCompletionSubmissions,
   getPendingCompletionSubmissions,
 } from '../lib/db.js'
@@ -37,6 +38,7 @@ function injectStyles () {
 let completions  = []
 let queuedIds    = new Set()
 let pendingSubmissions = []
+let correctionRequiredSubmissions = []
 let downloadedIds = new Set()
 let retryingIds  = new Set()
 let retryErrors  = new Map()
@@ -96,18 +98,20 @@ async function loadReports () {
   isLoading = true
   renderList()
 
+  const activeTechnicianId = getActiveTechnicianId()
   let localPending = []
   let localAll = []
   try {
     ;[localPending, localAll] = await Promise.all([
-      getPendingCompletionSubmissions(),
-      getAllCompletionSubmissions(),
+      getPendingCompletionSubmissions(activeTechnicianId),
+      getAllCompletionSubmissions(activeTechnicianId),
     ])
   } catch (err) {
     console.error('Failed to read local completion submissions:', err)
   }
 
   pendingSubmissions = localPending ?? []
+  correctionRequiredSubmissions = (localAll ?? []).filter(entry => entry?.lifecycle === 'correction_required')
   queuedIds = new Set(pendingSubmissions.map(e => e.visitId))
 
   const localDeliveredMap = new Map()
@@ -166,6 +170,8 @@ function onSyncUpdate (e) {
 
 function onQueueSent (e) {
   const { visitId, submissionId, record } = e.detail ?? {}
+  const activeTechnicianId = getActiveTechnicianId()
+  if (record?.technicianId && record.technicianId !== activeTechnicianId) return
   const matchingPending = pendingSubmissions.find(
     entry => (visitId && entry.visitId === visitId) || (submissionId && entry.submissionId === submissionId)
   )
@@ -175,6 +181,7 @@ function onQueueSent (e) {
     retryingIds.delete(resolvedVisitId)
     retryErrors.delete(resolvedVisitId)
     pendingSubmissions = pendingSubmissions.filter(entry => entry.visitId !== resolvedVisitId)
+    correctionRequiredSubmissions = correctionRequiredSubmissions.filter(entry => entry.visitId !== resolvedVisitId)
     const sourceRecord = record ?? matchingPending
     if (sourceRecord && !completions.some(c => c.id === resolvedVisitId)) {
       completions.unshift(completionFromSubmissionRecord({
@@ -238,7 +245,7 @@ function renderList () {
   const deliveredIds = new Set(sorted.map(visit => visit.id))
   const seenPendingVisits = new Set()
   const pendingCards = []
-  for (const entry of pendingSubmissions) {
+  for (const entry of [...correctionRequiredSubmissions, ...pendingSubmissions]) {
     if (!entry?.visitId || deliveredIds.has(entry.visitId) || seenPendingVisits.has(entry.visitId)) {
       continue
     }
@@ -250,7 +257,8 @@ function renderList () {
       total_price: entry.snapshot?.totalPrice ?? 0,
       snapshot: entry.snapshot,
       _submissionRecord: entry,
-      _localPending: true,
+      _localPending: entry.lifecycle === 'pending',
+      _correctionRequired: entry.lifecycle === 'correction_required',
     })
   }
 
@@ -264,6 +272,7 @@ function renderList () {
 
 function buildReportCard (visit) {
   const isPending    = visit._localPending || queuedIds.has(visit.id)
+  const correctionRequired = visit._correctionRequired === true
   const isDownloaded = downloadedIds.has(visit.id)
 
   const card = document.createElement('div')
@@ -289,10 +298,10 @@ function buildReportCard (visit) {
   const rightWrap = document.createElement('div')
   rightWrap.className = 'rc-card-right'
 
-  const statusIcon = buildStatusIcon(isPending, isDownloaded)
+  const statusIcon = buildStatusIcon(isPending || correctionRequired, isDownloaded)
   rightWrap.appendChild(statusIcon)
 
-  if (!isPending) {
+  if (!isPending && !correctionRequired) {
     // ··· menu — low-frequency actions are available only after delivery.
     const menuBtn = document.createElement('button')
     menuBtn.className   = 'rc-menu-btn'
@@ -311,7 +320,10 @@ function buildReportCard (visit) {
 
   // Status label
   const statusLabel = document.createElement('p')
-  if (isPending) {
+  if (correctionRequired) {
+    statusLabel.textContent = 'Correction required — edit the Report and confirm a new submission'
+    statusLabel.className = 'rc-status rc-status--pending'
+  } else if (isPending) {
     const isRetrying = retryingIds.has(visit.id)
     const errText = retryErrors.get(visit.id)
     statusLabel.textContent = isRetrying
@@ -332,6 +344,28 @@ function buildReportCard (visit) {
   // Actions
   const actions = document.createElement('div')
   actions.className = 'rc-actions'
+
+  if (correctionRequired) {
+    const correctBtn = document.createElement('button')
+    correctBtn.className = 'rc-btn rc-btn--secondary'
+    correctBtn.textContent = 'Correct report'
+    correctBtn.addEventListener('click', () => {
+      sessionStorage.setItem('workspace:visitId', visit.id)
+      navigate('/workspace')
+    })
+    actions.appendChild(correctBtn)
+
+    const previewBtn = document.createElement('button')
+    previewBtn.className = 'rc-btn rc-btn--ghost'
+    previewBtn.textContent = 'Review saved submission'
+    previewBtn.addEventListener('click', e => {
+      e.stopPropagation()
+      openReportPreview(visit)
+    })
+    actions.appendChild(previewBtn)
+    card.appendChild(actions)
+    return card
+  }
 
   if (isPending) {
     const isRetrying = retryingIds.has(visit.id)

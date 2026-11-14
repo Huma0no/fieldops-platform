@@ -14,7 +14,7 @@
  */
 
 import { api }        from '../../../shared/api.js'
-import { getCatalog, getLocalVisitDraft, saveLocalVisitDraft } from '../lib/db.js'
+import { getActiveTechnicianId, getCatalog, getLocalVisitDraft, saveLocalVisitDraft } from '../lib/db.js'
 import { createPendingCompletionSubmission, deliverCompletionSubmission } from '../lib/completion-submission.mjs'
 import { isCancelJustificationMissing } from '../lib/cancel-justification.mjs'
 import { cancelConfirmationStyles, showCancelConfirmation } from '../lib/cancel-confirmation.mjs'
@@ -83,6 +83,7 @@ let gps = { lat: null, lon: null, source: null, denied: false }
 let _gpsPhotosMissing = 0
 let _exifrLoaded = false
 let notesDraftTimer = null
+let serviceSyncPromise = Promise.resolve()
 
 export default async function mount (appEl) {
   injectStyles()
@@ -90,9 +91,11 @@ export default async function mount (appEl) {
   activeStep = 'service'
   completedSections.clear()
   clearTimeout(notesDraftTimer)
+  serviceSyncPromise = Promise.resolve()
 
   const visitId = sessionStorage.getItem('workspace:visitId')
-  if (!visitId) { navigateBack(); return }
+  const activeTechnicianId = getActiveTechnicianId()
+  if (!visitId || !activeTechnicianId) { navigateBack(); return }
 
   const loading = document.createElement('div')
   loading.className = 'ws-loading'
@@ -101,7 +104,7 @@ export default async function mount (appEl) {
 
   try {
     const [localDraft, cachedItems, cachedLinesetConfigs, cachedEquipment, catalogVersion] = await Promise.all([
-      getLocalVisitDraft(visitId),
+      getLocalVisitDraft(visitId, activeTechnicianId),
       getCatalog('items').then(d => d ?? []),
       getCatalog('lineset-configs').then(d => d ?? []),
       getCatalog('equipment').then(d => d ?? []),
@@ -114,10 +117,41 @@ export default async function mount (appEl) {
 
     if (localDraft) {
       visit = localDraft
+      try {
+        const detail = await api.get(`/visits/${visitId}`)
+        if (detail?.technicianId && detail.technicianId !== activeTechnicianId) {
+          navigateBack()
+          return
+        }
+        visit = {
+          ...detail,
+          ...localDraft,
+          technicianId: localDraft.technicianId ?? detail?.technicianId ?? activeTechnicianId,
+          propertyId: localDraft.propertyId ?? detail?.propertyId,
+          orderNumber: localDraft.orderNumber ?? detail?.orderNumber,
+          scheduledDate: localDraft.scheduledDate ?? detail?.scheduledDate,
+          scheduledTime: localDraft.scheduledTime ?? detail?.scheduledTime,
+          workType: localDraft.workType ?? detail?.workType,
+          hasMultipleSystems: localDraft.hasMultipleSystems ?? detail?.hasMultipleSystems,
+          address: localDraft.address ?? detail?.address,
+          systems: localDraft.systems ?? detail?.systems,
+        }
+        await saveLocalVisitDraft(visit, activeTechnicianId)
+      } catch (_) {
+        // Offline drafts remain available; a missing authoritative field will
+        // be rejected by the server until the technician can review it online.
+      }
     } else {
       const detail = await api.get(`/visits/${visitId}`)
-      visit = createLocalVisitDraft(detail, { catalogVersion })
-      await saveLocalVisitDraft(visit)
+      if (detail?.technicianId && detail.technicianId !== activeTechnicianId) {
+        navigateBack()
+        return
+      }
+      visit = createLocalVisitDraft(
+        { ...detail, technicianId: detail?.technicianId ?? activeTechnicianId },
+        { catalogVersion }
+      )
+      await saveLocalVisitDraft(visit, activeTechnicianId)
     }
 
     if (!catalogItems.length) catalogItems = await api.get('/catalog/items').catch(() => [])
@@ -532,16 +566,21 @@ function buildServiceSection () {
   return wrap
 }
 
-async function syncService () {
-  const svc = visit._service
-  const serviceName = serviceNameFromState(svc)
-  if (!serviceName) return
-  try {
-    const result = await api.patch(`/visits/${visit.id}/services`, {
-      serviceName, isFinish: svc.finish, isTemporarily: svc.temporarily,
-    })
-    if (result?.totalPrice !== undefined) updatePrice(result.totalPrice)
-  } catch (err) { console.error('Service sync failed:', err) }
+function syncService () {
+  const pending = serviceSyncPromise.catch(() => {}).then(async () => {
+    const svc = visit?._service
+    const serviceName = serviceNameFromState(svc)
+    if (!serviceName) return
+    try {
+      const result = await api.patch(`/visits/${visit.id}/services`, {
+        serviceName, isFinish: svc.finish, isTemporarily: svc.temporarily,
+      })
+      if (result?.servicePrice !== undefined) svc.price = result.servicePrice
+      if (result?.totalPrice !== undefined) updatePrice(result.totalPrice)
+    } catch (err) { console.error('Service sync failed:', err) }
+  })
+  serviceSyncPromise = pending
+  return pending
 }
 
 async function beginCancel () {
@@ -963,10 +1002,21 @@ async function captureWeighInPhoto (tag, systemNum, btn) {
     form.append('systemNumber', systemNum)
     await appendGpsFields(form, tag, file)
     try {
-      await api.upload(`/visits/${visit.id}/photos`, form)
+      const uploaded = await api.upload(`/visits/${visit.id}/photos`, form)
+      visit.evidenceRefs = visit.evidenceRefs ?? []
+      visit.evidenceRefs.push({
+        id: uploaded.photoId,
+        slug: uploaded.slug,
+        tag,
+        label: null,
+        category,
+        systemNumber: Number(systemNum),
+        storedAt: uploaded.storedAt ?? null,
+      })
       visit._photoCount = (visit._photoCount ?? 0) + 1
       visit._weighInPhotos = visit._weighInPhotos ?? {}
       visit._weighInPhotos[`${systemNum}-${tag}`] = true
+      await persistCurrentDraft({ touch: false })
     } catch (err) { console.error('Weigh-in photo upload failed:', err); btn.classList.remove('ws-item-btn--active') }
   })
   input.click()
@@ -1101,12 +1151,23 @@ async function captureStartupItemPhoto (itemKey, btn) {
     const form = new FormData()
     form.append('photo', compressed, file.name); form.append('tag', itemKey.toUpperCase()); form.append('category', 'site_evidence')
     try {
-      await api.upload(`/visits/${visit.id}/photos`, form)
+      const uploaded = await api.upload(`/visits/${visit.id}/photos`, form)
+      visit.evidenceRefs = visit.evidenceRefs ?? []
+      visit.evidenceRefs.push({
+        id: uploaded.photoId,
+        slug: uploaded.slug,
+        tag: itemKey.toUpperCase(),
+        label: null,
+        category: 'site_evidence',
+        systemNumber: null,
+        storedAt: uploaded.storedAt ?? null,
+      })
       visit._checklistPhotoCounts = visit._checklistPhotoCounts ?? {}
       visit._checklistPhotoCounts[itemKey] = (visit._checklistPhotoCounts[itemKey] ?? 0) + 1
       visit._photoCount = (visit._photoCount ?? 0) + 1
       const count = visit._checklistPhotoCounts[itemKey]
       btn.textContent = `📷 ${count} photo${count !== 1 ? 's' : ''}`
+      await persistCurrentDraft({ touch: false })
     } catch (err) { console.error('Checklist photo failed:', err) }
   })
   input.click()
@@ -1245,11 +1306,17 @@ function buildChecklistAnswers () {
     }))
 }
 
-function openGenerateModal () {
+async function openGenerateModal () {
   if (isCancelMode() && isCancelJustificationMissing({ notes: visit.notes, checklist: visit._checklist })) {
     showCancelJustificationBlock()
     return
   }
+  syncService()
+  let synced
+  do {
+    synced = serviceSyncPromise
+    await synced
+  } while (synced !== serviceSyncPromise)
   openGenerateModalDirect()
 }
 
@@ -1292,13 +1359,15 @@ function openGenerateModalDirect () {
       try {
         // Persist the immutable submission before any transport attempt. A
         // retry will use this record, never the mutable Workspace draft.
+        const activeTechnicianId = getActiveTechnicianId() ?? visit.technicianId
         await persistCurrentDraft({ touch: false })
-        const draft = await getLocalVisitDraft(visit.id) ?? visit
+        const draft = await getLocalVisitDraft(visit.id, activeTechnicianId) ?? visit
         const submission = await createPendingCompletionSubmission(draft, {
           checklistAnswers: buildChecklistAnswers(),
+          technicianId: activeTechnicianId,
         })
         try {
-          await deliverCompletionSubmission(submission)
+          await deliverCompletionSubmission(submission, { activeTechnicianId })
         } catch (err) {
           if (navigator.onLine) console.warn('Report saved locally; delivery remains pending:', err)
         }
@@ -1367,7 +1436,8 @@ function refreshSection (sectionId) {
 function persistCurrentDraft ({ touch = true } = {}) {
   if (!visit) return Promise.resolve()
   if (touch) markLocalVisitDraftDirty(visit)
-  return saveLocalVisitDraft(visit).catch(err => console.error('Local draft save failed:', err))
+  const activeTechnicianId = getActiveTechnicianId() ?? visit.technicianId
+  return saveLocalVisitDraft(visit, activeTechnicianId).catch(err => console.error('Local draft save failed:', err))
 }
 
 function scheduleNotesDraftSave () {

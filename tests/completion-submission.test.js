@@ -3,6 +3,26 @@ require('fake-indexeddb/auto')
 const fs = require('fs/promises')
 const path = require('path')
 
+function createMemoryStorage () {
+  const store = new Map()
+  return {
+    getItem: key => (store.has(key) ? store.get(key) : null),
+    setItem: (key, value) => store.set(key, String(value)),
+    removeItem: key => store.delete(key),
+    clear: () => store.clear(),
+  }
+}
+
+function setActiveSession (technicianId, token = `token-${technicianId}`) {
+  if (!technicianId) {
+    globalThis.localStorage.removeItem('deviceToken')
+    globalThis.localStorage.removeItem('technician')
+    return
+  }
+  globalThis.localStorage.setItem('deviceToken', token)
+  globalThis.localStorage.setItem('technician', JSON.stringify({ id: technicianId, role: 'technician' }))
+}
+
 describe('durable completion submissions', () => {
   let db
   let submissions
@@ -10,6 +30,7 @@ describe('durable completion submissions', () => {
   let mockApiImpl
 
   beforeAll(async () => {
+    globalThis.localStorage = globalThis.localStorage || createMemoryStorage()
     globalThis.CustomEvent = globalThis.CustomEvent || class CustomEvent {
       constructor (type, init = {}) {
         this.type = type
@@ -41,6 +62,8 @@ describe('durable completion submissions', () => {
 
   beforeEach(async () => {
     mockApiImpl = null
+    globalThis.localStorage.clear()
+    setActiveSession('tech-001')
     db.closeLocalDatabase()
     await new Promise((resolve, reject) => {
       const request = indexedDB.deleteDatabase('fieldops')
@@ -51,9 +74,10 @@ describe('durable completion submissions', () => {
 
   afterAll(() => db?.closeLocalDatabase())
 
-  function normalDraft () {
+  function normalDraft (technicianId = 'tech-001', visitId = 'submission-visit') {
     return drafts.createLocalVisitDraft({
-      id: 'submission-visit',
+      id: visitId,
+      technicianId,
       services: [{ serviceName: 'AC', isFinish: false, isTemporarily: false, price: 150 }],
       items: [{ id: 'item-1', itemName: 'FIN180P', category: 'accessory', quantity: 1, price: 10, techSupplied: true }],
       notes: 'Stable note',
@@ -72,8 +96,14 @@ describe('durable completion submissions', () => {
     draft._items[0].price = 999
 
     const [restored] = await db.getPendingCompletionSubmissions()
-    expect(restored).toMatchObject({ submissionId: 'submission-1', lifecycle: 'pending', visitId: 'submission-visit' })
+    expect(restored).toMatchObject({
+      submissionId: 'submission-1',
+      technicianId: 'tech-001',
+      lifecycle: 'pending',
+      visitId: 'submission-visit',
+    })
     expect(restored.snapshot).toMatchObject({
+      technicianId: 'tech-001',
       terminalIntent: 'completed', notes: 'Stable note', totalPrice: 160,
       items: [expect.objectContaining({ item_name: 'FIN180P', price: 10 })],
       checklistAnswers: [expect.objectContaining({ reportText: 'meter issue' })],
@@ -85,6 +115,7 @@ describe('durable completion submissions', () => {
     const first = normalDraft()
     const second = drafts.createLocalVisitDraft({
       id: 'submission-visit-2',
+      technicianId: 'tech-001',
       services: [{ serviceName: 'Finish', isFinish: true, isTemporarily: false, price: 0 }],
       totalPrice: 0,
     })
@@ -93,8 +124,8 @@ describe('durable completion submissions', () => {
     db.closeLocalDatabase()
 
     await expect(db.getPendingCompletionSubmissions()).resolves.toEqual(expect.arrayContaining([
-      expect.objectContaining({ submissionId: 'submission-a', visitId: 'submission-visit' }),
-      expect.objectContaining({ submissionId: 'submission-b', visitId: 'submission-visit-2' }),
+      expect.objectContaining({ submissionId: 'submission-a', visitId: 'submission-visit', technicianId: 'tech-001' }),
+      expect.objectContaining({ submissionId: 'submission-b', visitId: 'submission-visit-2', technicianId: 'tech-001' }),
     ]))
   })
 
@@ -117,7 +148,7 @@ describe('durable completion submissions', () => {
     await expect(db.getPendingCompletionSubmissions()).resolves.toEqual([])
     await submissions.createPendingCompletionSubmission(normalDraft(), { id: 'upgraded-submission' })
     await expect(db.getPendingCompletionSubmissions()).resolves.toEqual([
-      expect.objectContaining({ submissionId: 'upgraded-submission' }),
+      expect.objectContaining({ submissionId: 'upgraded-submission', technicianId: 'tech-001' }),
     ])
   })
 
@@ -143,6 +174,7 @@ describe('durable completion submissions', () => {
     await submissions.createPendingCompletionSubmission(normalDraft(), { id: 'delivery-a' })
     const second = drafts.createLocalVisitDraft({
       id: 'delivery-visit-b',
+      technicianId: 'tech-001',
       services: [{ serviceName: 'Finish', isFinish: true, price: 0 }],
     })
     await submissions.createPendingCompletionSubmission(second, { id: 'delivery-b' })
@@ -160,13 +192,19 @@ describe('durable completion submissions', () => {
     const draft = normalDraft()
     drafts.enterLocalVisitDraftCancelMode(draft)
     const snapshot = submissions.createCompletionSnapshot(draft, { id: 'cancel-submission' })
-    expect(snapshot).toMatchObject({ terminalIntent: 'cancelled', cancel: true, totalPrice: 0, notes: 'Stable note' })
+    expect(snapshot).toMatchObject({
+      technicianId: 'tech-001',
+      terminalIntent: 'cancelled',
+      cancel: true,
+      totalPrice: 0,
+      notes: 'Stable note',
+    })
     expect(snapshot.items).toEqual([])
     expect(snapshot.weighInData).toEqual([])
   })
 
   it('rejects an invalid normal draft before it can enter the outbox', async () => {
-    const draft = drafts.createLocalVisitDraft({ id: 'no-service' })
+    const draft = drafts.createLocalVisitDraft({ id: 'no-service', technicianId: 'tech-001' })
     await expect(submissions.createPendingCompletionSubmission(draft, { id: 'invalid' }))
       .rejects.toThrow('No service selected')
     await expect(db.getPendingCompletionSubmissions()).resolves.toEqual([])
@@ -198,6 +236,7 @@ describe('durable completion submissions', () => {
     const afterFailure = await db.getCompletionSubmission('legacy-dup-1')
     expect(afterFailure).toMatchObject({
       submissionId: 'legacy-dup-1',
+      technicianId: 'tech-001',
       lifecycle: 'pending',
       attempts: 1,
       lastError: 'Internal server error',
@@ -206,15 +245,174 @@ describe('durable completion submissions', () => {
 
     const calls = []
     mockApiImpl = async (url, body) => {
-      calls.push({ url, submissionId: body.submissionId })
+      calls.push({ url, submissionId: body.submissionId, technicianId: body.technicianId })
       return { acknowledged: true, submissionId: body.submissionId }
     }
 
     const results = await submissions.retryPendingCompletionSubmissions()
     expect(results).toHaveLength(1)
-    expect(calls).toHaveLength(1)
+    expect(calls).toEqual([{ url: '/visits/submission-visit/complete', submissionId: 'legacy-dup-1', technicianId: 'tech-001' }])
     await expect(db.getPendingCompletionSubmissions()).resolves.toEqual([])
     await expect(db.getCompletionSubmission('legacy-dup-1')).resolves.toMatchObject({ lifecycle: 'delivered' })
     await expect(db.getCompletionSubmission('legacy-dup-2')).resolves.toMatchObject({ lifecycle: 'delivered' })
+  })
+
+  it('keeps a rejected reviewed snapshot immutable and creates a new identity after explicit correction', async () => {
+    const draft = normalDraft()
+    const original = await submissions.createPendingCompletionSubmission(draft, { id: 'reviewed-before-rejection' })
+    mockApiImpl = async () => {
+      throw Object.assign(new Error('Report content changed; correct and resubmit'), {
+        status: 409,
+        code: 'REPORT_CONTENT_MISMATCH',
+      })
+    }
+    await expect(submissions.deliverCompletionSubmission(original)).rejects.toThrow(/correct and resubmit/i)
+
+    const rejected = await db.getCompletionSubmission(original.submissionId)
+    expect(rejected).toMatchObject({ lifecycle: 'correction_required', attempts: 1 })
+    expect(rejected.snapshot).toEqual(original.snapshot)
+    await expect(db.getPendingCompletionSubmissions()).resolves.toEqual([])
+
+    draft.notes = 'Corrected after review'
+    const corrected = await submissions.createPendingCompletionSubmission(draft)
+    expect(corrected.submissionId).not.toBe(original.submissionId)
+    expect(corrected.snapshot.notes).toBe('Corrected after review')
+    await expect(db.getCompletionSubmission(original.submissionId)).resolves.toMatchObject({
+      lifecycle: 'correction_required', snapshot: original.snapshot,
+    })
+  })
+
+  it('quarantines legacy completionSubmissions lacking technicianId without backfilling from LocalVisitDraft and never retries them', async () => {
+    // Seed a LocalVisitDraft for tech-001 on the same visitId to verify we never backfill from it
+    const draft = normalDraft('tech-001', 'visit-legacy-quarantine')
+    await db.saveLocalVisitDraft(draft)
+
+    // Seed a legacy pre-Package-2 completionSubmission without technicianId
+    await db.saveCompletionSubmission({
+      submissionId: 'legacy-unowned-sub',
+      visitId: 'visit-legacy-quarantine',
+      lifecycle: 'pending',
+      createdAt: '2026-08-23T10:00:00.000Z',
+      attempts: 0,
+      lastError: null,
+      snapshot: {
+        version: 1,
+        submissionId: 'legacy-unowned-sub',
+        visitId: 'visit-legacy-quarantine',
+        terminalIntent: 'completed',
+        cancel: false,
+        service: { serviceName: 'AC', ac: true },
+        items: [],
+        weighInData: [],
+        systems: [],
+        notes: 'Unowned legacy snapshot',
+        checklistAnswers: [],
+        evidenceRefs: [],
+        totalPrice: 150,
+      },
+    })
+
+    const calls = []
+    mockApiImpl = async (url, body) => {
+      calls.push({ url, body })
+      return { acknowledged: true, submissionId: body.submissionId }
+    }
+
+    await expect(db.getCompletionSubmission('legacy-unowned-sub')).resolves.toBeNull()
+    await expect(db.getPendingCompletionSubmissions()).resolves.toEqual([])
+    await expect(db.getAllCompletionSubmissions()).resolves.toEqual([])
+    await expect(submissions.retryPendingCompletionSubmissions()).resolves.toEqual([])
+    expect(calls).toHaveLength(0)
+  })
+
+  it('prevents cross-technician retry, delivery, or submissionId reuse when a visit is reassigned after an offline completion submission', async () => {
+    setActiveSession('tech-001')
+    const draftTech1 = normalDraft('tech-001', 'reassigned-visit-1')
+    const subTech1 = await submissions.createPendingCompletionSubmission(draftTech1, { id: 'sub-tech-1' })
+
+    // Reassign visit to Tech 2 and log in as Tech 2 on the same device
+    setActiveSession('tech-002')
+    const calls = []
+    mockApiImpl = async (url, body) => {
+      calls.push({ url, body })
+      return { acknowledged: true, submissionId: body.submissionId }
+    }
+
+    // Tech 2 cannot see or retry Tech 1's pending submission
+    await expect(db.getPendingCompletionSubmissions()).resolves.toEqual([])
+    await expect(db.getAllCompletionSubmissions()).resolves.toEqual([])
+    await expect(db.getCompletionSubmission('sub-tech-1')).resolves.toBeNull()
+    await expect(submissions.retryPendingCompletionSubmissions()).resolves.toEqual([])
+    expect(calls).toHaveLength(0)
+
+    // Direct attempt to deliver Tech 1's submission record while authenticated as Tech 2 is rejected
+    await expect(submissions.deliverCompletionSubmission(subTech1))
+      .rejects.toThrow('Completion submission belongs to a different technician')
+    expect(calls).toHaveLength(0)
+
+    // Tech 2 creating their own pending submission for the same visitId generates a distinct submissionId
+    // and never overwrites Tech 1's pending submission
+    const draftTech2 = normalDraft('tech-002', 'reassigned-visit-1')
+    draftTech2.notes = 'Tech 2 independent completion'
+    const subTech2 = await submissions.createPendingCompletionSubmission(draftTech2)
+    expect(subTech2.submissionId).not.toBe(subTech1.submissionId)
+    expect(subTech2.technicianId).toBe('tech-002')
+    expect(subTech2.snapshot.technicianId).toBe('tech-002')
+
+    // Tech 1's submission remains preserved for Tech 1
+    setActiveSession('tech-001')
+    const pendingTech1 = await db.getPendingCompletionSubmissions()
+    expect(pendingTech1).toEqual([
+      expect.objectContaining({
+        submissionId: 'sub-tech-1',
+        visitId: 'reassigned-visit-1',
+        technicianId: 'tech-001',
+      }),
+    ])
+    expect(pendingTech1[0].snapshot.notes).toBe('Stable note')
+  })
+
+  it('halts retries during authentication expiration (401) while preserving pending submissions for same-technician recovery', async () => {
+    setActiveSession('tech-001')
+    const draft = normalDraft('tech-001', 'visit-401-recovery')
+    await submissions.createPendingCompletionSubmission(draft, { id: 'sub-401-recovery' })
+
+    // Simulate 401 session expiration clearing localStorage credentials
+    setActiveSession(null)
+    const calls = []
+    mockApiImpl = async (url, body) => {
+      calls.push({ url, body })
+      return { acknowledged: true, submissionId: body.submissionId }
+    }
+
+    await expect(db.getPendingCompletionSubmissions()).resolves.toEqual([])
+    await expect(submissions.retryPendingCompletionSubmissions()).resolves.toEqual([])
+    await expect(submissions.deliverCompletionSubmission('sub-401-recovery')).resolves.toBeNull()
+    expect(calls).toHaveLength(0)
+
+    // Same technician re-authenticates -> pending submission is recovered and delivered idempotently
+    setActiveSession('tech-001')
+    await expect(db.getPendingCompletionSubmissions()).resolves.toEqual([
+      expect.objectContaining({ submissionId: 'sub-401-recovery', technicianId: 'tech-001', lifecycle: 'pending' }),
+    ])
+    const results = await submissions.retryPendingCompletionSubmissions()
+    expect(results).toHaveLength(1)
+    expect(calls).toEqual([{
+      url: '/visits/visit-401-recovery/complete',
+      body: expect.objectContaining({
+        submissionId: 'sub-401-recovery',
+        technicianId: 'tech-001',
+        snapshot: expect.objectContaining({
+          submissionId: 'sub-401-recovery',
+          visitId: 'visit-401-recovery',
+          technicianId: 'tech-001',
+        }),
+      }),
+    }])
+    await expect(db.getCompletionSubmission('sub-401-recovery')).resolves.toMatchObject({
+      submissionId: 'sub-401-recovery',
+      technicianId: 'tech-001',
+      lifecycle: 'delivered',
+    })
   })
 })

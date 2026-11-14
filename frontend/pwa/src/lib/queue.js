@@ -5,10 +5,17 @@
  * The background retry is started from app.js after auth succeeds.
  */
 
-import { startCompletionSubmissionRetry } from './completion-submission.mjs'
+import {
+  startCompletionSubmissionRetry,
+  stopCompletionSubmissionRetry,
+} from './completion-submission.mjs'
 
 // Compatibility export for the application bootstrap. Completion retries are
 // event-driven (boot and connectivity return), never a polling loop.
 export function startQueueRetry () {
   startCompletionSubmissionRetry()
+}
+
+export function stopQueueRetry () {
+  stopCompletionSubmissionRetry()
 }

@@ -258,7 +258,7 @@ visitsRouter.get('/:id', async (req, res, next) => {
         [id]
       ),
       pool.query(
-        'SELECT id, tag, label, category, system_number, stored_at FROM visit_photos WHERE visit_id = $1',
+        'SELECT id, slug, tag, label, category, system_number, stored_at FROM visit_photos WHERE visit_id = $1',
         [id]
       ),
       pool.query(
@@ -273,6 +273,7 @@ visitsRouter.get('/:id', async (req, res, next) => {
 
     res.json({
       id: v.id,
+      propertyId: v.address_id,
       orderNumber: v.order_number,
       scheduledDate: v.date,
       scheduledTime: v.scheduled_time,
@@ -300,7 +301,7 @@ visitsRouter.get('/:id', async (req, res, next) => {
       photos: (v.status === 'cancelled'
         ? photos.rows.filter(p => !['weigh_in_scale', 'fan_speed'].includes(p.category))
         : photos.rows
-      ).map((p) => ({ id: p.id, tag: p.tag, label: p.label, category: p.category, systemNumber: p.system_number, storedAt: p.stored_at })),
+      ).map((p) => ({ id: p.id, slug: p.slug, tag: p.tag, label: p.label, category: p.category, systemNumber: p.system_number, storedAt: p.stored_at })),
       weighInData: weighInData.rows.map((w) => ({
         id: w.id,
         addressId: w.address_id,

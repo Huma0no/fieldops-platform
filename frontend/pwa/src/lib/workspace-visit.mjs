@@ -24,6 +24,7 @@ function serviceStateFromDetail (detail) {
     driveRun:    service?.serviceName === 'Drive Run',
     finish:      service?.serviceName === 'Finish' || service?.isFinish === true,
     temporarily: service?.isTemporarily ?? false,
+    price: service?.price ?? (service?.serviceName === 'Cancel' ? 0 : null),
     twoSystems:  detail.hasMultipleSystems ?? false,
   }
 }
@@ -62,6 +63,95 @@ export function toggleServiceSelection (service, key) {
     Object.assign(service, previous)
     return false
   }
+  return true
+}
+
+function markSelectionChanged (draft) {
+  draft.dirty = true
+  draft.localUpdatedAt = new Date().toISOString()
+  draft.pricingStatus = 'pending'
+  return draft
+}
+
+function localItemId () {
+  if (globalThis.crypto?.randomUUID) return `local-${globalThis.crypto.randomUUID()}`
+  return `local-${Date.now()}-${Math.random().toString(36).slice(2)}`
+}
+
+function localItemFromCatalog (item, { quantity = 1, price, description = null } = {}) {
+  return {
+    id: localItemId(),
+    item_name: item.item_name ?? item.itemName,
+    category: item.category,
+    description: description ?? null,
+    quantity,
+    price: price ?? item.default_price ?? 0,
+    tech_supplied: item.tech_supplied ?? item.techSupplied ?? false,
+  }
+}
+
+export function addLocalVisitDraftItem (draft, item, {
+  quantity = 1,
+  price,
+  description = null,
+  catalogItems = [],
+  itemRelations = [],
+} = {}) {
+  const itemName = item.item_name ?? item.itemName
+  const existing = draft._items ?? []
+  const companions = itemRelations
+    .filter(relation => relation.item_name === itemName && relation.relation_type === 'companion')
+    .map(relation => relation.related_item_name)
+  const excludedGroups = new Set(itemRelations
+    .filter(relation => relation.item_name === itemName && relation.relation_type === 'exclusion_group')
+    .map(relation => relation.exclusion_group_id)
+    .filter(Boolean))
+  const excludedNames = new Set(itemRelations
+    .filter(relation => relation.relation_type === 'exclusion_group' && excludedGroups.has(relation.exclusion_group_id))
+    .map(relation => relation.item_name))
+  const excludedCompanions = new Set(itemRelations
+    .filter(relation => excludedNames.has(relation.item_name) && relation.relation_type === 'companion')
+    .map(relation => relation.related_item_name))
+  const removedNames = new Set([...excludedNames, ...excludedCompanions])
+  for (const companion of companions) removedNames.delete(companion)
+
+  let retained = existing.filter(entry =>
+    !(item.category === 'thermostat' && entry.category === 'thermostat') &&
+    !removedNames.has(entry.item_name)
+  )
+  const selected = existing.find(entry => entry.item_name === itemName)
+  if (selected) retained = retained.filter(entry => entry.item_name !== itemName)
+  const newItems = [localItemFromCatalog(item, { quantity, price, description })]
+  for (const companionName of companions) {
+    if (retained.some(entry => entry.item_name === companionName)) continue
+    const companionItem = catalogItems.find(entry => entry.item_name === companionName)
+    if (companionItem) newItems.push(localItemFromCatalog(companionItem))
+  }
+  draft._items = [...retained, ...newItems]
+  markSelectionChanged(draft)
+  return { addedItems: newItems.map(entry => entry.item_name), removedItems: [...removedNames] }
+}
+
+export function removeLocalVisitDraftItem (draft, itemId, itemRelations = []) {
+  const selected = (draft._items ?? []).find(item => item.id === itemId)
+  if (!selected) return { removedItems: [] }
+  const removedNames = new Set([
+    selected.item_name,
+    ...itemRelations
+      .filter(relation => relation.item_name === selected.item_name && relation.relation_type === 'companion')
+      .map(relation => relation.related_item_name),
+  ])
+  draft._items = (draft._items ?? []).filter(item => !removedNames.has(item.item_name))
+  markSelectionChanged(draft)
+  return { removedItems: [...removedNames] }
+}
+
+export function setLocalVisitDraftItemQuantity (draft, itemId, quantity) {
+  const selected = (draft._items ?? []).find(item => item.id === itemId)
+  const resolvedQuantity = Math.max(1, Math.floor(Number(quantity) || 1))
+  if (!selected || selected.quantity === resolvedQuantity) return false
+  selected.quantity = resolvedQuantity
+  markSelectionChanged(draft)
   return true
 }
 
@@ -172,6 +262,7 @@ export function createLocalVisitDraft (detail, { catalogVersion = null, now = ne
 
   return {
     id: detail.id,
+    propertyId: detail.propertyId ?? null,
     draftSchemaVersion: LOCAL_VISIT_DRAFT_SCHEMA_VERSION,
     lifecycle: 'draft',
     localUpdatedAt: now,
@@ -183,6 +274,7 @@ export function createLocalVisitDraft (detail, { catalogVersion = null, now = ne
 
     address: detail.address ?? {},
     orderNumber: detail.orderNumber ?? null,
+    scheduledDate: detail.scheduledDate ?? null,
     scheduledTime: detail.scheduledTime ?? null,
     workType: detail.workType ?? null,
     companyNotes: detail.companyNotes ?? null,
@@ -211,6 +303,7 @@ export function createLocalVisitDraft (detail, { catalogVersion = null, now = ne
     _activeStep: 'service',
     _weighinDone: false,
     totalPrice: detail.totalPrice ?? 0,
+    pricingStatus: 'current',
   }
 }
 
