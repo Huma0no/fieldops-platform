@@ -8,6 +8,8 @@
     "dev:pwa": "vite frontend/pwa --config frontend/pwa/vite.config.js",
     "test": "node --experimental-vm-modules node_modules/.bin/jest --runInBand",
     "db:schema": "psql $DATABASE_URL -f src/db/schema.sql",
+    "db:setup": "node scripts/setup-db.js",
+    "db:setup:test": "node scripts/setup-db.js --test",
     "db:migrate": "psql $DATABASE_URL -f src/db/migrations/001_invite_codes.sql",
     "db:migrate2": "psql $DATABASE_URL -f src/db/migrations/002_visits_updated_at_deferred.sql",
     "db:migrate025": "psql \"$DATABASE_URL\" -v ON_ERROR_STOP=1 -f src/db/migrations/025_completion_submissions_one_per_visit.sql",

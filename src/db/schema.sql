@@ -41,6 +41,7 @@ DROP TABLE IF EXISTS catalog_items CASCADE;
 DROP TABLE IF EXISTS catalog_lineset_configs CASCADE;
 DROP TABLE IF EXISTS catalog_equipment CASCADE;
 DROP TABLE IF EXISTS device_tokens CASCADE;
+DROP TABLE IF EXISTS invite_codes CASCADE;
 
 -- ---------------------------------------------------------------------------
 -- CREATE ORDER (FK-dependency order)
@@ -65,7 +66,11 @@ CREATE TABLE catalog_equipment (
 CREATE TABLE catalog_lineset_configs (
   config_key            text PRIMARY KEY,
   reference_length_ft   real NOT NULL,
-  adjust_rate_oz_per_ft real NOT NULL
+  adjust_rate_oz_per_ft real NOT NULL,
+  brand                 text,
+  revised_available     boolean NOT NULL DEFAULT false,
+  valid_from            date,
+  valid_before          date
 );
 
 -- 3. catalog_items
@@ -205,7 +210,10 @@ CREATE TABLE visits (
   notes                text,
   created_at           text NOT NULL,
   completed_at         text,
-  is_priority          boolean NOT NULL DEFAULT false
+  is_priority          boolean NOT NULL DEFAULT false,
+  updated_at           text,
+  is_deferred          boolean NOT NULL DEFAULT false,
+  checklist_answers    jsonb
 );
 
 -- 12a. completion_submissions
@@ -332,7 +340,8 @@ CREATE TABLE pay_periods (
   gross_total      real,
   tax_amount       real,
   paid_at          text,
-  ghost_deduction  real
+  ghost_deduction  real,
+  created_at       text
 );
 
 -- 22. pay_period_lines
@@ -437,6 +446,14 @@ CREATE TABLE device_tokens (
   token          text PRIMARY KEY,
   technician_id  text NOT NULL REFERENCES technicians(id),
   created_at     text NOT NULL
+);
+
+-- 29b. invite_codes (legacy auth layer; retained, not used for authentication)
+CREATE TABLE invite_codes (
+  code          text PRIMARY KEY,
+  technician_id text NOT NULL REFERENCES technicians(id),
+  expires_at    text NOT NULL,
+  created_at    text NOT NULL DEFAULT (to_char(NOW() AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"'))
 );
 
 -- ============================================================

@@ -72,6 +72,7 @@ describe('GET /api/notifications/mine', () => {
     const other = await seedTech({ name: 'Bob' });
 
     await createNotification(pool, { recipientId: tech.id, type: 'a', message: 'First' });
+    await new Promise(resolve => setTimeout(resolve, 5)); // distinct created_at timestamps
     await createNotification(pool, { recipientId: tech.id, type: 'b', message: 'Second' });
     await createNotification(pool, { recipientId: other.id, type: 'c', message: 'Other' });
 
