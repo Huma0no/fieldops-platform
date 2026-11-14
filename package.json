@@ -6,7 +6,7 @@
   "scripts": {
     "start": "node src/index.js",
     "dev:pwa": "vite frontend/pwa --config frontend/pwa/vite.config.js",
-    "test": "node --experimental-vm-modules node_modules/.bin/jest --runInBand",
+    "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js --runInBand",
     "db:schema": "psql $DATABASE_URL -f src/db/schema.sql",
     "db:setup": "node scripts/setup-db.js",
     "db:setup:test": "node scripts/setup-db.js --test",

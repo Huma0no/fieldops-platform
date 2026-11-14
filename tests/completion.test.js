@@ -1258,7 +1258,7 @@ describe('POST /api/visits/:id/complete', () => {
       expect(first.body.items.map(i => i.itemName).sort()).toEqual(['DAPC', 'Ecoil Wire', 'UT3000', 'eBypass']);
 
       const persistedItems = await pool.query(
-        'SELECT item_name FROM visit_items WHERE visit_id = $1 ORDER BY item_name',
+        'SELECT item_name FROM visit_items WHERE visit_id = $1 ORDER BY item_name COLLATE "C"',
         [visitId]
       );
       expect(persistedItems.rows.map(r => r.item_name)).toEqual(['DAPC', 'Ecoil Wire', 'UT3000', 'eBypass']);

@@ -42,7 +42,10 @@ async function indexNames(schema) {
   return result.rows.map(row => row.indexname);
 }
 
-describe('completion submission uniqueness migration', () => {
+// The db:migrate025 npm script uses POSIX shell syntax and psql on PATH; it targets the Linux server, not Windows dev machines.
+const describeOnPosix = process.platform === 'win32' ? describe.skip : describe;
+
+describeOnPosix('completion submission uniqueness migration', () => {
   it('runs the configured migration command and creates the unique Visit index when preflight is clear', async () => {
     const schema = await createMigrationFixture();
     try {
