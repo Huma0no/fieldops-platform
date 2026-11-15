@@ -24,7 +24,7 @@
           "es": "En cadena: UT3000 → furnace → serpentín CAPE → exterior. Evita hacer todas las conexiones en el furnace." },
         { "en": "The outdoor unit needs only 1 and 2.", "es": "La unidad exterior solo necesita 1 y 2." },
         { "en": "Outdoor runs ≥ 75 ft, or shorter runs picking up electrical interference (rare): use 18/4 and double up — two conductors per data circuit (1 and 2), joined at both ends.",
-          "es": "Tramos a la exterior ≥ 75 ft, o tramos más cortos que captan interferencia eléctrica (raro): usa 18/4 y dobla — dos conductores por circuito de datos (1 y 2), unidos en ambos extremos." },
+          "es": "Tramos a la exterior ≥ 75 ft, o tramos más cortos que captan interferencia eléctrica (raro): usa 18/4 y duplica los conductores: dos por cada circuito de datos (1 y 2), unidos en ambos extremos." },
         { "en": "BIAS dip switches #1 and #2 ON.", "es": "Dip switches BIAS #1 y #2 en ON." }
       ],
       "facts": [
@@ -69,6 +69,7 @@
           "title": { "en": "Zone {n} damper → DAPC input", "es": "Damper zona {n} → entrada DAPC" },
           "frame": ["d{n}", "dapc{n}", "damper{n}"],
           "wires": ["d{n}~dapc{n}"],
+          "contextWires": ["dapc{n}~damper{n}"],
           "cable": { "en": "18 AWG solid · 3 conductors (C, PC, PO)", "es": "18 AWG sólido · 3 conductores (C, PC, PO)" },
           "notes": [
             { "warn": true,
@@ -82,6 +83,7 @@
           "title": { "en": "DAPC output → zone {n} damper", "es": "Salida DAPC → damper zona {n}" },
           "frame": ["d{n}", "dapc{n}", "damper{n}"],
           "wires": ["dapc{n}~damper{n}"],
+          "contextWires": ["d{n}~dapc{n}"],
           "cable": { "en": "18 AWG solid · 3 conductors (COM, PC, PO)", "es": "18 AWG sólido · 3 conductores (COM, PC, PO)" },
           "notes": [
             { "warn": true,

@@ -79,6 +79,7 @@ The guide is data; a new guide needs no UI code. Each step has:
 | `id`, `title` | Step id and EN/ES title. |
 | `frame` | Node ids the camera frames (block + devices, the three elements of a DAPC damper chain, or a tight transformer-area group). This list *is* the framing mode. |
 | `wires` | Wire filter: `"a~b"` pairs; every wire between nodes `a` and `b` is lit, the rest of the frame is dimmed. |
+| `contextWires` | Optional `"a~b"` pairs shown at full opacity but not as the step's wires. Used by the DAPC damper-chain steps so the whole chain stays visible; the step's own wires are then emphasized by a slightly thicker stroke. |
 | `when` | Option condition, e.g. `{ "dapc": true }`. Also allowed on single notes and facts. |
 | `cable`, `notes[]` | EN/ES text; a note with `warn: true` renders as a warning. |
 | `facts[]` | `{ ref, label }`: `ref` is a path into the component library (`"sbd2.autoSetup.steps"`), shown with its library `src`. Values are never retyped in the guide. |

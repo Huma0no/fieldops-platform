@@ -296,6 +296,7 @@ export async function mount (root, { context = null, standalone = false } = {}) 
       const selectedWires = new Set(selected?.terminal ? terminalConnections(model, selected.node, selected.terminal).map(c => c.wire.id) : [])
       for (const [id, g] of drawing.wireEls) {
         g.classList.toggle('gd-in', Boolean(focus?.wires.has(id)))
+        g.classList.toggle('gd-emph', Boolean(focus?.emph?.has(id)))
         g.classList.toggle('gd-sel', selectedWires.has(id))
       }
       for (const [key, g] of drawing.termEls) g.classList.toggle('gd-sel', key === (selected && `${selected.node}.${selected.terminal}`))
@@ -331,7 +332,10 @@ export async function mount (root, { context = null, standalone = false } = {}) 
     function goTo (index) {
       stepIndex = Math.max(0, Math.min(steps.length, index))
       const step = steps[stepIndex - 1]
-      focus = step ? { nodes: step.nodes, wires: step.wires } : null
+      // With context wires, the step's own wires are told apart by stroke width (gd-emph).
+      focus = step
+        ? { nodes: step.nodes, wires: new Set([...step.wires, ...step.contextWires]), emph: step.contextWires.size ? step.wires : null }
+        : null
       selected = null
       sheetOpen = !step
       update()
@@ -634,6 +638,9 @@ const STYLES = `
 .gd-focused .gd-node:not(.gd-in){opacity:.22;}
 .gd-focused .gd-wire{opacity:.08;}
 .gd-focused .gd-wire.gd-in{opacity:1;}
+.gd-wire.gd-emph .gd-wire-halo{stroke-width:7.6;}
+.gd-wire.gd-emph .gd-wire-outline{stroke-width:4.8;}
+.gd-wire.gd-emph .gd-wire-core{stroke-width:2.8;}
 .gd-wire.gd-sel .gd-wire-halo{stroke-width:8.4;}
 .gd-wire.gd-sel .gd-wire-outline{stroke-width:5.6;}
 .gd-wire.gd-sel .gd-wire-core{stroke-width:3.6;}

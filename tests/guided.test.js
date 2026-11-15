@@ -174,6 +174,10 @@ describe('Guided UT3000 communicating install guide', () => {
     expect([...output.wires].every(id => id.startsWith('damper1.') && id.includes('>dapc1.'))).toBe(true);
     expect(input.wires.size).toBe(3);
     expect(output.wires.size).toBe(3);
+    // The rest of the chain stays visible as context, not as the step's wires.
+    expect([...input.contextWires]).toEqual([...output.wires]);
+    expect([...output.contextWires]).toEqual([...input.wires]);
+    expect(steps.filter(s => s.contextWires.size).map(s => s.id)).toEqual(['dapcIn1', 'dapcOut1']);
   });
 
   it('every step has EN and ES titles, and every authored text has both languages', () => {

@@ -26,13 +26,16 @@ function resolveStep (step, model) {
   for (const id of step.frame) {
     if (!model.nodes.has(id)) throw new Error(`Guided guide: step "${step.id}" frames unknown node "${id}"`)
   }
-  const wires = new Set()
-  for (const pair of step.wires ?? []) {
-    const [a, b] = pair.split('~')
-    const found = model.wires.filter(w =>
-      (w.from.node === a && w.to.node === b) || (w.from.node === b && w.to.node === a))
-    if (!found.length) throw new Error(`Guided guide: step "${step.id}" wire filter "${pair}" matches no wire`)
-    for (const w of found) wires.add(w.id)
+  const pick = pairs => {
+    const ids = new Set()
+    for (const pair of pairs ?? []) {
+      const [a, b] = pair.split('~')
+      const found = model.wires.filter(w =>
+        (w.from.node === a && w.to.node === b) || (w.from.node === b && w.to.node === a))
+      if (!found.length) throw new Error(`Guided guide: step "${step.id}" wire filter "${pair}" matches no wire`)
+      for (const w of found) ids.add(w.id)
+    }
+    return ids
   }
   return {
     id: step.id,
@@ -43,7 +46,9 @@ function resolveStep (step, model) {
       .filter(fact => matches(fact.when, model.context))
       .map(fact => ({ label: fact.label, ...resolveRef(model.library, fact.ref) })),
     nodes: new Set(step.frame),
-    wires,
+    wires: pick(step.wires),
+    // Shown at full opacity but not part of the step (e.g. the rest of a DAPC damper chain).
+    contextWires: pick(step.contextWires),
   }
 }
 
