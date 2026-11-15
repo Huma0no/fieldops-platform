@@ -14,6 +14,7 @@ export default function Auth () {
   const [password, setPassword] = useState('')
   const [error, setError]     = useState('')
   const [loading, setLoading] = useState(false)
+  const [keepSignedIn, setKeepSignedIn] = useState(true)
 
   async function handleSubmit (e) {
     e.preventDefault()
@@ -26,7 +27,7 @@ export default function Auth () {
     setError('')
 
     try {
-      const data = await api.post('/auth/login', { username, password })
+      const data = await api.post('/auth/login', { username, password, keepSignedIn })
       if (!['DISPATCH_OWNER', 'DISPATCHER'].includes(data.user.role)) {
         await api.post('/auth/logout', {}).catch(() => {})
         setError('This account does not have Dispatch access.')
@@ -80,6 +81,10 @@ export default function Auth () {
             spellCheck={false}
             style={styles.input}
           />
+          <label style={styles.keep}>
+            <input type="checkbox" checked={keepSignedIn} onChange={e => setKeepSignedIn(e.target.checked)} />
+            Keep me signed in on this device
+          </label>
 
           {error && <p style={styles.error}>{error}</p>}
 
@@ -221,6 +226,14 @@ const styles = {
     border: 'none',
     background: 'transparent',
     color: 'var(--text-muted)',
+    cursor: 'pointer',
+  },
+  keep: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 'var(--space-2)',
+    fontSize: 'var(--text-sm)',
+    color: 'var(--text-secondary)',
     cursor: 'pointer',
   },
   error: {

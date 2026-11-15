@@ -158,7 +158,8 @@ CREATE TABLE auth_sessions (
   token_hash    text PRIMARY KEY,
   technician_id text NOT NULL REFERENCES technicians(id) ON DELETE CASCADE,
   created_at    text NOT NULL,
-  revoked_at    text
+  revoked_at    text,
+  expires_at    text NOT NULL  -- ISO 8601; fixed at login
 );
 CREATE INDEX auth_sessions_technician_id_idx ON auth_sessions (technician_id);
 

@@ -22,7 +22,7 @@ async function seedTech({ role = 'technician', isActive = true, name = 'Alice' }
 async function seedToken(technicianId) {
   const token = crypto.randomBytes(32).toString('hex');
   await pool.query(
-    'INSERT INTO auth_sessions (token_hash, technician_id, created_at) VALUES ($1, $2, $3)',
+    'INSERT INTO auth_sessions (token_hash, technician_id, created_at, expires_at) VALUES ($1, $2, $3, \'9999-12-31T00:00:00.000Z\')',
     [crypto.createHash('sha256').update(token).digest('hex'), technicianId, new Date().toISOString()]
   );
   return token;

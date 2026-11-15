@@ -31,10 +31,10 @@ async function authenticate(req, res, next) {
       `SELECT t.id, t.name, t.username, t.role, t.must_change_password
        FROM auth_sessions s
        JOIN technicians t ON t.id = s.technician_id
-       WHERE s.token_hash = $1 AND s.revoked_at IS NULL AND t.is_active = true`,
-      [tokenHash]
+       WHERE s.token_hash = $1 AND s.revoked_at IS NULL AND t.is_active = true AND s.expires_at > $2`,
+      [tokenHash, new Date().toISOString()]
     );
-    if (!result.rows.length) return res.status(401).json({ error: 'Invalid or revoked session' });
+    if (!result.rows.length) return res.status(401).json({ error: 'Invalid, expired or revoked session' });
 
     const row = result.rows[0];
     req.technician = {

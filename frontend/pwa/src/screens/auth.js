@@ -34,6 +34,7 @@ export function AuthScreen ({ onSuccess }) {
           placeholder="Username"
         />
         <input id="password-input" class="auth-input" type="password" autocomplete="current-password" placeholder="Password" />
+        <label class="auth-keep"><input id="keep-signed-in" type="checkbox" checked /> Keep me signed in on this device</label>
         <p id="auth-error" class="auth-error" aria-live="polite"></p>
         <button id="auth-submit" class="auth-btn">
           <span id="auth-btn-label">Sign in</span>
@@ -71,7 +72,8 @@ export function AuthScreen ({ onSuccess }) {
     error.textContent = ''
 
     try {
-      const data = await api.post('/auth/login', { username: input.value, password: passwordInput.value })
+      const keepSignedIn = el.querySelector('#keep-signed-in').checked
+      const data = await api.post('/auth/login', { username: input.value, password: passwordInput.value, keepSignedIn })
       if (data.user.role !== 'TECHNICIAN') {
         await api.post('/auth/logout', {}).catch(() => {})
         error.textContent = 'This account does not have FieldOps access.'
@@ -234,6 +236,21 @@ export const authStyles = `
   .auth-btn:disabled {
     opacity: 0.6;
     cursor: not-allowed;
+  }
+
+  .auth-keep {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    min-height: 44px;
+    font-size: var(--text-sm);
+    color: var(--text-secondary);
+    cursor: pointer;
+  }
+
+  .auth-keep input {
+    width: 20px;
+    height: 20px;
   }
 
   .auth-help {

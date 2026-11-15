@@ -7,8 +7,12 @@ const { authenticate } = require('../middleware/auth');
 const router = express.Router();
 const scrypt = promisify(crypto.scrypt);
 const SESSION_COOKIE = 'fieldops_session';
-const SESSION_COOKIE_EXPIRY = 'Fri, 31 Dec 9999 23:59:59 GMT';
 const MIN_PASSWORD_LENGTH = 12;
+const KEEP_SIGNED_IN_MS = 7 * 24 * 60 * 60 * 1000;
+const MIN_SESSION_MS = 60 * 60 * 1000;
+const SESSION_END_HOUR = 3;
+const COMPANY_TIME_ZONE = process.env.COMPANY_TIME_ZONE || 'America/Chicago';
+new Intl.DateTimeFormat('en-US', { timeZone: COMPANY_TIME_ZONE }); // fail at startup on an invalid zone
 // Verified when the username does not exist, so the response time does not reveal it.
 const DUMMY_PASSWORD_HASH = `scrypt$32768$8$1$${'0'.repeat(32)}$${'0'.repeat(128)}`;
 
@@ -44,9 +48,43 @@ async function verifyPassword(password, encoded) {
   }
 }
 
-function sessionCookie(token) {
+// Wall-clock parts of `date` in `timeZone`.
+function zoneParts(date, timeZone) {
+  const format = new Intl.DateTimeFormat('en-US', {
+    timeZone, hourCycle: 'h23', year: 'numeric', month: 'numeric', day: 'numeric',
+    hour: 'numeric', minute: 'numeric', second: 'numeric',
+  });
+  return Object.fromEntries(format.formatToParts(date).filter(p => p.type !== 'literal').map(p => [p.type, Number(p.value)]));
+}
+
+// The UTC instant whose wall-clock time in `timeZone` is year-month-day hour:00.
+function zonedTime(year, month, day, hour, timeZone) {
+  const asUtc = Date.UTC(year, month - 1, day, hour);
+  const offsetAt = ms => {
+    const p = zoneParts(new Date(ms), timeZone);
+    return Date.UTC(p.year, p.month - 1, p.day, p.hour, p.minute, p.second) - Math.floor(ms / 1000) * 1000;
+  };
+  // Second pass corrects the offset when the first guess falls across a DST change.
+  return new Date(asUtc - offsetAt(asUtc - offsetAt(asUtc)));
+}
+
+function nextLocalHour(after, hour, timeZone) {
+  const p = zoneParts(after, timeZone);
+  const today = zonedTime(p.year, p.month, p.day, hour, timeZone);
+  return today > after ? today : zonedTime(p.year, p.month, p.day + 1, hour, timeZone);
+}
+
+// Checked: 7 days from login. Unchecked: the next 03:00 company time, or the one
+// after it when less than an hour remains.
+function sessionExpiry(keepSignedIn, now = new Date(), timeZone = COMPANY_TIME_ZONE) {
+  if (keepSignedIn) return new Date(now.getTime() + KEEP_SIGNED_IN_MS);
+  const next = nextLocalHour(now, SESSION_END_HOUR, timeZone);
+  return next - now < MIN_SESSION_MS ? nextLocalHour(next, SESSION_END_HOUR, timeZone) : next;
+}
+
+function sessionCookie(token, expiresAt) {
   const secure = process.env.NODE_ENV === 'production' ? '; Secure' : '';
-  return `${SESSION_COOKIE}=${token}; Path=/api; HttpOnly; SameSite=Strict; Expires=${SESSION_COOKIE_EXPIRY}${secure}`;
+  return `${SESSION_COOKIE}=${token}; Path=/api; HttpOnly; SameSite=Strict; Expires=${expiresAt.toUTCString()}${secure}`;
 }
 
 function clearSessionCookie() {
@@ -82,6 +120,7 @@ router.post('/login', async (req, res, next) => {
     const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
     const client = await pool.connect();
     let started = false;
+    let expiresAt;
     try {
       // Short lock: serializes with deactivation and password changes, re-checking
       // that the account is still active with the password hash just verified.
@@ -96,9 +135,11 @@ router.post('/login', async (req, res, next) => {
         started = false;
         return res.status(401).json({ error: 'Invalid username or password' });
       }
+      const now = new Date();
+      expiresAt = sessionExpiry(req.body?.keepSignedIn !== false, now);
       await client.query(
-        'INSERT INTO auth_sessions (token_hash, technician_id, created_at) VALUES ($1, $2, $3)',
-        [tokenHash, account.id, new Date().toISOString()]
+        'INSERT INTO auth_sessions (token_hash, technician_id, created_at, expires_at) VALUES ($1, $2, $3, $4)',
+        [tokenHash, account.id, now.toISOString(), expiresAt.toISOString()]
       );
       await client.query('COMMIT');
       started = false;
@@ -108,8 +149,8 @@ router.post('/login', async (req, res, next) => {
     } finally {
       client.release();
     }
-    res.set('Set-Cookie', sessionCookie(token));
-    res.json({ user: publicUser(account) });
+    res.set('Set-Cookie', sessionCookie(token, expiresAt));
+    res.json({ user: publicUser(account), expiresAt: expiresAt.toISOString() });
   } catch (err) {
     next(err);
   }
@@ -266,3 +307,4 @@ module.exports.normalizeUsername = normalizeUsername;
 module.exports.validPassword = validPassword;
 module.exports.publicRole = publicRole;
 module.exports.bootstrapInitialOwner = bootstrapInitialOwner;
+module.exports.sessionExpiry = sessionExpiry;

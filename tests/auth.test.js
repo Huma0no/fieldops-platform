@@ -25,7 +25,7 @@ async function login(account) {
 async function seedSession(technicianId) {
   const token = crypto.randomBytes(32).toString('hex');
   const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
-  await pool.query('INSERT INTO auth_sessions (token_hash, technician_id, created_at) VALUES ($1, $2, $3)', [tokenHash, technicianId, new Date().toISOString()]);
+  await pool.query('INSERT INTO auth_sessions (token_hash, technician_id, created_at, expires_at) VALUES ($1, $2, $3, \'9999-12-31T00:00:00.000Z\')', [tokenHash, technicianId, new Date().toISOString()]);
   return token;
 }
 
