@@ -9,6 +9,8 @@ const scrypt = promisify(crypto.scrypt);
 const SESSION_COOKIE = 'fieldops_session';
 const SESSION_COOKIE_EXPIRY = 'Fri, 31 Dec 9999 23:59:59 GMT';
 const MIN_PASSWORD_LENGTH = 12;
+// Verified when the username does not exist, so the response time does not reveal it.
+const DUMMY_PASSWORD_HASH = `scrypt$32768$8$1$${'0'.repeat(32)}$${'0'.repeat(128)}`;
 
 function normalizeUsername(username) {
   return typeof username === 'string' ? username.trim().toLowerCase() : '';
@@ -65,28 +67,39 @@ function publicUser(row) {
 router.post('/login', async (req, res, next) => {
   try {
     const username = normalizeUsername(req.body?.username);
-    const client = await pool.connect();
-    let started = false;
-    let account;
+    const result = await pool.query(
+      `SELECT id, name, username, role, password_hash, must_change_password, is_active
+       FROM technicians WHERE lower(username) = $1`,
+      [username]
+    );
+    const account = result.rows[0];
+    // scrypt runs outside any row lock, and always runs, even for unknown usernames.
+    const passwordOk = await verifyPassword(req.body?.password, account?.password_hash ?? DUMMY_PASSWORD_HASH);
+    if (!account || !account.is_active || !passwordOk) {
+      return res.status(401).json({ error: 'Invalid username or password' });
+    }
     const token = crypto.randomBytes(32).toString('hex');
     const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
+    const client = await pool.connect();
+    let started = false;
     try {
+      // Short lock: serializes with deactivation and password changes, re-checking
+      // that the account is still active with the password hash just verified.
       await client.query('BEGIN');
       started = true;
-      const result = await client.query(
-        `SELECT id, name, username, role, password_hash, must_change_password, is_active
-         FROM technicians WHERE lower(username) = $1 FOR UPDATE`,
-        [username]
+      const locked = await client.query(
+        'SELECT is_active, password_hash FROM technicians WHERE id = $1 FOR UPDATE',
+        [account.id]
       );
-      account = result.rows[0];
-      if (!account || !account.is_active || !(await verifyPassword(req.body?.password, account.password_hash))) {
+      if (!locked.rows[0]?.is_active || locked.rows[0].password_hash !== account.password_hash) {
         await client.query('ROLLBACK');
         started = false;
         return res.status(401).json({ error: 'Invalid username or password' });
       }
+      const now = new Date().toISOString();
       await client.query(
-        'INSERT INTO auth_sessions (token_hash, technician_id, created_at) VALUES ($1, $2, $3)',
-        [tokenHash, account.id, new Date().toISOString()]
+        'INSERT INTO auth_sessions (token_hash, technician_id, created_at, last_used_at) VALUES ($1, $2, $3, $3)',
+        [tokenHash, account.id, now]
       );
       await client.query('COMMIT');
       started = false;
@@ -114,6 +127,13 @@ router.post('/change-password', authenticate, async (req, res, next) => {
     if (!validPassword(newPassword)) {
       return res.status(400).json({ error: `Password must be between ${MIN_PASSWORD_LENGTH} and 256 characters` });
     }
+    // Verify the current password before taking the row lock (scrypt is slow).
+    const current = await pool.query('SELECT is_active, password_hash FROM technicians WHERE id = $1', [req.technician.id]);
+    if (!current.rows[0]?.is_active) return res.status(401).json({ error: 'Account is disabled' });
+    const verifiedHash = current.rows[0].password_hash;
+    if (!(await verifyPassword(currentPassword, verifiedHash))) {
+      return res.status(403).json({ error: 'Current password is incorrect' });
+    }
     const passwordHash = await hashPassword(newPassword);
     const client = await pool.connect();
     let started = false;
@@ -121,7 +141,7 @@ router.post('/change-password', authenticate, async (req, res, next) => {
       await client.query('BEGIN');
       started = true;
       const locked = await client.query(
-        'SELECT id, is_active, password_hash FROM technicians WHERE id = $1 FOR UPDATE',
+        'SELECT is_active, password_hash FROM technicians WHERE id = $1 FOR UPDATE',
         [req.technician.id]
       );
       if (!locked.rows[0]?.is_active) {
@@ -129,7 +149,8 @@ router.post('/change-password', authenticate, async (req, res, next) => {
         started = false;
         return res.status(401).json({ error: 'Account is disabled' });
       }
-      if (!(await verifyPassword(currentPassword, locked.rows[0].password_hash))) {
+      // The password changed between the check and the lock: the verified one is no longer current.
+      if (locked.rows[0].password_hash !== verifiedHash) {
         await client.query('ROLLBACK');
         started = false;
         return res.status(403).json({ error: 'Current password is incorrect' });

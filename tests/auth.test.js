@@ -107,7 +107,7 @@ describe('username and password authentication', () => {
     const loginPromise = login(tech).then(response => response);
     let deactivatePromise;
     try {
-      await waitForLockingQuery('%FROM technicians WHERE lower(username)%');
+      await waitForLockingQuery('%password_hash FROM technicians WHERE id = $1 FOR UPDATE%');
       deactivatePromise = request(app).patch(`/api/dispatch/technicians/${tech.id}/deactivate`)
         .set('Authorization', `Bearer ${ownerToken}`).then(response => response);
       await waitForLockingQuery('%UPDATE technicians SET is_active = false%');
@@ -135,7 +135,7 @@ describe('username and password authentication', () => {
     try {
       await waitForLockingQuery('%UPDATE technicians SET is_active = false%');
       loginPromise = login(tech).then(response => response);
-      await waitForLockingQuery('%FROM technicians WHERE lower(username)%');
+      await waitForLockingQuery('%password_hash FROM technicians WHERE id = $1 FOR UPDATE%');
     } finally {
       await blocker.query('ROLLBACK').catch(() => {});
       blocker.release();
@@ -143,6 +143,61 @@ describe('username and password authentication', () => {
     const [deactivateResponse, loginResponse] = await Promise.all([deactivatePromise, loginPromise]);
     expect(deactivateResponse.status).toBe(200);
     expect(loginResponse.status).toBe(401);
+  });
+});
+
+describe('session expiry and revocation', () => {
+  const daysAgo = days => new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
+
+  async function setLastUsed(token, iso) {
+    const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
+    await pool.query('UPDATE auth_sessions SET last_used_at = $1 WHERE token_hash = $2', [iso, tokenHash]);
+    return tokenHash;
+  }
+
+  it('rejects a session unused for more than 30 days', async () => {
+    const tech = await seedAccount();
+    const token = await seedSession(tech.id);
+    await setLastUsed(token, daysAgo(31));
+    expect((await request(app).get('/api/auth/me').set('Authorization', `Bearer ${token}`)).status).toBe(401);
+  });
+
+  it('accepts a session used within 30 days and slides its expiry forward', async () => {
+    const tech = await seedAccount();
+    const token = await seedSession(tech.id);
+    const tokenHash = await setLastUsed(token, daysAgo(29));
+    expect((await request(app).get('/api/auth/me').set('Authorization', `Bearer ${token}`)).status).toBe(200);
+    const { rows } = await pool.query('SELECT last_used_at FROM auth_sessions WHERE token_hash = $1', [tokenHash]);
+    expect(rows[0].last_used_at > daysAgo(1)).toBe(true);
+  });
+
+  it('expires a never-refreshed session by its creation time', async () => {
+    const tech = await seedAccount();
+    const token = await seedSession(tech.id);
+    const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
+    await pool.query('UPDATE auth_sessions SET created_at = $1, last_used_at = NULL WHERE token_hash = $2', [daysAgo(31), tokenHash]);
+    expect((await request(app).get('/api/auth/me').set('Authorization', `Bearer ${token}`)).status).toBe(401);
+  });
+
+  it('revokes the other sessions when the technician changes the password', async () => {
+    const tech = await seedAccount();
+    const current = await seedSession(tech.id);
+    const other = await seedSession(tech.id);
+    const response = await request(app).post('/api/auth/change-password')
+      .set('Authorization', `Bearer ${current}`)
+      .send({ currentPassword: tech.password, newPassword: 'AnotherPassword456!' });
+    expect(response.status).toBe(200);
+    expect((await request(app).get('/api/auth/me').set('Authorization', `Bearer ${current}`)).status).toBe(200);
+    expect((await request(app).get('/api/auth/me').set('Authorization', `Bearer ${other}`)).status).toBe(401);
+  });
+
+  it('rejects unknown usernames and wrong passwords with the same response', async () => {
+    const tech = await seedAccount({ username: 'known-user' });
+    const unknown = await request(app).post('/api/auth/login').send({ username: 'nobody-here', password: tech.password });
+    const wrong = await request(app).post('/api/auth/login').send({ username: 'known-user', password: 'WrongPassword999!' });
+    expect(unknown.status).toBe(401);
+    expect(wrong.status).toBe(401);
+    expect(unknown.body).toEqual(wrong.body);
   });
 });
 
