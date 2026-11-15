@@ -6,6 +6,10 @@ const { pool } = require('./db/pool');
 const { authenticate, requirePasswordChanged, requireRole } = require('./middleware/auth');
 
 const app = express();
+// Behind a reverse proxy, rate limits must key on the client IP, not the proxy's.
+// TRUST_PROXY = number of proxies in front of the server; unset = direct exposure.
+const trustProxyHops = Number(process.env.TRUST_PROXY);
+if (trustProxyHops > 0) app.set('trust proxy', trustProxyHops);
 app.use(cors());
 app.use(express.json());
 
