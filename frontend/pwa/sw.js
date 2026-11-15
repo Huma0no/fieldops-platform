@@ -8,7 +8,7 @@
  *   - Sync and auth endpoints: Network Only
  */
 
-const SHELL_CACHE  = 'fieldops-shell-v2'
+const SHELL_CACHE  = 'fieldops-shell-v3'
 const CATALOG_CACHE = 'fieldops-catalog-v1'
 
 const SHELL_ASSETS = [
@@ -43,6 +43,7 @@ const SHELL_ASSETS = [
   '/src/lib/menu-badge.mjs',
   '/src/lib/my-calls-visit.mjs',
   '/src/lib/workspace-visit.mjs',
+  '/src/lib/session-boot.mjs',
   '/shared/tokens.css',
 ]
 

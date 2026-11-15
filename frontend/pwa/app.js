@@ -8,6 +8,7 @@ import { api }                   from './shared/api.js'
 import { setCatalog, getCatalog } from './src/lib/db.js'
 import { stopSync }              from './src/lib/sync.js'
 import { stopCompletionSubmissionRetry } from './src/lib/completion-submission.mjs'
+import { resolveBootScreen }   from './src/lib/session-boot.mjs'
 
 // Bump when catalog data changes server-side (e.g. after a DB cleanup) so
 // cached IndexedDB catalog data on already-installed clients gets replaced.
@@ -118,25 +119,13 @@ function boot () {
   })
 
   const session = getSession()
-  if (session) {
-    if (!['TECHNICIAN', 'technician'].includes(session.technician.role)) {
-      localStorage.removeItem('technician')
-      showAuth()
-      return
-    }
-    api.get('/auth/me').then(({ user }) => {
-      if (user.role !== 'TECHNICIAN') throw new Error('This account does not have FieldOps access')
-      localStorage.setItem('technician', JSON.stringify(user))
-      showAuthenticated(user)
-    }).catch(() => {
-      // Preserve offline operation when a previously authenticated technician has no network.
-      if (navigator.onLine === false && session.technician.mustChangePassword) showPasswordChange()
-      else if (navigator.onLine === false) showAuthenticated(session.technician)
-      else showAuth()
-    })
-  } else {
-    showAuth()
-  }
+  resolveBootScreen(session?.technician ?? null, () => api.get('/auth/me')).then(result => {
+    if (result.clear) localStorage.removeItem('technician')
+    if (result.store) localStorage.setItem('technician', JSON.stringify(result.user))
+    if (result.screen === 'app') showAuthenticated(result.user)
+    else if (result.screen === 'passwordChange') showPasswordChange()
+    else showAuth()
+  })
 }
 
 async function preloadCatalog () {
@@ -164,7 +153,13 @@ async function preloadCatalog () {
   }
 }
 
+// Several requests can fail with 401 at once after reconnecting; render the
+// sign-in screen once so the technician's typing is not reset.
+let authScreenShown = false
+
 function showAuth () {
+  if (authScreenShown) return
+  authScreenShown = true
   ++navSeq
   appEl.innerHTML = ''
   const screen = AuthScreen({ onSuccess: user => user.mustChangePassword ? showPasswordChange() : showAuthenticated(user) })
@@ -172,12 +167,14 @@ function showAuth () {
 }
 
 function showPasswordChange () {
+  authScreenShown = false
   ++navSeq
   appEl.innerHTML = ''
   appEl.appendChild(PasswordChangeScreen({ onSuccess: showAuthenticated }))
 }
 
 function showAuthenticated () {
+  authScreenShown = false
   import('./src/lib/queue.js').then(({ startQueueRetry }) => startQueueRetry())
   preloadCatalog()
   navigate('/')

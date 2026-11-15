@@ -415,4 +415,41 @@ describe('durable completion submissions', () => {
       lifecycle: 'delivered',
     })
   })
+  it('keeps the pending submission and the local draft through a 401, then delivers automatically after sign-in', async () => {
+    setActiveSession('tech-001')
+    const draft = normalDraft('tech-001', 'visit-401-live')
+    await db.saveLocalVisitDraft(draft, 'tech-001')
+    await submissions.createPendingCompletionSubmission(draft, { id: 'sub-401-live' })
+
+    // Reconnect with an ended session: the server answers 401.
+    mockApiImpl = async () => {
+      const err = new Error('Invalid, expired or revoked session')
+      err.status = 401
+      throw err
+    }
+    await submissions.retryPendingCompletionSubmissions()
+    await expect(db.getCompletionSubmission('sub-401-live')).resolves.toMatchObject({ lifecycle: 'pending', attempts: 1 })
+
+    // The app clears the session and shows sign-in; the technician's local data stays.
+    setActiveSession(null)
+    submissions.stopCompletionSubmissionRetry()
+    await expect(db.getCompletionSubmission('sub-401-live', 'tech-001')).resolves.toMatchObject({ lifecycle: 'pending' })
+    await expect(db.getLocalVisitDraft('visit-401-live', 'tech-001')).resolves.toMatchObject({ id: 'visit-401-live' })
+
+    // Same technician signs in: app.js starts the retry, which delivers without user action.
+    const calls = []
+    mockApiImpl = async (url, body) => {
+      calls.push(url)
+      return { acknowledged: true, submissionId: body.submissionId }
+    }
+    setActiveSession('tech-001')
+    submissions.startCompletionSubmissionRetry()
+    for (let i = 0; i < 50 && calls.length === 0; i++) await new Promise(resolve => setTimeout(resolve, 10))
+    submissions.stopCompletionSubmissionRetry()
+    await new Promise(resolve => setTimeout(resolve, 50))
+
+    expect(calls).toEqual(['/visits/visit-401-live/complete'])
+    await expect(db.getCompletionSubmission('sub-401-live')).resolves.toMatchObject({ lifecycle: 'delivered' })
+    await expect(db.getLocalVisitDraft('visit-401-live', 'tech-001')).resolves.toMatchObject({ id: 'visit-401-live', notes: 'Stable note' })
+  })
 })
