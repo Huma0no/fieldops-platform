@@ -337,7 +337,7 @@ export async function mount (root, { context = null, standalone = false } = {}) 
       update()
     }
 
-    // selected: { node, terminal } | { item: boardItemKey } | { ficha: componentId }
+    // selected: { node, terminal } | { node } | { item: boardItemKey } | { ficha: componentId }
     function select (value) {
       selected = value
       sheetOpen = true
@@ -367,7 +367,10 @@ export async function mount (root, { context = null, standalone = false } = {}) 
       if (guided) renderStepBar()
 
       if (selected) {
-        const title = selected.terminal ? renderTerminal() : selected.item ? renderBoardItem() : renderComponent()
+        const title = selected.terminal ? renderTerminal()
+          : selected.item ? renderBoardItem()
+            : selected.ficha ? renderComponent()
+              : renderNode()
         if (guided) sheetBody.prepend(h('p', 'gd-sheet-title', title))
         else sheetHeader.textContent = title
         return
@@ -421,6 +424,17 @@ export async function mount (root, { context = null, standalone = false } = {}) 
       const item = model.boardItems.find(entry => entry.key === selected.item)
       sheetBody.append(...renderItem(item.data, t))
       return item.data.title
+    }
+
+    // A block or device without a step: its terminals at a glance.
+    function renderNode () {
+      const node = model.nodes.get(selected.node)
+      if (node.unusedInSetup) sheetBody.appendChild(h('p', 'gd-note', t('guided.notUsed')))
+      for (const terminal of node.terminals) {
+        sheetBody.appendChild(factRow(terminalLabel(node, terminal, t), `${terminal.fact.fn} — ${terminal.fact.exp}`))
+      }
+      sheetBody.appendChild(sourceLine(model.library.components[node.component].src, t))
+      return nodeTitle(node)
     }
 
     function renderComponent () {
@@ -484,14 +498,22 @@ export async function mount (root, { context = null, standalone = false } = {}) 
       // The board title is always tappable; a node's title only inside the focus.
       if (fichaEl && (!nodeId || inFocus)) return select({ ficha: fichaEl.getAttribute('data-ficha') })
       if (termEl && inFocus) return select({ node: nodeId, terminal: termEl.getAttribute('data-terminal') })
-      if (item) {
-        if (itemInFocus(item)) return select({ item: item.key })
-        if (!guided) return item.at ? focusOn(item.at) : focusFooter()
+      if (item && itemInFocus(item)) return select({ item: item.key })
+      const group = item ? item.at : nodeId
+
+      // Guided: empty space re-frames the step; another group jumps to its step;
+      // a group with no step shows its detail without leaving the step.
+      if (guided) {
+        if (!item && !nodeId) return frame()
+        if (inFocus) return
+        const index = group ? stepForNode(steps, group) : -1
+        if (index >= 0) return goTo(index + 1)
+        return select(item ? { item: item.key } : { node: nodeId })
       }
-      // Guided: a tap outside the step re-frames it. Explore: outside the focus → overview.
-      if (guided) { if (!inFocus) frame(); return }
-      if (focus && !inFocus) showOverview()
-      else if (nodeId) focusOn(nodeId)
+      // Explore: any group or part focuses directly (one tap); empty space → overview.
+      if (item && !group) return focusFooter()
+      if (group) return focusOn(group)
+      if (focus) showOverview()
     })
 
     // Rotation and resizes re-fit the current view without animation.

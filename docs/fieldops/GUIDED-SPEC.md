@@ -65,7 +65,7 @@ Zones not on the call: their blocks, devices and wires dim to ~6% and are not ta
 - Overview shows all devices with wires faint in their real colors.
 - Tap a block or device → frame the block plus its connected devices, light its wires, fade the rest.
 - Tap a terminal → sheet with function, description, expected value (+ alternate), where each wire goes, and source.
-- Tap outside the focus (empty or dimmed area) → back to the overview.
+- While focused, tapping another group or board part (even dimmed) focuses it directly in one tap; only empty space returns to the overview.
 - Tap a device or block title inside the focus, or the board title → that component's ficha in the sheet (spec, terminals, parts, LEDs, extras, source; `pending` tagged).
 - Board parts and LEDs are drawn on the board from the system file's `boardItems`: items anchored to a block sit in the board's center column next to it; board-level items (system/damper LEDs, buttons) sit in a footer grid. Tapping one focuses its block (or the footer); tapping it again shows its meaning by state, default, spec and source. Zone items for zones not on the call are dimmed.
 - **Fichas** (button on the Explore stage, and on the "not available" card): full-screen list of every library component as collapsed accordions, with extras (SAS resistance table, SBD2 Auto Setup, DAPC commissioning).
@@ -89,7 +89,7 @@ UI:
 - Header: two-line setup chip (zones · DAPC / system), Guided | Explore selector, language button (standalone). Guided is the default mode; when the guide is not available for the call, Guided shows "Guide not available yet for this combination" and Explore stays one tap away.
 - Step 0 (system map): full drawing, every group that has a step outlined; tapping one jumps to its step. The power-off warning is shown open. Portrait only: a dismissible "Better view in landscape" hint.
 - Bottom bar: progress dots, ‹ · step title + "Step N of M" · ›. Step details (cable, notes, facts) are collapsed; tapping the title opens them. Tapping a terminal inside the step lights its wire and shows its detail.
-- ⤢ or double tap returns to the map. A tap outside the step's framed area re-frames the current step; it never leaves the step. Rotation re-fits the current step; on short landscape screens the sheet moves to a side column.
+- ⤢ or double tap returns to the map. Inside a step, tapping another group that has a step jumps to that step; a group or board item without a step shows its detail in the sheet without leaving the step; empty space re-frames the current step. Rotation re-fits the current step; on short landscape screens the sheet moves to a side column.
 - A thermostat count above the board's zone limit shows a note that 4–5 zones (twinning) are not covered.
 
 ## Language
