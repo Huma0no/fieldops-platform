@@ -97,6 +97,15 @@ describe('Local Visit Draft IndexedDB persistence', () => {
     expect(restored.dirty).toBe(true)
   })
 
+  it('does not mutate the draft passed to saveLocalVisitDraft', async () => {
+    const localDraft = draft.createLocalVisitDraft({ id: 'visit-no-mutation' })
+    delete localDraft.technicianId
+    const before = JSON.stringify(localDraft)
+    await db.saveLocalVisitDraft(localDraft, 'tech-001')
+    expect(JSON.stringify(localDraft)).toBe(before)
+    expect((await db.getLocalVisitDraft('visit-no-mutation', 'tech-001')).technicianId).toBe('tech-001')
+  })
+
   it('restores Finish-only as a durable valid Service selection', async () => {
     const localDraft = draft.createLocalVisitDraft({
       id: 'visit-finish-only',

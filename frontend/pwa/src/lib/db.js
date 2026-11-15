@@ -185,9 +185,6 @@ export async function saveLocalVisitDraft (draft, technicianId = draft?.technici
   if (!techId) throw new Error('Local Visit Draft requires an authenticated technician')
 
   const rawVisitId = draft.id
-  if (draft.technicianId == null) {
-    draft.technicianId = techId
-  }
   const scopedKey = scopedVisitKey(techId, rawVisitId)
   const existingScoped = await getVisit(scopedKey)
   const existingBare = await getVisit(rawVisitId)
