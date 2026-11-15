@@ -8,7 +8,7 @@ export function normalizeContext (system, context = {}) {
   return { zones, dapc: context.dapc === true }
 }
 
-function matches (when, context) {
+export function matches (when, context) {
   return !when || Object.entries(when).every(([key, value]) => context[key] === value)
 }
 

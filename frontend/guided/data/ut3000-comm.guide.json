@@ -1,0 +1,200 @@
+{
+  "id": "ut3000-comm-install",
+  "version": "0.1",
+  "system": "ut3000-comm",
+  "requires": { "board": ["UT3000"], "thermostat": ["Daikin One"] },
+  "map": {
+    "warning": {
+      "en": "Wire everything with power OFF. Connect the transformer last.",
+      "es": "Cablea todo con la energía APAGADA. Conecta el transformador al final."
+    }
+  },
+  "steps": [
+    {
+      "id": "bus",
+      "title": { "en": "Communicating HVAC bus", "es": "Bus HVAC comunicante" },
+      "frame": ["out", "furnace", "coil", "outdoor"],
+      "wires": ["out~furnace", "furnace~coil", "coil~outdoor"],
+      "cable": {
+        "en": "18 AWG solid, color-coded · 4 conductors (C, 2, 1, R) · outdoor uses 1 and 2",
+        "es": "18 AWG sólido, con código de colores · 4 conductores (C, 2, 1, R) · la exterior usa 1 y 2"
+      },
+      "notes": [
+        { "en": "Daisy-chain UT3000 → furnace → CAPE coil → outdoor. Avoid making all connections at the furnace.",
+          "es": "En cadena: UT3000 → furnace → serpentín CAPE → exterior. Evita hacer todas las conexiones en el furnace." },
+        { "en": "The outdoor unit needs only 1 and 2.", "es": "La unidad exterior solo necesita 1 y 2." },
+        { "en": "Outdoor run ≥ 75–100 ft or noisy: 18/4 with two wires per data circuit.",
+          "es": "Tramo a la exterior ≥ 75–100 ft o con ruido: 18/4 con dos cables por circuito de datos." },
+        { "en": "BIAS dip switches #1 and #2 ON.", "es": "Dip switches BIAS #1 y #2 en ON." }
+      ],
+      "facts": [
+        { "ref": "ut3000.blocks.out.terminals.G.exp", "label": { "en": "Data 1 – C", "es": "Data 1 – C" } },
+        { "ref": "ut3000.blocks.out.terminals.Y.exp", "label": { "en": "Data 2 – C", "es": "Data 2 – C" } },
+        { "ref": "ut3000.parts.dip.desc", "label": { "en": "Dip switches", "es": "Dip switches" } }
+      ]
+    },
+    {
+      "perZone": [
+        {
+          "id": "tstat{n}",
+          "title": { "en": "Zone {n} thermostat", "es": "Termostato zona {n}" },
+          "frame": ["z{n}c", "tstat{n}"],
+          "wires": ["z{n}c~tstat{n}"],
+          "cable": {
+            "en": "18 AWG solid, color-coded · 4 conductors (C, 2, 1, R)",
+            "es": "18 AWG sólido, con código de colores · 4 conductores (C, 2, 1, R)"
+          },
+          "facts": [
+            { "ref": "tstat.spec.wiring", "label": { "en": "Run", "es": "Tramo" } },
+            { "ref": "tstat.terminals.1.exp", "label": { "en": "Check", "es": "Verifica" } }
+          ]
+        },
+        {
+          "id": "damper{n}",
+          "when": { "dapc": false },
+          "title": { "en": "Zone {n} damper", "es": "Damper zona {n}" },
+          "frame": ["d{n}", "damper{n}"],
+          "wires": ["d{n}~damper{n}"],
+          "cable": { "en": "18 AWG solid · 3 conductors (C, PC, PO)", "es": "18 AWG sólido · 3 conductores (C, PC, PO)" },
+          "notes": [
+            { "warn": true,
+              "en": "Polarity: terminal order differs between the controller (C · PC · PO) and the damper (1 · 4 · 6). Match by name: 1 = COM, 4 = PO, 6 = PC.",
+              "es": "Polaridad: el orden de terminales cambia entre el controlador (C · PC · PO) y el damper (1 · 4 · 6). Conecta por nombre: 1 = COM, 4 = PO, 6 = PC." }
+          ],
+          "facts": [{ "ref": "damper.spec.polarity", "label": { "en": "Damper", "es": "Damper" } }]
+        },
+        {
+          "id": "dapcIn{n}",
+          "when": { "dapc": true },
+          "title": { "en": "Zone {n} damper → DAPC input", "es": "Damper zona {n} → entrada DAPC" },
+          "frame": ["d{n}", "dapc{n}", "damper{n}"],
+          "wires": ["d{n}~dapc{n}"],
+          "cable": { "en": "18 AWG solid · 3 conductors (C, PC, PO)", "es": "18 AWG sólido · 3 conductores (C, PC, PO)" },
+          "notes": [
+            { "warn": true,
+              "en": "Polarity: terminal order differs between the controller (C · PC · PO), the DAPC (COM · PC · PO) and the damper (1 · 4 · 6). Match by name.",
+              "es": "Polaridad: el orden de terminales cambia entre el controlador (C · PC · PO), el DAPC (COM · PC · PO) y el damper (1 · 4 · 6). Conecta por nombre." }
+          ]
+        },
+        {
+          "id": "dapcOut{n}",
+          "when": { "dapc": true },
+          "title": { "en": "DAPC output → zone {n} damper", "es": "Salida DAPC → damper zona {n}" },
+          "frame": ["d{n}", "dapc{n}", "damper{n}"],
+          "wires": ["dapc{n}~damper{n}"],
+          "cable": { "en": "18 AWG solid · 3 conductors (COM, PC, PO)", "es": "18 AWG sólido · 3 conductores (COM, PC, PO)" },
+          "notes": [
+            { "warn": true,
+              "en": "Polarity: match by name: 1 = COM, 4 = PO, 6 = PC.",
+              "es": "Polaridad: conecta por nombre: 1 = COM, 4 = PO, 6 = PC." }
+          ],
+          "facts": [{ "ref": "damper.spec.polarity", "label": { "en": "Damper", "es": "Damper" } }]
+        }
+      ]
+    },
+    {
+      "id": "sas",
+      "title": { "en": "Supply air sensor (SAS)", "es": "Sensor de aire de suministro (SAS)" },
+      "frame": ["sas", "sensor"],
+      "wires": ["sas~sensor"],
+      "cable": { "en": "18 AWG solid · 2 conductors", "es": "18 AWG sólido · 2 conductores" },
+      "facts": [
+        { "ref": "sas.spec.type", "label": { "en": "Sensor", "es": "Sensor" } },
+        { "ref": "sas.spec.test", "label": { "en": "Test", "es": "Prueba" } }
+      ]
+    },
+    {
+      "id": "dapcTubes",
+      "when": { "dapc": true },
+      "title": { "en": "DAPC pressure tubes", "es": "Tubos de presión del DAPC" },
+      "frame": ["taps", "dapcPwr"],
+      "wires": ["taps~dapcPwr"],
+      "cable": { "en": "Pressure tubing · supply → SUP, return → RET", "es": "Tubo de presión · suministro → SUP, retorno → RET" },
+      "facts": [{ "ref": "dapc.spec.mounting", "label": { "en": "Mounting", "es": "Montaje" } }]
+    },
+    {
+      "id": "sbd2",
+      "when": { "dapc": true },
+      "title": { "en": "SBD2 bypass ← DAPC R/C", "es": "Bypass SBD2 ← DAPC R/C" },
+      "frame": ["sbd2", "dapcPwr", "taps"],
+      "wires": ["sbd2~dapcPwr", "sbd2~taps"],
+      "cable": {
+        "en": "18 AWG · 2 conductors (2 +, 1 −) · 2 pitot tubes",
+        "es": "18 AWG · 2 conductores (2 +, 1 −) · 2 tubos pitot"
+      },
+      "notes": [
+        { "en": "24 VAC constant. Never power it from a damper output.",
+          "es": "24 VAC constantes. Nunca lo alimentes desde una salida de damper." },
+        { "en": "Pitots within 2 ft of the air handler: supply → +, return → −.",
+          "es": "Pitots a menos de 2 ft del air handler: suministro → +, retorno → −." },
+        { "warn": true,
+          "en": "The SBD2 starts CLOSED (yellow LED blinking) until Auto Setup runs.",
+          "es": "El SBD2 arranca CERRADO (LED amarillo parpadeando) hasta que se corre Auto Setup." }
+      ],
+      "facts": [
+        { "ref": "sbd2.spec.power", "label": { "en": "Power", "es": "Consumo" } },
+        { "ref": "sbd2.spec.tubes", "label": { "en": "Tubes", "es": "Tubos" } }
+      ]
+    },
+    {
+      "id": "dapcPower",
+      "when": { "dapc": true },
+      "title": { "en": "DAPC R/C ← UT3000 T'FORMER", "es": "DAPC R/C ← UT3000 T'FORMER" },
+      "frame": ["xf", "dapcPwr"],
+      "wires": ["xf~dapcPwr"],
+      "cable": { "en": "18 AWG solid · 2 conductors (R, C)", "es": "18 AWG sólido · 2 conductores (R, C)" },
+      "notes": [
+        { "en": "Two wires per screw on DAPC R and C: one from the UT3000, one to the SBD2.",
+          "es": "Dos cables por tornillo en R y C del DAPC: uno desde el UT3000 y otro hacia el SBD2." },
+        { "en": "DATA is not used with the UT3000.", "es": "DATA no se usa con el UT3000." }
+      ],
+      "facts": [{ "ref": "dapc.spec.power", "label": { "en": "Power", "es": "Consumo" } }]
+    },
+    {
+      "id": "xfmr",
+      "title": { "en": "Transformer (last)", "es": "Transformador (al final)" },
+      "frame": ["xf", "xfmr"],
+      "wires": ["xf~xfmr"],
+      "cable": { "en": "18 AWG solid · 2 conductors (24V, COM)", "es": "18 AWG sólido · 2 conductores (24V, COM)" },
+      "notes": [
+        { "en": "Dedicated 40–60 VA transformer.", "es": "Transformador dedicado de 40–60 VA." },
+        { "en": "Primary to line voltage with over-current protection.", "es": "Primario a voltaje de línea con protección contra sobrecorriente." },
+        { "when": { "dapc": true },
+          "en": "VA budget (max 60): UT3000 + DAPC 3.5 + SBD2 4.0 + dampers.",
+          "es": "Presupuesto de VA (máx. 60): UT3000 + DAPC 3.5 + SBD2 4.0 + dampers." }
+      ],
+      "facts": [
+        { "ref": "xfmr.spec.rating", "label": { "en": "Rating", "es": "Capacidad" } },
+        { "ref": "ut3000.parts.brk.desc", "label": { "en": "Breaker", "es": "Breaker" } },
+        { "ref": "dapc.spec.power", "when": { "dapc": true }, "label": { "en": "DAPC", "es": "DAPC" } },
+        { "ref": "sbd2.spec.power", "when": { "dapc": true }, "label": { "en": "SBD2", "es": "SBD2" } },
+        { "ref": "ut3000.spec.damperLoad", "when": { "dapc": true }, "label": { "en": "Dampers", "es": "Dampers" } }
+      ]
+    },
+    {
+      "id": "commissioning",
+      "when": { "dapc": true },
+      "title": { "en": "Power on · DAPC commissioning", "es": "Encendido · puesta en marcha del DAPC" },
+      "frame": ["xf", "dapcPwr"],
+      "wires": [],
+      "notes": [
+        { "en": "Turn power on.", "es": "Enciende la energía." }
+      ],
+      "facts": [
+        { "ref": "dapc.spec.setpoint", "label": { "en": "Set-point", "es": "Set-point" } },
+        { "ref": "dapc.commissioning", "label": { "en": "Zones", "es": "Zonas" } }
+      ]
+    },
+    {
+      "id": "autoSetup",
+      "when": { "dapc": true },
+      "title": { "en": "Recommended · SBD2 Auto Setup", "es": "Recomendado · Auto Setup del SBD2" },
+      "frame": ["sbd2", "taps"],
+      "wires": [],
+      "facts": [
+        { "ref": "sbd2.autoSetup.before", "label": { "en": "Before", "es": "Antes" } },
+        { "ref": "sbd2.autoSetup.steps", "label": { "en": "Steps", "es": "Pasos" } }
+      ]
+    }
+  ]
+}

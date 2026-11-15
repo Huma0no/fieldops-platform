@@ -128,3 +128,90 @@ describe('Guided UT3000 communicating system', () => {
     expect(vb.y + vb.h).toBeGreaterThanOrEqual(box.y + box.h);
   });
 });
+
+describe('Guided UT3000 communicating install guide', () => {
+  let library, system, guide, buildModel, buildSteps, guideAvailable, resolveRef, stepForNode;
+
+  beforeAll(async () => {
+    library = readJson('guided-component-library.v0.1.json');
+    system = readJson('ut3000-comm.system.json');
+    guide = readJson('ut3000-comm.guide.json');
+    ({ buildModel } = await import('../frontend/guided/src/model.mjs'));
+    ({ buildSteps, guideAvailable, resolveRef, stepForNode } = await import('../frontend/guided/src/guide.mjs'));
+  });
+
+  const stepsFor = ctx => buildSteps(guide, buildModel(library, system, ctx));
+
+  it.each([
+    [3, false, 9], [3, true, 17],
+    [2, false, 7], [2, true, 14],
+    [1, false, 5], [1, true, 11],
+  ])('has the agreed step count for %i zones, DAPC %s → %i', (zones, dapc, count) => {
+    expect(stepsFor({ zones, dapc })).toHaveLength(count);
+  });
+
+  it('orders steps as agreed, zones repeating 1 → 3, transformer last before commissioning', () => {
+    expect(stepsFor({ zones: 3, dapc: false }).map(s => s.id)).toEqual([
+      'bus', 'tstat1', 'damper1', 'tstat2', 'damper2', 'tstat3', 'damper3', 'sas', 'xfmr',
+    ]);
+    expect(stepsFor({ zones: 2, dapc: true }).map(s => s.id)).toEqual([
+      'bus', 'tstat1', 'dapcIn1', 'dapcOut1', 'tstat2', 'dapcIn2', 'dapcOut2',
+      'sas', 'dapcTubes', 'sbd2', 'dapcPower', 'xfmr', 'commissioning', 'autoSetup',
+    ]);
+  });
+
+  it('skips steps for zones not on the call', () => {
+    const ids = stepsFor({ zones: 2, dapc: true }).flatMap(s => [...s.nodes]);
+    expect(ids.some(id => /3$/.test(id))).toBe(false);
+  });
+
+  it('DAPC damper steps frame all three elements and light only their own wires', () => {
+    const steps = stepsFor({ zones: 1, dapc: true });
+    const input = steps.find(s => s.id === 'dapcIn1');
+    const output = steps.find(s => s.id === 'dapcOut1');
+    expect([...input.nodes]).toEqual(['d1', 'dapc1', 'damper1']);
+    expect([...input.wires].every(id => id.startsWith('dapc1.') && id.includes('>d1.'))).toBe(true);
+    expect([...output.wires].every(id => id.startsWith('damper1.') && id.includes('>dapc1.'))).toBe(true);
+    expect(input.wires.size).toBe(3);
+    expect(output.wires.size).toBe(3);
+  });
+
+  it('every step has EN and ES titles, and every authored text has both languages', () => {
+    for (const ctx of [{ zones: 3, dapc: true }, { zones: 3, dapc: false }]) {
+      for (const step of stepsFor(ctx)) {
+        for (const text of [step.title, step.cable, ...step.notes, ...step.facts.map(f => f.label)].filter(Boolean)) {
+          expect(text.en).toBeTruthy();
+          expect(text.es).toBeTruthy();
+        }
+      }
+    }
+  });
+
+  it('step facts are library values by reference, with their source', () => {
+    const bus = stepsFor({ zones: 1, dapc: false })[0];
+    expect(bus.facts[0]).toMatchObject({ value: library.components.ut3000.blocks.out.terminals.G.exp, src: 'UT3000 manual' });
+    expect(resolveRef(library, 'sbd2.autoSetup.steps')).toEqual({
+      value: library.components.sbd2.autoSetup.steps, src: library.components.sbd2.src,
+    });
+    expect(() => resolveRef(library, 'sbd2.nope')).toThrow(/not found/);
+  });
+
+  it('shows the DAPC VA budget only with DAPC', () => {
+    const last = ctx => stepsFor(ctx).find(s => s.id === 'xfmr');
+    expect(last({ zones: 3, dapc: false }).facts).toHaveLength(2);
+    expect(last({ zones: 3, dapc: true }).facts).toHaveLength(5);
+  });
+
+  it('finds the step for a tapped group on the system map', () => {
+    const steps = stepsFor({ zones: 3, dapc: true });
+    expect(steps[stepForNode(steps, 'tstat2')].id).toBe('tstat2');
+    expect(steps[stepForNode(steps, 'damper1')].id).toBe('dapcIn1');
+    expect(stepForNode(steps, 'iaq')).toBe(-1);
+  });
+
+  it('is offered only for UT3000 with Daikin One thermostats', () => {
+    expect(guideAvailable(guide, null)).toBe(true);
+    expect(guideAvailable(guide, { board: 'UT3000', thermostat: 'Daikin One' })).toBe(true);
+    expect(guideAvailable(guide, { board: 'UT3000', thermostat: 'Ecobee' })).toBe(false);
+  });
+});
