@@ -103,6 +103,10 @@ Do not implement features listed as intentionally out of scope unless explicitly
 
 Do not reactivate archived or deferred functionality merely because related code exists.
 
+## Closed Sections
+
+The official list is the Section Status table in `docs/status/MASTER-FUNCTION-INDEX.md`. Do not modify the code, UX, or specifications of a `CLOSED` section unless the current task explicitly authorizes it. When a task needs an entry point inside a closed section, limit the change to that single authorized entry point. A `CLOSED` section is not the same as `SPEC CLOSED`, which describes a specification.
+
 ## Completion Requirement
 
 Before considering a task complete, report:

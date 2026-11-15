@@ -22,6 +22,27 @@ The index is derived from `docs/OVERVIEW.md` and the feature specifications it r
 - `SUPERSEDED / NOT REQUIRED` — a prior or legacy behavior is intentionally not part of FieldOps.
 - `CONFLICT` — documentation and implementation disagree; do not modify code until the owning rule is reconciled.
 
+`SPEC CLOSED` describes a specification. `CLOSED` in the Section Status table below describes a whole product section.
+
+## 0. Section Status
+
+A `CLOSED` section is a finished product area: its code, UX, and specifications are not modified unless the current task explicitly authorizes it (see `AGENTS.md`, Closed Sections). Sections not listed here are open.
+
+| Section | Section Status |
+|---|---|
+| Intake | CLOSED |
+| Lobby | CLOSED |
+| Transfers | CLOSED |
+| History | CLOSED |
+| Reports | CLOSED |
+| Inventory | CLOSED |
+| Ledger | CLOSED |
+| Catalog | CLOSED |
+| Settings | CLOSED |
+| Technicians | CLOSED |
+| My Calls | CLOSED |
+| Workspace | CLOSED |
+
 ## 1. Application Shell / Navigation
 
 | Function | Spec | Spec Status | Implementation / QA | Notes |
