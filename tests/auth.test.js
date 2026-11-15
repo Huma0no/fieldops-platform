@@ -146,39 +146,7 @@ describe('username and password authentication', () => {
   });
 });
 
-describe('session expiry and revocation', () => {
-  const daysAgo = days => new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
-
-  async function setLastUsed(token, iso) {
-    const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
-    await pool.query('UPDATE auth_sessions SET last_used_at = $1 WHERE token_hash = $2', [iso, tokenHash]);
-    return tokenHash;
-  }
-
-  it('rejects a session unused for more than 30 days', async () => {
-    const tech = await seedAccount();
-    const token = await seedSession(tech.id);
-    await setLastUsed(token, daysAgo(31));
-    expect((await request(app).get('/api/auth/me').set('Authorization', `Bearer ${token}`)).status).toBe(401);
-  });
-
-  it('accepts a session used within 30 days and slides its expiry forward', async () => {
-    const tech = await seedAccount();
-    const token = await seedSession(tech.id);
-    const tokenHash = await setLastUsed(token, daysAgo(29));
-    expect((await request(app).get('/api/auth/me').set('Authorization', `Bearer ${token}`)).status).toBe(200);
-    const { rows } = await pool.query('SELECT last_used_at FROM auth_sessions WHERE token_hash = $1', [tokenHash]);
-    expect(rows[0].last_used_at > daysAgo(1)).toBe(true);
-  });
-
-  it('expires a never-refreshed session by its creation time', async () => {
-    const tech = await seedAccount();
-    const token = await seedSession(tech.id);
-    const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
-    await pool.query('UPDATE auth_sessions SET created_at = $1, last_used_at = NULL WHERE token_hash = $2', [daysAgo(31), tokenHash]);
-    expect((await request(app).get('/api/auth/me').set('Authorization', `Bearer ${token}`)).status).toBe(401);
-  });
-
+describe('session revocation and login responses', () => {
   it('revokes the other sessions when the technician changes the password', async () => {
     const tech = await seedAccount();
     const current = await seedSession(tech.id);

@@ -5,8 +5,8 @@
 
 ## 1. Database
 
-- **New database:** `npm run db:setup` applies `src/db/schema.sql` and the catalog seed. `schema.sql` already includes every migration through 027. The script refuses to run on a database that already has visits.
-- **Existing database:** apply the pending migrations in order: `npm run db:migrate025`, `npm run db:migrate026`, `npm run db:migrate027` (each needs `DATABASE_URL` in the shell). Migration 025 aborts without changes if any visit has more than one completion submission.
+- **New database:** `npm run db:setup` applies `src/db/schema.sql` and the catalog seed. `schema.sql` already includes every migration through 026. The script refuses to run on a database that already has visits.
+- **Existing database:** apply the pending migrations in order: `npm run db:migrate025`, `npm run db:migrate026` (each needs `DATABASE_URL` in the shell). Migration 025 aborts without changes if any visit has more than one completion submission.
 
 ## 2. Server environment
 

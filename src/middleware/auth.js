@@ -1,11 +1,6 @@
 const crypto = require('crypto');
 const { pool } = require('../db/pool');
 
-// Sessions expire after 30 days without use (sliding). last_used_at is refreshed
-// at most once per hour so ordinary requests do not each write to the database.
-const SESSION_IDLE_MS = 30 * 24 * 60 * 60 * 1000;
-const SESSION_TOUCH_MS = 60 * 60 * 1000;
-
 function readCookie(req, name) {
   const cookieHeader = req.headers.cookie ?? '';
   for (const part of cookieHeader.split(';')) {
@@ -32,22 +27,16 @@ async function authenticate(req, res, next) {
 
   const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
   try {
-    const now = Date.now();
     const result = await pool.query(
-      `SELECT t.id, t.name, t.username, t.role, t.must_change_password,
-              COALESCE(s.last_used_at, s.created_at) AS last_used_at
+      `SELECT t.id, t.name, t.username, t.role, t.must_change_password
        FROM auth_sessions s
        JOIN technicians t ON t.id = s.technician_id
-       WHERE s.token_hash = $1 AND s.revoked_at IS NULL AND t.is_active = true
-         AND COALESCE(s.last_used_at, s.created_at) > $2`,
-      [tokenHash, new Date(now - SESSION_IDLE_MS).toISOString()]
+       WHERE s.token_hash = $1 AND s.revoked_at IS NULL AND t.is_active = true`,
+      [tokenHash]
     );
-    if (!result.rows.length) return res.status(401).json({ error: 'Invalid, expired or revoked session' });
+    if (!result.rows.length) return res.status(401).json({ error: 'Invalid or revoked session' });
 
     const row = result.rows[0];
-    if (row.last_used_at < new Date(now - SESSION_TOUCH_MS).toISOString()) {
-      await pool.query('UPDATE auth_sessions SET last_used_at = $1 WHERE token_hash = $2', [new Date(now).toISOString(), tokenHash]);
-    }
     req.technician = {
       id: row.id,
       name: row.name,

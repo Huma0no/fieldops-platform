@@ -158,8 +158,7 @@ CREATE TABLE auth_sessions (
   token_hash    text PRIMARY KEY,
   technician_id text NOT NULL REFERENCES technicians(id) ON DELETE CASCADE,
   created_at    text NOT NULL,
-  revoked_at    text,
-  last_used_at  text  -- NULL = never refreshed; expiry uses created_at
+  revoked_at    text
 );
 CREATE INDEX auth_sessions_technician_id_idx ON auth_sessions (technician_id);
 

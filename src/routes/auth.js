@@ -96,10 +96,9 @@ router.post('/login', async (req, res, next) => {
         started = false;
         return res.status(401).json({ error: 'Invalid username or password' });
       }
-      const now = new Date().toISOString();
       await client.query(
-        'INSERT INTO auth_sessions (token_hash, technician_id, created_at, last_used_at) VALUES ($1, $2, $3, $3)',
-        [tokenHash, account.id, now]
+        'INSERT INTO auth_sessions (token_hash, technician_id, created_at) VALUES ($1, $2, $3)',
+        [tokenHash, account.id, new Date().toISOString()]
       );
       await client.query('COMMIT');
       started = false;

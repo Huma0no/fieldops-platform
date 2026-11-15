@@ -15,8 +15,7 @@
     "db:migrate025": "psql \"$DATABASE_URL\" -v ON_ERROR_STOP=1 -f src/db/migrations/025_completion_submissions_one_per_visit.sql",
     "db:seed:catalog": "node src/db/seed/catalog.js",
     "db:seed:roles": "node src/db/seed/roles.js",
-    "db:migrate026": "psql \"$DATABASE_URL\" -v ON_ERROR_STOP=1 -f src/db/migrations/026_username_password_auth.sql",
-    "db:migrate027": "psql \"$DATABASE_URL\" -v ON_ERROR_STOP=1 -f src/db/migrations/027_auth_session_last_used.sql"
+    "db:migrate026": "psql \"$DATABASE_URL\" -v ON_ERROR_STOP=1 -f src/db/migrations/026_username_password_auth.sql"
   },
   "dependencies": {
     "cors": "^2.8.6",

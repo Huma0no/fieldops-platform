@@ -25,7 +25,7 @@ The backend enforces roles at route boundaries and in sensitive handlers. A vali
 - Passwords are hashed with Node.js `scrypt` using a random salt; plaintext passwords and password hashes are never returned.
 - Owner-created accounts receive an initial temporary password and must replace it before using operational routes. Password changes require the current password.
 - Password reset marks the next login as temporary and revokes all current sessions.
-- Login creates a random server-managed session token. PostgreSQL stores only its SHA-256 hash. A session expires after 30 days without use (sliding; `auth_sessions.last_used_at`, refreshed at most hourly, migration `027_auth_session_last_used.sql`). It also ends on logout, owner revocation, password reset, a password change (every other session of the account), or account deactivation.
+- Login creates a random server-managed session token. PostgreSQL stores only its SHA-256 hash. Sessions have no server-side time expiration and end on logout, owner revocation, password reset, a password change (every other session of the account), or account deactivation.
 - Login responds identically, and in comparable time, for an unknown username, a wrong password, or an inactive account. Password verification never runs while a row lock is held.
 - Browser clients use a same-origin `HttpOnly`, `SameSite=Strict` cookie (`Secure` in production). Unsafe cookie-authenticated requests require `X-FieldOps-Request: 1`. Non-browser API clients may present the same opaque session token as a Bearer credential.
 - Disabling an account revokes its sessions in the same transaction as deactivation. Re-enabling does not restore them.
@@ -48,4 +48,4 @@ Offline visit drafts, completion submissions, and photos remain associated with 
 
 ## Explicitly out of scope
 
-This model does not add device registration, device authorization, invitation redemption, refresh tokens, identity consolidation, or changes to Service and Report workflows.
+This model does not add device registration, device authorization, invitation redemption, refresh tokens, automatic session expiration, identity consolidation, or changes to Service and Report workflows.

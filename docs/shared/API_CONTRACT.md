@@ -30,7 +30,7 @@ Dispatch and FieldOps use one username/password account per person (one `technic
 1. The Dispatch Owner creates an account with a username and a temporary password, or provisions credentials on an existing technician row (see Technician lifecycle).
 2. The person signs in. The server creates a session and sets an HttpOnly cookie; only the token's SHA-256 hash is stored.
 3. A temporary password must be changed before any operational route is available (`403 PASSWORD_CHANGE_REQUIRED`).
-4. A session expires after 30 days without use (sliding). It also ends on logout, on a password change (every other session of the account), on an owner password reset or revocation, and on deactivation.
+4. A session ends on logout, on a password change (every other session of the account), on an owner password reset or revocation, and on deactivation.
 
 Browser clients send the cookie; unsafe cookie-authenticated requests must include `X-FieldOps-Request: 1`. Non-browser clients may send the same token as `Authorization: Bearer {token}`.
 
