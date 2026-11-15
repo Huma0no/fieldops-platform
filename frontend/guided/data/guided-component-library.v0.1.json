@@ -1,0 +1,1057 @@
+{
+  "version": "0.1",
+  "date": "2026-11-14",
+  "note": "FieldOps component fichas — content source of truth for Guided/Explore (data, not code).",
+  "components": {
+    "ut3000": {
+      "name": "UT3000",
+      "maker": "EWC Controls",
+      "kind": "zone-control",
+      "status": "ok",
+      "src": "UT3000 manual",
+      "spec": {
+        "zones": "up to 3",
+        "power": "Dedicated 24 VAC transformer, 40 VA min / 60 VA max",
+        "breaker": "2.5 A auto-reset on 24 VAC input",
+        "damperLoad": "26 mA per damper, max 3 per zone; 100 mA auto-reset protection per damper block",
+        "wiring": "18 AWG solid copper, color-coded multi-conductor. Daisy-chain UT3000 → indoor → CAPE coil → outdoor. Outdoor runs ≥ 75–100 ft or noisy: 18/4, two wires per data circuit."
+      },
+      "blocks": {
+        "comm": {
+          "title": "ZONE n · COMM T-STAT",
+          "terminals": {
+            "1": {
+              "fn": "Data 1",
+              "desc": "Thermostat communication line 1.",
+              "exp": "0.6 VDC between 1 and 2",
+              "src": "Daikin One Touch guide"
+            },
+            "2": {
+              "fn": "Data 2",
+              "desc": "Thermostat communication line 2.",
+              "exp": "0.6 VDC between 1 and 2",
+              "src": "Daikin One Touch guide"
+            },
+            "C": {
+              "fn": "Common",
+              "desc": "24 VAC return for the communicating thermostat.",
+              "exp": "0 V reference",
+              "src": "UT3000 manual"
+            },
+            "R": {
+              "fn": "24 VAC power",
+              "desc": "Powers the communicating thermostat.",
+              "exp": "24 VAC (to C)",
+              "src": "UT3000 manual"
+            }
+          }
+        },
+        "conv": {
+          "title": "ZONE n · CONVENTIONAL",
+          "unusedIn": [
+            "communicating"
+          ],
+          "terminals": {
+            "_": {
+              "fn": "Conventional zone input",
+              "desc": "For a non-communicating thermostat. Call signal referenced to C. Not used in this setup.",
+              "exp": "24 VAC on call",
+              "src": "UT3000 manual"
+            }
+          }
+        },
+        "damper": {
+          "title": "DAMPER n",
+          "terminals": {
+            "C": {
+              "fn": "Damper common",
+              "desc": "Up to 3 dampers per zone (26 mA each). 100 mA auto-reset protection per damper block.",
+              "exp": "0 V reference",
+              "src": "UT3000 manual"
+            },
+            "PO": {
+              "fn": "Power Open",
+              "desc": "Energized to drive the damper open.",
+              "exp": "24 VAC to C while opening",
+              "src": "UT3000 manual"
+            },
+            "PC": {
+              "fn": "Power Close",
+              "desc": "Energized to drive the damper closed.",
+              "exp": "24 VAC to C while closing",
+              "src": "UT3000 manual"
+            }
+          }
+        },
+        "xfmr": {
+          "title": "24 VAC T'FORMER",
+          "terminals": {
+            "R": {
+              "fn": "Transformer R",
+              "desc": "24 VAC input from a dedicated 40–60 VA transformer. Protected by the 2.5 A breaker. Also feeds the DAPC when installed.",
+              "exp": "24 VAC (to C)",
+              "src": "UT3000 manual"
+            },
+            "C": {
+              "fn": "Transformer C",
+              "desc": "24 VAC common from the transformer.",
+              "exp": "0 V reference",
+              "src": "UT3000 manual"
+            }
+          }
+        },
+        "iaq": {
+          "title": "IAQ RELAY",
+          "terminals": {
+            "_": {
+              "fn": "IAQ dry relay (SPDT)",
+              "desc": "Dry contacts for fresh-air damper, humidifier or ERV. Energizes only with a Fan, Heat or Cool demand. Board supplies no voltage here.",
+              "exp": "No voltage from board",
+              "src": "UT3000 manual"
+            }
+          }
+        },
+        "sys": {
+          "title": "SYSTEM · CONVENTIONAL",
+          "unusedIn": [
+            "communicating"
+          ],
+          "terminals": {
+            "_": {
+              "fn": "Conventional system output",
+              "desc": "Call outputs to non-communicating equipment. Not used in this setup.",
+              "exp": "24 VAC on call",
+              "src": "UT3000 manual"
+            },
+            "RH": {
+              "fn": "RH",
+              "desc": "24 VAC in, heating side. Linked to RC by the RC/RH jumper.",
+              "exp": "24 VAC (to C)",
+              "src": "UT3000 manual"
+            },
+            "RC": {
+              "fn": "RC",
+              "desc": "24 VAC in, cooling side. Linked to RH by the RC/RH jumper.",
+              "exp": "24 VAC (to C)",
+              "src": "UT3000 manual"
+            },
+            "C": {
+              "fn": "Common",
+              "desc": "System common.",
+              "exp": "0 V reference",
+              "src": "UT3000 manual"
+            }
+          }
+        },
+        "out": {
+          "title": "COMM HVAC OUTPUT",
+          "silk": {
+            "W": "C",
+            "Y": "2",
+            "G": "1",
+            "R": "R"
+          },
+          "terminals": {
+            "W": {
+              "fn": "C · Common",
+              "desc": "Board terminal W carries Common to the communicating indoor unit.",
+              "exp": "0 V reference",
+              "src": "UT3000 manual"
+            },
+            "R": {
+              "fn": "R · 24 VAC",
+              "desc": "Board terminal R carries 24 VAC to the communicating indoor unit.",
+              "exp": "24 VAC (to C)",
+              "src": "UT3000 manual"
+            },
+            "G": {
+              "fn": "1 · Data 1",
+              "desc": "Board terminal G carries Data 1 of the HVAC bus. BIAS dip switches #1 and #2 ON.",
+              "exp": "2.3 VDC to C (CAPE coil + 2-stage furnace)",
+              "alt": "Other systems: 2.8 (or 1.9)",
+              "src": "UT3000 manual"
+            },
+            "Y": {
+              "fn": "2 · Data 2",
+              "desc": "Board terminal Y carries Data 2. Data 1 − Data 2 = 0.6 VDC.",
+              "exp": "1.7 VDC to C (CAPE coil + 2-stage furnace)",
+              "alt": "Other systems: 2.2 (or 1.3)",
+              "src": "UT3000 manual"
+            }
+          }
+        },
+        "oas": {
+          "title": "OAS",
+          "unusedIn": [
+            "communicating"
+          ],
+          "terminals": {
+            "_": {
+              "fn": "Outdoor air sensor",
+              "desc": "Not needed: the communicating outdoor unit shares outdoor temperature. \"OAS BAD\" on screen = comm network unstable.",
+              "exp": "Not used",
+              "src": "UT3000 manual"
+            }
+          }
+        },
+        "sas": {
+          "title": "SAS",
+          "terminals": {
+            "_": {
+              "fn": "Supply air sensor input",
+              "desc": "Thermistor input. Default targets: HP 105°F · Gas 142°F · Cool 47°F. \"SAS Sensor Bad\" on screen if faulty.",
+              "exp": "≈ 10.5 kΩ at 75°F (see SAS ficha)",
+              "src": "SAS sheet"
+            }
+          }
+        }
+      },
+      "parts": [
+        {
+          "id": "brk",
+          "block": "xfmr",
+          "type": "breaker",
+          "title": "2.5 A breaker",
+          "desc": "Auto-reset over-current protection on the 24 VAC input (yellow, beside T'FORMER).",
+          "states": [
+            "normal",
+            "tripped"
+          ],
+          "default": "normal",
+          "spec": "2.5 A",
+          "src": "UT3000 manual"
+        },
+        {
+          "id": "jmp1",
+          "block": "sys",
+          "type": "jumper",
+          "title": "RC/RH jumper · JMP1",
+          "desc": "Links RC and RH for the conventional system output. Not used in a communicating install.",
+          "states": [
+            "installed",
+            "removed"
+          ],
+          "default": "installed",
+          "src": "UT3000 manual"
+        },
+        {
+          "id": "dip",
+          "block": "out",
+          "type": "dip",
+          "title": "BIAS / TERMINATION dip switches",
+          "desc": "Bottom of the board. #1 and #2 = BIAS for the communicating HVAC bus. #3 = termination.",
+          "switches": [
+            {
+              "n": 1,
+              "role": "BIAS",
+              "default": "on"
+            },
+            {
+              "n": 2,
+              "role": "BIAS",
+              "default": "on"
+            },
+            {
+              "n": 3,
+              "role": "TERM",
+              "default": null,
+              "note": "Drawn neutral (decided)"
+            }
+          ],
+          "src": "UT3000 manual"
+        },
+        {
+          "id": "btn",
+          "block": null,
+          "type": "buttons",
+          "title": "4-button programming",
+          "desc": "Up / Down / Back / Forward under the LCD. Scroll the menu and make selections. Settings kept in non-volatile memory.",
+          "src": "UT3000 manual"
+        }
+      ],
+      "leds": [
+        {
+          "id": "z1rx",
+          "block": "z1c",
+          "color": "green",
+          "title": "Zone 1 comm LED",
+          "states": {
+            "pulse": "Rapid, random pulses = comm link active, data moving",
+            "slow": "Slow blink = no network detected",
+            "off": "Off = non-communicating thermostat detected"
+          },
+          "src": "UT3000 manual"
+        },
+        {
+          "id": "z2rx",
+          "block": "z2c",
+          "color": "green",
+          "title": "Zone 2 comm LED",
+          "ref": "z1rx",
+          "src": "UT3000 manual"
+        },
+        {
+          "id": "z3rx",
+          "block": "z3c",
+          "color": "green",
+          "title": "Zone 3 comm LED",
+          "ref": "z1rx",
+          "src": "UT3000 manual"
+        },
+        {
+          "id": "led22",
+          "block": "out",
+          "color": "green",
+          "title": "System comm LED · LED22 (ClimateTalk)",
+          "states": {
+            "pulse": "Rapid, random pulses = comm link with HVAC system active",
+            "slow": "Slow blink = no network detected"
+          },
+          "src": "UT3000 manual"
+        },
+        {
+          "id": "zo3",
+          "board": true,
+          "color": "green",
+          "title": "ZONE 3 OPEN",
+          "states": {
+            "on": "Zone 3 damper energized to open"
+          },
+          "src": "UT3000 manual"
+        },
+        {
+          "id": "zo2",
+          "board": true,
+          "color": "green",
+          "title": "ZONE 2 OPEN",
+          "states": {
+            "on": "Zone 2 damper energized to open"
+          },
+          "src": "UT3000 manual"
+        },
+        {
+          "id": "zo1",
+          "board": true,
+          "color": "green",
+          "title": "ZONE 1 OPEN",
+          "states": {
+            "on": "Zone 1 damper energized to open"
+          },
+          "src": "UT3000 manual"
+        },
+        {
+          "id": "iaq",
+          "board": true,
+          "color": "green",
+          "title": "IAQ RELAY",
+          "states": {
+            "on": "IAQ relay energized"
+          },
+          "src": "UT3000 manual"
+        },
+        {
+          "id": "w2",
+          "board": true,
+          "color": "red",
+          "title": "W2 / EMERGENCY",
+          "states": {
+            "on": "Second-stage / emergency heat demand"
+          },
+          "src": "UT3000 manual"
+        },
+        {
+          "id": "heat",
+          "board": true,
+          "color": "red",
+          "title": "HEAT / B",
+          "states": {
+            "on": "Heat demand"
+          },
+          "src": "UT3000 manual"
+        },
+        {
+          "id": "comp",
+          "board": true,
+          "color": "yellow",
+          "title": "COMPRESSOR",
+          "states": {
+            "on": "Compressor demand"
+          },
+          "src": "UT3000 manual"
+        },
+        {
+          "id": "fan",
+          "board": true,
+          "color": "green",
+          "title": "FAN",
+          "states": {
+            "on": "Fan demand"
+          },
+          "src": "UT3000 manual"
+        }
+      ]
+    },
+    "dapc": {
+      "name": "DAPC",
+      "maker": "EWC Controls",
+      "kind": "static-pressure-controller",
+      "status": "ok",
+      "src": "DAPC manual",
+      "spec": {
+        "power": "24 VAC, 3.5 VA; shared transformer 40–75 VA (limited to 60 VA by UT3000)",
+        "setpoint": "0.5\" wc default (0.15–1.50)",
+        "mounting": "Return duct or stud; never on supply duct or in return air stream",
+        "wiring": "18 AWG solid copper multi-conductor"
+      },
+      "terminals": {
+        "iCOM": {
+          "fn": "Zone input · COM",
+          "desc": "From the zone controller damper C.",
+          "exp": "0 V reference",
+          "src": "DAPC manual"
+        },
+        "iPC": {
+          "fn": "Zone input · PC",
+          "desc": "From the zone controller PC: close command.",
+          "exp": "24 VAC to COM on close command",
+          "src": "DAPC manual"
+        },
+        "iPO": {
+          "fn": "Zone input · PO",
+          "desc": "From the zone controller PO: open command.",
+          "exp": "24 VAC to COM on open command",
+          "src": "DAPC manual"
+        },
+        "oCOM": {
+          "fn": "Zone output · COM",
+          "desc": "To damper COM (1).",
+          "exp": "0 V reference",
+          "src": "DAPC manual"
+        },
+        "oPC": {
+          "fn": "Zone output · PC",
+          "desc": "To damper PC (6). Follows the close command unless static pressure is too high.",
+          "exp": "24 VAC to COM while closing",
+          "src": "DAPC manual"
+        },
+        "oPO": {
+          "fn": "Zone output · PO",
+          "desc": "To damper PO (4). Can drive a closed zone partly open (\"float\") when static pressure exceeds set-point.",
+          "exp": "24 VAC to COM while opening / floating",
+          "src": "DAPC manual"
+        },
+        "R": {
+          "fn": "24 VAC in",
+          "desc": "From the zone controller T'FORMER R (shared dedicated transformer).",
+          "exp": "24 VAC (to C)",
+          "src": "DAPC manual"
+        },
+        "C": {
+          "fn": "Common in",
+          "desc": "From the zone controller T'FORMER C.",
+          "exp": "0 V reference",
+          "src": "DAPC manual"
+        },
+        "Rb": {
+          "fn": "R (same screw)",
+          "desc": "Same R screw feeds the SBD2 terminal 2 (+). Two wires on one screw.",
+          "exp": "24 VAC (to C)",
+          "src": "field practice"
+        },
+        "Cb": {
+          "fn": "C (same screw)",
+          "desc": "Same C screw feeds the SBD2 terminal 1 (−). Two wires on one screw.",
+          "exp": "0 V reference",
+          "src": "field practice"
+        },
+        "SUP": {
+          "fn": "Supply pressure port",
+          "desc": "Tube to the supply plenum tap.",
+          "exp": "Static pressure",
+          "src": "DAPC manual"
+        },
+        "RET": {
+          "fn": "Return pressure port",
+          "desc": "Tube to the return plenum tap.",
+          "exp": "Static pressure",
+          "src": "DAPC manual"
+        },
+        "DATA": {
+          "fn": "Serial data",
+          "desc": "Damper position input for NCM-3z / BMPlus-3z. Not used with UT3000.",
+          "exp": "Not used",
+          "src": "DAPC manual"
+        }
+      },
+      "parts": [
+        {
+          "id": "btn",
+          "type": "buttons",
+          "title": "4-button programming",
+          "desc": "Set set-point, run Static Pressure Discovery, read zone weights, set \"Do Not Float\".",
+          "src": "DAPC manual"
+        },
+        {
+          "id": "zbrk",
+          "type": "breaker",
+          "title": "Zone solid-state breakers",
+          "desc": "One per zone damper output.",
+          "states": [
+            "normal",
+            "tripped"
+          ],
+          "default": "normal",
+          "src": "DAPC manual"
+        }
+      ],
+      "leds": [
+        {
+          "id": "zled",
+          "color": "green/red",
+          "title": "Zone 1–3 damper LEDs",
+          "states": {
+            "green": "Open",
+            "red": "Closed",
+            "flash": "Flashing green/red = floating"
+          },
+          "src": "DAPC manual"
+        }
+      ],
+      "commissioning": "Optional Static Pressure Discovery → DAPC shows a weight % per zone → enter weights in the zone controller. Low-weight zones (e.g. 11%) → \"Do Not Float\"."
+    },
+    "sbd2": {
+      "name": "SBD2 smart bypass",
+      "maker": "EWC Controls",
+      "kind": "bypass-damper",
+      "status": "ok",
+      "src": "SBD2 submittal",
+      "spec": {
+        "power": "24 VAC constant, 4.0 VA / 2.0 W",
+        "range": "0.25–1.8\" wc",
+        "sensor": "Belimo D3 differential pressure",
+        "wiring": "18 AWG copper",
+        "tubes": "Two pitot tubes within 2 ft of the air handler, center line of supply and return plenums; supply → +, return → −",
+        "interface": "NFC · Belimo Assistant app"
+      },
+      "terminals": {
+        "1": {
+          "fn": "1 (−) · 24 VAC common",
+          "desc": "24 VAC common.",
+          "exp": "0 V reference",
+          "src": "SBD2 submittal"
+        },
+        "2": {
+          "fn": "2 (+) · 24 VAC hot",
+          "desc": "Constant 24 VAC. Other terminals not used.",
+          "exp": "24 VAC to terminal 1",
+          "src": "SBD2 submittal"
+        },
+        "P": {
+          "fn": "+ pressure port",
+          "desc": "Pitot tube in the supply plenum.",
+          "exp": "Static pressure",
+          "src": "SBD2 submittal"
+        },
+        "M": {
+          "fn": "− pressure port",
+          "desc": "Pitot tube in the return plenum.",
+          "exp": "Static pressure",
+          "src": "SBD2 submittal"
+        }
+      },
+      "parts": [
+        {
+          "id": "setup",
+          "type": "button",
+          "title": "Bypass Setup button (LED)",
+          "desc": "Press once with a pen to start Auto Setup.",
+          "src": "SBD2 submittal"
+        },
+        {
+          "id": "gear",
+          "type": "lever",
+          "title": "Manual gear release",
+          "desc": "Frees the gear to move the blade by hand.",
+          "states": [
+            "engaged",
+            "released"
+          ],
+          "default": "engaged",
+          "src": "SBD2 submittal"
+        }
+      ],
+      "leds": [
+        {
+          "id": "pwr",
+          "color": "green",
+          "title": "Power LED",
+          "states": {
+            "on": "Solid green = powered"
+          },
+          "src": "SBD2 submittal"
+        },
+        {
+          "id": "set",
+          "color": "yellow",
+          "title": "Bypass Setup LED",
+          "states": {
+            "blink": "Blinking = waiting for Auto Setup (damper stays CLOSED)",
+            "on": "Solid = Auto Setup running",
+            "off": "Off = setup done, controlling static pressure"
+          },
+          "src": "SBD2 submittal"
+        }
+      ],
+      "autoSetup": {
+        "recommended": true,
+        "before": [
+          "Both pitot tubes installed",
+          "All zone dampers open",
+          "System at full CFM (wait 15 min after cooling start-up)",
+          "Dehumidification off",
+          "ERV / bypass humidifier off-line",
+          "Filter new or clean"
+        ],
+        "steps": [
+          "Press Bypass Setup once (LED goes solid)",
+          "SBD2 opens and measures, then closes and measures",
+          "LED off = done · LED blinking again = check tubes and retry"
+        ]
+      }
+    },
+    "damper": {
+      "name": "Ultra-Zone damper",
+      "maker": "EWC Controls",
+      "kind": "zone-damper",
+      "status": "pending",
+      "src": "UT3000 manual",
+      "pending": "Damper/actuator manual not received yet (manual override, position indicator, stroke time).",
+      "terminals": {
+        "COM": {
+          "fn": "COM (1)",
+          "desc": "24 VAC common.",
+          "exp": "0 V reference",
+          "src": "UT3000 manual"
+        },
+        "PC": {
+          "fn": "PC (6)",
+          "desc": "Power to close.",
+          "exp": "24 VAC to COM while closing",
+          "src": "UT3000 manual"
+        },
+        "PO": {
+          "fn": "PO (4)",
+          "desc": "Power to open.",
+          "exp": "24 VAC to COM while opening",
+          "src": "UT3000 manual"
+        }
+      },
+      "spec": {
+        "load": "26 mA",
+        "polarity": "1 = COM, 4 = PO, 6 = PC (order differs between devices)"
+      },
+      "parts": [],
+      "leds": []
+    },
+    "tstat": {
+      "name": "Daikin One Touch",
+      "maker": "Daikin",
+      "kind": "thermostat",
+      "status": "ok",
+      "src": "Daikin One Touch guide",
+      "spec": {
+        "wiring": "18 gauge, max 125 ft to indoor unit",
+        "labels": "1, 2, C, R"
+      },
+      "terminals": {
+        "1": {
+          "fn": "Data 1",
+          "desc": "Communication line 1.",
+          "exp": "0.6 VDC between 1 and 2",
+          "src": "Daikin One Touch guide"
+        },
+        "2": {
+          "fn": "Data 2",
+          "desc": "Communication line 2.",
+          "exp": "0.6 VDC between 1 and 2",
+          "src": "Daikin One Touch guide"
+        },
+        "R": {
+          "fn": "24 VAC",
+          "desc": "Power.",
+          "exp": "24 VAC (to C)",
+          "src": "Daikin One Touch guide"
+        },
+        "C": {
+          "fn": "Common",
+          "desc": "Power common.",
+          "exp": "0 V reference",
+          "src": "Daikin One Touch guide"
+        }
+      },
+      "parts": [],
+      "leds": []
+    },
+    "furnace": {
+      "name": "Daikin DR96TC furnace",
+      "maker": "Daikin",
+      "kind": "furnace",
+      "status": "ok",
+      "src": "DR96TC/DD96TC manual",
+      "spec": {
+        "type": "Two-stage gas furnace, 96% (DR96TC / DD96TC series)",
+        "comm": "Communicating 1, 2, R, C"
+      },
+      "terminals": {
+        "1": {
+          "fn": "Data 1",
+          "desc": "Communicating bus line 1.",
+          "exp": "2.3 VDC to C (with CAPE coil)",
+          "src": "UT3000 manual"
+        },
+        "2": {
+          "fn": "Data 2",
+          "desc": "Communicating bus line 2.",
+          "exp": "1.7 VDC to C (with CAPE coil)",
+          "src": "UT3000 manual"
+        },
+        "R": {
+          "fn": "24 VAC",
+          "desc": "Furnace 24 VAC.",
+          "exp": "24 VAC (to C)",
+          "src": "DR96TC/DD96TC manual"
+        },
+        "C": {
+          "fn": "Common",
+          "desc": "Furnace common.",
+          "exp": "0 V reference",
+          "src": "DR96TC/DD96TC manual"
+        }
+      },
+      "parts": [
+        {
+          "id": "btn",
+          "type": "buttons",
+          "title": "Control board push buttons",
+          "desc": "Left / center / right buttons to browse and set options on the 7-segment display.",
+          "src": "DR96TC/DD96TC manual"
+        }
+      ],
+      "leds": [
+        {
+          "id": "seg",
+          "color": "7-segment",
+          "title": "7-segment display",
+          "states": {
+            "code": "Status and fault codes (see furnace manual)"
+          },
+          "src": "DR96TC/DD96TC manual"
+        }
+      ]
+    },
+    "coil": {
+      "name": "Daikin CHPEA coil (CAPE)",
+      "maker": "Daikin",
+      "kind": "evaporator-coil",
+      "status": "ok",
+      "src": "CHPEA manual",
+      "spec": {
+        "type": "Communicating cased coil with EEV board",
+        "comm": "Communicating 1, 2, R, C"
+      },
+      "terminals": {
+        "1": {
+          "fn": "Data 1",
+          "desc": "Communicating bus line 1. Coil manual lists ≈ 2.8 VDC; UT3000 manual gives 2.3 for CAPE + 2-stage furnace.",
+          "exp": "2.3 VDC to C (CAPE + 2-stage furnace)",
+          "src": "UT3000 manual / CHPEA manual"
+        },
+        "2": {
+          "fn": "Data 2",
+          "desc": "Communicating bus line 2. Coil manual lists ≈ 2.2 VDC. 1 − 2 must be 0.6 VDC.",
+          "exp": "1.7 VDC to C (CAPE + 2-stage furnace)",
+          "src": "UT3000 manual / CHPEA manual"
+        },
+        "R": {
+          "fn": "24 VAC",
+          "desc": "From the indoor unit.",
+          "exp": "24 VAC (to C)",
+          "src": "CHPEA manual"
+        },
+        "C": {
+          "fn": "Common",
+          "desc": "From the indoor unit.",
+          "exp": "0 V reference",
+          "src": "CHPEA manual"
+        }
+      },
+      "parts": [
+        {
+          "id": "learn",
+          "type": "button",
+          "title": "LEARN button",
+          "desc": "Press > 5 s to reset the communicating network.",
+          "src": "CHPEA manual"
+        },
+        {
+          "id": "card",
+          "type": "memory-card",
+          "title": "Memory card",
+          "desc": "Holds shared data for the network. Wrong card → code d4.",
+          "src": "CHPEA manual"
+        },
+        {
+          "id": "fuse",
+          "type": "fuse",
+          "title": "Fuse F2U",
+          "desc": "Board fuse; check when there is no 24 V at the control.",
+          "states": [
+            "ok",
+            "blown"
+          ],
+          "default": "ok",
+          "src": "CHPEA manual"
+        }
+      ],
+      "leds": [
+        {
+          "id": "seg",
+          "color": "7-segment",
+          "title": "7-segment display",
+          "states": {
+            "code": "Fault codes, most recent first (\"- -\" = none)"
+          },
+          "src": "CHPEA manual"
+        }
+      ]
+    },
+    "outdoor": {
+      "name": "Daikin DC6VS outdoor unit",
+      "maker": "Daikin",
+      "kind": "outdoor-unit",
+      "status": "ok",
+      "src": "DC6VS manual",
+      "spec": {
+        "type": "Communicating outdoor unit",
+        "comm": "1 and 2 only from the indoor side"
+      },
+      "terminals": {
+        "1": {
+          "fn": "Data 1",
+          "desc": "From the indoor unit (or CAPE coil) 1.",
+          "exp": "Same bus as indoor",
+          "src": "Daikin One Touch guide"
+        },
+        "2": {
+          "fn": "Data 2",
+          "desc": "From the indoor unit (or CAPE coil) 2.",
+          "exp": "Same bus as indoor",
+          "src": "Daikin One Touch guide"
+        },
+        "R": {
+          "fn": "R",
+          "desc": "Not required in this setup.",
+          "exp": "Not used",
+          "src": "UT3000 manual"
+        },
+        "C": {
+          "fn": "C",
+          "desc": "Not required in this setup.",
+          "exp": "Not used",
+          "src": "UT3000 manual"
+        }
+      },
+      "parts": [],
+      "leds": [
+        {
+          "id": "disp",
+          "color": "display",
+          "title": "LED display",
+          "states": {
+            "code": "Status and stored fault codes"
+          },
+          "src": "DC6VS manual"
+        }
+      ]
+    },
+    "sas": {
+      "name": "Supply air sensor (SAS)",
+      "maker": "EWC Controls",
+      "kind": "sensor",
+      "status": "ok",
+      "src": "SAS sheet",
+      "spec": {
+        "type": "Thermistor, 12\" leads",
+        "test": "Disconnect both leads, measure with ohmmeter; ±3% of table"
+      },
+      "table": [
+        [
+          45,
+          22767
+        ],
+        [
+          50,
+          19903
+        ],
+        [
+          55,
+          17438
+        ],
+        [
+          60,
+          15313
+        ],
+        [
+          65,
+          13475
+        ],
+        [
+          70,
+          11884
+        ],
+        [
+          75,
+          10501
+        ],
+        [
+          80,
+          9298
+        ],
+        [
+          85,
+          8249
+        ],
+        [
+          90,
+          7333
+        ],
+        [
+          95,
+          6530
+        ],
+        [
+          100,
+          5826
+        ],
+        [
+          105,
+          5208
+        ],
+        [
+          110,
+          4663
+        ],
+        [
+          115,
+          4182
+        ],
+        [
+          120,
+          3757
+        ],
+        [
+          125,
+          3381
+        ],
+        [
+          130,
+          3047
+        ],
+        [
+          135,
+          2751
+        ],
+        [
+          140,
+          2487
+        ],
+        [
+          145,
+          2252
+        ],
+        [
+          150,
+          2042
+        ]
+      ],
+      "terminals": {
+        "a": {
+          "fn": "Lead",
+          "desc": "Thermistor lead (non-polarized).",
+          "exp": "≈ 10.5 kΩ at 75°F",
+          "src": "SAS sheet"
+        },
+        "b": {
+          "fn": "Lead",
+          "desc": "Thermistor lead (non-polarized).",
+          "exp": "≈ 10.5 kΩ at 75°F",
+          "src": "SAS sheet"
+        }
+      },
+      "parts": [],
+      "leds": []
+    },
+    "xfmr": {
+      "name": "Transformer 40–60 VA",
+      "maker": "field supplied",
+      "kind": "transformer",
+      "status": "ok",
+      "src": "UT3000 manual",
+      "spec": {
+        "rating": "Dedicated, 40 VA min / 60 VA max",
+        "primary": "Line voltage with over-current protection"
+      },
+      "terminals": {
+        "R": {
+          "fn": "24 V secondary",
+          "desc": "To UT3000 T'FORMER R.",
+          "exp": "24 VAC",
+          "src": "UT3000 manual"
+        },
+        "C": {
+          "fn": "Common",
+          "desc": "To UT3000 T'FORMER C.",
+          "exp": "0 V reference",
+          "src": "UT3000 manual"
+        }
+      },
+      "parts": [],
+      "leds": []
+    },
+    "taps": {
+      "name": "Duct pressure taps",
+      "maker": "—",
+      "kind": "pressure-taps",
+      "status": "ok",
+      "src": "DAPC manual",
+      "terminals": {
+        "S": {
+          "fn": "Supply tap → DAPC",
+          "desc": "Supply plenum tap for the DAPC.",
+          "exp": "Static pressure",
+          "src": "DAPC manual"
+        },
+        "R": {
+          "fn": "Return tap → DAPC",
+          "desc": "Return plenum tap for the DAPC.",
+          "exp": "Static pressure",
+          "src": "DAPC manual"
+        },
+        "S2": {
+          "fn": "Supply pitot → SBD2 (+)",
+          "desc": "Within 2 ft of the air handler, center line, arrow with airflow.",
+          "exp": "Static pressure",
+          "src": "SBD2 submittal"
+        },
+        "R2": {
+          "fn": "Return pitot → SBD2 (−)",
+          "desc": "Within 2 ft of the air handler, center line, arrow with airflow.",
+          "exp": "Static pressure",
+          "src": "SBD2 submittal"
+        }
+      },
+      "parts": [],
+      "leds": []
+    }
+  }
+}
