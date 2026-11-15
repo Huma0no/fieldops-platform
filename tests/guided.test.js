@@ -215,3 +215,50 @@ describe('Guided UT3000 communicating install guide', () => {
     expect(guideAvailable(guide, { board: 'UT3000', thermostat: 'Ecobee' })).toBe(false);
   });
 });
+
+describe('Guided board parts, LEDs and wire color roles', () => {
+  let library, system, buildModel, computeLayout;
+
+  beforeAll(async () => {
+    library = readJson('guided-component-library.v0.1.json');
+    system = readJson('ut3000-comm.system.json');
+    ({ buildModel } = await import('../frontend/guided/src/model.mjs'));
+    ({ computeLayout } = await import('../frontend/guided/src/layout.mjs'));
+  });
+
+  it('colors damper-chain wires by function from the system color roles', () => {
+    for (const dapc of [false, true]) {
+      const model = buildModel(library, system, { zones: 1, dapc });
+      const chain = model.wires.filter(w => /^(damper1|dapc1)\./.test(w.id));
+      expect(chain.length).toBe(dapc ? 6 : 3);
+      for (const w of chain) {
+        const fn = w.id.match(/\.(?:i|o)?(COM|PC|PO)>/)[1];
+        expect(w.color).toBe(system.colors[`damper${fn}`]);
+      }
+    }
+  });
+
+  it('resolves every board item against the library, sharing states through ref', () => {
+    const model = buildModel(library, system, { zones: 2, dapc: false });
+    expect(model.boardItems).toHaveLength(system.boardItems.length);
+    const z2 = model.boardItems.find(i => i.key === 'led:z2rx');
+    expect(z2.data.states).toEqual(library.components.ut3000.leds.find(l => l.id === 'z1rx').states);
+    expect(model.boardItems.find(i => i.key === 'led:z3rx').inactive).toBe(true);
+    expect(model.boardItems.find(i => i.key === 'led:zo3').inactive).toBe(true);
+    expect(model.boardItems.find(i => i.key === 'part:brk').inactive).toBe(false);
+  });
+
+  it('places board items inside the board without overlapping blocks or each other', () => {
+    const model = buildModel(library, system, { zones: 3, dapc: true });
+    const layout = computeLayout(model);
+    const overlap = (a, b) => a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
+    const items = [...layout.itemRects.values()];
+    const blocks = [...model.nodes.values()].filter(n => n.kind === 'block').map(n => layout.rects.get(n.id));
+    const { board } = layout;
+    for (const [i, r] of items.entries()) {
+      expect(r.x >= board.x && r.x + r.w <= board.x + board.w && r.y >= board.y && r.y + r.h <= board.y + board.h).toBe(true);
+      for (const b of blocks) expect(overlap(r, b)).toBe(false);
+      for (const other of items.slice(i + 1)) expect(overlap(r, other)).toBe(false);
+    }
+  });
+});

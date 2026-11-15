@@ -8,7 +8,7 @@ export const METRICS = {
   boxPad: 6,
   gapY: 12,
   blockW: 112,
-  boardCenter: 56,
+  boardCenter: 72,
   boardTitle: 34,
   boardPad: 8,
   deviceW: 150,
@@ -16,6 +16,8 @@ export const METRICS = {
   lane: 8,
   gapMargin: 14,
   minGap: 28,
+  itemRow: 16,
+  footerCols: 4,
 }
 
 const SIDES = ['left', 'right']
@@ -38,6 +40,11 @@ export function computeLayout (model, metrics = METRICS) {
     }
     boardBottom = Math.max(boardBottom, y - m.gapY + m.boardPad)
   }
+  // Board-level items without an anchor block (system LEDs, buttons) sit in a footer grid.
+  const footerItems = (model.boardItems ?? []).filter(item => !item.at)
+  const footerTop = boardBottom
+  const footerRows = Math.ceil(footerItems.length / m.footerCols)
+  if (footerRows) boardBottom += footerRows * m.itemRow + m.boardPad
 
   for (const side of SIDES) {
     for (const column of ['mid', 'outer']) {
@@ -126,6 +133,32 @@ export function computeLayout (model, metrics = METRICS) {
     else pin.x = (node.side === 'left') === (pin.face === 'in') ? rect.x + rect.w : rect.x
   }
 
+  // Anchored items stack in the board's center column, in the half next to their block.
+  const itemRects = new Map()
+  const stacked = new Map()
+  const half = m.boardCenter / 2
+  const cellW = boardW / m.footerCols
+  for (const item of model.boardItems ?? []) {
+    if (item.at) {
+      const block = rects.get(item.at)
+      const i = stacked.get(item.at) ?? 0
+      stacked.set(item.at, i + 1)
+      const x = board.x + m.blockW + (item.side === 'left' ? 0 : half)
+      itemRects.set(item.key, { x: x + 2, y: block.y + m.blockHead + i * m.itemRow, w: half - 4, h: m.itemRow - 2 })
+    } else {
+      const i = footerItems.indexOf(item)
+      itemRects.set(item.key, {
+        x: board.x + (i % m.footerCols) * cellW + 2,
+        y: footerTop + Math.floor(i / m.footerCols) * m.itemRow,
+        w: cellW - 4,
+        h: m.itemRow - 2,
+      })
+    }
+  }
+  const footer = footerRows
+    ? { x: board.x, y: footerTop - 4, w: boardW, h: footerRows * m.itemRow + 8 }
+    : null
+
   const wirePaths = new Map()
   for (const route of routes) {
     const p1 = pins.get(pinKey(route.inner.node, route.inner.terminal))
@@ -147,7 +180,7 @@ export function computeLayout (model, metrics = METRICS) {
   let height = board.h
   for (const rect of rects.values()) height = Math.max(height, rect.y + rect.h)
 
-  return { width, height, board, rects, pins, wirePaths }
+  return { width, height, board, rects, pins, wirePaths, itemRects, footer }
 }
 
 export function pinKey (nodeId, terminalId) {
@@ -219,10 +252,9 @@ function assignLanes (routes, pins) {
   return { byWire, counts }
 }
 
-export function boundsOf (layout, nodeIds, wireIds = []) {
+export function boundsOf (layout, nodeIds, wireIds = [], extraRects = []) {
   let x1 = Infinity, y1 = Infinity, x2 = -Infinity, y2 = -Infinity
-  for (const id of nodeIds) {
-    const r = layout.rects.get(id)
+  for (const r of [...[...nodeIds].map(id => layout.rects.get(id)), ...extraRects]) {
     if (!r) continue
     x1 = Math.min(x1, r.x); y1 = Math.min(y1, r.y)
     x2 = Math.max(x2, r.x + r.w); y2 = Math.max(y2, r.y + r.h)

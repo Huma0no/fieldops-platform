@@ -178,7 +178,7 @@
       "frame": ["xf", "dapcPwr"],
       "wires": [],
       "notes": [
-        { "en": "Turn power on.", "es": "Enciende la energía." }
+        { "en": "Turn power on.", "es": "Energiza el sistema." }
       ],
       "facts": [
         { "ref": "dapc.spec.setpoint", "label": { "en": "Set-point", "es": "Set-point" } },

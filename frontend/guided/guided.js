@@ -9,11 +9,12 @@
  */
 
 import { getLanguage, setLanguage, t as translate } from './shared/i18n.js'
-import { buildModel, focusGroup, isFieldMeasureSource, normalizeContext, terminalConnections } from './src/model.mjs'
+import { buildModel, focusGroup, normalizeContext, terminalConnections } from './src/model.mjs'
 import { METRICS, boundsOf, computeLayout } from './src/layout.mjs'
 import { createCamera, fitBox } from './src/camera.mjs'
 import { WIRE_COLORS, nodeSubtitle, renderDrawing, terminalLabel } from './src/render.mjs'
 import { buildSteps, guideAvailable, localized, stepForNode } from './src/guide.mjs'
+import { factRow, h, renderFicha, renderItem, sourceLine } from './src/ficha.mjs'
 
 const DATA_FILES = {
   library: new URL('./data/guided-component-library.v0.1.json', import.meta.url),
@@ -50,10 +51,12 @@ export async function mount (root, { context = null, standalone = false } = {}) 
   let setupOpen = !current
   let mode = 'guided'
   let rotateHintDismissed = false
+  let fichasOpen = false
   render()
 
   function render () {
     root.innerHTML = ''
+    if (fichasOpen) { root.append(buildFichasHeader(), buildFichas()); return }
     root.appendChild(buildHeader())
     if (requestedZones > data.system.maxZones) {
       root.appendChild(h('p', 'gd-banner', t('guided.zones.twinning', { count: requestedZones, max: data.system.maxZones })))
@@ -67,6 +70,38 @@ export async function mount (root, { context = null, standalone = false } = {}) 
     else header.append(buildChip(), buildModeToggle())
     if (standalone) header.appendChild(buildLanguageToggle())
     return header
+  }
+
+  function buildFichasHeader () {
+    const header = h('header', 'gd-header')
+    const back = h('button', 'gd-step-btn', '‹')
+    back.type = 'button'
+    back.setAttribute('aria-label', t('guided.back'))
+    back.addEventListener('click', () => { fichasOpen = false; render() })
+    header.append(back, h('h1', 'gd-title', t('guided.fichas')))
+    if (standalone) header.appendChild(buildLanguageToggle())
+    return header
+  }
+
+  // Every component in the library, collapsed.
+  function buildFichas () {
+    const list = h('main', 'gd-fichas')
+    for (const component of Object.values(data.library.components)) {
+      const item = h('details', 'gd-ficha')
+      const summary = h('summary', 'gd-ficha-summary', component.name)
+      if (component.status === 'pending') summary.appendChild(h('span', 'gd-tag', t('guided.pending')))
+      summary.appendChild(h('span', 'gd-ficha-maker', component.maker))
+      item.append(summary, ...renderFicha(component, t))
+      list.appendChild(item)
+    }
+    return list
+  }
+
+  function openFichasButton (className) {
+    const button = h('button', className, t('guided.fichas'))
+    button.type = 'button'
+    button.addEventListener('click', () => { fichasOpen = true; render() })
+    return button
   }
 
   // Two lines so the zone count and DAPC never truncate in portrait.
@@ -161,7 +196,11 @@ export async function mount (root, { context = null, standalone = false } = {}) 
   // sets the focus (a tapped group vs. the current step) and in the bottom bar.
   function buildView (ctx) {
     const guided = mode === 'guided'
-    if (guided && !available) return h('p', 'gd-unavailable', t('guided.unavailable'))
+    if (guided && !available) {
+      const card = h('section', 'gd-unavailable')
+      card.append(h('p', null, t('guided.unavailable')), openFichasButton('gd-primary'))
+      return card
+    }
 
     const model = buildModel(data.library, data.system, ctx)
     const layout = computeLayout(model)
@@ -189,6 +228,7 @@ export async function mount (root, { context = null, standalone = false } = {}) 
     fit.setAttribute('aria-label', guided ? t('guided.map') : t('guided.fit'))
     fit.addEventListener('click', () => (guided ? goTo(0) : showOverview()))
     stage.appendChild(fit)
+    if (!guided) stage.appendChild(openFichasButton('gd-fichas-btn'))
 
     const rotateHint = h('p', 'gd-rotate')
     if (guided) {
@@ -231,8 +271,17 @@ export async function mount (root, { context = null, standalone = false } = {}) 
       return button
     }
 
+    // A focus frames its nodes and wires plus the board items anchored to its blocks;
+    // the board footer (system LEDs, buttons) is a focus of its own.
     function target () {
-      return focus ? boundsOf(layout, focus.nodes, focus.wires) : whole
+      if (!focus) return whole
+      if (focus.footer) return layout.footer
+      const items = model.boardItems.filter(itemInFocus).map(item => layout.itemRects.get(item.key))
+      return boundsOf(layout, focus.nodes, focus.wires, items)
+    }
+
+    function itemInFocus (item) {
+      return Boolean(item.at ? focus?.nodes.has(item.at) : focus?.footer)
     }
 
     function frame (animate = true) {
@@ -244,12 +293,17 @@ export async function mount (root, { context = null, standalone = false } = {}) 
       drawing.svg.classList.toggle('gd-focused', Boolean(focus))
       drawing.svg.classList.toggle('gd-map', guided && stepIndex === 0)
       for (const [id, g] of drawing.nodeEls) g.classList.toggle('gd-in', Boolean(focus?.nodes.has(id)))
-      const selectedWires = new Set(selected ? terminalConnections(model, selected.node, selected.terminal).map(c => c.wire.id) : [])
+      const selectedWires = new Set(selected?.terminal ? terminalConnections(model, selected.node, selected.terminal).map(c => c.wire.id) : [])
       for (const [id, g] of drawing.wireEls) {
         g.classList.toggle('gd-in', Boolean(focus?.wires.has(id)))
         g.classList.toggle('gd-sel', selectedWires.has(id))
       }
       for (const [key, g] of drawing.termEls) g.classList.toggle('gd-sel', key === (selected && `${selected.node}.${selected.terminal}`))
+      for (const item of model.boardItems) {
+        const g = drawing.itemEls.get(item.key)
+        g.classList.toggle('gd-in', itemInFocus(item))
+        g.classList.toggle('gd-sel', item.key === selected?.item)
+      }
     }
 
     function update () {
@@ -283,11 +337,18 @@ export async function mount (root, { context = null, standalone = false } = {}) 
       update()
     }
 
-    function selectTerminal (nodeId, terminalId) {
-      selected = { node: nodeId, terminal: terminalId }
+    // selected: { node, terminal } | { item: boardItemKey } | { ficha: componentId }
+    function select (value) {
+      selected = value
       sheetOpen = true
       applyClasses()
       renderSheet()
+    }
+
+    function focusFooter () {
+      focus = { footer: true, nodes: new Set(), wires: new Set() }
+      selected = null
+      update()
     }
 
     function updateRotateHint () {
@@ -306,14 +367,14 @@ export async function mount (root, { context = null, standalone = false } = {}) 
       if (guided) renderStepBar()
 
       if (selected) {
-        const title = renderTerminal()
+        const title = selected.terminal ? renderTerminal() : selected.item ? renderBoardItem() : renderComponent()
         if (guided) sheetBody.prepend(h('p', 'gd-sheet-title', title))
         else sheetHeader.textContent = title
         return
       }
       if (guided) { renderStep(); return }
 
-      const rootNode = focus ? model.nodes.get(focus.root) : null
+      const rootNode = focus?.root ? model.nodes.get(focus.root) : null
       sheetHeader.textContent = rootNode ? nodeTitle(rootNode) : t('guided.hint.overview')
       sheetBody.appendChild(h('p', 'gd-hint', focus ? t('guided.hint.focus') : t('guided.hint.overview')))
       sheet.classList.toggle('is-open', sheetOpen && Boolean(focus))
@@ -351,9 +412,21 @@ export async function mount (root, { context = null, standalone = false } = {}) 
         } else {
           sheetBody.appendChild(factRow(localized(fact.label, language), fact.value))
         }
-        sheetBody.appendChild(sourceLine(fact.src)).classList.add('gd-source--step')
+        sheetBody.appendChild(sourceLine(fact.src, t)).classList.add('gd-source--step')
       }
       if (step.wires.size) sheetBody.appendChild(h('p', 'gd-hint', t('guided.hint.step')))
+    }
+
+    function renderBoardItem () {
+      const item = model.boardItems.find(entry => entry.key === selected.item)
+      sheetBody.append(...renderItem(item.data, t))
+      return item.data.title
+    }
+
+    function renderComponent () {
+      const component = model.library.components[selected.ficha]
+      sheetBody.append(...renderFicha(component, t))
+      return component.status === 'pending' ? `${component.name} · ${t('guided.pending')}` : component.name
     }
 
     // Fills the sheet body with the selected terminal's facts; returns its title.
@@ -385,12 +458,8 @@ export async function mount (root, { context = null, standalone = false } = {}) 
         row.append(swatch, document.createTextNode(`${nodeTitle(otherNode)} · ${terminalLabel(otherNode, otherTerminal, t)}`))
         sheetBody.appendChild(row)
       }
-      sheetBody.appendChild(sourceLine(fact.src))
+      sheetBody.appendChild(sourceLine(fact.src, t))
       return `${nodeTitle(node)} · ${terminalLabel(node, terminal, t)}`
-    }
-
-    function sourceLine (src) {
-      return h('p', `gd-source${isFieldMeasureSource(src) ? ' gd-source--field' : ''}`, `${t('guided.fact.source')}: ${src}`)
     }
 
     drawing.svg.addEventListener('click', event => {
@@ -401,18 +470,28 @@ export async function mount (root, { context = null, standalone = false } = {}) 
       if (isDouble) { if (guided) goTo(0); else showOverview(); return }
 
       const termEl = event.target.closest('[data-terminal]')
-      const nodeEl = event.target.closest('[data-node]')
-      if (!nodeEl) return
-      const nodeId = nodeEl.getAttribute('data-node')
-      if (model.nodes.get(nodeId).inactive) return
+      const fichaEl = event.target.closest('[data-ficha]')
+      const itemEl = event.target.closest('[data-board-item]')
+      const nodeId = event.target.closest('[data-node]')?.getAttribute('data-node') ?? null
+      const inFocus = Boolean(nodeId && focus?.nodes.has(nodeId))
+      const item = itemEl && model.boardItems.find(entry => entry.key === itemEl.getAttribute('data-board-item'))
+
       if (guided && stepIndex === 0) {
-        const index = stepForNode(steps, nodeId)
+        const index = nodeId ? stepForNode(steps, nodeId) : -1
         if (index >= 0) goTo(index + 1)
-      } else if (termEl && focus?.nodes.has(nodeId)) {
-        selectTerminal(nodeId, termEl.getAttribute('data-terminal'))
-      } else if (!guided) {
-        focusOn(nodeId)
+        return
       }
+      // The board title is always tappable; a node's title only inside the focus.
+      if (fichaEl && (!nodeId || inFocus)) return select({ ficha: fichaEl.getAttribute('data-ficha') })
+      if (termEl && inFocus) return select({ node: nodeId, terminal: termEl.getAttribute('data-terminal') })
+      if (item) {
+        if (itemInFocus(item)) return select({ item: item.key })
+        if (!guided) return item.at ? focusOn(item.at) : focusFooter()
+      }
+      // Guided: a tap outside the step re-frames it. Explore: outside the focus → overview.
+      if (guided) { if (!inFocus) frame(); return }
+      if (focus && !inFocus) showOverview()
+      else if (nodeId) focusOn(nodeId)
     })
 
     // Rotation and resizes re-fit the current view without animation.
@@ -421,19 +500,6 @@ export async function mount (root, { context = null, standalone = false } = {}) 
     renderSheet()
     return wrap
   }
-}
-
-function h (tag, className, text = null) {
-  const node = document.createElement(tag)
-  if (className) node.className = className
-  if (text !== null) node.textContent = text
-  return node
-}
-
-function factRow (label, value) {
-  const row = h('p', 'gd-fact')
-  row.append(h('span', 'gd-fact-label', label), h('span', 'gd-fact-value', value ?? '—'))
-  return row
 }
 
 const STYLES_ID = 'styles-guided'
@@ -492,7 +558,7 @@ const STYLES = `
 .gd-dot{flex:1;height:3px;border-radius:2px;background:#d3cfc8;}
 .gd-dot.is-done{background:var(--fo-ink-soft);}
 .gd-dot.is-current{background:var(--fo-accent-deep);}
-.gd-sheet .gd-sheet-body{padding-top:var(--space-2);}
+.gd-dots+.gd-sheet-body{padding-top:var(--space-2);}
 .gd-bar{display:flex;align-items:center;gap:var(--space-1);padding:var(--space-1);}
 .gd-step-btn{flex:0 0 44px;height:44px;border:none;border-radius:var(--fo-radius-sm);background:var(--fo-panel);box-shadow:var(--fo-shadow-raised);color:var(--fo-ink);font-size:22px;line-height:1;cursor:pointer;}
 .gd-step-btn:disabled{opacity:.35;cursor:default;}
@@ -509,6 +575,18 @@ const STYLES = `
   .gd-sheet{flex:0 0 300px;align-self:flex-end;max-height:calc(100% - 2 * var(--space-2));display:flex;flex-direction:column;margin-left:0;}
   .gd-sheet-body{max-height:none;min-height:0;}
 }
+
+.gd-fichas-btn{position:absolute;top:var(--space-2);left:var(--space-2);height:44px;padding:0 var(--space-3);border:none;border-radius:999px;background:var(--fo-panel);box-shadow:var(--fo-shadow-raised);font-family:var(--fo-font-body);font-size:var(--text-sm);font-weight:700;color:var(--fo-ink);cursor:pointer;}
+.gd-fichas{flex:1;min-height:0;overflow-y:auto;padding:0 var(--space-3) calc(var(--space-3) + env(safe-area-inset-bottom,0px));}
+.gd-ficha{margin-bottom:var(--space-2);padding:0 var(--space-3);border-radius:var(--fo-radius-md);background:var(--fo-panel);box-shadow:var(--fo-shadow-card);}
+.gd-ficha[open]{padding-bottom:var(--space-3);}
+.gd-ficha-summary{display:flex;align-items:center;gap:var(--space-2);min-height:48px;font-weight:700;cursor:pointer;}
+.gd-ficha-maker{margin-left:auto;font-family:var(--fo-font-mono);font-size:var(--text-xs);font-weight:500;color:var(--fo-ink-soft);}
+.gd-tag{padding:2px 6px;border-radius:999px;background:var(--fo-accent-deep);color:#fff;font-family:var(--fo-font-mono);font-size:10px;font-weight:700;}
+.gd-ficha-section{margin-top:var(--space-2);}
+.gd-table{border-collapse:collapse;font-family:var(--fo-font-mono);font-size:var(--text-xs);}
+.gd-table th,.gd-table td{padding:2px var(--space-3) 2px 0;text-align:right;}
+.gd-unavailable p{margin:0 0 var(--space-2);}
 
 .gd-bg{fill:transparent;}
 .gd-board{fill:#fbfbf9;stroke:#8a8f96;stroke-width:1.2;}
@@ -540,6 +618,14 @@ const STYLES = `
 .gd-term.gd-sel .gd-hit{fill:rgba(181,100,30,.18);}
 .gd-term.gd-sel .gd-pin{fill:#b5641e;}
 .gd-map .gd-node.gd-target>.gd-box{stroke:#b5641e;stroke-width:1.6;}
-.gd-inactive,.gd-focused .gd-node.gd-map .gd-node.gd-target>.gd-box{stroke:#b5641e;stroke-width:1.6;}
-.gd-inactive,.gd-focused .gd-wire.gd-inactive{opacity:.06;pointer-events:none;}
+.gd-bitem{cursor:pointer;}
+.gd-bitem-box{fill:#fff;stroke:#b9bdc2;stroke-width:.8;}
+.gd-led{stroke:#2a2c30;stroke-width:.6;}
+.gd-part{fill:#e0b50c;stroke:#2a2c30;stroke-width:.6;}
+.gd-bitem-label{font-family:var(--fo-font-mono);font-size:6.5px;font-weight:700;fill:#3a3e44;}
+.gd-bitem.gd-sel .gd-bitem-box{fill:rgba(181,100,30,.18);stroke:#b5641e;}
+.gd-focused .gd-bitem:not(.gd-in){opacity:.35;}
+.gd-ficha-hit{cursor:pointer;}
+.gd-block-title,.gd-device-title,.gd-device-sub{pointer-events:none;}
+.gd-inactive,.gd-focused .gd-node.gd-inactive,.gd-focused .gd-wire.gd-inactive,.gd-focused .gd-bitem.gd-inactive{opacity:.06;pointer-events:none;}
 `

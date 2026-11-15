@@ -2,7 +2,7 @@
 
 **Version:** 0.1
 **Date:** 2026-11-15
-**Status:** In progress — Phase 2 (Guided mode) on top of Phase 1 (data, drawing, Explore, standalone page)
+**Status:** In progress — Phase 3 (fichas, board parts and LEDs) on top of Phases 1–2
 
 ## Purpose
 
@@ -26,7 +26,7 @@ All data lives in `frontend/guided/data/` and is read at load. UI code contains 
 | File | Content |
 |---|---|
 | `frontend/guided/data/guided-component-library.v0.1.json` | Component library (fichas): terminals (`fn`, `desc`, `exp`, `alt?`, `src`), UT3000 `blocks`, `parts`, `leds`, `spec`, `status`, extras. |
-| `frontend/guided/data/ut3000-comm.system.json` | One system: board block instances, devices, wires/tubes with their conditions, and the layout order of the drawing. |
+| `frontend/guided/data/ut3000-comm.system.json` | One system: board block instances, devices, wires/tubes with their conditions, wire color roles, the board parts/LEDs drawn and their short labels, and the layout order of the drawing. |
 | `frontend/guided/data/ut3000-comm.guide.json` | The install guide for that system: requirements, system-map warning, and the step list (see Guided mode). |
 
 Rules:
@@ -55,7 +55,7 @@ Zones not on the call: their blocks, devices and wires dim to ~6% and are not ta
 
 - Data-driven SVG, portrait-first (360–390 px wide), landscape adapts. Orientation is never forced.
 - Board in the center column; terminal blocks down its left and right edges in the order defined by the system file. DAPC sections sit in a middle column between board and devices (only when DAPC is present); external devices in the outer columns.
-- Wires are drawn orthogonally in their real colors with a dark outline so light colors stay legible. Pressure tubes are a separate connection type, drawn as a thick gray tube.
+- Wires are drawn orthogonally in their real colors with a dark outline so light colors stay legible. Damper-chain wires (UT3000 → DAPC → damper) are colored by function for clarity: COM white, PO red, PC blue (`colors` in the system file; the manual specifies no damper colors and field colors vary). Pressure tubes are a separate connection type, drawn as a thick gray tube.
 - Blocks used only by non-communicating setups (conventional zone inputs, conventional system output, OAS) and the DAPC DATA terminal are drawn dimmed, labeled "Not used in communicating setup".
 - The camera animates the SVG `viewBox`. Framing fits the bounding box of the target elements; nothing requires pinch-zoom.
 - Back to the full view: ⤢ button or double tap.
@@ -65,7 +65,10 @@ Zones not on the call: their blocks, devices and wires dim to ~6% and are not ta
 - Overview shows all devices with wires faint in their real colors.
 - Tap a block or device → frame the block plus its connected devices, light its wires, fade the rest.
 - Tap a terminal → sheet with function, description, expected value (+ alternate), where each wire goes, and source.
-- Device ficha, board parts, LEDs, buttons and the Fichas list: Phase 3.
+- Tap outside the focus (empty or dimmed area) → back to the overview.
+- Tap a device or block title inside the focus, or the board title → that component's ficha in the sheet (spec, terminals, parts, LEDs, extras, source; `pending` tagged).
+- Board parts and LEDs are drawn on the board from the system file's `boardItems`: items anchored to a block sit in the board's center column next to it; board-level items (system/damper LEDs, buttons) sit in a footer grid. Tapping one focuses its block (or the footer); tapping it again shows its meaning by state, default, spec and source. Zone items for zones not on the call are dimmed.
+- **Fichas** (button on the Explore stage, and on the "not available" card): full-screen list of every library component as collapsed accordions, with extras (SAS resistance table, SBD2 Auto Setup, DAPC commissioning).
 
 ## Guided mode
 
@@ -86,13 +89,13 @@ UI:
 - Header: two-line setup chip (zones · DAPC / system), Guided | Explore selector, language button (standalone). Guided is the default mode; when the guide is not available for the call, Guided shows "Guide not available yet for this combination" and Explore stays one tap away.
 - Step 0 (system map): full drawing, every group that has a step outlined; tapping one jumps to its step. The power-off warning is shown open. Portrait only: a dismissible "Better view in landscape" hint.
 - Bottom bar: progress dots, ‹ · step title + "Step N of M" · ›. Step details (cable, notes, facts) are collapsed; tapping the title opens them. Tapping a terminal inside the step lights its wire and shows its detail.
-- ⤢ or double tap returns to the map. Rotation re-fits the current step; on short landscape screens the sheet moves to a side column.
+- ⤢ or double tap returns to the map. A tap outside the step's framed area re-frames the current step; it never leaves the step. Rotation re-fits the current step; on short landscape screens the sheet moves to a side column.
 - A thermostat count above the board's zone limit shows a note that 4–5 zones (twinning) are not covered.
 
 ## Language
 
 - EN/ES. UI strings go through `frontend/shared/i18n.js` (shared string library). The standalone page offers its own toggle; inside FieldOps the module reads the global setting (setting UI: Phase 4).
-- Guide content is authored per step in EN and ES. Component library text is EN in v0.1.
+- Guide content is authored per step in EN and ES. Component library text is EN in v0.1 and stays EN in ES mode; ES for the library is v0.2.
 
 ## FieldOps integration (Phase 4, after the WIP merge)
 

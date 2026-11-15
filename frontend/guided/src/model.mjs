@@ -120,12 +120,33 @@ export function buildModel (library, system, rawContext) {
       from,
       to,
       type: raw.type ?? 'wire',
-      color: raw.color ?? null,
+      // A color may name a role in system.colors (e.g. "damperCOM"), so a role is a one-line change.
+      color: system.colors?.[raw.color] ?? raw.color ?? null,
       inactive: nodes.get(from.node).inactive || nodes.get(to.node).inactive,
     })
   }
 
-  return { context, system, library, nodes, wires }
+  const boardItems = (system.boardItems ?? []).map(item => {
+    const list = item.kind === 'led' ? boardComponent.leds : boardComponent.parts
+    let data = list?.find(entry => entry.id === item.id)
+    if (!data) throw new Error(`Guided data: no board ${item.kind} "${item.id}"`)
+    // An LED with `ref` shares the states of the referenced LED.
+    if (data.ref && !data.states) data = { ...data, states: list.find(entry => entry.id === data.ref)?.states }
+    const anchor = item.at ? nodes.get(item.at) : null
+    if (item.at && !anchor) throw new Error(`Guided data: board item "${item.id}" anchors to unknown block "${item.at}"`)
+    const zone = item.zone ?? anchor?.zone ?? null
+    return {
+      key: `${item.kind}:${item.id}`,
+      kind: item.kind,
+      at: item.at ?? null,
+      side: anchor?.side ?? null,
+      label: item.label,
+      data,
+      inactive: Boolean(zone && zone > context.zones),
+    }
+  })
+
+  return { context, system, library, nodes, wires, boardItems }
 }
 
 function parseEndpoint (ref) {

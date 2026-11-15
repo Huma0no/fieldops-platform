@@ -55,7 +55,9 @@ export function renderDrawing (model, layout, { t, metrics }) {
   const board = layout.board
   const boardComponent = model.library.components[model.system.board.component]
   el('rect', { class: 'gd-board', x: board.x, y: board.y, width: board.w, height: board.h, rx: 10 }, svg)
-  el('text', { class: 'gd-board-title', x: board.x + board.w / 2, y: board.y + 22, 'text-anchor': 'middle' }, svg, boardComponent.name)
+  const boardTitle = el('g', { class: 'gd-ficha-hit', 'data-ficha': model.system.board.component }, svg)
+  el('rect', { class: 'gd-hit', x: board.x, y: board.y, width: board.w, height: metrics.boardTitle - 4 }, boardTitle)
+  el('text', { class: 'gd-board-title', x: board.x + board.w / 2, y: board.y + 22, 'text-anchor': 'middle' }, boardTitle, boardComponent.name)
 
   const nodeEls = new Map()
   const termEls = new Map()
@@ -69,6 +71,9 @@ export function renderDrawing (model, layout, { t, metrics }) {
     if (node.unusedInSetup) classes.push('gd-unused')
     const g = el('g', { class: classes.join(' '), 'data-node': node.id }, nodesLayer)
     el('rect', { class: 'gd-box', x: rect.x, y: rect.y, width: rect.w, height: rect.h, rx: node.kind === 'block' ? 4 : 8 }, g)
+    // The title area opens the component's ficha (blocks open the board's).
+    const headH = node.kind === 'block' ? metrics.blockHead : metrics.deviceHead
+    el('rect', { class: 'gd-hit', 'data-ficha': node.component, x: rect.x, y: rect.y, width: rect.w, height: headH }, g)
 
     if (node.kind === 'block') {
       el('text', { class: 'gd-block-title', x: rect.x + 6, y: rect.y + 15 }, g, node.title)
@@ -100,6 +105,21 @@ export function renderDrawing (model, layout, { t, metrics }) {
     nodeEls.set(node.id, g)
   }
 
+  const itemEls = new Map()
+  const itemsLayer = el('g', { class: 'gd-bitems' }, svg)
+  for (const item of model.boardItems) {
+    const r = layout.itemRects.get(item.key)
+    const g = el('g', { class: `gd-bitem${item.inactive ? ' gd-inactive' : ''}`, 'data-board-item': item.key }, itemsLayer)
+    el('rect', { class: 'gd-bitem-box', x: r.x, y: r.y, width: r.w, height: r.h, rx: 3 }, g)
+    if (item.kind === 'led') {
+      el('circle', { class: 'gd-led', cx: r.x + 6, cy: r.y + r.h / 2, r: 2.8, fill: WIRE_COLORS[item.data.color] ?? '#9aa0a6' }, g)
+    } else {
+      el('rect', { class: 'gd-part', x: r.x + 3.5, y: r.y + r.h / 2 - 2.5, width: 5, height: 5 }, g)
+    }
+    el('text', { class: 'gd-bitem-label', x: r.x + 12, y: r.y + r.h / 2 + 2.4 }, g, item.label)
+    itemEls.set(item.key, g)
+  }
+
   const wireEls = new Map()
   const wiresLayer = el('g', { class: 'gd-wires' }, svg)
   for (const wire of model.wires) {
@@ -119,5 +139,5 @@ export function renderDrawing (model, layout, { t, metrics }) {
     wireEls.set(wire.id, g)
   }
 
-  return { svg, nodeEls, termEls, wireEls }
+  return { svg, nodeEls, termEls, wireEls, itemEls }
 }
