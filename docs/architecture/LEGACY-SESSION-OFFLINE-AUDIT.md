@@ -300,6 +300,8 @@ This audit evaluates the legacy authentication tables (`device_tokens`, `invite_
 
 ### 7.3 One-Time Client-Side Migration & Quarantine of Ambiguous Historical Records (Scope D.6 & D.7)
 
+> **Status (2026-11-15): Not required — no production data existed.** FieldOps is pre-production; every local draft, queued submission, and photo is disposable test data. This migration and quarantine were not implemented (`DB_VERSION` stays 2). Records saved by earlier builds without a technician ID are ignored by the technician-scoped lookups; clearing local test data (browser site data) is acceptable. Decision 2 below is therefore not required either.
+
 When the upgraded FieldOps PWA boots and opens IndexedDB (`DB_VERSION = 3` upgrade / startup migration):
 
 1. **Deterministic Ownership Attribution for Legacy `LocalVisitDraft` and `_myCallsSummary`:**

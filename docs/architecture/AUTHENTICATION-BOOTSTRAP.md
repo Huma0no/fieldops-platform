@@ -27,6 +27,8 @@ If there is no legacy owner, bootstrap creates one `technicians` row with the re
 
 ## Deployment requirements
 
+Step-by-step first launch: [`FIRST-LAUNCH-RUNBOOK.md`](./FIRST-LAUNCH-RUNBOOK.md).
+
 1. Apply the additive authentication migration to the intended database before starting the new server version.
 2. Set `DISPATCH_BOOTSTRAP_PASSWORD` in the server environment for initial provisioning. Remove it from routine deployment configuration after the account exists.
 3. Confirm existing owner identities and any conflicting `Dispatcher` username before rollout. The application deliberately aborts instead of guessing when the records are ambiguous.

@@ -205,14 +205,33 @@ System users — owner, dispatcher, and technician (field collaborators), per th
 | commission_rate | real | Percentage of gross withheld as commission (the house's cut) — the technician nets the remainder. Defaults to 20 when a technician is added; editable at any time, independently per technician — not a global constant. Not applicable to `role = "owner"`. |
 | is_active | boolean | Default true. A deactivated technician's row is never deleted — visit history, pay_period_lines, and edit_log all reference technician_id, so the row must persist for historical integrity. |
 | created_at | text | ISO 8601 |
+| username | text | Nullable until credentials are provisioned. Unique case-insensitively (`lower(username)` index). |
+| password_hash | text | `scrypt` hash with a random salt. Never returned by the API. |
+| must_change_password | boolean | Default false. True after an owner sets a temporary password; operational routes are blocked until it is changed. |
 
 **Rules:**
-- Authentication is per-device, not per-user-session — see `API_CONTRACT.md` §1 (one-time invite code, permanent device token, no PIN or daily login). Device tokens are not stored on this table; they live in a separate auth/device-tokens mechanism owned by the auth layer.
+- Authentication is one username/password account per person — see `API_CONTRACT.md` §1 and `docs/architecture/AUTHENTICATION-ARCHITECTURE.md`. Sessions live in `auth_sessions`, not on this table. The legacy `invite_codes` and `device_tokens` tables remain only for historical inspection and are not accepted for authentication.
 - A technician sees only their own assigned visits.
 - Financial data of other technicians is not visible between collaborators.
 - `role = "owner"` keeps 100% of their own income, no commission withheld. `role = "technician"` (non-owner, described as "collaborator" in the business context) nets `gross × (1 − commission_rate)` — there is no single fixed split across all technicians. Full compensation model: `/docs/dispatch/LEDGER-SPEC.md`.
 - Personal app configuration (theme, AI provider, API keys) and catalog price overrides live in `technician_settings` and `technician_price_overrides` respectively — not as columns here, since both are per-technician variable-length data, not scalar attributes of identity.
 - Deactivating a technician (`is_active → false`) does not block on, move, or reassign their active visits (status `assigned` or `in_progress`) automatically. Those visits become orphaned — still pointing at the now-inactive `technician_id` — and the system creates a dispatcher notification listing them. The dispatcher resolves each one explicitly via `PATCH /api/dispatch/visits/:id/reassign` (to a specific technician) or by releasing it back to the Lobby. There is no automatic Lobby return and no automatic reassignment.
+
+---
+
+### auth_sessions
+Server-managed login sessions (migrations `026_username_password_auth.sql`, `027_auth_session_last_used.sql`).
+
+| Column | Type | Notes |
+|---|---|---|
+| token_hash | text PK | SHA-256 of the session token; the token itself is never stored |
+| technician_id | text FK | References technicians.id, `ON DELETE CASCADE` |
+| created_at | text | ISO 8601 |
+| revoked_at | text | Nullable. Set on logout, password change (other sessions), owner reset or revocation, and deactivation |
+| last_used_at | text | Nullable. Refreshed at most hourly; NULL means use `created_at` |
+
+**Rules:**
+- A session is valid while not revoked, the account is active, and it was used within the last 30 days.
 
 ---
 

@@ -103,7 +103,7 @@ Full data model: `/docs/shared/DATA_MODEL.md`. Full endpoint contract: `/docs/sh
 - **Visit System** — one HVAC system at an address (a visit can span multiple systems).
 - **Transfer** — a handshake between two technicians reassigning a visit.
 - **Weigh-in Data** — refrigerant charge measurements, per system.
-- **Technician** — roster record, commission %, invite-code pairing.
+- **Technician** — roster record, commission %, username/password account.
 - **Ledger** (formerly "Pay Period") — weekly compensation cycle, per-technician payout, adjustments.
 - **Restock Report** — accumulated consumption per period, delivered to The Company.
 

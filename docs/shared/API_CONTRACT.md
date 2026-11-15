@@ -18,42 +18,45 @@ All endpoints are prefixed `/api`. All authenticated endpoints require a valid b
 - `/api/visits/` — technician access (some endpoints also accessible to dispatcher).
 - The URL prefix indicates who has access, not which file owns the route. Visit lifecycle endpoints — including dispatcher-only ones like `reassign` — live in `visits.js`. `dispatch.js` owns dispatcher administrative routes only (technician management, PDF intake, inventory, restock, pay periods).
 
-This contract defines behavior and shape, not implementation. Security details (token expiration, transport requirements, duplicate-device handling) are left to implementation-time best practices and are noted where relevant.
+This contract defines behavior and shape, not implementation. Authentication and session rules are specified in §1.
 
 ---
 
 ## 1. Authentication
 
-Field technicians authenticate once per device via a one-time invite code. No daily login is required — the device holds a permanent token until revoked.
+Dispatch and FieldOps use one username/password account per person (one `technicians` row). The full model is `docs/architecture/AUTHENTICATION-ARCHITECTURE.md`; the first owner account is created as described in `docs/architecture/AUTHENTICATION-BOOTSTRAP.md`.
 
 **Flow:**
-1. Dispatcher creates technician record in Dispatch, generates a one-time invite code (24-hour validity).
-2. Technician opens the PWA for the first time, enters the invite code.
-3. Server validates the code, issues a permanent device token, technician never sees it again.
-4. Every subsequent request includes `Authorization: Bearer {deviceToken}`.
-5. If a device is lost, dispatcher revokes the token from Dispatch — device is blocked immediately.
+1. The Dispatch Owner creates an account with a username and a temporary password, or provisions credentials on an existing technician row (see Technician lifecycle).
+2. The person signs in. The server creates a session and sets an HttpOnly cookie; only the token's SHA-256 hash is stored.
+3. A temporary password must be changed before any operational route is available (`403 PASSWORD_CHANGE_REQUIRED`).
+4. A session expires after 30 days without use (sliding). It also ends on logout, on a password change (every other session of the account), on an owner password reset or revocation, and on deactivation.
+
+Browser clients send the cookie; unsafe cookie-authenticated requests must include `X-FieldOps-Request: 1`. Non-browser clients may send the same token as `Authorization: Bearer {token}`.
 
 ```
-POST /api/auth/redeem-invite
-  body: { inviteCode }
-  returns: { deviceToken, technician: { id, name, role } }
+POST /api/auth/login
+  body: { username, password }          username is case-insensitive
+  returns: { user: { id, name, username, role, mustChangePassword } }
+           role: DISPATCH_OWNER | DISPATCHER | TECHNICIAN
+  effect: sets cookie fieldops_session (HttpOnly, SameSite=Strict, Path=/api; Secure in production)
+  fails: 401 with the same body for an unknown username, a wrong password, or an inactive account
+  rate limit: 10 attempts per 15 minutes per client IP
 
-POST /api/auth/revoke
-  auth: dispatcher/owner only
-  body: { technicianId }
-  effect: invalidates all device tokens for that technician
+GET /api/auth/me
+  auth: any session
+  returns: { user, mustChangePassword }
 
-POST /api/auth/generate-invite
-  auth: dispatcher/owner only
-  body: { technicianId }
-  fails if: technician.is_active = false — must be reactivated first via
-            PATCH /api/dispatch/technicians/:id/reactivate
-  returns: { inviteCode, expiresAt }
-  note: inviteCode is 8 uppercase alphanumeric characters (e.g. C1VSIAUD).
-        UIs display it as XXXX-XXXX; it is stored and transmitted without the hyphen.
+POST /api/auth/change-password
+  auth: any session (allowed while the password is temporary)
+  body: { currentPassword, newPassword }    newPassword: 12–256 characters
+  effect: replaces the password, clears the temporary flag, revokes every other session of the account
+  fails: 400 invalid new password · 403 wrong current password
+
+POST /api/auth/logout
+  auth: any session
+  effect: revokes the current session and clears the cookie
 ```
-
-**Pending for implementation phase (not blocking design):** token expiration policy, HTTPS enforcement, behavior on duplicate device redemption.
 
 ---
 
@@ -87,12 +90,33 @@ GET /api/sync/changes
 
 ```
 POST /api/dispatch/technicians
-  auth: dispatcher/owner only
-  body: { name, role }
-  effect: creates technicians row, is_active = true, created_at set
-  returns: { technicianId, name, role, isActive, createdAt }
-  note: this is the only way a technician row comes into existence — generate-invite
-        above requires the technicianId to already exist, created here first
+  auth: owner only
+  body: { name, role, username, temporaryPassword }
+        username: 3–64 characters, letters/numbers/dot/underscore/hyphen
+        temporaryPassword: 12–256 characters
+  effect: creates the technicians row with its account, is_active = true,
+          must_change_password = true
+  returns: 201 { id, name, role, commissionRate, isActive, createdAt, username, mustChangePassword }
+  fails: 409 if the username is already in use
+  note: this is the only way a technician row comes into existence
+
+POST /api/dispatch/technicians/:id/provision-account
+  auth: owner only
+  body: { username, temporaryPassword }
+  effect: adds credentials to an existing technician row that has none
+          (rows created before username/password authentication)
+  returns: 201 { id, name, role, username, mustChangePassword: true }
+
+PATCH /api/dispatch/technicians/:id/password
+  auth: owner only
+  body: { temporaryPassword }
+  effect: sets a new temporary password and revokes every session of the account
+  returns: { id, passwordReset: true, mustChangePassword: true }
+
+POST /api/dispatch/technicians/:id/revoke-sessions
+  auth: owner only
+  effect: revokes every session of the account (e.g. a lost device)
+  returns: { id, revokedSessions }
 
 GET /api/dispatch/technicians
   auth: dispatcher/owner only
@@ -100,8 +124,8 @@ GET /api/dispatch/technicians
   returns: [] of technicians, active only by default
 
 PATCH /api/dispatch/technicians/:id/deactivate
-  auth: dispatcher/owner only
-  effect: is_active → false. Does not delete the row, does not touch their
+  auth: owner only
+  effect: is_active → false and every session revoked in the same transaction. Does not delete the row, does not touch their
           active visits automatically (see DATA_MODEL.md technicians rules).
           If the technician has any visits with status "assigned" or
           "in_progress", creates a dispatcher notification listing them as
@@ -110,15 +134,13 @@ PATCH /api/dispatch/technicians/:id/deactivate
   returns: updated technician + list of any orphaned visit ids
 
 PATCH /api/dispatch/technicians/:id/reactivate
-  auth: dispatcher/owner only
+  auth: owner only
   effect: is_active → true. Same technician_id, same historical visits,
           pay_period_lines, and edit_log entries — reactivation preserves
           continuity rather than starting a new identity, since the same
           person returning should not appear as a second, disconnected record.
-  note: does not automatically restore a device token. If their old device
-        token was revoked at deactivation time (or they have a new device),
-        generate a fresh invite via POST /api/auth/generate-invite after
-        reactivating. If the token was never revoked, no new invite is needed.
+  note: does not restore sessions; the person signs in again with their
+        existing credentials.
   returns: updated technician
 ```
 

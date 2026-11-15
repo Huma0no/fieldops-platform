@@ -35,6 +35,10 @@ The draft must survive navigation, refresh, app close/reopen, and a temporary co
 
 Workspace edits are local-first: each edit durably updates the active draft and the UI reflects that draft. Normal active-work editing must not require an immediate backend write and must not be designed as replay of every Workspace mutation.
 
+## Technician scope
+
+Local Visit Drafts, queued submissions, and photos are keyed by the signed-in technician's ID. On a device used by several technicians, each one reads, writes, and submits only their own local records. Signing out, or a session ending (logout, 30 days without use, revocation), does not delete local work; it is available again when the same technician signs in. Records saved by builds before technician scoping carry no technician ID and are ignored, not migrated (pre-production test data; see `docs/architecture/LEGACY-SESSION-OFFLINE-AUDIT.md` §7.3).
+
 ## Download and reopening boundary
 
 Before a technician needs to work offline, FieldOps downloads the assigned visit summary and detail, system/equipment context, relevant catalog/rule configuration, and any existing persisted work. Opening an already downloaded call must not require the network.
@@ -87,7 +91,7 @@ Dispatch may rely on assignment state and successfully submitted terminal states
 The following require their own current decision before implementation:
 
 - Dispatch reassignment or cancellation while a technician has an offline active draft.
-- Token expiry while offline and the authenticated recovery path.
+- Session expiry (30 days without use) while offline and the authenticated recovery path. Local work is kept; the open decision is how the technician is guided back to sign in and resume.
 - Concurrent work from two devices for the same technician/visit.
 - Reconciliation of stale catalog references in an existing local draft.
 - Whether evidence upload is required before terminal ACK.

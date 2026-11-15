@@ -12,6 +12,6 @@ The technician roster and each technician's record, as managed by the Dispatcher
 
 Each technician record holds:
 - Name and contact info.
-- Invite code management (generate / refresh / revoke) — pairs a technician to their device, see `/docs/shared/API_CONTRACT.md` §1 for the auth mechanism this feeds.
+- Account management (Owner only): username and temporary password at creation, credentials for rows created before username/password sign-in, password reset (new temporary password, all sessions revoked), and session revocation for a lost device. See `/docs/shared/API_CONTRACT.md` §1 and Technician lifecycle.
 - **Commission %** — editable per technician, defaults to 20% when added. Feeds directly into `/docs/dispatch/LEDGER-SPEC.md`.
 - A link to that technician's Ledger history.

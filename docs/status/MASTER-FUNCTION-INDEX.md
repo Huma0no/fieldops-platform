@@ -158,6 +158,7 @@ A `CLOSED` section is a finished product area: its code, UX, and specifications 
 | Checklist No text | SPEC CLOSED | IMPLEMENTED (automated verification) | No-answer `reportText` values are included; entries with no report text, including Gas Valve, are naturally excluded. |
 | Edit generated report | SPEC CLOSED | SUPERSEDED / NOT REQUIRED | Legacy standalone-PWA behavior; FieldOps uses Request Correction after Generate Report. Canonical report text is regenerated from source visit data, not edited directly. |
 | Share/export | SPEC CLOSED | QA VERIFIED | Reports surface. |
+| Canonical report snapshot | SPEC CLOSED (`docs/architecture/REPORT-SNAPSHOT-CONTRACT.md`) | IMPLEMENTED (automated verification) / QA pending | One accepted submission per visit (`UNIQUE(visit_id)`, migration 025); report JSON/text served from the accepted snapshot. |
 
 ## 10. Company Google Form Integration
 
@@ -183,7 +184,7 @@ A `CLOSED` section is a finished product area: its code, UX, and specifications 
 | Restock | QA VERIFIED | Existing restock screen is implemented; future consumption-state model still needs audit against new requirements. |
 | Reports to Company | QA VERIFIED | Equipment and refrigerant usage reports implemented. |
 | Transfers | QA VERIFIED | Dispatcher and technician flows documented separately. |
-| Technicians | PARTIAL | Invite flow verified; refresh/revoke still need testing. |
+| Technicians | IMPLEMENTED (automated verification) / QA pending | Owner account management: create with username + temporary password, provision credentials on legacy rows, password reset, session revocation. Invite codes are superseded. |
 | Ledger | QA VERIFIED | Compensation workflow implemented. |
 | Settings | SPEC CLOSED / audit | Dispatcher configuration. |
 
@@ -195,6 +196,8 @@ A `CLOSED` section is a finished product area: its code, UX, and specifications 
 | Shared PostgreSQL backend | SPEC CLOSED | Shared source of truth. |
 | Catalog as single source | SPEC CLOSED | Shared by Dispatch and FieldOps. Intake selects valid catalog entries and never mutates the global catalog. |
 | Multi-technician identity | SPEC CLOSED | Technician-scoped entities. |
+| Authentication | IMPLEMENTED (automated verification) / QA pending | Username/password accounts and server sessions for Dispatch and FieldOps (`docs/architecture/AUTHENTICATION-ARCHITECTURE.md`). Sessions expire after 30 days of inactivity; temporary passwords must be changed first. Supersedes device invite codes. |
+| Offline data scoped per technician | IMPLEMENTED (automated verification) / QA pending | Local Visit Drafts, the queue, and photos are keyed by technician ID (`docs/OFFLINE-FIRST-CONTRACT.md`). Records from earlier builds without a technician ID are not migrated (pre-production test data). |
 | Photos / GPS / EXIF | SPEC CLOSED | See shared integration spec. |
 | Google Drive | SPEC CLOSED / OPEN implementation | Decided, not yet built per QA backlog. |
 | Corrections | QA VERIFIED | Dispatcher-side correction workflow. |
