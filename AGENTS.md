@@ -30,6 +30,7 @@ Before editing:
 * Identify the authoritative documentation for the task.
 * Confirm that the requested behavior is sufficiently specified.
 * Inspect the current implementation before changing it.
+* For a defect, identify the actual root cause before changing behavior.
 * Identify unrelated pre-existing changes and protect them.
 
 If documentation is incomplete or contradictory:
@@ -49,6 +50,7 @@ During implementation:
 * Preserve existing behavior unless the task explicitly changes it.
 * Reuse existing components, utilities, services, and patterns when appropriate.
 * Do not introduce a new abstraction merely because one could be useful later.
+* Every additional layer of complexity must have a concrete justification.
 
 Testing:
 
@@ -61,6 +63,8 @@ Verification:
 
 * Verify that the implementation matches the authoritative specification.
 * Verify that unrelated behavior was not changed.
+* Review the complete diff, including surrounding code, for regressions, error paths, race conditions, and unnecessary complexity.
+* Passing tests are not sufficient proof of correctness when the implementation has not been reviewed.
 * If implementation must deviate from the specification, stop and report why.
 
 Git:
@@ -77,12 +81,11 @@ Important distinction:
 
 ## Language
 
-* Conversational communication with Kristo: Spanish.
-* Code: English.
-* Identifiers: English.
-* Code comments: English.
-* Technical documentation: English unless the existing document explicitly uses another language.
-* Commit messages: English.
+* Conversational communication, planning, and discussion with Kristo: Spanish.
+* Instructions, prompts, and technical reports directed to agents: English.
+* Code, identifiers, comments, tests, test descriptions, commit messages, and logs: English.
+* Documentation: English for all new documents and new sections. Existing non-English documents (for example `docs/status/QA-TRACKER.md`) keep their language until rewritten.
+* Product UI: Spanish and English through the existing i18n architecture.
 
 ## Product Discipline
 
@@ -99,45 +102,6 @@ When product behavior is ambiguous, stop and ask/report rather than inventing be
 Do not implement features listed as intentionally out of scope unless explicitly requested.
 
 Do not reactivate archived or deferred functionality merely because related code exists.
-
-## Engineering Principles
-
-- Prefer the simplest implementation that correctly solves a demonstrated problem.
-- Minimize code, dependencies, abstractions, database entities, and operational complexity.
-- Do not introduce speculative features or infrastructure for unlikely future scenarios without a demonstrated requirement.
-- Reuse existing architecture when it is suitable.
-- Prefer explicit, deterministic, maintainable behavior.
-- Keep changes strictly within the authorized scope.
-- Every additional layer of complexity must have a concrete justification.
-- Do not optimize for hypothetical scale or requirements that do not currently exist.
-
-## Self-Review and Verification
-
-For every implementation task:
-
-1. Inspect the relevant existing implementation before changing it.
-2. Identify the actual root cause.
-3. Select the smallest viable solution.
-4. Implement only the authorized changes.
-5. Review the complete diff, including surrounding code.
-6. Identify possible regressions, error paths, race conditions, and unnecessary complexity.
-7. Run relevant tests.
-8. Add or correct tests for demonstrated failure scenarios.
-9. Repeat review, correction, and testing until acceptance criteria are met.
-10. Report remaining limitations honestly.
-
-Do not treat passing tests as sufficient proof of correctness when the implementation has not been reviewed.
-
-## Language Policy
-
-Use the following language conventions consistently:
-
-- User-facing planning and discussion: Spanish.
-- Instructions, prompts, and technical reports directed to Codex: English.
-- Source code, identifiers, comments, tests, test descriptions, commits, logs, and repository documentation: English.
-- Product UI: Spanish and English through the existing i18n architecture.
-
-Do not introduce Spanish identifiers, comments, or technical documentation into the repository.
 
 ## Completion Requirement
 
