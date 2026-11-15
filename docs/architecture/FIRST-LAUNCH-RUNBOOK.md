@@ -5,13 +5,14 @@
 
 ## 1. Database
 
-- **New database:** `npm run db:setup` applies `src/db/schema.sql` and the catalog seed. `schema.sql` already includes every migration through 026. The script refuses to run on a database that already has visits.
-- **Existing database:** apply the pending migrations in order: `npm run db:migrate025`, `npm run db:migrate026` (each needs `DATABASE_URL` in the shell). Migration 025 aborts without changes if any visit has more than one completion submission.
+- **New database:** `npm run db:setup` applies `src/db/schema.sql` and the catalog seed. `schema.sql` already includes every migration through 027. The script refuses to run on a database that already has visits.
+- **Existing database:** apply the pending migrations in order: `npm run db:migrate025`, `npm run db:migrate026`, `npm run db:migrate027` (each needs `DATABASE_URL` in the shell). Migration 025 aborts without changes if any visit has more than one completion submission. Migration 027 removes existing sessions (everyone signs in again).
 
 ## 2. Server environment
 
 - `DISPATCH_BOOTSTRAP_PASSWORD`: initial password for the `Dispatcher` owner account (12–256 characters). Remove it from the environment once the account exists.
 - `TRUST_PROXY`: number of reverse proxies in front of the server (for example `1` on a PaaS). Leave it empty when the server is exposed directly.
+- `COMPANY_TIME_ZONE`: time zone for sessions that end at 03:00 (default `America/Chicago`). The server refuses to start with an invalid zone.
 - `NODE_ENV=production` so the session cookie is `Secure` (requires HTTPS).
 
 Start the server. On first start it creates the `Dispatcher` owner account (`docs/architecture/AUTHENTICATION-BOOTSTRAP.md`).

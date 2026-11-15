@@ -220,7 +220,7 @@ System users — owner, dispatcher, and technician (field collaborators), per th
 ---
 
 ### auth_sessions
-Server-managed login sessions (migration `026_username_password_auth.sql`).
+Server-managed login sessions (migrations `026_username_password_auth.sql`, `027_auth_session_expiry.sql`).
 
 | Column | Type | Notes |
 |---|---|---|
@@ -228,9 +228,10 @@ Server-managed login sessions (migration `026_username_password_auth.sql`).
 | technician_id | text FK | References technicians.id, `ON DELETE CASCADE` |
 | created_at | text | ISO 8601 |
 | revoked_at | text | Nullable. Set on logout, password change (other sessions), owner reset or revocation, and deactivation |
+| expires_at | text | ISO 8601, fixed at sign-in: 7 days, or the next 03:00 company time when "Keep me signed in" is unchecked |
 
 **Rules:**
-- A session is valid while not revoked and the account is active.
+- A session is valid while not revoked, not past `expires_at`, and the account is active.
 
 ---
 

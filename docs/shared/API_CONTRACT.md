@@ -30,16 +30,18 @@ Dispatch and FieldOps use one username/password account per person (one `technic
 1. The Dispatch Owner creates an account with a username and a temporary password, or provisions credentials on an existing technician row (see Technician lifecycle).
 2. The person signs in. The server creates a session and sets an HttpOnly cookie; only the token's SHA-256 hash is stored.
 3. A temporary password must be changed before any operational route is available (`403 PASSWORD_CHANGE_REQUIRED`).
-4. A session ends on logout, on a password change (every other session of the account), on an owner password reset or revocation, and on deactivation.
+4. Each session has a fixed end chosen at sign-in: **Keep me signed in on this device** (checked by default) → 7 days from sign-in; unchecked → the next 03:00 company time (`COMPANY_TIME_ZONE`, America/Chicago), or the following 03:00 when less than an hour remains. There is no inactivity timeout (NIST SP 800-63B-4 AAL1: reauthentication at most every 30 days; inactivity timeout optional).
+5. A session also ends on logout, on a password change (every other session of the account), on an owner password reset or revocation, and on deactivation.
+6. FieldOps offline: an ended session does not lock the app while offline. On reconnect the first request returns 401 and the technician signs in again; local drafts and pending submissions are kept and delivered after sign-in.
 
 Browser clients send the cookie; unsafe cookie-authenticated requests must include `X-FieldOps-Request: 1`. Non-browser clients may send the same token as `Authorization: Bearer {token}`.
 
 ```
 POST /api/auth/login
-  body: { username, password }          username is case-insensitive
-  returns: { user: { id, name, username, role, mustChangePassword } }
+  body: { username, password, keepSignedIn? }   username is case-insensitive; keepSignedIn defaults to true
+  returns: { user: { id, name, username, role, mustChangePassword }, expiresAt }
            role: DISPATCH_OWNER | DISPATCHER | TECHNICIAN
-  effect: sets cookie fieldops_session (HttpOnly, SameSite=Strict, Path=/api; Secure in production)
+  effect: sets cookie fieldops_session (HttpOnly, SameSite=Strict, Path=/api, Expires=expiresAt; Secure in production)
   fails: 401 with the same body for an unknown username, a wrong password, or an inactive account
   rate limit: 10 attempts per 15 minutes per client IP
 

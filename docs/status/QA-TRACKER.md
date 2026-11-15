@@ -24,7 +24,7 @@
 | Dispatch | Chat | 🟡 Fix aplicado, falta verificación manual | D-03 y D-06 resueltos en commit `84c54c4` (tests pasan); idea Broadcast sigue en backlog |
 | Dispatch | Catalog | 🟢 Completo | Edit inline + persistencia confirmados, sin bugs |
 | Dispatch | Technicians | ⬜ Pendiente QA manual | Invite codes reemplazados por usuario/contraseña (2026-11-15): crear cuenta con contraseña temporal, provisionar filas antiguas, reset de contraseña y revocar sesiones. Tests automáticos pasan. |
-| Ambas | Autenticación (usuario/contraseña) | ⬜ Pendiente QA manual | Login, cambio obligatorio de contraseña temporal, logout. Ver `docs/architecture/AUTHENTICATION-ARCHITECTURE.md`. |
+| Ambas | Autenticación (usuario/contraseña) | ⬜ Pendiente QA manual | Login, cambio obligatorio de contraseña temporal, logout, "Keep me signed in" (7 días / hasta las 3:00 AM de Chicago), sesión vencida sin red: la app sigue funcionando y al reconectar pide login sin perder borradores ni envíos pendientes. Ver `docs/architecture/AUTHENTICATION-ARCHITECTURE.md`. |
 | FieldOps | Snapshot canónico del reporte | ⬜ Pendiente QA manual | Un envío aceptado por visita (migración 025); el reporte se sirve desde el snapshot. |
 | FieldOps | Datos offline por técnico | ⬜ Pendiente QA manual | Borradores, cola y fotos separados por técnico; cambiar de cuenta en el mismo dispositivo no mezcla datos. |
 | Dispatch | Home | 🟡 En curso | D-02 (falta indicador de usuario logueado), D-04 (alerta de refrigerante — backlog). Sesión 2026-07-24: toast de notificación de completado corregido (`n.body`) |

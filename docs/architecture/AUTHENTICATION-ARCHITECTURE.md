@@ -25,7 +25,7 @@ The backend enforces roles at route boundaries and in sensitive handlers. A vali
 - Passwords are hashed with Node.js `scrypt` using a random salt; plaintext passwords and password hashes are never returned.
 - Owner-created accounts receive an initial temporary password and must replace it before using operational routes. Password changes require the current password.
 - Password reset marks the next login as temporary and revokes all current sessions.
-- Login creates a random server-managed session token. PostgreSQL stores only its SHA-256 hash. Sessions have no server-side time expiration and end on logout, owner revocation, password reset, a password change (every other session of the account), or account deactivation.
+- Login creates a random server-managed session token. PostgreSQL stores only its SHA-256 hash. Each session ends at a fixed time chosen at sign-in (`auth_sessions.expires_at`, migration `027_auth_session_expiry.sql`): with **Keep me signed in on this device** (checked by default, FieldOps and Dispatch) 7 days after sign-in; otherwise at the next 03:00 in the company time zone (`COMPANY_TIME_ZONE`, default America/Chicago), or the following 03:00 when less than an hour remains. There is no inactivity timeout (reference: NIST SP 800-63B-4, AAL1). A session also ends on logout, owner revocation, password reset, a password change (every other session of the account), or account deactivation.
 - Login responds identically, and in comparable time, for an unknown username, a wrong password, or an inactive account. Password verification never runs while a row lock is held.
 - Browser clients use a same-origin `HttpOnly`, `SameSite=Strict` cookie (`Secure` in production). Unsafe cookie-authenticated requests require `X-FieldOps-Request: 1`. Non-browser API clients may present the same opaque session token as a Bearer credential.
 - Disabling an account revokes its sessions in the same transaction as deactivation. Re-enabling does not restore them.
@@ -48,4 +48,4 @@ Offline visit drafts, completion submissions, and photos remain associated with 
 
 ## Explicitly out of scope
 
-This model does not add device registration, device authorization, invitation redemption, refresh tokens, automatic session expiration, identity consolidation, or changes to Service and Report workflows.
+This model does not add device registration, device authorization, invitation redemption, refresh tokens, inactivity timeouts, identity consolidation, or changes to Service and Report workflows.

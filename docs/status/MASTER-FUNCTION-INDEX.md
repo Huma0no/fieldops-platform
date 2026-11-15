@@ -196,7 +196,7 @@ A `CLOSED` section is a finished product area: its code, UX, and specifications 
 | Shared PostgreSQL backend | SPEC CLOSED | Shared source of truth. |
 | Catalog as single source | SPEC CLOSED | Shared by Dispatch and FieldOps. Intake selects valid catalog entries and never mutates the global catalog. |
 | Multi-technician identity | SPEC CLOSED | Technician-scoped entities. |
-| Authentication | IMPLEMENTED (automated verification) / QA pending | Username/password accounts and server sessions for Dispatch and FieldOps (`docs/architecture/AUTHENTICATION-ARCHITECTURE.md`). Temporary passwords must be changed first. Supersedes device invite codes. |
+| Authentication | IMPLEMENTED (automated verification) / QA pending | Username/password accounts and server sessions for Dispatch and FieldOps (`docs/architecture/AUTHENTICATION-ARCHITECTURE.md`). Temporary passwords must be changed first. Sessions: 7 days with "Keep me signed in", otherwise until 03:00 company time; an ended session does not lock FieldOps offline. Supersedes device invite codes. |
 | Offline data scoped per technician | IMPLEMENTED (automated verification) / QA pending | Local Visit Drafts, the queue, and photos are keyed by technician ID (`docs/OFFLINE-FIRST-CONTRACT.md`). Records from earlier builds without a technician ID are not migrated (pre-production test data). |
 | Photos / GPS / EXIF | SPEC CLOSED | See shared integration spec. |
 | Google Drive | SPEC CLOSED / OPEN implementation | Decided, not yet built per QA backlog. |
