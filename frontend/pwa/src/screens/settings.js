@@ -60,7 +60,6 @@ function renderSettings (container, settings) {
   inner.className = 'st-inner'
   container.appendChild(inner)
 
-  inner.appendChild(buildSection('Appearance', buildThemeSection(settings.theme ?? 'dark')))
   inner.appendChild(buildSection(t('settings.language'), buildLanguageSection()))
   inner.appendChild(buildSection('AI Assistant', buildAISection(settings)))
 

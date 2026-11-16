@@ -113,3 +113,4 @@ UI:
 - Coil manual lists BIAS 2.8 / 2.2 generically; the library uses the UT3000 manual's 2.3 / 1.7 for CAPE + 2-stage.
 - Multiple dampers per zone (up to 3) and their numbering.
 - Hosting of the public page: decided in Phase 5; default proposal is a separate Netlify site for the standalone Guided build.
+- Offline cache and shell/catalog versioning cannot be tested on a phone over LAN HTTP: the service worker needs a secure context. Verify both on the HTTPS host in Phase 5.

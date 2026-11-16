@@ -345,4 +345,12 @@
   --badge-text-in-progress: #1d4ed8;   /* --fo-blue on its tint is 3.6:1; this is 5.3:1 */
   --badge-text-deferred:    var(--fo-accent-deep);
   --badge-text-completed:   var(--fo-ok);
+
+  --font-sans: var(--fo-font-body);
+  --font-mono: var(--fo-font-mono);
+}
+
+/* Form controls take the page font instead of the browser default. */
+:where(:root[data-app="fieldops"]) :where(button, input, textarea, select) {
+  font-family: inherit;
 }

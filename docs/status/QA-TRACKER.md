@@ -107,6 +107,16 @@ Recorded from WIP testing. Not a bug in the reported case: the completed visit w
 | HI-03 | The list has a Total column. Spec: no Total column. Kristo decides in that pass whether to keep it. | `dispatch/HISTORY-PROPERTIES-SPEC.md` |
 | HI-04 | The list does not refresh while open; it loads only when the screen mounts. It should refresh at least on screen focus or re-entry. | `dispatch/HISTORY-PROPERTIES-SPEC.md` |
 
+## UI findings (2026-11-15) — later UI pass
+
+Recorded during Phase 4.1 (style homologation). Not implemented.
+
+| ID | Finding | Area |
+|---|---|---|
+| UI-01 | The Settings Dark/Light theme selector is hidden: FieldOps has a single theme (Porcelain). Reinstate it only if a dark theme is built. | PWA Settings |
+| UI-02 | Settings, Chat and Transfers inherit the uppercase mono header title from the Home screens. Each screen injects its own global `.screen-header` / `.screen-title` rules, and the last one injected wins. | PWA shared header classes |
+| UI-03 | Settings section cards run edge to edge, with no side margin. | PWA Settings |
+
 ## Pre-production requirements
 
 Must be implemented after the WIP merge and before launch.
