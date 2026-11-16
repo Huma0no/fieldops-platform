@@ -83,8 +83,8 @@ Recorded from manual testing of `wip/auth-reports-offline-2026-11`. Not implemen
 | WS-02 | Service | AC and Heat reveal hidden options: Finish, Temporarily, and the per-system override when the visit has multiple systems. | `workspace/SERVICE-TSTAT-SPEC.md`, `workspace/SERVICE-MULTISYSTEM-SPEC.md` |
 | WS-03 | Tstat | Implementation opens a quantity modal; the closed spec requires a single-line control with no modal. New direction: quantity hidden until a tstat is selected, then shown directly below the list with quick picks 1–4 plus open entry for higher counts. | `workspace/SERVICE-TSTAT-SPEC.md` |
 | WS-04 | Accessories | Rename "Ecoil Wire" → "EEV Wire" everywhere (catalog, specs, report text, tests, and the Guided UT3000 group reference). | `workspace/ACC-SPEC.md` |
-| WS-05 | Fix | Fixed Leaks sub-options: Cunit · Coil · Wall. The label "Coil" replaces "Ecoil" (spec and catalog currently say Leaks Ecoil · Leaks Cunit · Leaks Wall). | `workspace/FIX-SPEC.md` |
-| WS-06 | Fix | Extended Wire sub-options confirmed: Furnace · Cunit (no change). Open question for the Workspace pass: whether the plain `Extended Wire` item (no location) stays selectable once it becomes the parent tile. | `workspace/FIX-SPEC.md` |
+| WS-05 | Fix | Fixed Leaks options stay Ecoil · Cunit · Wall. "Ecoil" is the field term and is kept (the earlier "Coil" rename is withdrawn). No label change; the hidden sub-option behavior is WS-11. | `workspace/FIX-SPEC.md` |
+| WS-06 | Fix | Extended Wire becomes a parent tile. Selecting it reveals Furnace · Cunit, and one location is required: Extended Wire cannot be charged without a location. The location-less `Extended Wire` catalog item is retired from selection. Tile label: pending Kristo's choice. | `workspace/FIX-SPEC.md` |
 | WS-07 | Accessories | LP Kit sub-options confirmed: Lennox 1Stg · Lennox 2Stg · Goodman (no change). | `workspace/ACC-SPEC.md` |
 | WS-08 | Weigh-In | Bug against spec: Subcooling is not calculated. Spec: computed field = Condenser Sat − Liquid Temp. | `workspace/WEIGHIN-SPEC.md` |
 | WS-09 | Weigh-In | Lineset dropdown is too long to use. Propose numeric entry (keypad or stepper) in the Workspace pass. | `workspace/WEIGHIN-SPEC.md` |
@@ -102,7 +102,7 @@ Must be implemented after the WIP merge and before launch.
 
 | ID | Requirement | Reference |
 |---|---|---|
-| PP-01 | Report price snapshot, non-blocking. Each Report stores the prices it was built with; later price changes never alter past Reports. If submitted catalog-derived values (price, tech_supplied) differ from the server catalog, the server accepts the Report, stores both values and flags the discrepancy — never "Correction required" for this reason. Dispatch shows the discrepancy on the Report view and in the Ledger week review (owner-configurable threshold). Dispatch edits a technician's Report only with prior agreement and notice, via the existing corrections channel. Automatic catalog/shell versioning (Guided Phase 4) stays as a secondary safeguard. | `MASTER-FUNCTION-INDEX.md` R-09 |
+| PP-01 | Report price snapshot, non-blocking. Each Report stores the prices it was built with; later price changes never alter past Reports. If submitted catalog-derived values (price, tech_supplied) differ from the server catalog, the server accepts the Report, stores both values and flags the discrepancy — never "Correction required" for this reason. Dispatch shows the discrepancy on the Report view and in the Ledger week review (owner-configurable threshold). Dispatch edits a technician's Report only with prior agreement and notice, via the existing corrections channel. Automatic catalog/shell versioning (Guided Phase 4) stays as a secondary safeguard. Authorized to change the CLOSED Reports and Ledger sections for PP-01 only; update `REPORT-SNAPSHOT-CONTRACT.md` as part of the work. | `MASTER-FUNCTION-INDEX.md` R-09 |
 
 ## Future features (out of current scope)
 

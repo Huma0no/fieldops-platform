@@ -279,7 +279,7 @@ Decided 2026-11-15 by Kristo after WIP testing. Implement after the WIP merge an
 - Dispatch may edit a technician's Report only with prior agreement and notice to the technician, through the existing corrections channel.
 - Automatic catalog/shell versioning (Guided Phase 4) remains a secondary safeguard, not the fix.
 
-This supersedes the reject-on-difference rule for catalog-derived values in `docs/architecture/REPORT-SNAPSHOT-CONTRACT.md`. Other material Report differences keep their current rule. Implementation touches the CLOSED Reports and Ledger sections and needs that task's explicit authorization. Tracked as PP-01 in `docs/status/QA-TRACKER.md`.
+This supersedes the reject-on-difference rule for catalog-derived values in `docs/architecture/REPORT-SNAPSHOT-CONTRACT.md`. Other material Report differences keep their current rule. Kristo authorized (2026-11-15) changes to the CLOSED Reports and Ledger sections for PP-01 only, when it is implemented; updating `REPORT-SNAPSHOT-CONTRACT.md` is part of that work. Tracked as PP-01 in `docs/status/QA-TRACKER.md`.
 
 ### R-10 — Technician-defined price panel (future feature, out of current scope)
 
