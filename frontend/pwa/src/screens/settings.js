@@ -5,6 +5,7 @@
 
 import { api }                  from '../../../shared/api.js'
 import { NavBar, navBarStyles } from '../components/nav-bar.js'
+import { getLanguage, setLanguage, t } from '../../../shared/i18n.js'
 
 const STYLES_ID = 'styles-settings'
 
@@ -60,6 +61,7 @@ function renderSettings (container, settings) {
   container.appendChild(inner)
 
   inner.appendChild(buildSection('Appearance', buildThemeSection(settings.theme ?? 'dark')))
+  inner.appendChild(buildSection(t('settings.language'), buildLanguageSection()))
   inner.appendChild(buildSection('AI Assistant', buildAISection(settings)))
 
   const invSection = buildSection('My Inventory', buildLoadingEl())
@@ -106,6 +108,25 @@ function buildLoadingEl () {
   p.className = 'st-muted'
   p.textContent = 'Loading…'
   return p
+}
+
+// ── Language ───────────────────────────────────────────────
+
+// Global EN/ES preference stored on this device; Guided reads it.
+function buildLanguageSection () {
+  const toggle = document.createElement('div')
+  toggle.className = 'st-theme-toggle'
+  ;[{ value: 'en', label: 'English' }, { value: 'es', label: 'Español' }].forEach(({ value, label }) => {
+    const btn = document.createElement('button')
+    btn.className = `st-theme-btn ${getLanguage() === value ? 'st-theme-btn--active' : ''}`
+    btn.textContent = label
+    btn.addEventListener('click', () => {
+      setLanguage(value)
+      toggle.querySelectorAll('.st-theme-btn').forEach(b => b.classList.toggle('st-theme-btn--active', b === btn))
+    })
+    toggle.appendChild(btn)
+  })
+  return toggle
 }
 
 // ── Theme ──────────────────────────────────────────────────
