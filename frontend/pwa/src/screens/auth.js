@@ -33,7 +33,12 @@ export function AuthScreen ({ onSuccess }) {
           spellcheck="false"
           placeholder="Username"
         />
-        <input id="password-input" class="auth-input" type="password" autocomplete="current-password" placeholder="Password" />
+        <div class="auth-password">
+          <input id="password-input" class="auth-input" type="password" autocomplete="current-password" placeholder="Password" />
+          <button id="password-visibility" class="auth-visibility" type="button" aria-label="Show password">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true"></svg>
+          </button>
+        </div>
         <label class="auth-keep"><input id="keep-signed-in" type="checkbox" checked /> Keep me signed in on this device</label>
         <p id="auth-error" class="auth-error" aria-live="polite"></p>
         <button id="auth-submit" class="auth-btn">
@@ -52,6 +57,19 @@ export function AuthScreen ({ onSuccess }) {
   const label   = el.querySelector('#auth-btn-label')
   const spinner = el.querySelector('#auth-btn-spinner')
   const error   = el.querySelector('#auth-error')
+  const visibilityBtn = el.querySelector('#password-visibility')
+  const EYE_OPEN = '<path d="M2.5 12s3.4-6 9.5-6 9.5 6 9.5 6-3.4 6-9.5 6-9.5-6-9.5-6z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><circle cx="12" cy="12" r="2.5" stroke="currentColor" stroke-width="2"/>'
+  const EYE_OFF = '<path d="M3 3l18 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M10.6 10.6a2 2 0 002.8 2.8" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M9.9 5.2A10.8 10.8 0 0121 12a11.5 11.5 0 01-3.1 3.8M6.2 6.2A11.5 11.5 0 003 12a10.8 10.8 0 005.1 5.8 10.7 10.7 0 005.9 1" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>'
+  function syncVisibility () {
+    const visible = passwordInput.type === 'text'
+    visibilityBtn.querySelector('svg').innerHTML = visible ? EYE_OFF : EYE_OPEN
+    visibilityBtn.setAttribute('aria-label', visible ? 'Hide password' : 'Show password')
+  }
+  visibilityBtn.addEventListener('click', () => {
+    passwordInput.type = passwordInput.type === 'password' ? 'text' : 'password'
+    syncVisibility()
+  })
+  syncVisibility()
 
   input.addEventListener('input', () => {
     error.textContent = ''
@@ -236,6 +254,30 @@ export const authStyles = `
   .auth-btn:disabled {
     opacity: 0.6;
     cursor: not-allowed;
+  }
+
+  .auth-password {
+    position: relative;
+    width: 100%;
+  }
+
+  .auth-password .auth-input {
+    padding-right: 52px;
+  }
+
+  .auth-visibility {
+    position: absolute;
+    top: 50%;
+    right: 2px;
+    transform: translateY(-50%);
+    width: 44px;
+    height: 44px;
+    display: grid;
+    place-items: center;
+    border: none;
+    background: none;
+    color: var(--text-secondary);
+    cursor: pointer;
   }
 
   .auth-keep {

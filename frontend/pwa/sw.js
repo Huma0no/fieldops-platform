@@ -8,7 +8,7 @@
  *   - Sync and auth endpoints: Network Only
  */
 
-const SHELL_CACHE  = 'fieldops-shell-v3'
+const SHELL_CACHE  = 'fieldops-shell-v4'
 const CATALOG_CACHE = 'fieldops-catalog-v1'
 
 const SHELL_ASSETS = [

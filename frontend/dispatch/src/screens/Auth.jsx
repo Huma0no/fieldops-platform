@@ -15,6 +15,7 @@ export default function Auth () {
   const [error, setError]     = useState('')
   const [loading, setLoading] = useState(false)
   const [keepSignedIn, setKeepSignedIn] = useState(true)
+  const [showPassword, setShowPassword] = useState(false)
 
   async function handleSubmit (e) {
     e.preventDefault()
@@ -72,15 +73,20 @@ export default function Auth () {
             spellCheck={false}
             style={styles.input}
           />
-          <input
-            type="password"
-            value={password}
-            onChange={e => { setPassword(e.target.value); setError('') }}
-            placeholder="Password"
-            autoComplete="current-password"
-            spellCheck={false}
-            style={styles.input}
-          />
+          <div style={styles.passwordField}>
+            <input
+              type={showPassword ? 'text' : 'password'}
+              value={password}
+              onChange={e => { setPassword(e.target.value); setError('') }}
+              placeholder="Password"
+              autoComplete="current-password"
+              spellCheck={false}
+              style={{ ...styles.input, ...styles.passwordInput }}
+            />
+            <button type="button" style={styles.visibilityButton} aria-label={showPassword ? 'Hide password' : 'Show password'} onClick={() => setShowPassword(value => !value)}>
+              <PasswordVisibilityIcon visible={showPassword} />
+            </button>
+          </div>
           <label style={styles.keep}>
             <input type="checkbox" checked={keepSignedIn} onChange={e => setKeepSignedIn(e.target.checked)} />
             Keep me signed in on this device
