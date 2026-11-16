@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>FieldOps · Nav mockup (Home)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;600;700;800&family=Azeret+Mono:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{--bg:#eceae5;--tile:#f5f3ef;--hi:#ffffff;--lo:#c8c4bc;--ink:#2b2824;--soft:#7a746b;--acc:#b5641e;--accd:#8a4a13;
+    --raise:6px 6px 12px var(--lo),-6px -6px 12px var(--hi);--raise-s:3px 3px 6px var(--lo),-3px -3px 6px var(--hi);
+    --inset:inset 3px 3px 6px var(--lo),inset -3px -3px 6px var(--hi)}
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;height:100%;background:var(--bg);color:var(--ink);font:15px/1.35 Archivo,system-ui,sans-serif;overscroll-behavior:none}
+  .app{position:relative;display:flex;flex-direction:column;height:100dvh;max-width:480px;margin:0 auto;padding-top:env(safe-area-inset-top)}
+  /* mockup switch */
+  .mock{display:flex;align-items:center;gap:8px;padding:6px 12px;background:#2b2824;color:#eceae5;font:600 11px 'Azeret Mono',monospace}
+  .mock span{flex:1;opacity:.7}
+  .mock .seg{display:flex;border-radius:8px;overflow:hidden;border:1px solid #57514a}
+  .mock button{background:none;border:0;color:#cfc8bd;font:700 11px 'Azeret Mono',monospace;padding:6px 10px}
+  .mock button.on{background:var(--acc);color:#fff}
+  /* header */
+  header{flex:0 0 auto;padding:10px 14px 8px}
+  .title{font:800 20px Archivo;letter-spacing:.02em}
+  .tabs{display:flex;gap:6px;padding:4px;border-radius:14px;box-shadow:var(--inset)}
+  .tabs button{flex:1;border:0;background:none;padding:9px 4px;border-radius:10px;font:700 13px 'Azeret Mono',monospace;color:var(--soft);letter-spacing:.03em}
+  .tabs button.on{background:var(--bg);box-shadow:var(--raise-s);color:var(--accd)}
+  /* pages */
+  .pages{flex:1;min-height:0;display:flex;overflow-x:hidden;scroll-snap-type:x mandatory;scrollbar-width:none}
+  .pages.swipe{overflow-x:auto}
+  .pages::-webkit-scrollbar{display:none}
+  .page{flex:0 0 100%;scroll-snap-align:start;overflow-y:auto;padding:6px 14px 20px}
+  .card{background:var(--bg);border-radius:18px;box-shadow:var(--raise);padding:14px 16px;margin:0 0 14px}
+  .chip{display:inline-block;font:700 10px 'Azeret Mono',monospace;letter-spacing:.08em;color:var(--soft);padding:3px 8px;border-radius:8px;box-shadow:var(--inset)}
+  .card h3{margin:8px 0 2px;font:800 18px Archivo}
+  .card p{margin:0;color:var(--soft);font-size:13px}
+  .row{display:flex;align-items:center;gap:8px}
+  .row .grow{flex:1}
+  .ibtn{width:42px;height:42px;border-radius:12px;border:0;background:var(--bg);box-shadow:var(--raise-s);display:grid;place-items:center;color:var(--accd)}
+  .start{margin-top:12px;width:100%;height:46px;border:0;border-radius:14px;background:var(--bg);box-shadow:var(--raise-s);font:800 15px Archivo;color:var(--accd)}
+  .tile{background:var(--tile);border-radius:12px;padding:10px 12px;margin-top:10px;font:600 12px 'Azeret Mono',monospace;color:var(--soft)}
+  .sum{display:flex;align-items:center;justify-content:space-between}
+  .pcs{font:700 12px 'Azeret Mono',monospace;color:var(--acc);padding:4px 10px;border-radius:10px;box-shadow:var(--inset)}
+  /* bottom bar */
+  .bar{flex:0 0 auto;position:relative;background:var(--bg);box-shadow:inset 0 1px 0 var(--hi),0 -4px 9px var(--lo);padding:6px 6px calc(6px + env(safe-area-inset-bottom))}
+  .handle{position:absolute;left:50%;top:-14px;transform:translateX(-50%);width:60px;height:22px;display:grid;place-items:center;cursor:pointer}
+  .handle i{width:32px;height:4px;border-radius:2px;background:var(--lo)}
+  .items{display:flex}
+  .it{flex:1;min-width:44px;height:52px;border:0;background:none;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;color:var(--soft);position:relative;border-radius:12px;cursor:pointer}
+  .it svg{width:24px;height:24px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+  .it .lbl{font:600 9px 'Azeret Mono',monospace;letter-spacing:.04em;max-height:0;overflow:hidden;transition:max-height .15s}
+  .bar.labels .it .lbl{max-height:14px}
+  .bar.labels .it{height:62px}
+  .it.on{color:var(--accd)}
+  .it.on::before{content:"";position:absolute;top:2px;width:22px;height:3px;border-radius:2px;background:var(--acc)}
+  .it .badge{position:absolute;top:6px;right:calc(50% - 18px);min-width:16px;height:16px;border-radius:8px;background:var(--acc);color:#fff;font:700 9px 'Azeret Mono';display:grid;place-items:center;padding:0 4px}
+  /* overlays */
+  .sheet{position:absolute;left:10px;right:10px;bottom:calc(84px + env(safe-area-inset-bottom));background:var(--bg);border-radius:18px;box-shadow:var(--raise);padding:14px 16px;display:none;z-index:20}
+  .sheet.show{display:block}
+  .sheet h4{margin:0 0 6px;font:800 16px Archivo}
+  .sheet p{margin:0;color:var(--soft);font-size:13px}
+  /* workspace */
+  .ws{position:absolute;inset:0;background:var(--bg);display:none;flex-direction:column;z-index:10;padding-top:env(safe-area-inset-top)}
+  .ws.show{display:flex}
+  .ws .banner{display:flex;align-items:center;gap:10px;padding:10px 14px}
+  .ws .banner .grow{flex:1}
+  .ws .banner b{font:800 16px Archivo;display:block}
+  .ws .banner span{font:600 11px 'Azeret Mono';color:var(--soft)}
+  .rail{display:flex;gap:6px;padding:4px 14px 10px}
+  .rail span{flex:1;text-align:center;padding:8px 0;border-radius:10px;font:700 11px 'Azeret Mono';color:var(--soft);box-shadow:var(--inset)}
+  .rail span.on{box-shadow:var(--raise-s);color:var(--accd)}
+  .ws .body{flex:1;overflow-y:auto;padding:4px 14px 80px}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .grid div{height:64px;border-radius:14px;box-shadow:var(--raise-s);display:grid;place-items:center;font:700 13px 'Azeret Mono';color:var(--soft)}
+  .nav2{display:flex;gap:10px;margin-top:16px}
+  .nav2 button{flex:1;height:46px;border:0;border-radius:14px;background:var(--bg);box-shadow:var(--raise-s);font:800 14px Archivo;color:var(--accd)}
+  .total{flex:0 0 auto;display:flex;align-items:center;padding:12px 14px calc(12px + env(safe-area-inset-bottom));box-shadow:inset 0 1px 0 var(--hi),0 -4px 9px var(--lo);font:700 13px 'Azeret Mono'}
+  .fab{position:absolute;right:14px;display:flex;flex-direction:column;gap:8px;bottom:calc(10px + env(safe-area-inset-bottom));z-index:12}
+  .fab button{width:44px;height:44px;border:0;border-radius:14px;background:var(--bg);box-shadow:var(--raise);display:grid;place-items:center;color:var(--accd)}
+  .fab svg{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+  .x{width:36px;height:36px;border:0;border-radius:10px;background:var(--bg);box-shadow:var(--raise-s);font:700 16px Archivo;color:#a33}
+  .hint{font:600 11px 'Azeret Mono';color:var(--soft);text-align:center;margin:-4px 0 8px}
+</style>
+</head>
+<body>
+<div class="app" id="app">
+  <div class="mock"><span>MOCKUP · NAV</span><div class="seg"><button data-v="cur">Current</button><button data-v="new" class="on">Proposed</button></div></div>
+  <header id="hdr"></header>
+  <div class="pages" id="pages">
+    <section class="page" id="p-lobby">
+      <div class="card"><span class="chip">AVAILABLE</span><h3>4821 Cedar Hollow Ln</h3><p>Bridgeland · Perry Homes · 2 systems</p></div>
+      <div class="card"><span class="chip">AVAILABLE</span><h3>1907 Amber Ridge Dr</h3><p>Towne Lake · Lennar · 1 system</p></div>
+      <div class="card"><span class="chip">AVAILABLE</span><h3>77 Sable Point Ct</h3><p>Elyson · Taylor Morrison · 1 system</p></div>
+    </section>
+    <section class="page" id="p-calls">
+      <div class="card" id="job">
+        <div class="row"><div class="grow"><span class="chip">IN PROGRESS</span><h3>111326 TEST</h3><p>— · —</p></div>
+          <button class="ibtn" aria-label="Navigate"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 11l18-8-8 18-2-8-8-2z"/></svg></button></div>
+        <div id="jobx" style="display:none">
+          <div class="tile">UT3000 · DAPC · Ecoil Wire · eBypass</div>
+          <div class="tile">Daikin One Touch × 3</div>
+          <button class="start" id="start">Start Report</button>
+        </div>
+      </div>
+      <div class="card sum"><b style="font-weight:700">Load Sheet Summary</b><span class="pcs">0 pcs</span></div>
+    </section>
+    <section class="page" id="p-reports">
+      <div class="card"><span class="chip">THIS WEEK</span><h3>Completion reports</h3><p>3 sent · 1 draft</p></div>
+      <div class="card"><span class="chip">CORRECTIONS</span><h3>Send a correction</h3><p>Open until the week closes</p></div>
+    </section>
+  </div>
+  <div class="bar" id="bar"><div class="handle" id="handle" title="Show labels"><i></i></div><div class="items" id="items"></div></div>
+
+  <div class="sheet" id="sheet"></div>
+
+  <div class="ws" id="ws">
+    <div class="banner"><div class="grow"><b>111326 TEST</b><span>— · — · 1 system</span></div><button class="x" id="wsx" aria-label="Exit">✕</button></div>
+    <div class="rail"><span class="on">Srv+T</span><span>Acc</span><span>Fix</span><span>Wght</span><span>Notes</span></div>
+    <div class="body">
+      <div class="grid"><div>AC</div><div>HEAT</div><div>PRESTART</div><div>FINISH</div></div>
+      <div class="tile" style="margin-top:14px">Tstat · Daikin One Touch × 3</div>
+      <div class="nav2"><button>Back</button><button>Next</button></div>
+      <p class="hint" style="margin-top:14px">Workspace: bar hidden · floating Calc + Guided</p>
+    </div>
+    <div class="total">TOTAL $0</div>
+    <div class="fab"><button data-tool="guided" aria-label="Guided"></button><button data-tool="calc" aria-label="Calc"></button></div>
+  </div>
+</div>
+<script>
+const I={
+  lobby:'<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
+  calls:'<rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 9h18M7 13h6M7 16h4"/>',
+  reports:'<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5M9 13h6M9 17h6"/>',
+  chat:'<path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1.1-4.6A8 8 0 1 1 21 12z"/>',
+  calc:'<rect x="5" y="3" width="14" height="18" rx="2"/><rect x="8" y="6" width="8" height="4" rx="1"/><path d="M8.5 14h.01M12 14h.01M15.5 14h.01M8.5 17.5h.01M12 17.5h.01M15.5 17.5h.01"/>',
+  menu:'<path d="M4 7h16M4 12h16M4 17h16"/>',
+  home:'<path d="M3 11l9-7 9 7"/><path d="M5 10v10h5v-6h4v6h5V10"/>',
+  guided:'<circle cx="5.5" cy="17" r="2.5"/><circle cx="18.5" cy="7" r="2.5"/><path d="M7.5 15.5C12 14 9 9 16.3 8.2"/><path d="M4 21h3M17 3h3"/>',
+};
+const svg=k=>`<svg viewBox="0 0 24 24">${I[k]}</svg>`;
+const TABS=[['lobby','Lobby'],['calls','My Calls'],['reports','Reports']];
+const BARS={
+  cur:[['lobby','Lobby','go'],['calls','My Calls','go'],['reports','Reports','go'],['chat','Chat','tool',2],['calc','Calc','tool'],['menu','Menu','tool',1]],
+  new:[['home','Home','home'],['menu','Menu','tool',1],['chat','Chat','tool',2],['guided','Guided','tool'],['calc','Calc','tool']],
+};
+const TOOL={
+  chat:['Chat','Messages with dispatch (mock).'],menu:['Menu','Settings · Transfers (1 pending).'],
+  calc:['Quick Charge Calc','Opens anchored bottom-right, one-handed (mock).'],
+  guided:['Guided','Active call: 111326 TEST — UT3000 + DAPC · 3 zones (editable). Opens the UT3000 guide.'],
+};
+let view='new', tab=1, labels=false;
+try{ labels=localStorage.getItem('fo:navLabels')==='1'; }catch(e){}
+const $=id=>document.getElementById(id), pages=$('pages');
+
+function renderHeader(){
+  if(view==='cur') $('hdr').innerHTML=`<div class="title">${TABS[tab][1]}</div>`;
+  else $('hdr').innerHTML=`<div class="tabs">${TABS.map(([k,l],i)=>`<button data-t="${i}" class="${i===tab?'on':''}">${l}</button>`).join('')}</div>`;
+  $('hdr').querySelectorAll('[data-t]').forEach(b=>b.onclick=()=>goTab(+b.dataset.t,true));
+}
+function renderBar(){
+  $('bar').classList.toggle('labels',labels);
+  $('items').innerHTML=BARS[view].map(([k,l,kind,badge])=>{
+    const on = (kind==='home') || (kind==='go' && TABS[tab][0]===k);
+    return `<button class="it${on?' on':''}" data-k="${k}" data-kind="${kind}" aria-label="${l}">${svg(k)}${badge?`<span class="badge">${badge}</span>`:''}<span class="lbl">${l}</span></button>`;
+  }).join('');
+  $('items').querySelectorAll('.it').forEach(b=>b.onclick=()=>{
+    const k=b.dataset.k, kind=b.dataset.kind;
+    if(kind==='go') goTab(TABS.findIndex(t=>t[0]===k),true);
+    else if(kind==='home') { closeSheet(); }
+    else openTool(k);
+  });
+}
+function goTab(i,scroll){
+  tab=i; closeSheet(); renderHeader(); renderBar();
+  if(scroll) pages.scrollTo({left:i*pages.clientWidth,behavior:'smooth'});
+}
+function openTool(k){ const s=$('sheet'); s.innerHTML=`<h4>${TOOL[k][0]}</h4><p>${TOOL[k][1]}</p>`; s.classList.add('show');
+  s.style.bottom = $('ws').classList.contains('show') ? 'calc(120px + env(safe-area-inset-bottom))' : 'calc(84px + env(safe-area-inset-bottom))'; }
+function closeSheet(){ $('sheet').classList.remove('show'); }
+document.addEventListener('click',e=>{ if(!e.target.closest('.sheet,.it,.fab')) closeSheet(); },true);
+
+// swipe between tabs (proposed only)
+let st; pages.addEventListener('scroll',()=>{ if(view!=='new') return; clearTimeout(st); st=setTimeout(()=>{ const i=Math.round(pages.scrollLeft/pages.clientWidth); if(i!==tab){ tab=i; renderHeader(); } },80); });
+
+$('handle').onclick=()=>{ labels=!labels; try{localStorage.setItem('fo:navLabels',labels?'1':'0')}catch(e){} renderBar(); };
+document.querySelectorAll('.mock button').forEach(b=>b.onclick=()=>{
+  view=b.dataset.v; document.querySelectorAll('.mock button').forEach(x=>x.classList.toggle('on',x===b));
+  pages.classList.toggle('swipe',view==='new'); pages.scrollTo({left:tab*pages.clientWidth}); renderHeader(); renderBar(); closeSheet(); });
+
+// expand card + workspace
+$('job').onclick=e=>{ if(e.target.closest('.ibtn,#start')) return; const x=$('jobx'); x.style.display=x.style.display==='none'?'block':'none'; };
+$('start').onclick=()=>{ closeSheet(); $('ws').classList.add('show'); };
+$('wsx').onclick=()=>{ closeSheet(); $('ws').classList.remove('show'); };
+document.querySelectorAll('.fab button').forEach(b=>{ b.innerHTML=svg(b.dataset.tool); b.onclick=()=>openTool(b.dataset.tool); });
+
+pages.classList.add('swipe');
+renderHeader(); renderBar();
+requestAnimationFrame(()=>pages.scrollTo({left:tab*pages.clientWidth}));
+window.addEventListener('resize',()=>pages.scrollTo({left:tab*pages.clientWidth}));
+</script>
+</body>
+</html>

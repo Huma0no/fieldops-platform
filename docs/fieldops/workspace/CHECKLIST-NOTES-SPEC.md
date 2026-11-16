@@ -46,3 +46,9 @@ Checklist answers, Notes, and their evidence references are durable Local Visit 
 Final button on this step (not accessible from any earlier step). No blocking or non-blocking advisory dialog on tap — the P-drain reminder lives as static text directly under the P-drain items' labels in the checklist itself (e.g. "Reviewing the P-drain is recommended before completing"), not as a separate popup evaluated at submission time.
 
 **Report text order:** Date · Address · Subdivision · Builder · Notes + checklist "No" items (pipe-separated) · Service · Service $ · Accessories · Acc $ · Fix · Fix $.
+
+## Pending changes (QA 2026-11-16, not implemented)
+
+Recorded in `docs/status/QA-TRACKER.md` (WS-10). Scheduled for the Workspace pass after Guided Phase 4; until then this spec's current text remains the closed behavior.
+
+- WS-10: before submitting, a review screen summarizing services, tstat, accessories, fixes with amounts and total, weigh-in, notes and checklist, with explicit confirmation.

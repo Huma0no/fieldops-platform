@@ -73,6 +73,25 @@ Leyenda: ⬜ no iniciado · 🟡 en curso / bloqueado · 🟢 completo
 
 ---
 
+## WIP test findings (2026-11-16) — Workspace pass
+
+Recorded from manual testing of `wip/auth-reports-offline-2026-11`. Not implemented; scheduled for a separate Workspace pass after Guided Phase 4. Owning specs carry a matching "Pending changes" note.
+
+| ID | Area | Finding | Owning spec |
+|---|---|---|---|
+| WS-01 | Service | AC, Heat, Temporarily and Finish combine freely. Prestart is exclusive and cannot combine with anything. | `workspace/SERVICE-TSTAT-SPEC.md` |
+| WS-02 | Service | AC and Heat reveal hidden options: Finish, Temporarily, and the per-system override when the visit has multiple systems. | `workspace/SERVICE-TSTAT-SPEC.md`, `workspace/SERVICE-MULTISYSTEM-SPEC.md` |
+| WS-03 | Tstat | Implementation opens a quantity modal; the closed spec requires a single-line control with no modal. New direction: quantity hidden until a tstat is selected, then shown directly below the list with quick picks 1–4 plus open entry for higher counts. | `workspace/SERVICE-TSTAT-SPEC.md` |
+| WS-04 | Accessories | Rename "Ecoil Wire" → "EEV Wire" everywhere (catalog, specs, report text, tests, and the Guided UT3000 group reference). | `workspace/ACC-SPEC.md` |
+| WS-05 | Fix | Fixed Leaks sub-options: Cunit · Coil · Wall (spec currently says Leaks Ecoil · Cunit · Wall). | `workspace/FIX-SPEC.md` |
+| WS-06 | Fix | Extended Wire sub-options: pending Kristo's confirmation. | `workspace/FIX-SPEC.md` |
+| WS-07 | Accessories | LP Kit sub-options: pending Kristo's confirmation. | `workspace/ACC-SPEC.md` |
+| WS-08 | Weigh-In | Bug against spec: Subcooling is not calculated. Spec: computed field = Condenser Sat − Liquid Temp. | `workspace/WEIGHIN-SPEC.md` |
+| WS-09 | Weigh-In | Lineset dropdown is too long to use. Propose numeric entry (keypad or stepper) in the Workspace pass. | `workspace/WEIGHIN-SPEC.md` |
+| WS-10 | Report | Before submitting, a review screen summarizing services, tstat, accessories, fixes with amounts and total, weigh-in, notes and checklist, with explicit confirmation. (Current modal shows only service, item count, total and photos.) | `workspace/CHECKLIST-NOTES-SPEC.md` |
+
+Verified OK in the same session: Lobby claim flow, GPS permission prompt on the first service, amount calculations.
+
 ## Backlog / pendiente de decisión
 
 - `SERVICE-MULTISYSTEM-SPEC.md` — rediseño de sección Service multisistema. Especificado, no implementado.

@@ -34,3 +34,11 @@ What each service prints in the Completion Report, and the full Finish priority-
 Compact single-line control: a narrow (~60% width), vertically-scrollable picker, about 1.5 line-heights tall (peek-scroll, larger font), with **"+ Add new"** as a row inside the scroll itself. No checkbox, no chips, no separate Add button — selecting a row is the add. A quantity stepper sits beside the scroll (~40% width), matched in height, completing one horizontal line.
 
 A job always has exactly one thermostat model (× quantity) — single-select + quantity is correct; no multi-model display is needed.
+
+## Pending changes (QA 2026-11-16, not implemented)
+
+Recorded in `docs/status/QA-TRACKER.md` (WS-01, WS-02, WS-03). Scheduled for the Workspace pass after Guided Phase 4; until then this spec's current text remains the closed behavior.
+
+- WS-01: AC, Heat, Temporarily and Finish combine freely; Prestart is exclusive.
+- WS-02: AC and Heat reveal Finish, Temporarily, and the per-system override on multi-system visits.
+- WS-03: the implementation's quantity modal does not match the single-line control above. New direction (replaces it once implemented): quantity hidden until a tstat is selected, then shown directly below the list — quick picks 1–4 plus open entry for higher counts.

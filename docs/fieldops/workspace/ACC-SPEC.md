@@ -47,3 +47,10 @@ What each accessory prints in the Completion Report: `/docs/shared/REPORT-TEXT.m
 ## Resolved
 
 - "Weigh-In Data" (accessory tile, this grid) and the per-system charge toggle (`/docs/fieldops/workspace/WEIGHIN-SPEC.md`) are two different things, confirmed 2026-07-30 against the catalog seed: "Weigh-In Data" is a billable $10 accessory line (with a documented +$10 addon when Finish is active — see `/docs/shared/REPORT-TEXT.md`). The Weigh-In panel's own toggle is about whether that system has refrigerant charge data recorded at all — unrelated to this charge.
+
+## Pending changes (QA 2026-11-16, not implemented)
+
+Recorded in `docs/status/QA-TRACKER.md` (WS-04, WS-07). Scheduled for the Workspace pass after Guided Phase 4; until then this spec's current text remains the closed behavior.
+
+- WS-04: rename "Ecoil Wire" → "EEV Wire" everywhere, including the UT3000 group and the Guided UT3000 reference.
+- WS-07: LP Kit sub-options pending Kristo's confirmation.

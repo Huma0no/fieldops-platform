@@ -23,3 +23,10 @@ Fix selection, description, and resolved price are durable Local Visit Draft sta
 ## Report text
 
 What each fix prints in the Completion Report: `/docs/shared/REPORT-TEXT.md`.
+
+## Pending changes (QA 2026-11-16, not implemented)
+
+Recorded in `docs/status/QA-TRACKER.md` (WS-05, WS-06). Scheduled for the Workspace pass after Guided Phase 4; until then this spec's current text remains the closed behavior.
+
+- WS-05: Fixed Leaks sub-options: Cunit · Coil · Wall.
+- WS-06: Extended Wire sub-options pending Kristo's confirmation.

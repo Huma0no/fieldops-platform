@@ -48,3 +48,10 @@ Weigh-In values and charge-toggle state are durable Local Visit Draft fields. Th
 ## Deferred (existing behavior kept as-is, not rebuilt in the latest style pass)
 
 Tabbed system switcher, Factory/Revised toggle, GPS badge display on SCALE/FAN photos.
+
+## Pending changes (QA 2026-11-16, not implemented)
+
+Recorded in `docs/status/QA-TRACKER.md` (WS-08, WS-09). Scheduled for the Workspace pass after Guided Phase 4; until then this spec's current text remains the closed behavior.
+
+- WS-08 (bug against this spec): Subcooling is not calculated; it must be Condenser Sat − Liquid Temp.
+- WS-09: the Lineset dropdown is too long to use; propose numeric entry (keypad or stepper).
