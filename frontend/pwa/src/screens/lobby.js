@@ -309,7 +309,7 @@ const screenStyles = `
     flex-direction: column;
     height: 100dvh;
     overflow: hidden;
-    background: radial-gradient(120% 80% at 50% -10%, var(--fo-panel-hi) 0%, var(--fo-panel-lo) 100%);
+    background: var(--fo-panel);
   }
 
   .lobby-count-badge {

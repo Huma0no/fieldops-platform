@@ -747,6 +747,7 @@ export const jobCardStyles = `
 
   .jc-context-item:active {
     background: var(--fo-well);
+    box-shadow: var(--fo-shadow-inset);
   }
 
   .jc-context-item--destructive {

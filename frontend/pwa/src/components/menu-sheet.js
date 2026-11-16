@@ -39,7 +39,7 @@ export const menuSheetStyles = `
   .ms-overlay {
     position: fixed;
     inset: 0;
-    background: rgba(0,0,0,0.6);
+    background: var(--fo-scrim);
     display: flex;
     align-items: flex-end;
     z-index: 100;
@@ -66,7 +66,8 @@ export const menuSheetStyles = `
   }
 
   .ms-item {
-    background: var(--fo-well, var(--surface-2));
+    background: var(--fo-well);
+    box-shadow: var(--fo-shadow-well);
     border: none;
     border-radius: var(--fo-radius-sm, 8px);
     color: var(--fo-ink, var(--text-primary));

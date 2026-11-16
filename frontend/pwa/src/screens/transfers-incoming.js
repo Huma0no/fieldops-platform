@@ -235,8 +235,8 @@ const screenStyles = `
   .ti-actions { display:flex; gap:var(--space-2); }
   .ti-btn { flex:1; padding:var(--space-3); border:none; border-radius:var(--radius-md); font-size:var(--text-base); font-weight:500; cursor:pointer; -webkit-tap-highlight-color:transparent; }
   .ti-btn:disabled { opacity:0.5; cursor:not-allowed; }
-  .ti-btn--reject { background:var(--surface-2); color:var(--text-secondary); border:0.5px solid var(--border-default); }
-  .ti-btn--accept { background:var(--color-signal); color:#fff; }
+  .ti-btn--reject { background:var(--fo-well); color:var(--fo-ink-soft); box-shadow:var(--fo-shadow-well); }
+  .ti-btn--accept { background:var(--fo-panel); box-shadow:var(--fo-shadow-raised); color:var(--fo-accent-deep); }
 
   .ti-success { display:flex; flex-direction:column; align-items:center; gap:var(--space-3); padding:var(--space-8) 0; text-align:center; }
   .ti-success-icon { font-size:32px; }

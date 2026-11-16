@@ -659,14 +659,14 @@ const screenStyles = `
   .empty-title { font-size:var(--text-base); font-family:var(--fo-font-mono); font-weight:700; color:var(--fo-ink-soft); }
   .empty-sub { font-size:var(--text-sm); font-family:var(--fo-font-mono); color:var(--fo-ink-soft); }
   .skeleton-wrap { display:flex; flex-direction:column; gap:var(--space-2); padding:var(--space-3) var(--space-4); }
-  .skeleton-card { height:110px; border-radius:var(--fo-radius); background:var(--fo-well); animation:shimmer 1.4s ease-in-out infinite; }
+  .skeleton-card { height:110px; border-radius:var(--fo-radius); background:var(--fo-well); box-shadow:var(--fo-shadow-well); animation:shimmer 1.4s ease-in-out infinite; }
   @keyframes shimmer { 0%,100%{opacity:.5} 50%{opacity:1} }
 
   .rc-menu-btn { background:none; border:none; color:var(--fo-ink-soft); font-size:18px; cursor:pointer; padding:0 2px; letter-spacing:1px; line-height:1; -webkit-tap-highlight-color:transparent; }
   .rc-context-menu { position:fixed; background:var(--fo-panel); box-shadow:var(--fo-shadow-card); border-radius:var(--fo-radius-sm); padding:var(--space-2) 0; min-width:180px; z-index:100; }
   .rc-context-item { display:block; width:100%; background:none; border:none; text-align:left; font-size:var(--text-base); color:var(--fo-ink); padding:var(--space-3) var(--space-4); cursor:pointer; }
-  .rc-context-item:active { background:var(--fo-well); }
-  .rp-overlay { position:fixed; inset:0; background:rgba(0,0,0,.6); display:flex; align-items:flex-end; z-index:100; }
+  .rc-context-item:active { background:var(--fo-well); box-shadow:var(--fo-shadow-inset); }
+  .rp-overlay { position:fixed; inset:0; background:var(--fo-scrim); display:flex; align-items:flex-end; z-index:100; }
   .rp-modal { width:100%; background:var(--fo-panel); box-shadow:var(--fo-shadow-card); border-radius:var(--fo-radius) var(--fo-radius) 0 0; max-height:80dvh; display:flex; flex-direction:column; padding-bottom:env(safe-area-inset-bottom,0px); }
   .rp-modal-header { display:flex; justify-content:space-between; align-items:center; padding:var(--space-4) var(--space-4) var(--space-3); box-shadow:inset 0 -1px 0 var(--fo-panel-lo); flex-shrink:0; }
   .rp-modal-title { font-size:var(--text-base); font-weight:700; color:var(--fo-ink); }

@@ -1580,7 +1580,7 @@ function injectStyles () {
   .ws-price-bar{background:var(--fo-panel);box-shadow:var(--fo-shadow-card);padding:var(--space-3) var(--space-4);padding-bottom:calc(var(--space-3) + env(safe-area-inset-bottom,0px));display:flex;align-items:center;justify-content:space-between;gap:var(--space-3);flex-shrink:0;position:relative;z-index:1;}
   .ws-price-label{font-size:var(--text-xs);color:var(--fo-ink-soft);font-family:var(--fo-font-mono);text-transform:uppercase;letter-spacing:.05em;}
   .ws-price-amount{font-size:20px;font-weight:800;font-family:var(--fo-font-mono);color:var(--fo-accent-deep);}
-  .ws-modal-overlay{position:absolute;inset:0;background:rgba(0,0,0,.6);display:flex;align-items:flex-end;z-index:50;}
+  .ws-modal-overlay{position:absolute;inset:0;background:var(--fo-scrim);display:flex;align-items:flex-end;z-index:50;}
   .ws-modal{width:100%;background:var(--fo-panel);box-shadow:var(--fo-shadow-card);border-radius:var(--fo-radius) var(--fo-radius) 0 0;padding:var(--space-5);display:flex;flex-direction:column;gap:var(--space-3);padding-bottom:calc(var(--space-5) + env(safe-area-inset-bottom,0px));}
   .ws-modal-title{font-size:var(--text-md);font-weight:700;color:var(--fo-ink);}
   .ws-modal-summary{background:var(--fo-well);box-shadow:var(--fo-shadow-well);border-radius:var(--fo-radius-sm);padding:var(--space-3);display:flex;flex-direction:column;gap:var(--space-2);}

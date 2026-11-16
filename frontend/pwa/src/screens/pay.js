@@ -131,8 +131,8 @@ const screenStyles = `
 
   .pay-list { display:flex; flex-direction:column; gap:var(--space-2); padding:var(--space-3) var(--space-4) var(--space-6); }
 
-  .pay-card { background:var(--surface-1); border-radius:var(--radius-lg); border:0.5px solid var(--border-subtle); padding:var(--space-4); }
-  .pay-card--paid { border-color:rgba(34,197,94,0.25); }
+  .pay-card { background:var(--fo-panel); border:0.5px solid transparent; box-shadow:var(--fo-shadow-raised); border-radius:var(--radius-lg); padding:var(--space-4); }
+  .pay-card--paid { border-color:var(--fo-ok); }
 
   .pay-card-top { display:flex; justify-content:space-between; align-items:flex-start; gap:var(--space-3); }
 

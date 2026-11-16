@@ -82,7 +82,7 @@ export const calcPanelStyles = `
   .cp-overlay {
     position: fixed;
     inset: 0;
-    background: rgba(0,0,0,0.3);
+    background: var(--fo-scrim);
     z-index: 100;
   }
 
@@ -93,7 +93,7 @@ export const calcPanelStyles = `
     width: min(280px, calc(100vw - 32px));
     background: var(--fo-panel, var(--surface-1));
     border-radius: var(--fo-radius, 12px);
-    box-shadow: var(--fo-shadow-card, 0 8px 32px rgba(0,0,0,0.4));
+    box-shadow: var(--fo-shadow-card);
     padding: var(--space-4, 16px);
     display: flex;
     flex-direction: column;
@@ -119,8 +119,9 @@ export const calcPanelStyles = `
   }
 
   .cp-field-input {
-    background: var(--fo-well, var(--surface-2));
-    border: 0.5px solid var(--border-default, #444);
+    background: var(--fo-well);
+    border: 0.5px solid transparent;
+    box-shadow: var(--fo-shadow-well);
     border-radius: var(--fo-radius-sm, 6px);
     color: var(--fo-ink, var(--text-primary));
     font-size: var(--text-base, 14px);
@@ -139,7 +140,8 @@ export const calcPanelStyles = `
   }
 
   .cp-close-btn {
-    background: var(--fo-well, var(--surface-2));
+    background: var(--fo-well);
+    box-shadow: var(--fo-shadow-well);
     border: none;
     border-radius: var(--fo-radius-sm, 6px);
     color: var(--fo-ink-soft, var(--text-muted));

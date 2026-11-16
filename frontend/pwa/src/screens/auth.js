@@ -14,9 +14,9 @@ export function AuthScreen ({ onSuccess }) {
       <div class="auth-logo">
         <svg width="40" height="40" viewBox="0 0 40 40" fill="none">
           <rect width="40" height="40" rx="10" fill="var(--color-signal)"/>
-          <path d="M12 28 L20 12 L28 28" stroke="white" stroke-width="2.5"
+          <path d="M12 28 L20 12 L28 28" stroke="var(--fo-panel-hi)" stroke-width="2.5"
                 stroke-linecap="round" stroke-linejoin="round"/>
-          <path d="M15 22 L25 22" stroke="white" stroke-width="2.5"
+          <path d="M15 22 L25 22" stroke="var(--fo-panel-hi)" stroke-width="2.5"
                 stroke-linecap="round"/>
         </svg>
       </div>
@@ -205,8 +205,9 @@ export const authStyles = `
 
   .auth-input {
     width: 100%;
-    background: var(--surface-2);
-    border: 0.5px solid var(--border-default);
+    background: var(--fo-well);
+    border: 0.5px solid transparent;
+    box-shadow: var(--fo-shadow-well);
     border-radius: var(--radius-md);
     color: var(--text-primary);
     font-size: var(--text-lg);
@@ -236,10 +237,11 @@ export const authStyles = `
 
   .auth-btn {
     width: 100%;
-    background: var(--color-signal);
+    background: var(--fo-panel);
+    box-shadow: var(--fo-shadow-raised);
     border: none;
     border-radius: var(--radius-md);
-    color: #fff;
+    color: var(--fo-accent-deep);
     font-size: var(--text-base);
     font-weight: 500;
     padding: var(--space-4);
@@ -293,6 +295,7 @@ export const authStyles = `
   .auth-keep input {
     width: 20px;
     height: 20px;
+    accent-color: var(--fo-accent-deep);
   }
 
   .auth-help {
@@ -305,8 +308,8 @@ export const authStyles = `
   .spinner {
     width: 16px;
     height: 16px;
-    border: 2px solid rgba(255,255,255,0.3);
-    border-top-color: #fff;
+    border: 2px solid var(--fo-panel-lo);
+    border-top-color: var(--fo-accent-deep);
     border-radius: 50%;
     animation: spin 0.6s linear infinite;
   }

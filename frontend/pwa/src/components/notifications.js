@@ -172,10 +172,10 @@ function formatTime (iso) {
 
 export const notificationStyles = `
   .notif-bell-wrap { position:relative; }
-  .notif-badge { position:absolute; top:-4px; right:-4px; background:var(--color-heat); color:#fff; font-size:9px; font-weight:600; min-width:16px; height:16px; border-radius:99px; display:flex; align-items:center; justify-content:center; padding:0 4px; pointer-events:none; }
+  .notif-badge { position:absolute; top:-4px; right:-4px; background:var(--color-heat); color:var(--fo-panel-hi); font-size:9px; font-weight:600; min-width:16px; height:16px; border-radius:99px; display:flex; align-items:center; justify-content:center; padding:0 4px; pointer-events:none; }
   .notif-badge.hidden { display:none; }
 
-  .notif-panel { position:fixed; background:var(--surface-1); border:0.5px solid var(--border-default); border-radius:var(--radius-lg); width:280px; max-height:400px; overflow-y:auto; z-index:200; box-shadow:0 8px 32px rgba(0,0,0,0.4); display:flex; flex-direction:column; }
+  .notif-panel { position:fixed; background:var(--surface-1); border:0.5px solid transparent; border-radius:var(--radius-lg); width:280px; max-height:400px; overflow-y:auto; z-index:200; box-shadow:var(--fo-shadow-card); display:flex; flex-direction:column; }
   .notif-panel-title { font-size:var(--text-sm); font-weight:500; color:var(--text-muted); padding:var(--space-3) var(--space-4); border-bottom:0.5px solid var(--border-subtle); flex-shrink:0; text-transform:uppercase; letter-spacing:0.04em; }
   .notif-loading { font-size:var(--text-sm); color:var(--text-disabled); padding:var(--space-4); text-align:center; }
   .notif-empty   { font-size:var(--text-sm); color:var(--text-disabled); padding:var(--space-4); text-align:center; }

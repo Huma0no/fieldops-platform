@@ -83,7 +83,7 @@ export const correctionModalStyles = `
   .cm-overlay {
     position: fixed;
     inset: 0;
-    background: rgba(0,0,0,0.6);
+    background: var(--fo-scrim);
     display: flex;
     align-items: flex-end;
     z-index: 100;
@@ -122,8 +122,9 @@ export const correctionModalStyles = `
 
   .cm-textarea {
     width: 100%;
-    background: var(--surface-2);
-    border: 0.5px solid var(--border-default);
+    background: var(--fo-well);
+    border: 0.5px solid transparent;
+    box-shadow: var(--fo-shadow-well);
     border-radius: var(--radius-md);
     color: var(--text-primary);
     font-size: var(--text-base);
@@ -158,7 +159,7 @@ export const correctionModalStyles = `
     -webkit-tap-highlight-color: transparent;
   }
 
-  .cm-btn--primary   { background: var(--color-signal); color: #fff; }
-  .cm-btn--secondary { background: var(--surface-3); color: var(--text-secondary); }
+  .cm-btn--primary   { background: var(--fo-panel); box-shadow: var(--fo-shadow-raised); color: var(--fo-accent-deep); }
+  .cm-btn--secondary { background: var(--fo-well); box-shadow: var(--fo-shadow-well); color: var(--fo-ink-soft); }
   .cm-btn:disabled   { opacity: 0.6; cursor: not-allowed; }
 `

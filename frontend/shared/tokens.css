@@ -271,21 +271,22 @@
   --fo-panel:    #f3f2ef;
   --fo-panel-hi: #ffffff;
   --fo-panel-lo: #d3d0ca;
-  --fo-well:     #dcd9d3;
+  --fo-well:     #f3f2ef;   /* = panel; wells read through --fo-shadow-well */
   --fo-tile:     #faf9f7;
 
   /* Ink */
-  --fo-ink:      #1a1714;
-  --fo-ink-soft: #6b665f;
+  --fo-ink:      #2b2824;
+  --fo-ink-soft: #6b665f;   /* mockup #7a746b is 4.1:1 on panel; this is 5.1:1 (WCAG AA) */
 
   /* Accent / state */
-  --fo-accent:      #b5641e;
+  --fo-accent:      #a85a18;   /* mockup #b5641e is 3.9:1 as text on panel; this is 4.5:1 */
   --fo-accent-deep: #8a4a13;
   --fo-ok:          #3d6b3f;
   --fo-no:          #9e2b1e;
   --fo-blue:        #2563eb;
   --fo-blue-glow:   rgba(37, 99, 235, 0.18);
   --fo-red-glow:    rgba(158, 43, 30, 0.18);
+  --fo-scrim:       rgba(43, 40, 36, 0.45);   /* backdrop behind sheets and modals */
 
   /* Border radius */
   --fo-radius:    20px;
@@ -302,4 +303,46 @@
   /* Fonts */
   --fo-font-body: 'Archivo', system-ui, sans-serif;
   --fo-font-mono: 'Azeret Mono', monospace;
+}
+
+/* ── FieldOps PWA: shared semantic tokens in the Porcelain tone ──
+ * The PWA's <html data-app="fieldops"> maps the shared (dark, Dispatch)
+ * tokens onto the --fo- palette so every PWA screen draws from one source.
+ * Dispatch has no data-app attribute and keeps the values above.
+ */
+:root[data-app="fieldops"] {
+  --surface-base: var(--fo-panel);
+  --surface-1:    var(--fo-panel);
+  --surface-2:    var(--fo-tile);
+  --surface-3:    var(--fo-tile);
+
+  --text-primary:   var(--fo-ink);
+  --text-secondary: var(--fo-ink);
+  --text-muted:     var(--fo-ink-soft);
+  --text-disabled:  var(--fo-ink-soft);
+
+  --color-signal: var(--fo-accent-deep);
+  --color-plasma: var(--fo-accent-deep);   /* --fo-accent text on a tint is below AA */
+  --color-heat:   var(--fo-no);
+  --color-static: var(--fo-ink-soft);
+
+  --signal-tint:   rgba(138, 74, 19, 0.10);
+  --signal-border: rgba(138, 74, 19, 0.30);
+  --plasma-tint:   rgba(168, 90, 24, 0.12);
+  --plasma-border: rgba(168, 90, 24, 0.30);
+  --heat-tint:     rgba(158, 43, 30, 0.10);
+  --heat-border:   rgba(158, 43, 30, 0.30);
+
+  --border-subtle:  var(--fo-panel-lo);
+  --border-default: var(--fo-panel-lo);
+  --border-strong:  var(--fo-ink-soft);
+
+  --badge-assigned:         rgba(43, 40, 36, 0.06);
+  --badge-in-progress:      rgba(37, 99, 235, 0.10);
+  --badge-deferred:         var(--plasma-tint);
+  --badge-completed:        rgba(61, 107, 63, 0.12);
+  --badge-text-assigned:    var(--fo-ink-soft);
+  --badge-text-in-progress: #1d4ed8;   /* --fo-blue on its tint is 3.6:1; this is 5.3:1 */
+  --badge-text-deferred:    var(--fo-accent-deep);
+  --badge-text-completed:   var(--fo-ok);
 }

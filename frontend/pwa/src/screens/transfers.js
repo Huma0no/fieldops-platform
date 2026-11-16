@@ -236,16 +236,16 @@ const screenStyles = `
   .tr-label { font-size:var(--text-sm); font-weight:500; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.04em; }
 
   .tr-visit-list { display:flex; flex-direction:column; gap:var(--space-2); }
-  .tr-visit-btn { background:var(--surface-1); border:0.5px solid var(--border-subtle); border-radius:var(--radius-md); padding:var(--space-3) var(--space-4); text-align:left; cursor:pointer; -webkit-tap-highlight-color:transparent; }
+  .tr-visit-btn { background:var(--fo-panel); border:0.5px solid transparent; box-shadow:var(--fo-shadow-raised); border-radius:var(--radius-md); padding:var(--space-3) var(--space-4); text-align:left; cursor:pointer; -webkit-tap-highlight-color:transparent; }
   .tr-visit-btn--active { border-color:var(--color-signal); background:var(--signal-tint); }
   .tr-visit-addr { font-size:var(--text-base); font-weight:500; color:var(--text-primary); }
   .tr-visit-meta { font-size:var(--text-sm); color:var(--text-muted); margin-top:2px; }
 
-  .tr-reason { width:100%; background:var(--surface-2); border:0.5px solid var(--border-default); border-radius:var(--radius-md); color:var(--text-primary); font-size:var(--text-base); font-family:var(--font-sans); padding:var(--space-3); resize:none; outline:none; line-height:1.5; }
+  .tr-reason { width:100%; background:var(--fo-well); border:0.5px solid transparent; box-shadow:var(--fo-shadow-well); border-radius:var(--radius-md); color:var(--text-primary); font-size:var(--text-base); font-family:var(--font-sans); padding:var(--space-3); resize:none; outline:none; line-height:1.5; }
   .tr-reason:focus { border-color:var(--color-signal); }
 
   .tr-error { font-size:var(--text-sm); color:var(--color-heat); min-height:18px; }
-  .tr-submit-btn { width:100%; background:var(--color-signal); color:#fff; border:none; border-radius:var(--radius-md); font-size:var(--text-base); font-weight:500; padding:var(--space-4); cursor:pointer; -webkit-tap-highlight-color:transparent; margin-top:var(--space-2); }
+  .tr-submit-btn { width:100%; background:var(--fo-panel); box-shadow:var(--fo-shadow-raised); color:var(--fo-accent-deep); border:none; border-radius:var(--radius-md); font-size:var(--text-base); font-weight:500; padding:var(--space-4); cursor:pointer; -webkit-tap-highlight-color:transparent; margin-top:var(--space-2); }
   .tr-submit-btn:disabled { opacity:0.6; cursor:not-allowed; }
 
   .tr-empty { font-size:var(--text-sm); color:var(--text-muted); }
