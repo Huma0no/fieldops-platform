@@ -310,6 +310,13 @@ POST /api/dispatch/visits/create-manual
 FieldOps is offline-first (`/docs/OFFLINE-FIRST-CONTRACT.md`) and must be able to download and cache catalog data needed for assigned local work. These endpoints are the only way catalog data reaches the client — server-side resolution (refrigerant, tech_supplied, pricing) consumes the same tables internally, but the client never gets this data any other way.
 
 ```
+GET /api/catalog/version
+  auth: technician or dispatcher
+  returns: { version } — md5 of the items, equipment, lineset-configs and
+    item-relations rows. The PWA refetches its offline catalog copy when it
+    changes (requests carry ?v=<version> so the service worker's catalog
+    cache keys the new copy).
+
 GET /api/catalog/equipment
   auth: technician or dispatcher
   returns: [] of catalog_equipment rows

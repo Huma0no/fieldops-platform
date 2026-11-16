@@ -1,7 +1,7 @@
 # Workspace — Shell
 
-**Version:** 1.0
-**Date:** 2026-07-30
+**Version:** 1.1
+**Date:** 2026-11-15
 **Status:** Closed design. Rail, step content, and Active Job banner are built with neomorphic style.
 
 ## Purpose
@@ -16,7 +16,12 @@ The frame that holds every Workspace sub-section: the rail, the active-job banne
 4. **Scrollable section content** — the active step's content, see per-section docs.
 5. **Inline Back/Next** — Next becomes **Generate Report** only on the last step (Notes), never earlier.
 
-The bottom bar (see `/docs/fieldops/NAVIGATION.md`) stays present and unchanged throughout Workspace.
+6. **Total bar** — fixed at the bottom with the running total on the left.
+
+The bottom bar (see `/docs/fieldops/NAVIGATION.md`) is **not mounted** in Workspace. Two floating buttons sit bottom-right over the empty right side of the Total bar: **Calc** (lowest) and **Guided** above it, 44 px each, raised neumorphic style, respecting the safe-area inset. The scrollable section content has 60 px extra bottom padding so every tappable control, Next included, can scroll above them.
+
+- **Calc** opens the same Quick Charge Calc panel as the bottom bar.
+- **Guided** saves the open visit as Guided's active call and opens Guided with "Back to Workspace", which returns to the same visit and step from the Local Visit Draft. See `/docs/fieldops/GUIDED-SPEC.md`.
 
 ## Offline-first Workspace state
 

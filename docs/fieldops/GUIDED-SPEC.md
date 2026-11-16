@@ -2,7 +2,7 @@
 
 **Version:** 0.1
 **Date:** 2026-11-15
-**Status:** In progress — Phase 3 (fichas, board parts and LEDs) on top of Phases 1–2
+**Status:** In progress — Phase 4 (FieldOps integration) on top of Phases 1–3
 
 ## Purpose
 
@@ -95,15 +95,16 @@ UI:
 
 ## Language
 
-- EN/ES. UI strings go through `frontend/shared/i18n.js` (shared string library). The standalone page offers its own toggle; inside FieldOps the module reads the global setting (setting UI: Phase 4).
+- EN/ES. UI strings go through `frontend/shared/i18n.js` (shared string library). The standalone page offers its own toggle; inside FieldOps the module reads the global setting (Settings → Language, stored per device).
 - Guide content is authored per step in EN and ES. Component library text is EN in v0.1 and stays EN in ES mode; ES for the library is v0.2.
 
-## FieldOps integration (Phase 4, after the WIP merge)
+## FieldOps integration
 
-- Bottom bar becomes 5 icons: Home · Menu · Chat · Guided · Calc, with expandable labels. Home groups Lobby, My Calls and Reports as header tabs. Details are specified in `NAVIGATION.md` in that phase.
-- Workspace: no bar; two floating buttons bottom-right (Calc lowest, Guided above) with 60 px extra bottom padding so Next is never covered.
-- Context: the last expanded My Calls card or the open Workspace; otherwise a picker of today's calls plus "None" (standalone).
-- Offline: the module's files are precached by the FieldOps service worker.
+- **Entry points:** the Guided icon in the bottom bar, and the floating Guided button in Workspace (which shows "Back to Workspace" instead of the bar). See `NAVIGATION.md` and `workspace/WORKSPACE-SHELL.md`.
+- **Active call:** the last expanded My Calls card or the open Workspace. FieldOps derives the context from that visit (`frontend/pwa/src/lib/guided-context.mjs`) and keeps it on the device (`localStorage['guided:activeCall']`) so Guided opens without signal; it is cleared on sign-out. Board = the first of UT3000 · HZ322 · Harmony on the call; thermostat = the call's thermostat item; zones = its quantity; DAPC = the DAPC accessory; models = the first system's indoor/outdoor/coil.
+- **No active call:** a picker lists the technician's open calls from the My Calls cache, plus "None" (manual setup). A call whose detail is neither online nor in a local draft shows a note to connect or choose None.
+- The active call shows above the module with **Change**, which reopens the picker.
+- **Offline:** the module's files and data are precached by the FieldOps service worker; a test fails if a shipped module is missing from the precache list.
 
 ## Open items
 
