@@ -250,3 +250,62 @@ it('accepts a PWA snapshot containing equipment, Weigh-In, photo evidence, notes
   expect(response.body.photos).toEqual(expect.arrayContaining([expect.objectContaining({ slug: 'CANONICAL_SCALE' })]));
   expect((await pool.query('SELECT status FROM visits WHERE id = $1', [visitId])).rows[0].status).toBe('completed');
 });
+
+it('accepts a Report whose thermostat was chosen in the Workspace after the draft was seeded', async () => {
+  const { visitId, token, tech } = await seedAssignedVisit();
+  await pool.query(
+    `INSERT INTO catalog_services (service_name, default_price, is_bundle, multiplies_by_system_count)
+     VALUES ('AC', 150, false, false)
+     ON CONFLICT (service_name) DO UPDATE SET default_price = EXCLUDED.default_price`
+  );
+  const serviceSelection = await request(app)
+    .patch(`/api/visits/${visitId}/services`)
+    .set('Authorization', `Bearer ${token}`)
+    .send({ serviceName: 'AC', isFinish: false, isTemporarily: false });
+  expect(serviceSelection.status).toBe(200);
+  const catalogItem = { item_name: `CANONICAL-TSTAT-${randomUUID()}`, category: 'thermostat', default_price: 25, tech_supplied: true };
+  await pool.query(
+    `INSERT INTO catalog_items (item_name, category, default_price, tech_supplied)
+     VALUES ($1, 'thermostat', $2, $3)`, [catalogItem.item_name, catalogItem.default_price, catalogItem.tech_supplied]
+  );
+
+  // The draft is seeded before the thermostat exists, as when a visit is opened from the Lobby.
+  const detailResponse = await request(app)
+    .get(`/api/visits/${visitId}`)
+    .set('Authorization', `Bearer ${token}`);
+  expect(detailResponse.status).toBe(200);
+  const draft = createLocalVisitDraft(detailResponse.body, { now: '2026-11-13T10:00:00.000Z' });
+
+  const addItem = await request(app)
+    .post(`/api/visits/${visitId}/items`)
+    .set('Authorization', `Bearer ${token}`)
+    .send({ itemName: catalogItem.item_name, category: 'thermostat', quantity: 1 });
+  expect(addItem.status).toBe(200);
+  // Same entry the Workspace thermostat section builds from the cached catalog row.
+  draft._items = [...(draft._items ?? []), {
+    id: addItem.body.id,
+    item_name: catalogItem.item_name,
+    category: 'thermostat',
+    quantity: 1,
+    price: catalogItem.default_price,
+    tech_supplied: catalogItem.tech_supplied ?? false,
+  }];
+  draft.totalPrice = addItem.body.totalPrice;
+  const snapshot = createCompletionSnapshot(draft, {
+    id: 'pwa-canonical-workspace-thermostat',
+    now: '2026-11-13T10:00:00.000Z',
+    technicianId: tech.id,
+  });
+
+  const response = await request(app)
+    .post(`/api/visits/${visitId}/complete`)
+    .set('Authorization', `Bearer ${token}`)
+    .send({ submissionId: snapshot.submissionId, snapshot });
+
+  expect(response.status).toBe(200);
+  expect(response.body).toMatchObject({
+    acknowledged: true,
+    status: 'completed',
+    items: [expect.objectContaining({ itemName: catalogItem.item_name, price: 25, techSupplied: true })],
+  });
+});

@@ -629,7 +629,7 @@ function buildThermostatSection () {
       showQuantityModal(item, async qty => {
         try {
           const result = await api.post(`/visits/${visit.id}/items`, { itemName: item.item_name, category: 'thermostat', quantity: qty })
-          visit._items = [...(visit._items ?? []), { id: result.id, item_name: item.item_name, category: 'thermostat', quantity: qty, price: item.default_price }]
+          visit._items = [...(visit._items ?? []), { id: result.id, item_name: item.item_name, category: 'thermostat', quantity: qty, price: item.default_price, tech_supplied: item.tech_supplied ?? false }]
           if (result.totalPrice !== undefined) updatePrice(result.totalPrice)
           refreshSection('thermostat')
         } catch (err) { console.error('Add thermostat failed:', err) }
