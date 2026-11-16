@@ -24,9 +24,10 @@ Fix selection, description, and resolved price are durable Local Visit Draft sta
 
 What each fix prints in the Completion Report: `/docs/shared/REPORT-TEXT.md`.
 
-## Pending changes (QA 2026-11-16, not implemented)
+## Pending changes (QA 2026-11-15, not implemented)
 
-Recorded in `docs/status/QA-TRACKER.md` (WS-05, WS-06). Scheduled for the Workspace pass after Guided Phase 4; until then this spec's current text remains the closed behavior.
+Recorded in `docs/status/QA-TRACKER.md` (WS-05, WS-06, WS-11). Scheduled for the Workspace pass after Guided Phase 4; until then this spec's current text remains the closed behavior.
 
-- WS-05: Fixed Leaks sub-options: Cunit · Coil · Wall.
-- WS-06: Extended Wire sub-options pending Kristo's confirmation.
+- WS-05: Fixed Leaks sub-options: Cunit · Coil · Wall. The label "Coil" replaces "Ecoil".
+- WS-06: Extended Wire sub-options stay Furnace · Cunit. Open: whether the plain `Extended Wire` item stays selectable.
+- WS-11: Fixed Leaks and Extended Wire become parent tiles whose sub-options stay hidden until the parent is selected.

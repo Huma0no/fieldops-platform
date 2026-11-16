@@ -159,6 +159,7 @@ A `CLOSED` section is a finished product area: its code, UX, and specifications 
 | Edit generated report | SPEC CLOSED | SUPERSEDED / NOT REQUIRED | Legacy standalone-PWA behavior; FieldOps uses Request Correction after Generate Report. Canonical report text is regenerated from source visit data, not edited directly. |
 | Share/export | SPEC CLOSED | QA VERIFIED | Reports surface. |
 | Canonical report snapshot | SPEC CLOSED (`docs/architecture/REPORT-SNAPSHOT-CONTRACT.md`) | IMPLEMENTED (automated verification) / QA pending | One accepted submission per visit (`UNIQUE(visit_id)`, migration 025); report JSON/text served from the accepted snapshot. |
+| Report price snapshot, non-blocking catalog discrepancy | REQUIREMENT RECORDED — spec pending | NOT IMPLEMENTED — **pre-production requirement** (after the WIP merge, before launch) | See R-09. Supersedes the strict reject-on-difference rule for catalog-derived values in `REPORT-SNAPSHOT-CONTRACT.md`. |
 
 ## 10. Company Google Form Integration
 
@@ -267,6 +268,22 @@ The intended behavior is: generate refrigerant restock needs automatically from 
 The prior free-text Intake path could pass an invalid thermostat/accessory name to the `visit_items.item_name` foreign key and return a 500. Commit `41d15c5` restricts Manual/PDF-assisted catalog-backed selection, validates existence and category before persistence, returns controlled 400 errors, and never creates catalog rows implicitly. Focused automated tests passed; the Manual Create → Release → Assign → FieldOps My Calls flow also passed local manual QA. PDF extraction remains separately stub/unconfigured.
 
 Dispatch → Catalog already provides the administrative create/edit surface, including Equipment as the successor to the historical Config-Equipment concept. The future work is limited to catalog lifecycle management: deactivate/reactivate, selector filtering, and the supporting data-model specification. No parallel Config-Equipment feature is required.
+
+### R-09 — Report price snapshot, non-blocking (pre-production requirement)
+
+Decided 2026-11-15 by Kristo after WIP testing. Implement after the WIP merge and before launch. Catalog prices are the technician's rate for the work.
+
+- Each Report stores the prices it was built with. Later catalog price changes never alter past Reports.
+- If submitted catalog-derived values (`price`, `tech_supplied`) differ from the server's catalog, the server **accepts** the Report, stores both values, and flags the discrepancy. It never blocks submission with "Correction required" for this reason.
+- Dispatch shows the discrepancy on the Report view. Discrepancies are surfaced automatically in the Ledger week review, with a threshold configurable by the owner.
+- Dispatch may edit a technician's Report only with prior agreement and notice to the technician, through the existing corrections channel.
+- Automatic catalog/shell versioning (Guided Phase 4) remains a secondary safeguard, not the fix.
+
+This supersedes the reject-on-difference rule for catalog-derived values in `docs/architecture/REPORT-SNAPSHOT-CONTRACT.md`. Other material Report differences keep their current rule. Implementation touches the CLOSED Reports and Ledger sections and needs that task's explicit authorization. Tracked as PP-01 in `docs/status/QA-TRACKER.md`.
+
+### R-10 — Technician-defined price panel (future feature, out of current scope)
+
+Recorded 2026-11-15; not planned. The legacy app (hvacstartup-dev.netlify.app) let the technician define prices. FieldOps needs an equivalent if it is commercialized. Options to evaluate then: preset agreed prices, zero prices filled on first use, or a price panel filled before the first job. Tracked as FF-01 in `docs/status/QA-TRACKER.md`.
 
 ## 16. Next Audit Targets
 

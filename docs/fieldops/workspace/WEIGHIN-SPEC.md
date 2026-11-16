@@ -49,7 +49,7 @@ Weigh-In values and charge-toggle state are durable Local Visit Draft fields. Th
 
 Tabbed system switcher, Factory/Revised toggle, GPS badge display on SCALE/FAN photos.
 
-## Pending changes (QA 2026-11-16, not implemented)
+## Pending changes (QA 2026-11-15, not implemented)
 
 Recorded in `docs/status/QA-TRACKER.md` (WS-08, WS-09). Scheduled for the Workspace pass after Guided Phase 4; until then this spec's current text remains the closed behavior.
 

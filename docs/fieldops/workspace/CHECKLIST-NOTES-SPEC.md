@@ -47,7 +47,7 @@ Final button on this step (not accessible from any earlier step). No blocking or
 
 **Report text order:** Date · Address · Subdivision · Builder · Notes + checklist "No" items (pipe-separated) · Service · Service $ · Accessories · Acc $ · Fix · Fix $.
 
-## Pending changes (QA 2026-11-16, not implemented)
+## Pending changes (QA 2026-11-15, not implemented)
 
 Recorded in `docs/status/QA-TRACKER.md` (WS-10). Scheduled for the Workspace pass after Guided Phase 4; until then this spec's current text remains the closed behavior.
 

@@ -275,3 +275,8 @@
 **Proposed Design:** The application has no update/delete writer for accepted completion rows in the inspected code. Enforce write-once behavior in the application and use the existing submission constraints; this package does not add a database trigger for privileged manual SQL changes. Production database credential governance is an operational control outside the Report workflow contract.
 
 **Package 1 data gate:** The repository does not establish whether deployed data contains duplicate submission rows per Visit or terminal no-ID completions. Run the pre-migration audit before rollout. If duplicates exist, preserve every row and stop the migration until explicit row-level adjudication. Do not synthesize legacy snapshots from mutable rows; preserve legacy records and do not present reconstructed data as an immutable Report. Any such records block full historical immutability rollout until dispositioned. This is a data-dependent rollout gate, not an unresolved product rule.
+
+## Pending changes (2026-11-15, not implemented)
+
+- PP-01 (pre-production, `docs/status/MASTER-FUNCTION-INDEX.md` R-09): differences in catalog-derived values (`price`, `tech_supplied`) will no longer reject the submission. The server will accept the Report, store both values and flag the discrepancy for Dispatch. Until implemented, the reject-on-difference rules in this contract remain the current behavior.
+- WS-12 (`docs/status/QA-TRACKER.md`): a rejection must tell the technician what differs and what to do, not a generic "Correction required".

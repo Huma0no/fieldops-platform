@@ -35,7 +35,7 @@ Compact single-line control: a narrow (~60% width), vertically-scrollable picker
 
 A job always has exactly one thermostat model (× quantity) — single-select + quantity is correct; no multi-model display is needed.
 
-## Pending changes (QA 2026-11-16, not implemented)
+## Pending changes (QA 2026-11-15, not implemented)
 
 Recorded in `docs/status/QA-TRACKER.md` (WS-01, WS-02, WS-03). Scheduled for the Workspace pass after Guided Phase 4; until then this spec's current text remains the closed behavior.
 
