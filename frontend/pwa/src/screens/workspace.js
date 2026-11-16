@@ -18,6 +18,8 @@ import { getActiveTechnicianId, getCatalog, getLocalVisitDraft, saveLocalVisitDr
 import { createPendingCompletionSubmission, deliverCompletionSubmission } from '../lib/completion-submission.mjs'
 import { isCancelJustificationMissing } from '../lib/cancel-justification.mjs'
 import { cancelConfirmationStyles, showCancelConfirmation } from '../lib/cancel-confirmation.mjs'
+import { CalcPanel, calcPanelStyles } from '../components/calc-panel.js'
+import { GUIDED_RETURN_KEY, guidedContextFromVisit, saveGuidedContext } from '../lib/guided-context.mjs'
 import {
   createLocalVisitDraft,
   consumeConfirmedCancelForVisit,
@@ -214,8 +216,37 @@ function renderScreen (appEl) {
   body.id = 'ws-body'
   screen.appendChild(body)
   screen.appendChild(buildPriceSummary())
+  screen.appendChild(buildToolButtons())
   appEl.appendChild(screen)
   renderBody()
+  // The open Workspace is the active call for Guided.
+  saveGuidedContext(localStorage, guidedContextFromVisit(visit))
+}
+
+// The bottom bar is not mounted in Workspace; Guided and Calc float bottom-right.
+function buildToolButtons () {
+  const el = document.createElement('div')
+  el.className = 'ws-tools'
+  const guided = document.createElement('button')
+  guided.className = 'ws-tool-btn'
+  guided.setAttribute('aria-label', 'Guided')
+  guided.innerHTML = '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="5.5" cy="17" r="2.5"/><circle cx="18.5" cy="7" r="2.5"/><path d="M7.5 15.5C12 14 9 9 16.3 8.2"/><path d="M4 21h3M17 3h3"/></svg>'
+  guided.addEventListener('click', async () => {
+    await flushNotesDraftSave()
+    saveGuidedContext(localStorage, guidedContextFromVisit(visit))
+    sessionStorage.setItem(GUIDED_RETURN_KEY, '/workspace')
+    window.dispatchEvent(new CustomEvent('app:navigate', { detail: { route: '/guided' } }))
+  })
+  const calc = document.createElement('button')
+  calc.className = 'ws-tool-btn'
+  calc.setAttribute('aria-label', 'Calc')
+  calc.innerHTML = '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="4" y="2" width="16" height="20" rx="2"/><line x1="8" y1="7" x2="16" y2="7"/><line x1="8" y1="12" x2="8" y2="12"/><line x1="12" y1="12" x2="12" y2="12"/><line x1="16" y1="12" x2="16" y2="12"/><line x1="8" y1="16" x2="8" y2="16"/><line x1="12" y1="16" x2="12" y2="16"/><line x1="16" y1="16" x2="16" y2="16"/></svg>'
+  calc.addEventListener('click', () => {
+    const overlay = CalcPanel({ onClose: () => overlay.remove() })
+    document.body.appendChild(overlay)
+  })
+  el.append(guided, calc)
+  return el
 }
 
 function buildHeader () {
@@ -1489,7 +1520,9 @@ const STYLES_ID = 'styles-workspace'
 function injectStyles () {
   if (document.getElementById(STYLES_ID)) return
   const style = document.createElement('style'); style.id=STYLES_ID
-  style.textContent = `
+  style.textContent = calcPanelStyles + `
+  .ws-tools{position:absolute;right:var(--space-4);bottom:calc(10px + env(safe-area-inset-bottom,0px));display:flex;flex-direction:column;gap:8px;z-index:3;}
+  .ws-tool-btn{width:44px;height:44px;border:none;border-radius:var(--fo-radius-md);background:var(--fo-panel);box-shadow:var(--fo-shadow-raised);color:var(--fo-accent-deep);display:grid;place-items:center;cursor:pointer;-webkit-tap-highlight-color:transparent;}
   .ws-screen{display:flex;flex-direction:column;height:100dvh;background:var(--fo-panel);overflow:hidden;position:relative;font-family:var(--fo-font-body);}
   .ws-loading{display:flex;align-items:center;justify-content:center;height:100dvh;font-size:var(--text-base);color:var(--fo-ink-soft);background:var(--fo-panel);}
   .ws-header{display:flex;flex-direction:column;padding:calc(var(--space-5) + env(safe-area-inset-top,0px)) var(--space-4) var(--space-2);background:var(--fo-panel);flex-shrink:0;}
@@ -1505,7 +1538,7 @@ function injectStyles () {
   .ws-active-job-actions{display:flex;align-items:center;gap:var(--space-2);flex-shrink:0;}
   .ws-active-job-price{font-size:var(--text-base);font-weight:800;font-family:var(--fo-font-mono);color:var(--fo-accent-deep);}
   .ws-active-job-cancel-btn{background:var(--fo-well);box-shadow:var(--fo-shadow-well);border:none;color:var(--fo-no);font-size:13px;font-weight:700;cursor:pointer;width:24px;height:24px;border-radius:50%;line-height:1;-webkit-tap-highlight-color:transparent;}
-  .ws-body{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;padding:var(--space-2) var(--space-3) var(--space-4);display:flex;flex-direction:column;gap:var(--space-2);}
+  .ws-body{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;padding:var(--space-2) var(--space-3) calc(var(--space-4) + 60px);display:flex;flex-direction:column;gap:var(--space-2);}
   .ws-rail-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;flex-shrink:0;}
   .ws-rail{display:flex;padding:6px 2px;gap:8px;}
   .ws-rail-step{flex:0 0 auto;min-width:60px;display:flex;flex-direction:column;align-items:center;gap:2px;padding:8px 10px;border-radius:var(--fo-radius-sm);border:none;background:var(--fo-panel);box-shadow:var(--fo-shadow-raised);color:var(--fo-ink-soft);cursor:pointer;position:relative;-webkit-tap-highlight-color:transparent;}

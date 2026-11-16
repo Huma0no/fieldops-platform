@@ -14,6 +14,7 @@
  */
 
 import { api } from '../../../shared/api.js'
+import { guidedContextFromVisit, saveGuidedContext } from '../lib/guided-context.mjs'
 import { Badge, Tag } from './badge.js'
 import { cancelConfirmationStyles, showCancelConfirmation } from '../lib/cancel-confirmation.mjs'
 import { getJobCardActionState, openPendingCancelWorkspace, startJobAndOpenWorkspace } from '../lib/job-card-actions.mjs'
@@ -230,6 +231,8 @@ export function JobCard ({ visit, isCancelPending = false, onStart, onOpenWorksp
         loading = false
       }
     }
+    // The last expanded card is the active call for Guided.
+    if (expanded && fullVisit) saveGuidedContext(localStorage, guidedContextFromVisit(fullVisit))
 
     render()
   }

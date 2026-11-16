@@ -44,7 +44,21 @@ const SHELL_ASSETS = [
   '/src/lib/my-calls-visit.mjs',
   '/src/lib/workspace-visit.mjs',
   '/src/lib/session-boot.mjs',
+  '/src/lib/guided-context.mjs',
+  '/src/screens/guided.js',
+  '/shared/i18n.js',
   '/shared/tokens.css',
+  '/guided/guided.js',
+  '/guided/shared/i18n.js',
+  '/guided/src/camera.mjs',
+  '/guided/src/ficha.mjs',
+  '/guided/src/guide.mjs',
+  '/guided/src/layout.mjs',
+  '/guided/src/model.mjs',
+  '/guided/src/render.mjs',
+  '/guided/data/guided-component-library.v0.1.json',
+  '/guided/data/ut3000-comm.system.json',
+  '/guided/data/ut3000-comm.guide.json',
 ]
 
 const CATALOG_PATHS = [

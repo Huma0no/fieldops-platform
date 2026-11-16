@@ -64,11 +64,13 @@ function clearSession () {
   stopSync()
   stopCompletionSubmissionRetry()
   localStorage.removeItem('technician')
+  localStorage.removeItem('guided:activeCall')
   if (typeof sessionStorage !== 'undefined' && sessionStorage) {
     sessionStorage.removeItem('workspace:visitId')
     sessionStorage.removeItem('workspace:cancelConfirmedVisitId')
     sessionStorage.removeItem('workspace:cancelConfirmed')
     sessionStorage.removeItem('fo_gps_state')
+    sessionStorage.removeItem('guided:return')
   }
 }
 
@@ -81,6 +83,7 @@ const routes = {
   '/settings':  () => import('./src/screens/settings.js'),
   '/workspace': () => import('./src/screens/workspace.js'),
   '/pay':       () => import('./src/screens/pay.js'),
+  '/guided':    () => import('./src/screens/guided.js'),
   '/transfers':          () => import('./src/screens/transfers.js'),
   '/transfers/incoming': () => import('./src/screens/transfers-incoming.js'),
 }
