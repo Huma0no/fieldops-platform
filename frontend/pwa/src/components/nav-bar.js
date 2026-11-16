@@ -17,7 +17,6 @@ import { computeMenuBadgeCount } from '../lib/menu-badge.mjs'
 import { HOME_TABS, lastHomeRoute } from './home-tabs.js'
 
 const LABELS_KEY = 'fo:navLabels'
-const GUIDED_RETURN_KEY = 'guided:return'
 
 const STYLES_ID = 'styles-nav-bar-overlays'
 function injectOverlayStyles () {
@@ -135,7 +134,6 @@ export function NavBar ({ active, onNavigate, unreadChat = 0 }) {
         if (!isActive) onNavigate(lastHomeRoute())
         return
       }
-      if (tab.id === 'guided') sessionStorage.removeItem(GUIDED_RETURN_KEY)
       if (!isActive) onNavigate(tab.route)
     })
 
