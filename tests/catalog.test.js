@@ -496,3 +496,29 @@ describe('PATCH /api/dispatch/catalog/catalog_lineset_configs', () => {
     expect(res.status).toBe(403);
   });
 });
+
+// ── GET /api/catalog/version ──────────────────────────────────────────────────
+
+describe('GET /api/catalog/version', () => {
+  it('stays the same while the catalog is unchanged and changes when a price changes', async () => {
+    const { token } = await seedTechnicianWithToken();
+    const itemName = await seedItemRow();
+    const getVersion = async () => {
+      const res = await request(app).get('/api/catalog/version').set('Authorization', `Bearer ${token}`);
+      expect(res.status).toBe(200);
+      return res.body.version;
+    };
+
+    const first = await getVersion();
+    expect(first).toMatch(/^[0-9a-f]{32}$/);
+    expect(await getVersion()).toBe(first);
+
+    await pool.query('UPDATE catalog_items SET default_price = default_price + 1 WHERE item_name = $1', [itemName]);
+    expect(await getVersion()).not.toBe(first);
+  });
+
+  it('requires authentication', async () => {
+    const res = await request(app).get('/api/catalog/version');
+    expect(res.status).toBe(401);
+  });
+});

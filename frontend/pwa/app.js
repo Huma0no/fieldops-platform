@@ -10,10 +10,6 @@ import { stopSync }              from './src/lib/sync.js'
 import { stopCompletionSubmissionRetry } from './src/lib/completion-submission.mjs'
 import { resolveBootScreen }   from './src/lib/session-boot.mjs'
 
-// Bump when catalog data changes server-side (e.g. after a DB cleanup) so
-// cached IndexedDB catalog data on already-installed clients gets replaced.
-const CATALOG_VERSION = 'v2'
-
 // ── Register service worker ────────────────────────────────
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
@@ -131,26 +127,29 @@ function boot () {
   })
 }
 
+// The server's catalog version is a hash of the catalog data; a change
+// replaces the device copy. Offline, the cached copy stays in use.
 async function preloadCatalog () {
   try {
-    const storedVersion = await getCatalog('version')
-    const cachedRelations = await getCatalog('item-relations')
-    const catalogIsCurrent = storedVersion === CATALOG_VERSION
-    if (catalogIsCurrent && Array.isArray(cachedRelations)) return
+    const { version } = await api.get('/catalog/version')
+    const [storedVersion, cachedRelations] = await Promise.all([getCatalog('version'), getCatalog('item-relations')])
+    if (storedVersion === version && Array.isArray(cachedRelations)) return
 
+    // The query string keys a fresh copy past the service worker's catalog cache.
+    const query = `?v=${encodeURIComponent(version)}`
     const [items, equipment, linesetConfigs, itemRelations] = await Promise.all([
-      catalogIsCurrent ? getCatalog('items') : api.get('/catalog/items'),
-      catalogIsCurrent ? getCatalog('equipment') : api.get('/catalog/equipment'),
-      catalogIsCurrent ? getCatalog('lineset-configs') : api.get('/catalog/lineset-configs'),
-      Array.isArray(cachedRelations) ? cachedRelations : api.get('/catalog/item-relations'),
+      api.get(`/catalog/items${query}`),
+      api.get(`/catalog/equipment${query}`),
+      api.get(`/catalog/lineset-configs${query}`),
+      api.get(`/catalog/item-relations${query}`),
     ])
     await Promise.all([
-      items && setCatalog('items', items),
-      equipment && setCatalog('equipment', equipment),
-      linesetConfigs && setCatalog('lineset-configs', linesetConfigs),
+      setCatalog('items', items),
+      setCatalog('equipment', equipment),
+      setCatalog('lineset-configs', linesetConfigs),
       setCatalog('item-relations', itemRelations),
     ])
-    await setCatalog('version', CATALOG_VERSION)
+    await setCatalog('version', version)
   } catch (_) {
     // Offline or fetch failed — keep whatever's already cached and retry next load.
   }

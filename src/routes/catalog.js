@@ -6,6 +6,21 @@ const router = express.Router();
 
 // ── GET — any authenticated user (global authenticate covers this) ─────────────
 
+// Content hash of the catalog data the PWA caches offline. The PWA refetches
+// its copy whenever this changes, so catalog edits reach technicians.
+router.get('/version', async (req, res, next) => {
+  try {
+    const result = await pool.query(`
+      SELECT md5(concat_ws('|',
+        (SELECT string_agg(row_to_json(c)::text, ',' ORDER BY row_to_json(c)::text) FROM catalog_items c),
+        (SELECT string_agg(row_to_json(c)::text, ',' ORDER BY row_to_json(c)::text) FROM catalog_equipment c),
+        (SELECT string_agg(row_to_json(c)::text, ',' ORDER BY row_to_json(c)::text) FROM catalog_lineset_configs c),
+        (SELECT string_agg(row_to_json(c)::text, ',' ORDER BY row_to_json(c)::text) FROM catalog_item_relations c)
+      )) AS version`);
+    res.json({ version: result.rows[0].version });
+  } catch (err) { next(err) }
+});
+
 router.get('/equipment', async (req, res, next) => {
   try {
     const result = await pool.query('SELECT * FROM catalog_equipment ORDER BY brand, model');

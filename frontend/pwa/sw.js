@@ -6,9 +6,12 @@
  *   - Catalog API responses: Cache First with background revalidation
  *   - All other API calls: Network First (never serve stale visit data)
  *   - Sync and auth endpoints: Network Only
+ *
+ * SHELL_CACHE is stamped by `npm run pwa:version` with a hash of the shell
+ * assets; a test fails when the stamp is stale. Do not edit it by hand.
  */
 
-const SHELL_CACHE  = 'fieldops-shell-v5'
+const SHELL_CACHE  = 'fieldops-shell-cda5f44db18f'
 const CATALOG_CACHE = 'fieldops-catalog-v1'
 
 const SHELL_ASSETS = [
@@ -97,9 +100,10 @@ self.addEventListener('install', event => {
                 return
               }
             }
+            // A new shell version must not be filled from the HTTP cache.
             const req = isStyle
-              ? new Request(asset, { headers: { Accept: 'text/css,*/*;q=0.1' } })
-              : new Request(asset)
+              ? new Request(asset, { cache: 'reload', headers: { Accept: 'text/css,*/*;q=0.1' } })
+              : new Request(asset, { cache: 'reload' })
             const res = await fetch(req)
             if (res.ok && (!isStyle || (res.headers.get('content-type') || '').includes('text/css'))) {
               await cache.put(asset, res)
@@ -195,8 +199,14 @@ async function shellStrategy (request) {
 async function catalogStrategy (request) {
   const cache  = await caches.open(CATALOG_CACHE)
   const cached = await cache.match(request)
-  const fetchPromise = fetch(request).then(response => {
-    if (response.ok) cache.put(request, response.clone())
+  const fetchPromise = fetch(request).then(async response => {
+    if (response.ok) {
+      // Versioned catalog requests (?v=) replace older copies of the same path.
+      const path = new URL(request.url).pathname
+      const stale = (await cache.keys()).filter(key => new URL(key.url).pathname === path && key.url !== request.url)
+      await Promise.all(stale.map(key => cache.delete(key)))
+      await cache.put(request, response.clone())
+    }
     return response
   })
   return cached ?? fetchPromise
