@@ -82,9 +82,9 @@ Recorded from manual testing of `wip/auth-reports-offline-2026-11`. Not implemen
 | WS-01 | Service | AC, Heat, Temporarily and Finish combine freely. Prestart is exclusive and cannot combine with anything. | `workspace/SERVICE-TSTAT-SPEC.md` |
 | WS-02 | Service | AC and Heat reveal hidden options: Finish, Temporarily, and the per-system override when the visit has multiple systems. | `workspace/SERVICE-TSTAT-SPEC.md`, `workspace/SERVICE-MULTISYSTEM-SPEC.md` |
 | WS-03 | Tstat | Implementation opens a quantity modal; the closed spec requires a single-line control with no modal. New direction: quantity hidden until a tstat is selected, then shown directly below the list with quick picks 1–4 plus open entry for higher counts. | `workspace/SERVICE-TSTAT-SPEC.md` |
-| WS-04 | Accessories | Rename "Ecoil Wire" → "EEV Wire" everywhere (catalog, specs, report text, tests, and the Guided UT3000 group reference). | `workspace/ACC-SPEC.md` |
-| WS-05 | Fix | Fixed Leaks options stay Ecoil · Cunit · Wall. "Ecoil" is the field term and is kept (the earlier "Coil" rename is withdrawn). No label change; the hidden sub-option behavior is WS-11. | `workspace/FIX-SPEC.md` |
-| WS-06 | Fix | Extended Wire becomes a parent tile. Selecting it reveals Furnace · Cunit, and one location is required: Extended Wire cannot be charged without a location. The location-less `Extended Wire` catalog item is retired from selection. Tile label: pending Kristo's choice. | `workspace/FIX-SPEC.md` |
+| WS-04 | Accessories | Label change only: "Ecoil Wire" is renamed "EEV Wire" (catalog, specs, report text, tests). It stays in the UT3000 accessory group (UT3000 · DAPC · EEV Wire · eBypass); update the Guided UT3000-group reference too. Unrelated to the Fix items in WS-05/WS-06. | `workspace/ACC-SPEC.md` |
+| WS-05 | Fix | Fixed Leaks: hidden sub-options eCoil · Cunit · Wall, revealed on tap. Exact casing "eCoil", consistent with the checklist "P-drain [eCoil]" (catalog and spec currently say "Leaks Ecoil"). | `workspace/FIX-SPEC.md` |
+| WS-06 | Fix | Extended Wire: tile label becomes "Ext. Wire". Hidden sub-options Furnace · Cunit, revealed on tap. One location is required: it cannot be charged without a location. The location-less `Extended Wire` catalog item is retired from selection. | `workspace/FIX-SPEC.md` |
 | WS-07 | Accessories | LP Kit sub-options confirmed: Lennox 1Stg · Lennox 2Stg · Goodman (no change). | `workspace/ACC-SPEC.md` |
 | WS-08 | Weigh-In | Bug against spec: Subcooling is not calculated. Spec: computed field = Condenser Sat − Liquid Temp. | `workspace/WEIGHIN-SPEC.md` |
 | WS-09 | Weigh-In | Lineset dropdown is too long to use. Propose numeric entry (keypad or stepper) in the Workspace pass. | `workspace/WEIGHIN-SPEC.md` |
@@ -95,6 +95,17 @@ Recorded from manual testing of `wip/auth-reports-offline-2026-11`. Not implemen
 Verified OK in the same session: Lobby claim flow, GPS permission prompt on the first service, amount calculations.
 
 Blocker found in the same session and fixed on the WIP branch (`272e27e`): a thermostat chosen in the Workspace was sent with `techSupplied=false` while the catalog says `true`, and the strict Report comparison rejected the first submission with "Correction required".
+
+## History findings (2026-11-15) — later History pass
+
+Recorded from WIP testing. Not a bug in the reported case: the completed visit was visible after re-entering History. Not implemented; History is CLOSED and these wait for a dedicated History pass.
+
+| ID | Finding | Owning spec |
+|---|---|---|
+| HI-01 | The list includes `in_progress` visits, and they sort first (null completion date). Spec: finished visits only. | `dispatch/HISTORY-PROPERTIES-SPEC.md` |
+| HI-02 | The list loads every visit. Spec: the most recent 30, then "Load 30 more". | `dispatch/HISTORY-PROPERTIES-SPEC.md` |
+| HI-03 | The list has a Total column. Spec: no Total column. Kristo decides in that pass whether to keep it. | `dispatch/HISTORY-PROPERTIES-SPEC.md` |
+| HI-04 | The list does not refresh while open; it loads only when the screen mounts. It should refresh at least on screen focus or re-entry. | `dispatch/HISTORY-PROPERTIES-SPEC.md` |
 
 ## Pre-production requirements
 

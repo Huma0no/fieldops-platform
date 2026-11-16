@@ -28,3 +28,7 @@ Per-address record.
 - Summary bar: total visits at this address, last visit date, revenue, last technician.
 - "+ New call" button — opens Call Intake pre-filled with this address.
 - An Edit button is needed here but not yet reflected in the current mockup.
+
+## Pending changes (2026-11-15, not implemented)
+
+Recorded in `docs/status/QA-TRACKER.md` (HI-01 to HI-04) for a later History pass. Until then this spec's current text remains the closed behavior.

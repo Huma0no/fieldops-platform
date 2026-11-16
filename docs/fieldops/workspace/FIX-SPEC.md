@@ -28,6 +28,6 @@ What each fix prints in the Completion Report: `/docs/shared/REPORT-TEXT.md`.
 
 Recorded in `docs/status/QA-TRACKER.md` (WS-05, WS-06, WS-11). Scheduled for the Workspace pass after Guided Phase 4; until then this spec's current text remains the closed behavior.
 
-- WS-05: Fixed Leaks options stay Ecoil · Cunit · Wall ("Ecoil" is the field term). No label change.
-- WS-06: Extended Wire becomes a parent tile that reveals Furnace · Cunit; one location is required, so it cannot be charged without one. The location-less `Extended Wire` catalog item is retired from selection. Tile label: pending Kristo's choice.
+- WS-05: Fixed Leaks hidden sub-options eCoil · Cunit · Wall, revealed on tap. Exact casing "eCoil", as in the checklist "P-drain [eCoil]".
+- WS-06: tile label "Ext. Wire"; hidden sub-options Furnace · Cunit, revealed on tap; one location is required, so it cannot be charged without one. The location-less `Extended Wire` catalog item is retired from selection.
 - WS-11: Fixed Leaks and Extended Wire become parent tiles whose sub-options stay hidden until the parent is selected.

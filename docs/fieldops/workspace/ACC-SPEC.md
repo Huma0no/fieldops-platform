@@ -52,6 +52,6 @@ What each accessory prints in the Completion Report: `/docs/shared/REPORT-TEXT.m
 
 Recorded in `docs/status/QA-TRACKER.md` (WS-04, WS-07, WS-11). Scheduled for the Workspace pass after Guided Phase 4; until then this spec's current text remains the closed behavior.
 
-- WS-04: rename "Ecoil Wire" → "EEV Wire" everywhere, including the UT3000 group and the Guided UT3000 reference.
+- WS-04: label change only — "Ecoil Wire" becomes "EEV Wire". It stays in the UT3000 group (UT3000 · DAPC · EEV Wire · eBypass); update the Guided UT3000-group reference too.
 - WS-07: LP Kit sub-options stay Lennox 1Stg · Lennox 2Stg · Goodman.
 - WS-11: bug against this spec — LP Kit sub-options are always visible; they must stay hidden until LP Kit is selected.
