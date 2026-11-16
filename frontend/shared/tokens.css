@@ -268,11 +268,11 @@
 
 :root {
   /* Surface colors */
-  --fo-panel:    #e7e4df;
-  --fo-panel-hi: #f7f5f1;
-  --fo-panel-lo: #c3bfb8;
+  --fo-panel:    #f3f2ef;
+  --fo-panel-hi: #ffffff;
+  --fo-panel-lo: #d3d0ca;
   --fo-well:     #dcd9d3;
-  --fo-tile:     #faf9f6;
+  --fo-tile:     #faf9f7;
 
   /* Ink */
   --fo-ink:      #1a1714;
