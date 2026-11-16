@@ -28,6 +28,7 @@ const SHELL_ASSETS = [
   '/src/screens/transfers-incoming.js',
   '/src/components/job-card.js',
   '/src/components/nav-bar.js',
+  '/src/components/home-tabs.js',
   '/src/components/badge.js',
   '/src/components/calc-panel.js',
   '/src/components/correction-modal.js',

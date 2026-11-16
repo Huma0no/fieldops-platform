@@ -1,7 +1,8 @@
 /**
  * src/components/nav-bar.js
  * Bottom navigation bar — persistent across all main screens.
- * Per /docs/fieldops/NAVIGATION.md v2.0: Lobby, My Calls, Reports, Chat, Calc, Menu.
+ * Per /docs/fieldops/NAVIGATION.md: icon-only Home, Menu, Chat, Guided, Calc,
+ * with text labels shown on demand (handle above the bar, remembered per device).
  *
  * Usage:
  *   import { NavBar } from '../components/nav-bar.js'
@@ -13,6 +14,10 @@ import { api } from '../../../shared/api.js'
 import { CalcPanel, calcPanelStyles } from './calc-panel.js'
 import { MenuSheet, menuSheetStyles } from './menu-sheet.js'
 import { computeMenuBadgeCount } from '../lib/menu-badge.mjs'
+import { HOME_TABS, lastHomeRoute } from './home-tabs.js'
+
+const LABELS_KEY = 'fo:navLabels'
+const GUIDED_RETURN_KEY = 'guided:return'
 
 const STYLES_ID = 'styles-nav-bar-overlays'
 function injectOverlayStyles () {
@@ -25,37 +30,22 @@ function injectOverlayStyles () {
 
 const TABS = [
   {
-    id:    'lobby',
-    label: 'Lobby',
-    route: '/lobby',
+    id:    'home',
+    label: 'Home',
     icon:  `<svg width="22" height="22" viewBox="0 0 24 24" fill="none"
-              stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
-              <circle cx="12" cy="12" r="9"/>
-              <polyline points="12 8 12 12 14 14"/>
+              stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M3 11l9-7 9 7"/>
+              <path d="M5 10v10h5v-6h4v6h5V10"/>
             </svg>`,
   },
   {
-    id:    'my-calls',
-    label: 'My Calls',
-    route: '/',
+    id:    'menu',
+    label: 'Menu',
     icon:  `<svg width="22" height="22" viewBox="0 0 24 24" fill="none"
               stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
-              <rect x="3" y="4" width="18" height="16" rx="2"/>
-              <line x1="3" y1="9" x2="21" y2="9"/>
-              <line x1="8" y1="14" x2="13" y2="14"/>
-              <line x1="8" y1="17" x2="11" y2="17"/>
-            </svg>`,
-  },
-  {
-    id:    'reports',
-    label: 'Reports',
-    route: '/reports',
-    icon:  `<svg width="22" height="22" viewBox="0 0 24 24" fill="none"
-              stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
-              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-              <polyline points="14 2 14 8 20 8"/>
-              <line x1="8" y1="13" x2="16" y2="13"/>
-              <line x1="8" y1="17" x2="13" y2="17"/>
+              <line x1="4" y1="7" x2="20" y2="7"/>
+              <line x1="4" y1="12" x2="20" y2="12"/>
+              <line x1="4" y1="17" x2="20" y2="17"/>
             </svg>`,
   },
   {
@@ -65,6 +55,18 @@ const TABS = [
     icon:  `<svg width="22" height="22" viewBox="0 0 24 24" fill="none"
               stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
               <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+            </svg>`,
+  },
+  {
+    id:    'guided',
+    label: 'Guided',
+    route: '/guided',
+    icon:  `<svg width="22" height="22" viewBox="0 0 24 24" fill="none"
+              stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="5.5" cy="17" r="2.5"/>
+              <circle cx="18.5" cy="7" r="2.5"/>
+              <path d="M7.5 15.5C12 14 9 9 16.3 8.2"/>
+              <path d="M4 21h3M17 3h3"/>
             </svg>`,
   },
   {
@@ -82,27 +84,31 @@ const TABS = [
               <line x1="16" y1="16" x2="16" y2="16"/>
             </svg>`,
   },
-  {
-    id:    'menu',
-    label: 'Menu',
-    icon:  `<svg width="22" height="22" viewBox="0 0 24 24" fill="none"
-              stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
-              <line x1="4" y1="7" x2="20" y2="7"/>
-              <line x1="4" y1="12" x2="20" y2="12"/>
-              <line x1="4" y1="17" x2="20" y2="17"/>
-            </svg>`,
-  },
 ]
 
 export function NavBar ({ active, onNavigate, unreadChat = 0 }) {
   injectOverlayStyles()
 
+  // Lobby, My Calls and Reports are tabs inside Home.
+  const activeId = HOME_TABS.some(tab => tab.id === active) ? 'home' : active
+
   const nav = document.createElement('nav')
-  nav.className = 'nav-bar'
+  nav.className = `nav-bar${readLabelsShown() ? ' nav-bar--labels' : ''}`
+
+  const handle = document.createElement('button')
+  handle.type = 'button'
+  handle.className = 'nav-handle'
+  handle.setAttribute('aria-label', 'Show or hide labels')
+  handle.innerHTML = '<i></i>'
+  handle.addEventListener('click', () => {
+    const shown = nav.classList.toggle('nav-bar--labels')
+    try { localStorage.setItem(LABELS_KEY, shown ? '1' : '0') } catch (_) {}
+  })
+  nav.appendChild(handle)
 
   TABS.forEach(tab => {
     const btn      = document.createElement('button')
-    const isActive = tab.id === active
+    const isActive = tab.id === activeId
     btn.className  = `nav-tab ${isActive ? 'nav-tab--active' : ''}`
     btn.setAttribute('aria-label', tab.label)
 
@@ -125,6 +131,11 @@ export function NavBar ({ active, onNavigate, unreadChat = 0 }) {
         document.body.appendChild(overlayEl)
         return
       }
+      if (tab.id === 'home') {
+        if (!isActive) onNavigate(lastHomeRoute())
+        return
+      }
+      if (tab.id === 'guided') sessionStorage.removeItem(GUIDED_RETURN_KEY)
       if (!isActive) onNavigate(tab.route)
     })
 
@@ -134,6 +145,10 @@ export function NavBar ({ active, onNavigate, unreadChat = 0 }) {
   loadMenuBadge(nav)
 
   return nav
+}
+
+function readLabelsShown () {
+  try { return localStorage.getItem(LABELS_KEY) === '1' } catch (_) { return false }
 }
 
 async function loadMenuBadge (navEl) {
@@ -197,8 +212,9 @@ export const navBarStyles = `
     align-items: center;
     justify-content: center;
     gap: 3px;
-    height: 56px;
-    padding: 10px 4px;
+    min-width: 44px;
+    height: 52px;
+    padding: 6px 4px;
     background: none;
     border: none;
     cursor: pointer;
@@ -206,16 +222,6 @@ export const navBarStyles = `
     position: relative;
     transition: color 0.12s ease;
     -webkit-tap-highlight-color: transparent;
-  }
-
-  .nav-tab + .nav-tab::before {
-    content: '';
-    position: absolute;
-    left: 0;
-    top: 16px;
-    bottom: 16px;
-    width: 1px;
-    background: var(--fo-panel-lo);
   }
 
   .nav-tab--active {
@@ -257,6 +263,36 @@ export const navBarStyles = `
     font-weight: 700;
     letter-spacing: 0.06em;
     white-space: nowrap;
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.15s ease;
+  }
+
+  .nav-bar--labels .nav-tab { height: 62px; }
+  .nav-bar--labels .nav-label { max-height: 14px; }
+
+  .nav-handle {
+    position: absolute;
+    left: 50%;
+    top: -16px;
+    transform: translateX(-50%);
+    width: 64px;
+    height: 24px;
+    display: grid;
+    place-items: center;
+    padding: 0;
+    border: none;
+    background: none;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .nav-handle i {
+    width: 32px;
+    height: 4px;
+    border-radius: 2px;
+    background: var(--fo-ink-soft);
+    opacity: 0.4;
   }
 
   .nav-badge {

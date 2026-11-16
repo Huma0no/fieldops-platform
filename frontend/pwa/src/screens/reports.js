@@ -12,6 +12,7 @@
 
 import { api }                  from '../../../shared/api.js'
 import { NavBar, navBarStyles } from '../components/nav-bar.js'
+import { HomeTabs, attachHomeSwipe, homeTabStyles } from '../components/home-tabs.js'
 import {
   getActiveTechnicianId,
   getAllCompletionSubmissions,
@@ -31,7 +32,7 @@ function injectStyles () {
   if (document.getElementById(STYLES_ID)) return
   const style = document.createElement('style')
   style.id = STYLES_ID
-  style.textContent = screenStyles + navBarStyles + correctionModalStyles
+  style.textContent = screenStyles + navBarStyles + correctionModalStyles + homeTabStyles
   document.head.appendChild(style)
 }
 
@@ -59,6 +60,7 @@ export default async function mount (appEl) {
   list.id = 'reports-list'
   scrollArea.appendChild(list)
   screen.appendChild(scrollArea)
+  attachHomeSwipe(scrollArea, { active: 'reports', onNavigate: navigate })
 
   screen.appendChild(NavBar({
     active: 'reports',
@@ -564,10 +566,7 @@ async function downloadReport (visit) {
 function buildHeader () {
   const header = document.createElement('div')
   header.className = 'screen-header'
-  const title = document.createElement('h1')
-  title.className   = 'screen-title'
-  title.textContent = 'Reports'
-  header.appendChild(title)
+  header.appendChild(HomeTabs({ active: 'reports', onNavigate: navigate }))
 
   const retryAllBtn = document.createElement('button')
   retryAllBtn.id = 'reports-retry-all-btn'

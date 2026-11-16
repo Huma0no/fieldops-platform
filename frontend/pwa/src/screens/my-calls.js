@@ -12,6 +12,7 @@
 
 import { api }              from '../../../shared/api.js'
 import { NavBar, navBarStyles }         from '../components/nav-bar.js'
+import { HomeTabs, attachHomeSwipe, homeTabStyles } from '../components/home-tabs.js'
 import { JobCard, jobCardStyles }       from '../components/job-card.js'
 import { startSync, forceSync }         from '../lib/sync.js'
 import { NotificationBell, notificationStyles } from '../components/notifications.js'
@@ -27,7 +28,7 @@ function injectStyles () {
   if (document.getElementById(STYLES_ID)) return
   const style = document.createElement('style')
   style.id = STYLES_ID
-  style.textContent = screenStyles + jobCardStyles + navBarStyles + notificationStyles
+  style.textContent = screenStyles + jobCardStyles + navBarStyles + notificationStyles + homeTabStyles
   document.head.appendChild(style)
 }
 
@@ -68,6 +69,7 @@ export default function mount (appEl) {
   scrollArea.appendChild(loadSheetWrap)
 
   screenEl.appendChild(scrollArea)
+  attachHomeSwipe(scrollArea, { active: 'my-calls', onNavigate: navigateTo })
 
   const nav = NavBar({
     active: 'my-calls',
@@ -328,11 +330,7 @@ function buildHeader () {
   const header = document.createElement('div')
   header.className = 'screen-header'
 
-  const title = document.createElement('h1')
-  title.className   = 'screen-title'
-  title.textContent = 'My Calls'
-
-  header.appendChild(title)
+  header.appendChild(HomeTabs({ active: 'my-calls', onNavigate: navigateTo }))
   header.appendChild(NotificationBell(navigateTo))
   return header
 }

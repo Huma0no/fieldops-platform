@@ -12,6 +12,7 @@
 
 import { api }                          from '../../../shared/api.js'
 import { NavBar, navBarStyles }         from '../components/nav-bar.js'
+import { HomeTabs, attachHomeSwipe, homeTabStyles } from '../components/home-tabs.js'
 import { Tag, badgeStyles }             from '../components/badge.js'
 import { startSync }                    from '../lib/sync.js'
 
@@ -23,7 +24,7 @@ function injectStyles () {
   if (document.getElementById(STYLES_ID)) return
   const style = document.createElement('style')
   style.id = STYLES_ID
-  style.textContent = screenStyles + navBarStyles + badgeStyles
+  style.textContent = screenStyles + navBarStyles + badgeStyles + homeTabStyles
   document.head.appendChild(style)
 }
 
@@ -53,6 +54,7 @@ export default function mount (appEl) {
   scrollArea.appendChild(listWrap)
 
   screen.appendChild(scrollArea)
+  attachHomeSwipe(scrollArea, { active: 'lobby', onNavigate: navigate })
 
   const nav = NavBar({
     active: 'lobby',
@@ -226,15 +228,11 @@ function buildHeader () {
   const left = document.createElement('div')
   left.className = 'lobby-header-left'
 
-  const title = document.createElement('h1')
-  title.className   = 'screen-title'
-  title.textContent = 'Lobby'
-
   const count = document.createElement('span')
   count.id        = 'lobby-count'
   count.className = 'lobby-count-badge'
 
-  left.appendChild(title)
+  header.appendChild(HomeTabs({ active: 'lobby', onNavigate: navigate }))
   left.appendChild(count)
   header.appendChild(left)
   return header
