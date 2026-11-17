@@ -24,13 +24,22 @@ import {
   createLocalVisitDraft,
   consumeConfirmedCancelForVisit,
   discardLegacyUnconfirmedCancelOrigin,
+  effectiveSystemService,
   enterLocalVisitDraftCancelMode,
   hasServiceSelection,
   isConfirmedLocalVisitDraftCancelMode,
+  isCustomSystemService,
   markLocalVisitDraftDirty,
   migrateLegacyConfirmedCancelMode,
-  serviceNameFromState,
-  toggleServiceSelection,
+  missingServiceSystems,
+  normalizeServiceState,
+  resetSystemService,
+  serviceRowsFromState,
+  serviceStateFromRows,
+  setDriveRun,
+  systemNumbersOf,
+  systemServiceName,
+  tapService,
   toggleLocalVisitDraftChecklist,
   updateLocalVisitDraftNotes,
 } from '../lib/workspace-visit.mjs'
@@ -86,11 +95,15 @@ let _gpsPhotosMissing = 0
 let _exifrLoaded = false
 let notesDraftTimer = null
 let serviceSyncPromise = Promise.resolve()
+// Service step: the system the switcher selected, or null for the default
+// selection that applies to every system without its own override.
+let selectedSystem = null
 
 export default async function mount (appEl) {
   injectStyles()
   appEl.innerHTML = ''
   activeStep = 'service'
+  selectedSystem = null
   completedSections.clear()
   clearTimeout(notesDraftTimer)
   serviceSyncPromise = Promise.resolve()
@@ -160,19 +173,9 @@ export default async function mount (appEl) {
     if (!linesetConfigs.length) linesetConfigs = await api.get('/catalog/lineset-configs').catch(() => [])
     if (!equipmentCatalog.length) equipmentCatalog = await api.get('/catalog/equipment').catch(() => [])
 
-    if (!visit._service) {
-      const svc = (visit.services ?? [])[0]
-      visit._service = {
-        ac:          svc?.serviceName === 'AC' || svc?.serviceName === 'AC & Heat',
-        heat:        svc?.serviceName === 'Heat' || svc?.serviceName === 'AC & Heat',
-        prestart:    svc?.serviceName === 'Prestart',
-        cancel:      svc?.serviceName === 'Cancel',
-        driveRun:    svc?.serviceName === 'Drive Run',
-        finish:      svc?.isFinish ?? false,
-        temporarily: svc?.isTemporarily ?? false,
-        twoSystems:  visit.hasMultipleSystems ?? false,
-      }
-    }
+    visit._service = visit._service
+      ? normalizeServiceState(visit._service)
+      : serviceStateFromRows(visit.services ?? [], systemNumbersOf(visit))
     if (!visit._checklist) visit._checklist = {}
     if (!visit._checklistPhotoCounts) visit._checklistPhotoCounts = {}
 
@@ -285,6 +288,7 @@ function buildHeader () {
 function buildActiveJobBanner () {
   const el = document.createElement('div')
   el.className = 'ws-active-job-banner'
+  el.id = 'ws-active-job-banner'
 
   const info = document.createElement('div')
   info.className = 'ws-active-job-info'
@@ -299,13 +303,20 @@ function buildActiveJobBanner () {
     visit.address?.builder,
     `${systemCount} system${systemCount !== 1 ? 's' : ''}`,
   ].filter(Boolean)
-  meta.textContent = metaParts.join(' · ')
+  const switcher = buildSystemSwitcher()
+  if (switcher && selectedSystem != null) {
+    const system = (visit.systems ?? []).find(s => Number(s.systemNumber) === selectedSystem)
+    meta.textContent = `System ${selectedSystem} · ${system?.outdoorModel ?? '—'}`
+  } else {
+    meta.textContent = metaParts.join(' · ')
+  }
   info.appendChild(address)
   info.appendChild(meta)
   el.appendChild(info)
 
   const right = document.createElement('div')
   right.className = 'ws-active-job-actions'
+  if (switcher) right.appendChild(switcher)
   const price = document.createElement('p')
   price.className = 'ws-active-job-price'
   price.id = 'ws-active-job-price'
@@ -321,6 +332,33 @@ function buildActiveJobBanner () {
   return el
 }
 
+// System switcher (Service step, multi-system calls). Tapping a system edits
+// that system; tapping it again returns to the default for every system.
+// A dot marks systems with their own (custom) service.
+function buildSystemSwitcher () {
+  const numbers = systemNumbersOf(visit)
+  if (activeStep !== 'service' || numbers.length < 2 || isCancelMode()) return null
+  const el = document.createElement('div')
+  el.className = 'ws-sys-switch'
+  el.setAttribute('role', 'group')
+  el.setAttribute('aria-label', 'Systems')
+  numbers.forEach((number) => {
+    const btn = document.createElement('button')
+    btn.type = 'button'
+    const custom = isCustomSystemService(visit._service, number)
+    btn.className = `ws-sys-btn${selectedSystem === number ? ' ws-sys-btn--on' : ''}${custom ? ' ws-sys-btn--custom' : ''}`
+    btn.textContent = String(number)
+    btn.setAttribute('aria-pressed', String(selectedSystem === number))
+    btn.setAttribute('aria-label', `System ${number}${custom ? ', custom' : ''}`)
+    btn.addEventListener('click', () => {
+      selectedSystem = selectedSystem === number ? null : number
+      renderBody()
+    })
+    el.appendChild(btn)
+  })
+  return el
+}
+
 // ── Step rail + linear navigation ───────────────────────────
 //
 // Replaces the old vertical accordion. Only the active step's content is
@@ -331,6 +369,7 @@ function buildActiveJobBanner () {
 function renderBody () {
   const body = document.getElementById('ws-body')
   if (!body) return
+  document.getElementById('ws-active-job-banner')?.replaceWith(buildActiveJobBanner())
   body.innerHTML = ''
   body.appendChild(buildStepRail())
   const stepIndex = STEPS.findIndex(s => s.id === activeStep)
@@ -465,18 +504,13 @@ function buildNotesStepContent () {
 function getSectionSummary (sectionId) {
   switch (sectionId) {
     case 'service': {
-      const svc = visit._service
-      if (!svc) return '—'
-      const parts = []
-      if (svc.ac)          parts.push('AC')
-      if (svc.heat)        parts.push('Heat')
-      if (svc.prestart)    parts.push('Prestart')
-      if (svc.cancel)      parts.push('Cancel')
-      if (svc.driveRun)    parts.push('Drive Run')
-      if (svc.finish)      parts.push('Finish')
-      if (svc.temporarily) parts.push('Temporarily')
-      if (svc.twoSystems)  parts.push('2 Systems')
-      return parts.join(' · ') || '—'
+      const service = visit._service
+      if (!service) return '—'
+      if (service.cancel) return 'Cancel'
+      if (service.driveRun) return 'Drive Run'
+      const numbers = systemNumbersOf(visit)
+      const labels = numbers.map(n => serviceSelectionLabel(effectiveSystemService(service, n)) ?? '—')
+      return numbers.length === 1 ? labels[0] : labels.map((label, i) => `S${numbers[i]}: ${label}`).join(' · ')
     }
     case 'thermostat': {
       const items = (visit._items ?? []).filter(i => i.category === 'thermostat')
@@ -540,78 +574,184 @@ function formatPrice (val) {
   return `$${Number(val ?? 0).toFixed(2)}`
 }
 
+// Service: AC · HEAT · PRESTART tiles, Finish always below, Temporarily with
+// AC or Heat, and the call-wide Drive Run. Taps edit the default for every
+// system, or the system the banner switcher selected (its custom service).
 function buildServiceSection () {
   const wrap = document.createElement('div')
   wrap.className = 'ws-section-content'
-  const svc = visit._service
+  const service = visit._service
+  const numbers = systemNumbersOf(visit)
+  const target = numbers.includes(selectedSystem) ? selectedSystem : null
+  const selection = target == null ? service.default : effectiveSystemService(service, target)
 
-  const baseRow = document.createElement('div')
-  baseRow.className = 'ws-btn-grid'
-
-  const baseServices = [
-    { key: 'ac', label: 'AC' }, { key: 'heat', label: 'Heat' },
-    { key: 'prestart', label: 'Prestart' },
-    { key: 'driveRun', label: 'Drive Run' },
-    { key: 'finish', label: 'Finish' },
-  ]
-
-  baseServices.forEach(({ key, label }) => {
-    const btn = document.createElement('button')
-    const cls = svc[key] ? (key === 'ac' ? ' ws-item-btn--ac' : key === 'heat' ? ' ws-item-btn--heat' : ' ws-item-btn--active') : ''
-    btn.className = `ws-item-btn${cls}`
-    btn.textContent = label
-    btn.addEventListener('click', async () => {
-      if (!toggleServiceSelection(svc, key)) return
-      await syncService()
-      refreshSection('service')
-    })
-    baseRow.appendChild(btn)
-  })
-  wrap.appendChild(baseRow)
-
-  if (svc.ac || svc.heat) {
-    const modRow = document.createElement('div')
-    modRow.className = 'ws-btn-grid ws-btn-grid--modifiers'
-    ;[['finish','Finish'],['temporarily','Temporarily']].forEach(([key,label]) => {
-      const btn = document.createElement('button')
-      btn.className = `ws-item-btn ws-btn--modifier${svc[key] ? ' ws-item-btn--active' : ''}`
-      btn.textContent = label
-      btn.addEventListener('click', async () => {
-        if (!toggleServiceSelection(svc, key)) return
-        await syncService()
-        refreshSection('service')
+  const head = document.createElement('div')
+  head.className = 'ws-panel-head'
+  const title = document.createElement('span')
+  title.className = 'ws-panel-title'
+  title.textContent = 'Service'
+  head.appendChild(title)
+  if (numbers.length > 1) {
+    const scope = document.createElement('span')
+    scope.className = 'ws-panel-note'
+    const customCount = numbers.filter(n => isCustomSystemService(service, n)).length
+    if (target != null) {
+      scope.textContent = `System ${target} · ${isCustomSystemService(service, target) ? 'custom' : 'default'}`
+    } else {
+      scope.textContent = customCount
+        ? `${numbers.length - customCount} use default · ${customCount} custom`
+        : `applies to all ${numbers.length} systems`
+    }
+    head.appendChild(scope)
+    if (target != null && isCustomSystemService(service, target)) {
+      const reset = document.createElement('button')
+      reset.type = 'button'
+      reset.className = 'ws-svc-reset'
+      reset.textContent = '↺'
+      reset.setAttribute('aria-label', `Reset system ${target} to the default`)
+      reset.addEventListener('click', () => {
+        resetSystemService(service, target)
+        afterServiceChange()
       })
-      modRow.appendChild(btn)
-    })
-    wrap.appendChild(modRow)
+      head.appendChild(reset)
+    }
+  }
+  wrap.appendChild(head)
+
+  const tap = key => () => {
+    tapService(service, target, key)
+    afterServiceChange()
+  }
+  const tiles = document.createElement('div')
+  tiles.className = 'ws-btn-grid ws-btn-grid--3'
+  ;[['ac', 'AC'], ['heat', 'HEAT'], ['prestart', 'PRESTART']].forEach(([key, label]) => {
+    const btn = document.createElement('button')
+    const on = selection[key] === true
+    btn.className = `ws-item-btn${on ? (key === 'ac' ? ' ws-item-btn--ac' : key === 'heat' ? ' ws-item-btn--heat' : ' ws-item-btn--active') : ''}`
+    btn.textContent = label
+    btn.setAttribute('aria-pressed', String(on))
+    btn.addEventListener('click', tap(key))
+    tiles.appendChild(btn)
+  })
+  wrap.appendChild(tiles)
+
+  const mods = document.createElement('div')
+  mods.className = 'ws-btn-grid ws-btn-grid--modifiers'
+  const modifiers = [['finish', 'Finish']]
+  if (selection.ac || selection.heat) modifiers.push(['temporarily', 'Temporarily'])
+  modifiers.forEach(([key, label]) => {
+    const btn = document.createElement('button')
+    const on = selection[key] === true
+    btn.className = `ws-item-btn ws-btn--modifier${on ? ' ws-item-btn--active' : ''}`
+    btn.textContent = label
+    btn.setAttribute('aria-pressed', String(on))
+    btn.addEventListener('click', tap(key))
+    mods.appendChild(btn)
+  })
+  wrap.appendChild(mods)
+
+  const hint = service.driveRun
+    ? 'Drive Run is exclusive — it replaces every service on the call.'
+    : selection.prestart ? 'Prestart is exclusive — it can’t combine with other services.' : ''
+  if (hint) {
+    const hintEl = document.createElement('p')
+    hintEl.className = 'ws-svc-hint'
+    hintEl.textContent = hint
+    wrap.appendChild(hintEl)
   }
 
-  const hasService = hasServiceSelection(svc)
-  if (hasService) {
-    const doneBtn = document.createElement('button')
-    doneBtn.className = 'ws-done-btn'
-    doneBtn.textContent = 'Done'
-    doneBtn.addEventListener('click', () => markSectionComplete('service'))
-    wrap.appendChild(doneBtn)
-  }
+  const drive = document.createElement('button')
+  drive.className = `ws-item-btn ws-drive-btn${service.driveRun ? ' ws-item-btn--active' : ''}`
+  drive.textContent = 'Drive Run'
+  drive.setAttribute('aria-pressed', String(service.driveRun))
+  drive.addEventListener('click', toggleDriveRun)
+  wrap.appendChild(drive)
   return wrap
+}
+
+function serviceSelectionLabel (selection) {
+  const name = systemServiceName(selection)
+  if (!name) return null
+  const extras = []
+  if (selection.finish && name !== 'Finish') extras.push('Finish')
+  if (selection.temporarily && (selection.ac || selection.heat)) extras.push('Temporarily')
+  return [name, ...extras].join(' · ')
+}
+
+function afterServiceChange () {
+  syncService()
+  refreshSection('service')
 }
 
 function syncService () {
   const pending = serviceSyncPromise.catch(() => {}).then(async () => {
-    const svc = visit?._service
-    const serviceName = serviceNameFromState(svc)
-    if (!serviceName) return
+    const service = visit?._service
+    if (!service || service.cancel) return
     try {
       const result = await api.patch(`/visits/${visit.id}/services`, {
-        serviceName, isFinish: svc.finish, isTemporarily: svc.temporarily,
+        services: serviceRowsFromState(service, systemNumbersOf(visit)),
       })
-      if (result?.servicePrice !== undefined) svc.price = result.servicePrice
+      if (Array.isArray(result?.services)) service.rows = result.services
       if (result?.totalPrice !== undefined) updatePrice(result.totalPrice)
+      await persistCurrentDraft({ touch: false })
     } catch (err) { console.error('Service sync failed:', err) }
   })
   serviceSyncPromise = pending
   return pending
+}
+
+// Drive Run replaces every service on the call and clears the other work
+// sections; Notes and photos stay. One confirmation, only when something
+// would be cleared.
+async function toggleDriveRun () {
+  const service = visit._service
+  if (service.driveRun) {
+    setDriveRun(service, false)
+    afterServiceChange()
+    return
+  }
+  const hasWork = hasServiceSelection(service, systemNumbersOf(visit)) ||
+    (visit._items ?? []).length > 0 ||
+    (visit._weighInData ?? []).length > 0 ||
+    Object.values(visit._checklist ?? {}).some(answer => answer != null)
+  if (hasWork && !await confirmDriveRun()) return
+  setDriveRun(service, true)
+  selectedSystem = null
+  await clearWorkForDriveRun()
+  afterServiceChange()
+}
+
+function confirmDriveRun () {
+  return new Promise((resolve) => {
+    const overlay = makeOverlay(() => { overlay.remove(); resolve(false) })
+    const modal = makeModal('Drive Run')
+    const note = document.createElement('p'); note.className = 'ws-modal-note'
+    note.textContent = 'Drive Run replaces every service on the call and clears T-stat, Accessories, Fixes, Weigh-In and the checklist. Notes and photos stay.'
+    const actions = makeActions([
+      { label: 'Keep working', cls: 'secondary', fn: () => { overlay.remove(); resolve(false) } },
+      { label: 'Drive Run', cls: 'primary', fn: () => { overlay.remove(); resolve(true) } },
+    ])
+    modal.appendChild(note); modal.appendChild(actions)
+    overlay.appendChild(modal)
+    document.getElementById('ws-screen')?.appendChild(overlay)
+  })
+}
+
+async function clearWorkForDriveRun () {
+  // Companion rows carry a client-made id; deleting their parent removes them.
+  for (const item of [...(visit._items ?? [])]) {
+    if (String(item.id).includes(':')) continue
+    try {
+      const result = await api.delete(`/visits/${visit.id}/items/${item.id}`)
+      if (result?.totalPrice !== undefined) updatePrice(result.totalPrice)
+    } catch (err) { console.error('Clearing item for Drive Run failed:', err) }
+  }
+  visit._items = []
+  visit._weighInData = []
+  visit._weighinDone = false
+  visit._checklist = {}
+  completedSections.clear()
+  visit._completedSteps = []
 }
 
 async function beginCancel () {
@@ -626,91 +766,94 @@ async function beginCancel () {
   renderBody()
 }
 
+// T-stat: tapping a model toggles it; each selected model has its own
+// quantity row (1–4 quick picks, + for more) and its own report line.
 function buildThermostatSection () {
   const wrap = document.createElement('div')
   wrap.className = 'ws-section-content'
   const tstatItems = catalogItems.filter(i => i.category === 'thermostat')
-  const selected   = (visit._items ?? []).find(i => i.category === 'thermostat')
+  const selected   = (visit._items ?? []).filter(i => i.category === 'thermostat')
   const preSpec    = visit.pre_specified_thermostat
 
-  const grid = document.createElement('div')
-  grid.className = 'ws-btn-grid'
+  const head = document.createElement('div')
+  head.className = 'ws-panel-head'
+  const title = document.createElement('span')
+  title.className = 'ws-panel-title'
+  title.textContent = 'T-stat'
+  const summary = document.createElement('span')
+  summary.className = 'ws-panel-note'
+  summary.textContent = selected.length ? selected.map(i => `${i.item_name} × ${i.quantity}`).join(' · ') : 'none'
+  head.append(title, summary)
+  wrap.appendChild(head)
 
-  tstatItems.forEach(item => {
-    const isActive = selected?.item_name === item.item_name
-    const isPre    = !isActive && preSpec === item.item_name
-    const btn = document.createElement('button')
-    btn.className = `ws-item-btn${isActive ? ' ws-item-btn--active' : ''}${isPre ? ' ws-item-btn--pre' : ''}`
-    btn.innerHTML = isPre ? `${item.item_name}<span class="ws-pre-label">suggested</span>` : item.item_name
-    btn.addEventListener('click', async () => {
-      if (isActive) {
-        const existing = (visit._items ?? []).find(i => i.category === 'thermostat')
-        if (existing) {
-          await api.delete(`/visits/${visit.id}/items/${existing.id}`)
-          visit._items = (visit._items ?? []).filter(i => i.id !== existing.id)
-          refreshSection('thermostat')
-        }
-        return
-      }
-      const existing = (visit._items ?? []).find(i => i.category === 'thermostat')
-      if (existing) {
-        await api.delete(`/visits/${visit.id}/items/${existing.id}`)
-        visit._items = (visit._items ?? []).filter(i => i.id !== existing.id)
-      }
-      showQuantityModal(item, async qty => {
-        try {
-          const result = await api.post(`/visits/${visit.id}/items`, { itemName: item.item_name, category: 'thermostat', quantity: qty })
-          visit._items = [...(visit._items ?? []), { id: result.id, item_name: item.item_name, category: 'thermostat', quantity: qty, price: item.default_price, tech_supplied: item.tech_supplied ?? false }]
-          if (result.totalPrice !== undefined) updatePrice(result.totalPrice)
-          refreshSection('thermostat')
-        } catch (err) { console.error('Add thermostat failed:', err) }
-      })
-    })
-    grid.appendChild(btn)
+  const picker = document.createElement('div')
+  picker.className = 'ws-tstat-picker'
+  tstatItems.forEach((item) => {
+    const isActive = selected.some(i => i.item_name === item.item_name)
+    const row = document.createElement('button')
+    row.type = 'button'
+    row.className = `ws-tstat-opt${isActive ? ' ws-tstat-opt--on' : ''}`
+    row.setAttribute('aria-pressed', String(isActive))
+    row.textContent = item.item_name
+    if (!isActive && preSpec === item.item_name) {
+      const pre = document.createElement('span'); pre.className = 'ws-pre-label'; pre.textContent = 'suggested'
+      row.appendChild(pre)
+    }
+    row.addEventListener('click', () => toggleThermostat(item))
+    picker.appendChild(row)
   })
+  wrap.appendChild(picker)
 
-  wrap.appendChild(grid)
-  if (selected) {
-    wrap.appendChild(buildItemChip(selected))
-    const doneBtn = document.createElement('button')
-    doneBtn.className = 'ws-done-btn'
-    doneBtn.textContent = 'Done'
-    doneBtn.addEventListener('click', () => markSectionComplete('thermostat'))
-    wrap.appendChild(doneBtn)
-  } else {
-    const skipBtn = document.createElement('button')
-    skipBtn.className = 'ws-done-btn'
-    skipBtn.textContent = 'Skip'
-    skipBtn.addEventListener('click', () => markSectionComplete('thermostat'))
-    wrap.appendChild(skipBtn)
-  }
+  selected.forEach((item) => {
+    const row = document.createElement('div')
+    row.className = 'ws-tqty-row'
+    const name = document.createElement('span'); name.className = 'ws-tqty-name'; name.textContent = item.item_name
+    row.appendChild(name)
+    ;[1, 2, 3, 4].forEach((qty) => {
+      const btn = document.createElement('button')
+      btn.type = 'button'
+      btn.className = `ws-tqty-btn${item.quantity === qty ? ' ws-tqty-btn--on' : ''}`
+      btn.textContent = String(qty)
+      btn.setAttribute('aria-label', `${item.item_name} quantity ${qty}`)
+      btn.addEventListener('click', () => setThermostatQuantity(item, qty))
+      row.appendChild(btn)
+    })
+    const more = document.createElement('button')
+    more.type = 'button'
+    more.className = `ws-tqty-btn${item.quantity > 4 ? ' ws-tqty-btn--on' : ''}`
+    more.textContent = item.quantity > 4 ? String(item.quantity) : '+'
+    more.setAttribute('aria-label', `${item.item_name} quantity ${Math.max(4, item.quantity) + 1}`)
+    more.addEventListener('click', () => setThermostatQuantity(item, Math.max(4, item.quantity) + 1))
+    row.appendChild(more)
+    wrap.appendChild(row)
+  })
   return wrap
 }
 
-function showQuantityModal (item, onConfirm) {
-  const overlay = makeOverlay()
-  const modal = makeModal(item.item_name)
-  const note = document.createElement('p')
-  note.className = 'ws-modal-note'
-  note.textContent = 'How many?'
-  modal.appendChild(note)
-  let qty = 1
-  const qtyWrap = document.createElement('div')
-  qtyWrap.className = 'ws-qty-wrap'
-  const minus = makeModalBtn('−', 'secondary'); minus.classList.add('ws-qty-btn')
-  const display = document.createElement('span'); display.className='ws-price-amount'; display.textContent='1'
-  const plus = makeModalBtn('+', 'secondary'); plus.classList.add('ws-qty-btn')
-  minus.addEventListener('click', () => { if (qty > 1) { qty--; display.textContent = qty } })
-  plus.addEventListener('click',  () => { qty++; display.textContent = qty })
-  qtyWrap.appendChild(minus); qtyWrap.appendChild(display); qtyWrap.appendChild(plus)
-  modal.appendChild(qtyWrap)
-  const actions = makeActions([
-    { label: 'Cancel', cls: 'secondary', fn: () => overlay.remove() },
-    { label: 'Add',    cls: 'primary',   fn: () => { overlay.remove(); onConfirm(qty) } },
-  ])
-  modal.appendChild(actions)
-  overlay.appendChild(modal)
-  document.getElementById('ws-screen')?.appendChild(overlay)
+async function toggleThermostat (item) {
+  const existing = (visit._items ?? []).find(i => i.category === 'thermostat' && i.item_name === item.item_name)
+  try {
+    if (existing) {
+      const result = await api.delete(`/visits/${visit.id}/items/${existing.id}`)
+      visit._items = (visit._items ?? []).filter(i => i.id !== existing.id)
+      if (result?.totalPrice !== undefined) updatePrice(result.totalPrice)
+    } else {
+      const result = await api.post(`/visits/${visit.id}/items`, { itemName: item.item_name, category: 'thermostat', quantity: 1 })
+      visit._items = [...(visit._items ?? []), { id: result.id, item_name: item.item_name, category: 'thermostat', quantity: 1, price: item.default_price, tech_supplied: item.tech_supplied ?? false }]
+      if (result?.totalPrice !== undefined) updatePrice(result.totalPrice)
+    }
+  } catch (err) { console.error('Thermostat change failed:', err) }
+  refreshSection('thermostat')
+}
+
+async function setThermostatQuantity (item, quantity) {
+  if (item.quantity === quantity) return
+  try {
+    const result = await api.post(`/visits/${visit.id}/items`, { itemName: item.item_name, category: 'thermostat', quantity })
+    item.quantity = quantity
+    if (result?.totalPrice !== undefined) updatePrice(result.totalPrice)
+  } catch (err) { console.error('Thermostat quantity change failed:', err) }
+  refreshSection('thermostat')
 }
 
 function buildItemsSection (category) {
@@ -849,7 +992,7 @@ function showCustomPriceModal (item, onConfirm) {
 function buildWeighInSection () {
   const wrap = document.createElement('div')
   wrap.className = 'ws-section-content'
-  const count = visit._service?.twoSystems ? 2 : 1
+  const count = systemNumbersOf(visit).length
   for (let i = 1; i <= count; i++) wrap.appendChild(buildWeighInPanel(i, count > 1))
   const doneBtn = document.createElement('button')
   doneBtn.className = 'ws-done-btn'; doneBtn.textContent = 'Done'
@@ -1056,7 +1199,7 @@ async function captureWeighInPhoto (tag, systemNum, btn) {
 function buildCalcSection () {
   const wrap = document.createElement('div')
   wrap.className = 'ws-section-content'
-  const count = visit._service?.twoSystems ? 2 : 1
+  const count = systemNumbersOf(visit).length
   for (let i = 1; i <= count; i++) wrap.appendChild(buildCalcPanel(i, count > 1))
   const doneBtn = document.createElement('button')
   doneBtn.className = 'ws-done-btn'; doneBtn.textContent = 'Done'
@@ -1348,7 +1491,28 @@ async function openGenerateModal () {
     synced = serviceSyncPromise
     await synced
   } while (synced !== serviceSyncPromise)
+  if (!isCancelMode()) {
+    const numbers = systemNumbersOf(visit)
+    const missing = missingServiceSystems(visit._service, numbers)
+    if (missing.length) {
+      showServiceMissingBlock(numbers.length > 1 ? `System ${missing.join(', ')}: no service selected` : 'No service selected')
+      return
+    }
+  }
   openGenerateModalDirect()
+}
+
+function showServiceMissingBlock (message) {
+  const overlay = makeOverlay()
+  const modal = makeModal('Service missing')
+  const note = document.createElement('p'); note.className = 'ws-modal-note'
+  note.textContent = `${message}. Choose a service, or Drive Run, before generating this report.`
+  const actions = makeActions([
+    { label: 'Go to Service', cls: 'primary', fn: () => { overlay.remove(); goToStep('service') } },
+  ])
+  modal.appendChild(note); modal.appendChild(actions)
+  overlay.appendChild(modal)
+  document.getElementById('ws-screen')?.appendChild(overlay)
 }
 
 function showCancelJustificationBlock () {
@@ -1584,9 +1748,24 @@ function injectStyles () {
   .ws-modal{width:100%;background:var(--fo-panel);box-shadow:var(--fo-shadow-card);border-radius:var(--fo-radius) var(--fo-radius) 0 0;padding:var(--space-5);display:flex;flex-direction:column;gap:var(--space-3);padding-bottom:calc(var(--space-5) + env(safe-area-inset-bottom,0px));}
   .ws-modal-title{font-size:var(--text-md);font-weight:700;color:var(--fo-ink);}
   .ws-modal-summary{background:var(--fo-well);box-shadow:var(--fo-shadow-well);border-radius:var(--fo-radius-sm);padding:var(--space-3);display:flex;flex-direction:column;gap:var(--space-2);}
-  .ws-qty-wrap{display:flex;align-items:center;justify-content:center;gap:16px;margin:8px 0;}
-  .ws-qty-btn{width:44px;background:var(--fo-tile);box-shadow:var(--fo-shadow-raised);color:var(--fo-accent-deep);}
-  .ws-qty-btn:active{box-shadow:var(--fo-shadow-inset);}
+  .ws-sys-switch{display:flex;gap:2px;padding:3px;border-radius:999px;box-shadow:var(--fo-shadow-inset);}
+  .ws-sys-btn{position:relative;min-width:36px;height:36px;border:none;border-radius:999px;background:none;color:var(--fo-ink-soft);font-family:var(--fo-font-mono);font-size:var(--text-sm);font-weight:700;cursor:pointer;-webkit-tap-highlight-color:transparent;}
+  .ws-sys-btn--on{background:var(--fo-panel);box-shadow:var(--fo-shadow-raised);color:var(--fo-accent-deep);}
+  .ws-sys-btn--custom::after{content:'';position:absolute;top:5px;right:5px;width:6px;height:6px;border-radius:50%;background:var(--fo-accent);}
+  .ws-panel-head{display:flex;align-items:center;gap:var(--space-2);min-height:28px;}
+  .ws-panel-title{font-family:var(--fo-font-body);font-size:var(--text-sm);font-weight:800;color:var(--fo-ink);}
+  .ws-panel-note{flex:1;text-align:right;font-family:var(--fo-font-mono);font-size:var(--text-xs);color:var(--fo-ink-soft);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .ws-svc-reset{width:36px;height:36px;border:none;border-radius:var(--fo-radius-sm);background:var(--fo-panel);box-shadow:var(--fo-shadow-raised);color:var(--fo-accent-deep);font-size:16px;cursor:pointer;flex-shrink:0;}
+  .ws-btn-grid--3{display:grid;grid-template-columns:repeat(3,1fr);}
+  .ws-svc-hint{font-size:var(--text-xs);color:var(--fo-accent-deep);font-family:var(--fo-font-mono);}
+  .ws-drive-btn{flex:none;width:100%;}
+  .ws-tstat-picker{max-height:176px;overflow-y:auto;padding:4px;border-radius:var(--fo-radius-sm);box-shadow:var(--fo-shadow-well);display:flex;flex-direction:column;gap:2px;}
+  .ws-tstat-opt{display:flex;align-items:center;justify-content:space-between;width:100%;min-height:44px;flex-shrink:0;padding:0 var(--space-3);border:none;border-radius:var(--fo-radius-sm);background:none;color:var(--fo-ink);font-family:var(--fo-font-mono);font-size:var(--text-sm);font-weight:600;text-align:left;cursor:pointer;-webkit-tap-highlight-color:transparent;}
+  .ws-tstat-opt--on{background:var(--fo-panel);box-shadow:var(--fo-shadow-raised);color:var(--fo-accent-deep);}
+  .ws-tqty-row{display:flex;align-items:center;gap:6px;}
+  .ws-tqty-name{flex:1;min-width:0;font-family:var(--fo-font-mono);font-size:var(--text-sm);font-weight:600;color:var(--fo-ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .ws-tqty-btn{width:44px;height:44px;flex-shrink:0;border:none;border-radius:var(--fo-radius-sm);background:var(--fo-tile);box-shadow:var(--fo-shadow-raised);color:var(--fo-ink-soft);font-family:var(--fo-font-mono);font-size:var(--text-sm);font-weight:700;cursor:pointer;-webkit-tap-highlight-color:transparent;}
+  .ws-tqty-btn--on{box-shadow:var(--fo-shadow-inset);color:var(--fo-accent-deep);}
   .ws-modal-row{display:flex;justify-content:space-between;align-items:center;}
   .ws-modal-row-label{font-size:var(--text-sm);color:var(--fo-ink-soft);}
   .ws-modal-row-value{font-size:var(--text-sm);font-weight:600;color:var(--fo-ink);}

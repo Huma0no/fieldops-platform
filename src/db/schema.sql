@@ -247,7 +247,8 @@ CREATE TABLE visit_services (
   service_name     text NOT NULL REFERENCES catalog_services(service_name),
   is_finish        boolean NOT NULL DEFAULT false,
   is_temporarily   boolean NOT NULL DEFAULT false,
-  price            real NOT NULL
+  price            real NOT NULL,
+  system_number    integer CHECK (system_number >= 1)
 );
 
 -- 15. visit_items

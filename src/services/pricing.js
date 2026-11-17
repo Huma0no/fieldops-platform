@@ -28,7 +28,7 @@ async function syncWeightInDataPrice(db, visitId, isFinish) {
 
 async function calculateVisitPrice(db, visitId) {
   const servicesRes = await db.query(
-    `SELECT vs.service_name, vs.is_finish, vs.price,
+    `SELECT vs.service_name, vs.is_finish, vs.price, vs.system_number,
             cs.multiplies_by_system_count
      FROM visit_services vs
      JOIN catalog_services cs ON cs.service_name = vs.service_name
@@ -68,11 +68,16 @@ async function calculateVisitPrice(db, visitId) {
   }
 
   const hasFinish = servicesRes.rows.some(r => r.is_finish);
+  // Per-system rows are each charged on their own; a visit-level row keeps the
+  // system-count multiplier. With per-system rows, Weight-In-Data follows Finish
+  // per system ($10 base, +$10 addon on each system with Finish).
+  const systemRows = servicesRes.rows.filter(r => r.system_number != null);
+  const finishSystems = systemRows.filter(r => r.is_finish).length;
 
   let serviceTotal = 0;
   for (const s of servicesRes.rows) {
     let price = s.price ?? 0;
-    if (!s.is_finish && s.multiplies_by_system_count) price *= systemCount;
+    if (s.system_number == null && !s.is_finish && s.multiplies_by_system_count) price *= systemCount;
     serviceTotal += price;
   }
 
@@ -87,6 +92,10 @@ async function calculateVisitPrice(db, visitId) {
 
   let itemTotal = 0;
   for (const item of itemsRes.rows) {
+    if (item.item_name === WEIGHT_IN_DATA && systemRows.length) {
+      itemTotal += (item.default_price ?? 0) * systemCount + (item.finish_addon_price ?? 0) * finishSystems;
+      continue;
+    }
     let price;
     if (item.item_name === WEIGHT_IN_DATA || item.custom_price) {
       price = item.stored_price ?? 0;

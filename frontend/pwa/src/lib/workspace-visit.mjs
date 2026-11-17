@@ -14,56 +14,166 @@ export function consumeConfirmedCancelForVisit (storage, visitId) {
   return true
 }
 
-function serviceStateFromDetail (detail) {
-  const service = (detail.services ?? [])[0]
+// ── Service (per system) ────────────────────────────────────
+// docs/fieldops/workspace/SERVICE-TSTAT-SPEC.md. `_service` holds a default
+// selection that applies to every system, per-system overrides keyed by system
+// number, call-wide Drive Run, and the rows (with prices) last confirmed by the
+// server. A system's selection is { ac, heat, prestart, finish, temporarily }.
+
+const SYSTEM_SERVICE_KEYS = ['ac', 'heat', 'prestart', 'finish', 'temporarily']
+
+export function emptySystemService () {
+  return { ac: false, heat: false, prestart: false, finish: false, temporarily: false }
+}
+
+function emptyServiceState () {
+  return { default: emptySystemService(), overrides: {}, driveRun: false, cancel: false, rows: [] }
+}
+
+export function systemNumbersOf (visit) {
+  const numbers = (visit?.systems ?? [])
+    .map(system => Number(system?.systemNumber ?? system?.system_number))
+    .filter(Number.isInteger)
+  return numbers.length ? [...new Set(numbers)].sort((a, b) => a - b) : [1]
+}
+
+function systemServiceFromRow (row) {
+  const name = row?.serviceName
   return {
-    ac:          service?.serviceName === 'AC' || service?.serviceName === 'AC & Heat',
-    heat:        service?.serviceName === 'Heat' || service?.serviceName === 'AC & Heat',
-    prestart:    service?.serviceName === 'Prestart',
-    cancel:      service?.serviceName === 'Cancel',
-    driveRun:    service?.serviceName === 'Drive Run',
-    finish:      service?.serviceName === 'Finish' || service?.isFinish === true,
-    temporarily: service?.isTemporarily ?? false,
-    price: service?.price ?? (service?.serviceName === 'Cancel' ? 0 : null),
-    twoSystems:  detail.hasMultipleSystems ?? false,
+    ac: name === 'AC' || name === 'AC & Heat',
+    heat: name === 'Heat' || name === 'AC & Heat',
+    prestart: name === 'Prestart',
+    finish: name === 'Finish' || row?.isFinish === true,
+    temporarily: row?.isTemporarily === true,
   }
 }
 
-export function hasServiceSelection (service = {}) {
-  return ['ac', 'heat', 'prestart', 'cancel', 'driveRun', 'finish']
-    .some(key => service[key] === true)
+function sameSystemService (a, b) {
+  return SYSTEM_SERVICE_KEYS.every(key => Boolean(a?.[key]) === Boolean(b?.[key]))
 }
 
-export function serviceNameFromState (service = {}) {
-  if (service.ac && service.heat) return 'AC & Heat'
-  if (service.ac) return 'AC'
-  if (service.heat) return 'Heat'
-  if (service.prestart) return 'Prestart'
-  if (service.cancel) return 'Cancel'
-  if (service.driveRun) return 'Drive Run'
-  if (service.finish) return 'Finish'
+// Builds the state from server rows (GET /visits/:id or PATCH /services). A
+// system without a row stays empty instead of inheriting the default.
+export function serviceStateFromRows (rows = [], systemNumbers = []) {
+  const state = emptyServiceState()
+  if (rows.some(row => row.serviceName === 'Cancel')) { state.cancel = true; return state }
+  state.rows = rows.map(row => ({ ...row, systemNumber: row.systemNumber ?? null }))
+  if (rows.some(row => row.serviceName === 'Drive Run')) { state.driveRun = true; return state }
+  const perSystem = state.rows.filter(row => row.systemNumber != null)
+    .sort((a, b) => a.systemNumber - b.systemNumber)
+  if (!perSystem.length) {
+    if (rows[0]) state.default = systemServiceFromRow(rows[0])
+    return state
+  }
+  state.default = systemServiceFromRow(perSystem[0])
+  for (const row of perSystem.slice(1)) {
+    const selection = systemServiceFromRow(row)
+    if (!sameSystemService(selection, state.default)) state.overrides[row.systemNumber] = selection
+  }
+  for (const number of systemNumbers) {
+    if (!perSystem.some(row => row.systemNumber === number)) state.overrides[number] = emptySystemService()
+  }
+  return state
+}
+
+// Accepts the current shape or the single-service shape stored by earlier drafts.
+export function normalizeServiceState (service) {
+  if (service?.default) {
+    return { ...emptyServiceState(), ...service, overrides: { ...(service.overrides ?? {}) }, rows: service.rows ?? [] }
+  }
+  const state = emptyServiceState()
+  if (!service) return state
+  state.cancel = service.cancel === true
+  state.driveRun = service.driveRun === true
+  if (!state.driveRun) {
+    for (const key of SYSTEM_SERVICE_KEYS) state.default[key] = service[key] === true
+  }
+  return state
+}
+
+export function effectiveSystemService (service, systemNumber) {
+  return service.overrides?.[systemNumber] ?? service.default
+}
+
+export function isCustomSystemService (service, systemNumber) {
+  return Boolean(service.overrides?.[systemNumber])
+}
+
+export function systemServiceName (selection) {
+  if (selection.ac && selection.heat) return 'AC & Heat'
+  if (selection.ac) return 'AC'
+  if (selection.heat) return 'Heat'
+  if (selection.prestart) return 'Prestart'
+  if (selection.finish) return 'Finish'
   return null
 }
 
-// Returns false when toggling would clear the final valid Service selection.
-// That state is only created deliberately by Cancel, not by a normal tile.
-export function toggleServiceSelection (service, key) {
-  const previous = { ...service }
-  service[key] = !service[key]
+// AC and Heat combine; Prestart is exclusive; Temporarily needs AC or Heat;
+// Finish combines with AC/Heat or stands alone.
+function toggleSystemServiceKey (selection, key) {
+  if (key === 'temporarily' && !selection.ac && !selection.heat) return selection
+  const on = !selection[key]
+  if (key === 'prestart') return Object.assign(selection, emptySystemService(), { prestart: on })
+  selection[key] = on
+  if (on) selection.prestart = false
+  if (!selection.ac && !selection.heat) selection.temporarily = false
+  return selection
+}
 
-  if (key === 'cancel' || key === 'driveRun') {
-    service.ac = false; service.heat = false; service.prestart = false
-    if (key === 'cancel') service.driveRun = false
-    if (key === 'driveRun') service.cancel = false
-  } else if (['ac', 'heat', 'prestart'].includes(key)) {
-    service.cancel = false; service.driveRun = false
+// systemNumber null edits the default; a number edits (or creates) that
+// system's override. Any service tap turns Drive Run off.
+export function tapService (service, systemNumber, key) {
+  service.driveRun = false
+  if (systemNumber == null) {
+    toggleSystemServiceKey(service.default, key)
+  } else {
+    const selection = { ...effectiveSystemService(service, systemNumber) }
+    service.overrides[systemNumber] = toggleSystemServiceKey(selection, key)
   }
+  return service
+}
 
-  if (hasServiceSelection(previous) && !hasServiceSelection(service)) {
-    Object.assign(service, previous)
-    return false
+export function resetSystemService (service, systemNumber) {
+  delete service.overrides[systemNumber]
+  return service
+}
+
+export function setDriveRun (service, on) {
+  if (on) {
+    service.default = emptySystemService()
+    service.overrides = {}
   }
-  return true
+  service.driveRun = on
+  return service
+}
+
+export function hasServiceSelection (service, systemNumbers = [1]) {
+  const state = normalizeServiceState(service)
+  if (state.cancel || state.driveRun) return true
+  return systemNumbers.some(number => systemServiceName(effectiveSystemService(state, number)))
+}
+
+export function missingServiceSystems (service, systemNumbers) {
+  const state = normalizeServiceState(service)
+  if (state.cancel || state.driveRun) return []
+  return systemNumbers.filter(number => !systemServiceName(effectiveSystemService(state, number)))
+}
+
+// Rows for PATCH /services and the completion snapshot (prices added there).
+export function serviceRowsFromState (service, systemNumbers) {
+  const state = normalizeServiceState(service)
+  if (state.driveRun) return [{ systemNumber: null, serviceName: 'Drive Run', isFinish: false, isTemporarily: false }]
+  return systemNumbers.flatMap((number) => {
+    const selection = effectiveSystemService(state, number)
+    const serviceName = systemServiceName(selection)
+    if (!serviceName) return []
+    return [{
+      systemNumber: number,
+      serviceName,
+      isFinish: selection.finish === true && serviceName !== 'Prestart',
+      isTemporarily: selection.temporarily === true && (selection.ac || selection.heat),
+    }]
+  })
 }
 
 function markSelectionChanged (draft) {
@@ -115,10 +225,7 @@ export function addLocalVisitDraftItem (draft, item, {
   const removedNames = new Set([...excludedNames, ...excludedCompanions])
   for (const companion of companions) removedNames.delete(companion)
 
-  let retained = existing.filter(entry =>
-    !(item.category === 'thermostat' && entry.category === 'thermostat') &&
-    !removedNames.has(entry.item_name)
-  )
+  let retained = existing.filter(entry => !removedNames.has(entry.item_name))
   const selected = existing.find(entry => entry.item_name === itemName)
   if (selected) retained = retained.filter(entry => entry.item_name !== itemName)
   const newItems = [localItemFromCatalog(item, { quantity, price, description })]
@@ -159,16 +266,7 @@ export function setLocalVisitDraftItemQuantity (draft, itemId, quantity) {
 // work that cannot accompany a cancelled visit, while retaining the separate
 // Notes and Checklist justification records.
 export function enterLocalVisitDraftCancelMode (draft, now = new Date().toISOString()) {
-  draft._service = {
-    ...(draft._service ?? {}),
-    ac: false,
-    heat: false,
-    prestart: false,
-    driveRun: false,
-    finish: false,
-    temporarily: false,
-    cancel: true,
-  }
+  draft._service = { ...emptyServiceState(), cancel: true }
   draft._items = []
   draft._weighInData = []
   draft._weighInPhotos = {}
@@ -289,7 +387,7 @@ export function createLocalVisitDraft (detail, { catalogVersion = null, now = ne
     isDeferred: detail.isDeferred ?? false,
     systems: detail.systems ?? [],
 
-    _service: serviceStateFromDetail(detail),
+    _service: serviceStateFromRows(detail.services ?? [], systemNumbersOf(detail)),
     _items: itemsFromDetail(detail.items),
     _weighInData: detail.weighInData ?? [],
     notes: detail.notes ?? '',

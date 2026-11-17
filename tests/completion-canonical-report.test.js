@@ -49,7 +49,7 @@ it('accepts a normal Report built from the PWA snapshot constructor and current 
   const serviceSelection = await request(app)
     .patch(`/api/visits/${visitId}/services`)
     .set('Authorization', `Bearer ${token}`)
-    .send({ serviceName: 'AC', isFinish: false, isTemporarily: false });
+    .send({ services: [{ systemNumber: 1, serviceName: 'AC' }] });
   expect(serviceSelection.status).toBe(200);
   const itemName = `CANONICAL-ITEM-${randomUUID()}`;
   await pool.query(
@@ -108,8 +108,8 @@ it('rejects a stale service total from an unsettled service selection, then acce
   // Reproduce the Workspace race: the service row exists but the async service
   // PATCH has not yet synchronized visits.total_price.
   await pool.query(
-    `INSERT INTO visit_services (visit_id, service_name, is_finish, is_temporarily, price)
-     VALUES ($1, 'AC', false, false, 150)`, [visitId]
+    `INSERT INTO visit_services (visit_id, service_name, is_finish, is_temporarily, price, system_number)
+     VALUES ($1, 'AC', false, false, 150, 1)`, [visitId]
   );
   const detail = await request(app)
     .get(`/api/visits/${visitId}`)
@@ -117,7 +117,7 @@ it('rejects a stale service total from an unsettled service selection, then acce
   expect(detail.status).toBe(200);
   const draft = createLocalVisitDraft(detail.body, { now: '2026-11-13T10:00:00.000Z' });
   expect(draft.totalPrice).toBe(0);
-  expect(draft._service.price).toBe(150);
+  expect(draft._service.rows[0].price).toBe(150);
 
   const staleSnapshot = createCompletionSnapshot(draft, {
     id: 'pwa-stale-service-total',
@@ -135,7 +135,7 @@ it('rejects a stale service total from an unsettled service selection, then acce
   const synchronized = await request(app)
     .patch(`/api/visits/${visitId}/services`)
     .set('Authorization', `Bearer ${token}`)
-    .send({ serviceName: 'AC', isFinish: false, isTemporarily: false });
+    .send({ services: [{ systemNumber: 1, serviceName: 'AC' }] });
   expect(synchronized.status).toBe(200);
   const synchronizedDetail = await request(app)
     .get(`/api/visits/${visitId}`)
@@ -164,7 +164,7 @@ it('rolls back an incomplete PWA snapshot and accepts the explicitly corrected s
   const serviceSelection = await request(app)
     .patch(`/api/visits/${visitId}/services`)
     .set('Authorization', `Bearer ${token}`)
-    .send({ serviceName: 'AC', isFinish: false, isTemporarily: false });
+    .send({ services: [{ systemNumber: 1, serviceName: 'AC' }] });
   expect(serviceSelection.status).toBe(200);
   const detailResponse = await request(app)
     .get(`/api/visits/${visitId}`)
@@ -213,7 +213,7 @@ it('accepts a PWA snapshot containing equipment, Weigh-In, photo evidence, notes
   await request(app)
     .patch(`/api/visits/${visitId}/services`)
     .set('Authorization', `Bearer ${token}`)
-    .send({ serviceName: 'AC', isFinish: false, isTemporarily: false });
+    .send({ services: [{ systemNumber: 1, serviceName: 'AC' }] });
   await pool.query(
     `INSERT INTO catalog_lineset_configs (config_key, reference_length_ft, adjust_rate_oz_per_ft)
      VALUES ('CANONICAL-LINESET', 15, 0.6)
@@ -261,7 +261,7 @@ it('accepts a Report whose thermostat was chosen in the Workspace after the draf
   const serviceSelection = await request(app)
     .patch(`/api/visits/${visitId}/services`)
     .set('Authorization', `Bearer ${token}`)
-    .send({ serviceName: 'AC', isFinish: false, isTemporarily: false });
+    .send({ services: [{ systemNumber: 1, serviceName: 'AC' }] });
   expect(serviceSelection.status).toBe(200);
   const catalogItem = { item_name: `CANONICAL-TSTAT-${randomUUID()}`, category: 'thermostat', default_price: 25, tech_supplied: true };
   await pool.query(

@@ -7,6 +7,7 @@ const {
   resolveWeightInDataPrice,
   syncWeightInDataPrice,
 } = require('../services/pricing');
+const { normalizeServiceRows, visitSystemNumbers, writeServiceRows } = require('../services/visitServices');
 const multer = require('multer');
 const piexif = require('piexifjs');
 
@@ -164,6 +165,19 @@ router.patch(
     const { id } = req.params;
     const { serviceName, isFinish = false, isTemporarily = false } = req.body;
     try {
+      // Per-system services: { services: [{ systemNumber, serviceName, isFinish, isTemporarily }] }
+      // or a lone { serviceName: 'Drive Run' }. An empty list clears the selection.
+      if (Array.isArray(req.body?.services)) {
+        const rows = normalizeServiceRows(req.body.services, await visitSystemNumbers(pool, id));
+        const services = await writeServiceRows(pool, id, rows);
+        const totalPrice = await calculateVisitPrice(pool, id);
+        await pool.query(
+          'UPDATE visits SET total_price = $1, updated_at = $2 WHERE id = $3',
+          [totalPrice, new Date().toISOString(), id]
+        );
+        return res.json({ id, services, totalPrice });
+      }
+
       if (!VALID_SERVICES.includes(serviceName)) {
         return res.status(400).json({ error: 'Invalid service name' });
       }

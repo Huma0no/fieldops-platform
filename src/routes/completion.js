@@ -11,6 +11,12 @@ const {
   resolveServicePrice,
   resolveWeightInDataPrice,
 } = require('../services/pricing');
+const {
+  missingServiceSystems,
+  normalizeServiceRows,
+  visitSystemNumbers,
+  writeServiceRows,
+} = require('../services/visitServices');
 
 const router = express.Router();
 
@@ -18,23 +24,35 @@ const TERMINAL_STATUSES = ['completed', 'temporarily', 'cancelled'];
 const MAX_SUBMISSION_ID_LENGTH = 120;
 
 async function applySnapshotWork(client, visit, snapshot) {
-  const service = snapshot.service ?? {};
-  const serviceName = service.serviceName;
-  if (!serviceName) throw Object.assign(new Error('No service selected'), { status: 400 });
+  let isFinish;
+  if (Array.isArray(snapshot.services)) {
+    const systemNumbers = await visitSystemNumbers(client, visit.id);
+    const rows = normalizeServiceRows(snapshot.services, systemNumbers);
+    const missing = missingServiceSystems(rows, systemNumbers);
+    if (missing.length) {
+      throw Object.assign(new Error(`System ${missing.join(', ')}: no service selected`), { status: 400 });
+    }
+    await writeServiceRows(client, visit.id, rows);
+    isFinish = rows.some(row => row.isFinish);
+  } else {
+    const service = snapshot.service ?? {};
+    const serviceName = service.serviceName;
+    if (!serviceName) throw Object.assign(new Error('No service selected'), { status: 400 });
 
-  const serviceCatalog = await client.query(
-    'SELECT default_price FROM catalog_services WHERE service_name = $1', [serviceName]
-  );
-  if (!serviceCatalog.rows.length) throw Object.assign(new Error('Invalid service name'), { status: 400 });
+    const serviceCatalog = await client.query(
+      'SELECT default_price FROM catalog_services WHERE service_name = $1', [serviceName]
+    );
+    if (!serviceCatalog.rows.length) throw Object.assign(new Error('Invalid service name'), { status: 400 });
 
-  const isFinish = serviceName === 'Finish' || service.finish === true;
-  const servicePrice = resolveServicePrice(serviceName, isFinish, serviceCatalog.rows[0].default_price);
-  await client.query('DELETE FROM visit_services WHERE visit_id = $1', [visit.id]);
-  await client.query(
-    `INSERT INTO visit_services (id, visit_id, service_name, is_finish, is_temporarily, price)
-     VALUES (gen_random_uuid()::text, $1, $2, $3, $4, $5)`,
-    [visit.id, serviceName, isFinish, service.temporarily === true, servicePrice]
-  );
+    isFinish = serviceName === 'Finish' || service.finish === true;
+    const servicePrice = resolveServicePrice(serviceName, isFinish, serviceCatalog.rows[0].default_price);
+    await client.query('DELETE FROM visit_services WHERE visit_id = $1', [visit.id]);
+    await client.query(
+      `INSERT INTO visit_services (id, visit_id, service_name, is_finish, is_temporarily, price)
+       VALUES (gen_random_uuid()::text, $1, $2, $3, $4, $5)`,
+      [visit.id, serviceName, isFinish, service.temporarily === true, servicePrice]
+    );
+  }
 
   await client.query('DELETE FROM visit_items WHERE visit_id = $1', [visit.id]);
   const itemNames = new Set();
@@ -245,7 +263,8 @@ router.post('/:id/complete', requireRole('technician'), async (req, res, next) =
         'SELECT service_name, is_temporarily FROM visit_services WHERE visit_id = $1',
         [id]
       );
-      if (serviceResult.rows.length === 0 && !cancel && !snapshot?.service?.serviceName) {
+      const snapshotServices = Array.isArray(snapshot?.services) ? snapshot.services : null;
+      if (serviceResult.rows.length === 0 && !cancel && !snapshot?.service?.serviceName && !snapshotServices?.length) {
         await client.query('ROLLBACK');
         return res.status(400).json({ error: 'No service selected' });
       }
@@ -264,7 +283,9 @@ router.post('/:id/complete', requireRole('technician'), async (req, res, next) =
       let finalStatus;
       if (isCancel) {
         finalStatus = 'cancelled';
-      } else if ((snapshot?.service?.temporarily ?? svc?.is_temporarily) === true) {
+      } else if ((snapshotServices
+        ? snapshotServices.some(service => service?.isTemporarily === true)
+        : (snapshot?.service?.temporarily ?? svc?.is_temporarily)) === true) {
         finalStatus = 'temporarily';
       } else {
         finalStatus = 'completed';

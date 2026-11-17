@@ -6,9 +6,15 @@ import {
 } from './db.js'
 import { api } from '../../../shared/api.js'
 import { isCancelJustificationMissing } from './cancel-justification.mjs'
-import { hasServiceSelection, serviceNameFromState } from './workspace-visit.mjs'
+import {
+  missingServiceSystems,
+  normalizeServiceState,
+  serviceRowsFromState,
+  systemNumbersOf,
+} from './workspace-visit.mjs'
 
-export const COMPLETION_SNAPSHOT_VERSION = 1
+// Version 2: per-system `services` rows replace the single `service` object.
+export const COMPLETION_SNAPSHOT_VERSION = 2
 
 function immutableCopy (value) {
   return JSON.parse(JSON.stringify(value))
@@ -58,17 +64,35 @@ export function validateCompletionDraft (draft) {
   if (cancel && isCancelJustificationMissing({ notes: draft.notes, checklist: draft._checklist })) {
     throw new Error('Cancel requires notes or a checklist answer')
   }
-  if (!cancel && !hasServiceSelection(draft?._service)) {
-    throw new Error('No service selected')
+  if (cancel) return
+  const systemNumbers = systemNumbersOf(draft)
+  const missing = missingServiceSystems(draft?._service, systemNumbers)
+  if (missing.length) {
+    throw new Error(systemNumbers.length > 1 ? `System ${missing.join(', ')}: no service selected` : 'No service selected')
   }
+}
+
+// Each row carries the price the server confirmed for that exact selection;
+// a selection the server has not confirmed yet carries null.
+function pricedServiceRows (draft) {
+  const service = normalizeServiceState(draft._service)
+  return serviceRowsFromState(service, systemNumbersOf(draft)).map((row) => {
+    const confirmed = service.rows.find(saved =>
+      (saved.systemNumber ?? null) === row.systemNumber &&
+      saved.serviceName === row.serviceName &&
+      Boolean(saved.isFinish) === row.isFinish &&
+      Boolean(saved.isTemporarily) === row.isTemporarily)
+    return { ...row, price: confirmed?.price ?? null }
+  })
 }
 
 export function createCompletionSnapshot (draft, { now = new Date().toISOString(), id = submissionId(), checklistAnswers = null, technicianId } = {}) {
   validateCompletionDraft(draft)
   const resolvedTechId = resolveSubmissionTechnicianId(draft, technicianId)
   const cancel = draft._cancelMode?.confirmed === true
-  const service = immutableCopy(draft._service ?? {})
-  const serviceName = cancel ? 'Cancel' : serviceNameFromState(service)
+  const services = cancel
+    ? [{ systemNumber: null, serviceName: 'Cancel', isFinish: false, isTemporarily: false, price: 0 }]
+    : pricedServiceRows(draft)
   const snapshot = {
     version: COMPLETION_SNAPSHOT_VERSION,
     submissionId: id,
@@ -82,15 +106,9 @@ export function createCompletionSnapshot (draft, { now = new Date().toISOString(
     workType: draft.workType ?? null,
     hasMultipleSystems: draft.hasMultipleSystems === true,
     createdAt: now,
-    terminalIntent: cancel ? 'cancelled' : (service.temporarily ? 'temporarily' : 'completed'),
+    terminalIntent: cancel ? 'cancelled' : (services.some(row => row.isTemporarily) ? 'temporarily' : 'completed'),
     cancel,
-    service: {
-      ...service,
-      serviceName,
-      isFinish: service.finish === true || serviceName === 'Finish',
-      isTemporarily: service.temporarily === true,
-      price: cancel ? 0 : (service.price ?? null),
-    },
+    services,
     items: immutableCopy(cancel ? [] : (draft._items ?? []).map(item => ({
       ...item,
       description: item.description ?? null,

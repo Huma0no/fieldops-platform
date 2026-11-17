@@ -117,7 +117,7 @@ describe('Local Visit Draft IndexedDB persistence', () => {
     db.closeLocalDatabase()
 
     const restored = await db.getLocalVisitDraft('visit-finish-only')
-    expect(restored._service).toMatchObject({ finish: true, ac: false, heat: false, prestart: false, driveRun: false })
+    expect(restored._service).toMatchObject({ default: { finish: true, ac: false, heat: false, prestart: false }, driveRun: false })
     expect(restored.totalPrice).toBe(0)
   })
 

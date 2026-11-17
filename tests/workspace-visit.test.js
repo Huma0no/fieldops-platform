@@ -7,12 +7,12 @@ describe('Local Visit Draft seeding', () => {
   let isConfirmedLocalVisitDraftCancelMode
   let migrateLegacyConfirmedCancelMode
   let seedLocalVisitDraft
-  let serviceNameFromState
-  let toggleServiceSelection
   let enterLocalVisitDraftCancelMode
+  let svc
 
   beforeAll(async () => {
-    ({ confirmedLocalCancelVisitIds, consumeConfirmedCancelForVisit, createLocalVisitDraft, discardLegacyUnconfirmedCancelOrigin, enterLocalVisitDraftCancelMode, hasServiceSelection, isConfirmedLocalVisitDraftCancelMode, migrateLegacyConfirmedCancelMode, seedLocalVisitDraft, serviceNameFromState, toggleServiceSelection } = await import('../frontend/pwa/src/lib/workspace-visit.mjs'))
+    svc = await import('../frontend/pwa/src/lib/workspace-visit.mjs')
+    ;({ confirmedLocalCancelVisitIds, consumeConfirmedCancelForVisit, createLocalVisitDraft, discardLegacyUnconfirmedCancelOrigin, enterLocalVisitDraftCancelMode, hasServiceSelection, isConfirmedLocalVisitDraftCancelMode, migrateLegacyConfirmedCancelMode, seedLocalVisitDraft } = svc)
   })
 
   it('creates one canonical draft from server detail with persisted item and Weigh-In fields', () => {
@@ -70,7 +70,7 @@ describe('Local Visit Draft seeding', () => {
   it('does not infer Cancel from an empty Service, no items, or a zero total', () => {
     const draft = createLocalVisitDraft({ id: 'ordinary-empty', totalPrice: 0, items: [] })
 
-    expect(draft._service).toMatchObject({ ac: false, heat: false, cancel: false })
+    expect(draft._service).toMatchObject({ default: { ac: false, heat: false }, cancel: false })
     expect(isConfirmedLocalVisitDraftCancelMode(draft)).toBe(false)
   })
 
@@ -122,34 +122,73 @@ describe('Local Visit Draft seeding', () => {
       services: [{ serviceName: 'Finish', isFinish: true, isTemporarily: false, price: 0 }],
     })
 
-    expect(draft._service).toMatchObject({ finish: true, ac: false, heat: false, prestart: false, driveRun: false })
-    expect(serviceNameFromState(draft._service)).toBe('Finish')
+    expect(draft._service).toMatchObject({ default: { finish: true, ac: false, heat: false, prestart: false }, driveRun: false })
+    expect(svc.systemServiceName(draft._service.default)).toBe('Finish')
+    expect(hasServiceSelection(draft._service)).toBe(true)
   })
 
-  it('keeps a final selected Service instead of creating an empty draft state', () => {
-    const cases = [
-      [{ ac: true }, 'ac', 'AC'],
-      [{ heat: true }, 'heat', 'Heat'],
-      [{ finish: true }, 'finish', 'Finish'],
-    ]
-
-    cases.forEach(([state, key, expected]) => {
-      const service = { ac: false, heat: false, prestart: false, cancel: false, driveRun: false, finish: false, ...state }
-      expect(toggleServiceSelection(service, key)).toBe(false)
-      expect(hasServiceSelection(service)).toBe(true)
-      expect(serviceNameFromState(service)).toBe(expected)
-    })
+  it('combines AC, Heat and Finish; Prestart is exclusive; Temporarily needs AC or Heat', () => {
+    const service = svc.normalizeServiceState(null)
+    const name = () => svc.systemServiceName(service.default)
+    svc.tapService(service, null, 'finish')
+    expect(name()).toBe('Finish')
+    svc.tapService(service, null, 'temporarily')
+    expect(service.default.temporarily).toBe(false)
+    svc.tapService(service, null, 'ac')
+    svc.tapService(service, null, 'heat')
+    svc.tapService(service, null, 'temporarily')
+    expect(name()).toBe('AC & Heat')
+    expect(service.default).toMatchObject({ finish: true, temporarily: true })
+    svc.tapService(service, null, 'prestart')
+    expect(service.default).toEqual({ ac: false, heat: false, prestart: true, finish: false, temporarily: false })
+    svc.tapService(service, null, 'ac')
+    expect(service.default).toMatchObject({ ac: true, prestart: false })
+    svc.tapService(service, null, 'ac')
+    expect(name()).toBeNull()
   })
 
-  it('maps first and combined Service selections to their canonical persisted values', () => {
-    const service = { ac: false, heat: false, prestart: false, cancel: false, driveRun: false, finish: false }
-    expect(toggleServiceSelection(service, 'finish')).toBe(true)
-    expect(serviceNameFromState(service)).toBe('Finish')
-    expect(toggleServiceSelection(service, 'ac')).toBe(true)
-    expect(serviceNameFromState(service)).toBe('AC')
-    expect(service.finish).toBe(true)
-    expect(toggleServiceSelection(service, 'heat')).toBe(true)
-    expect(serviceNameFromState(service)).toBe('AC & Heat')
+  it('applies the default to every system and keeps per-system overrides until reset', () => {
+    const service = svc.normalizeServiceState(null)
+    svc.tapService(service, null, 'ac')
+    svc.tapService(service, 2, 'prestart')
+    expect(svc.isCustomSystemService(service, 2)).toBe(true)
+    expect(svc.serviceRowsFromState(service, [1, 2, 3])).toEqual([
+      { systemNumber: 1, serviceName: 'AC', isFinish: false, isTemporarily: false },
+      { systemNumber: 2, serviceName: 'Prestart', isFinish: false, isTemporarily: false },
+      { systemNumber: 3, serviceName: 'AC', isFinish: false, isTemporarily: false },
+    ])
+    svc.resetSystemService(service, 2)
+    expect(svc.serviceRowsFromState(service, [1, 2]).map(row => row.serviceName)).toEqual(['AC', 'AC'])
+  })
+
+  it('reports each system without a service, unless Drive Run covers the call', () => {
+    const service = svc.normalizeServiceState(null)
+    svc.tapService(service, 1, 'heat')
+    expect(svc.missingServiceSystems(service, [1, 2, 3])).toEqual([2, 3])
+    svc.setDriveRun(service, true)
+    expect(service.overrides).toEqual({})
+    expect(svc.missingServiceSystems(service, [1, 2, 3])).toEqual([])
+    expect(svc.serviceRowsFromState(service, [1, 2])).toEqual([
+      { systemNumber: null, serviceName: 'Drive Run', isFinish: false, isTemporarily: false },
+    ])
+    svc.tapService(service, null, 'ac')
+    expect(service.driveRun).toBe(false)
+  })
+
+  it('hydrates per-system rows as a default plus the systems that differ', () => {
+    const state = svc.serviceStateFromRows([
+      { systemNumber: 1, serviceName: 'AC', isFinish: true, isTemporarily: false, price: 20 },
+      { systemNumber: 2, serviceName: 'AC', isFinish: true, isTemporarily: false, price: 20 },
+      { systemNumber: 3, serviceName: 'Prestart', isFinish: false, isTemporarily: false, price: 20 },
+    ])
+    expect(state.default).toMatchObject({ ac: true, finish: true })
+    expect(Object.keys(state.overrides)).toEqual(['3'])
+    expect(state.rows).toHaveLength(3)
+  })
+
+  it('reads the single-service shape of earlier drafts as the default selection', () => {
+    const state = svc.normalizeServiceState({ ac: true, heat: false, finish: true, temporarily: false, twoSystems: true })
+    expect(state).toMatchObject({ default: { ac: true, finish: true }, overrides: {}, driveRun: false, cancel: false })
   })
 
   it('enters local Cancel mode by clearing work while retaining Notes and Checklist', () => {
@@ -166,7 +205,7 @@ describe('Local Visit Draft seeding', () => {
 
     enterLocalVisitDraftCancelMode(draft, '2026-08-19T12:00:00.000Z')
 
-    expect(draft._service).toMatchObject({ cancel: true, ac: false, finish: false, temporarily: false })
+    expect(draft._service).toMatchObject({ cancel: true, driveRun: false, default: { ac: false, finish: false, temporarily: false } })
     expect(draft._items).toEqual([])
     expect(draft._weighInData).toEqual([])
     expect(draft._weighInPhotos).toEqual({})

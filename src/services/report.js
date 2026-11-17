@@ -63,6 +63,68 @@ function formatService(service, systemCount) {
   return `${prefix}${serviceText}${systemSuffix} $${formatPrice(service.price)}`;
 }
 
+function serviceText(name, isTemporarily) {
+  const temporarily = isTemporarily ? ' (Temporarily)' : '';
+  return {
+    AC: `AC${temporarily} started`,
+    Heat: `Heat${temporarily} started`,
+    'AC & Heat': `AC & Heat${temporarily} started`,
+    Prestart: 'System Prestarted',
+    'Drive Run': 'Drive Run',
+  }[name] ?? null;
+}
+
+// Report parts for the Service section, with the thermostat text placed before
+// the first service price. Per-system rows: systems sharing the same service
+// print one line; when every system shares it the line reads like the
+// single-service format, otherwise each line names its systems.
+function serviceParts(rows, systemCount, thermostatText, isCancelled) {
+  const withTstat = text => thermostatText ? text.replace(/ \$[^ ]+$/, ` ${thermostatText}$&`) : text;
+  const normalized = (rows ?? []).map(row => ({
+    serviceName: row.serviceName ?? row.service_name,
+    isFinish: row.isFinish ?? row.is_finish,
+    isTemporarily: row.isTemporarily ?? row.is_temporarily,
+    price: row.price,
+    systemNumber: row.systemNumber ?? row.system_number ?? null,
+  }));
+  if (isCancelled || !normalized.some(row => row.systemNumber != null)) {
+    const service = normalized[0];
+    const parts = [];
+    if (!isCancelled && (service?.isFinish || service?.serviceName === 'Finish')
+        && !['AC', 'Heat', 'AC & Heat'].includes(service.serviceName)) {
+      parts.push('Finish/');
+    }
+    const text = isCancelled ? 'service canceled $0' : formatService(service, systemCount);
+    if (text) parts.push(withTstat(text));
+    else if (thermostatText) parts.push(thermostatText);
+    return parts;
+  }
+
+  const groups = new Map();
+  for (const row of normalized) {
+    const key = [row.serviceName, row.isFinish, row.isTemporarily].join('|');
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(row);
+  }
+  const mixed = groups.size > 1;
+  let tstatPlaced = false;
+  const parts = [...groups.values()].map((group) => {
+    const { serviceName, isFinish, isTemporarily } = group[0];
+    const numbers = group.map(row => row.systemNumber).join(', ');
+    const scope = mixed
+      ? ` (${group.length === 1 ? 'System' : 'Systems'} ${numbers})`
+      : (group.length > 1 ? ` (${group.length} Systems)` : '');
+    if (serviceName === 'Finish') return mixed ? `Finish/${scope}` : 'Finish/';
+    const price = group.reduce((sum, row) => sum + Number(row.price ?? 0), 0);
+    const line = `${isFinish ? 'Finish/ ' : ''}${serviceText(serviceName, isTemporarily)}${scope} $${formatPrice(price)}`;
+    if (tstatPlaced) return line;
+    tstatPlaced = true;
+    return withTstat(line);
+  });
+  if (thermostatText && !tstatPlaced) parts.push(thermostatText);
+  return parts;
+}
+
 function formatItem(item) {
   const itemName = item.item_name ?? item.itemName;
   const text = (itemName === 'Other' || itemName === 'Other Fix')
@@ -83,10 +145,10 @@ async function generateLiveReportText(db, visitId) {
       [visitId]
     ),
     db.query(
-      `SELECT service_name, is_finish, is_temporarily, price
+      `SELECT service_name, is_finish, is_temporarily, price, system_number
        FROM visit_services
        WHERE visit_id = $1
-       ORDER BY id`,
+       ORDER BY system_number NULLS FIRST, id`,
       [visitId]
     ),
     db.query(
@@ -103,7 +165,6 @@ async function generateLiveReportText(db, visitId) {
   ]);
 
   const visit = visitRow.rows[0];
-  const service = serviceRows.rows[0];
   const systemCount = systemRows.rows[0].count;
   const isCancelled = visit.status === 'cancelled';
   const checklistFindings = (visit.checklist_answers ?? [])
@@ -119,20 +180,10 @@ async function generateLiveReportText(db, visitId) {
     .join(', ');
   const accessoryItems = reportItems.filter(item => item.category === 'accessory');
   const fixItems = reportItems.filter(item => item.category === 'fix');
-  const serviceText = isCancelled
-    ? 'service canceled $0'
-    : formatService(service, systemCount);
   const parts = [visit.street?.trim()];
 
   if (noteParts.length) parts.push(noteParts.join(' | '));
-  if (!isCancelled && (service?.is_finish || service?.service_name === 'Finish') && !['AC', 'Heat', 'AC & Heat'].includes(service.service_name)) {
-    parts.push('Finish/');
-  }
-  if (serviceText) {
-    parts.push(thermostatText ? serviceText.replace(/ \$[^ ]+$/, ` ${thermostatText}$&`) : serviceText);
-  } else if (thermostatText) {
-    parts.push(thermostatText);
-  }
+  parts.push(...serviceParts(serviceRows.rows, systemCount, thermostatText, isCancelled));
   parts.push(...accessoryItems.map(formatItem).filter(Boolean));
   parts.push(...fixItems.map(formatItem).filter(Boolean));
   parts.push(`total $${formatPrice(visit.total_price)}`);
@@ -160,7 +211,7 @@ async function generateLiveReportJSON(db, visitId) {
       [visitId]
     ),
     db.query(
-      'SELECT service_name, is_finish, is_temporarily, price FROM visit_services WHERE visit_id = $1',
+      'SELECT service_name, is_finish, is_temporarily, price, system_number FROM visit_services WHERE visit_id = $1 ORDER BY system_number NULLS FIRST',
       [visitId]
     ),
     db.query(
@@ -214,6 +265,7 @@ async function generateLiveReportJSON(db, visitId) {
       isFinish: s.is_finish,
       isTemporarily: s.is_temporarily,
       price: s.price,
+      systemNumber: s.system_number,
     })),
     items: (isCancelled ? [] : items.rows).map((i) => ({
       itemName: i.item_name,
@@ -227,7 +279,8 @@ async function generateLiveReportJSON(db, visitId) {
       ? photos.rows.filter(p => !['weigh_in_scale', 'fan_speed'].includes(p.category))
       : photos.rows
     ).map((p) => ({ slug: p.slug })),
-    weighInData: (isCancelled ? [] : weighIn.rows).map((w) => ({
+    // Weigh-In rows belong to the address; a Drive Run, like a Cancel, reports none.
+    weighInData: (isCancelled || services.rows.some(s => s.service_name === 'Drive Run') ? [] : weighIn.rows).map((w) => ({
       systemNumber: w.system_number,
       linesetLength: w.lineset_length,
       factoryChargeOz: w.factory_charge_oz,
@@ -349,15 +402,6 @@ function reportContentMatchesSubmission(submitted, accepted) {
       || submitted.address[field] !== accepted.address?.[field]
   )) return false;
 
-  const acceptedService = accepted.services?.[0];
-  const submittedService = submitted.service;
-  if (!acceptedService || !submittedService
-      || submittedService.serviceName !== acceptedService.serviceName
-      || getSubmittedValue(submittedService, 'isFinish', 'is_finish', 'finish') !== acceptedService.isFinish
-      || getSubmittedValue(submittedService, 'isTemporarily', 'is_temporarily', 'temporarily') !== acceptedService.isTemporarily
-      || !sameReportNumber(submittedService.price, acceptedService.price)) return false;
-  if ((accepted.services ?? []).length !== 1) return false;
-
   const compareRows = (suppliedRows, acceptedRows, fields, aliases = {}) => {
     if (!Array.isArray(suppliedRows) || suppliedRows.length !== acceptedRows.length) return false;
     const sortKey = row => fields.map(field => String(getSubmittedValue(row, ...(aliases[field] ?? [field])) ?? '')).join('\u0000');
@@ -371,6 +415,22 @@ function reportContentMatchesSubmission(submitted, accepted) {
         : value === expectedValue;
     }));
   };
+
+  if (Array.isArray(submitted.services)) {
+    // Per-system snapshot: one row per system, or a lone call-wide Drive Run.
+    if (!compareRows(submitted.services, accepted.services ?? [], [
+      'systemNumber', 'serviceName', 'isFinish', 'isTemporarily', 'price',
+    ])) return false;
+  } else {
+    const acceptedService = accepted.services?.[0];
+    const submittedService = submitted.service;
+    if (!acceptedService || !submittedService
+        || submittedService.serviceName !== acceptedService.serviceName
+        || getSubmittedValue(submittedService, 'isFinish', 'is_finish', 'finish') !== acceptedService.isFinish
+        || getSubmittedValue(submittedService, 'isTemporarily', 'is_temporarily', 'temporarily') !== acceptedService.isTemporarily
+        || !sameReportNumber(submittedService.price, acceptedService.price)) return false;
+    if ((accepted.services ?? []).length !== 1) return false;
+  }
 
   if (!compareRows(submitted.items, accepted.items ?? [], [
     'itemName', 'category', 'description', 'quantity', 'price', 'techSupplied',
@@ -445,7 +505,6 @@ function reportTextFromSnapshot(snapshot) {
     .map(answer => answer.reportText.trim());
   const noteParts = [snapshot.notes?.trim(), ...checklistFindings].filter(Boolean);
   const services = snapshot.services ?? [];
-  const service = services[0];
   const systemCount = (snapshot.systems ?? []).length;
   const items = isCancelled ? [] : (snapshot.items ?? []);
   const thermostatItems = items.filter(item => item.category === 'thermostat');
@@ -454,19 +513,10 @@ function reportTextFromSnapshot(snapshot) {
     .join(', ');
   const accessoryItems = items.filter(item => item.category === 'accessory');
   const fixItems = items.filter(item => item.category === 'fix');
-  const serviceText = isCancelled ? 'service canceled $0' : formatService(service, systemCount);
   const parts = [snapshot.address?.street?.trim()];
 
   if (noteParts.length) parts.push(noteParts.join(' | '));
-  if (!isCancelled && (service?.isFinish || service?.serviceName === 'Finish')
-      && !['AC', 'Heat', 'AC & Heat'].includes(service.serviceName)) {
-    parts.push('Finish/');
-  }
-  if (serviceText) {
-    parts.push(thermostatText ? serviceText.replace(/ \$[^ ]+$/, ` ${thermostatText}$&`) : serviceText);
-  } else if (thermostatText) {
-    parts.push(thermostatText);
-  }
+  parts.push(...serviceParts(services, systemCount, thermostatText, isCancelled));
   parts.push(...accessoryItems.map(formatItem).filter(Boolean));
   parts.push(...fixItems.map(formatItem).filter(Boolean));
   parts.push(`total $${formatPrice(snapshot.totalPrice)}`);

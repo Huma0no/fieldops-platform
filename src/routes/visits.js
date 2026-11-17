@@ -250,7 +250,7 @@ visitsRouter.get('/:id', async (req, res, next) => {
         [id]
       ),
       pool.query(
-        'SELECT service_name, is_finish, is_temporarily, price FROM visit_services WHERE visit_id = $1',
+        'SELECT service_name, is_finish, is_temporarily, price, system_number FROM visit_services WHERE visit_id = $1 ORDER BY system_number NULLS FIRST',
         [id]
       ),
       pool.query(
@@ -294,7 +294,7 @@ visitsRouter.get('/:id', async (req, res, next) => {
       contactChannel: v.contact_channel,
       address: { street: v.street, city: v.city, state: v.state, zip: v.zip, subdivision: v.subdivision, builder: v.builder },
       systems: systems.rows.map((s) => ({ systemNumber: s.system_number, indoorModel: s.indoor_model, outdoorModel: s.outdoor_model, coilModel: s.coil_model, refrigerant: s.refrigerant })),
-      services: services.rows.map((s) => ({ serviceName: s.service_name, isFinish: s.is_finish, isTemporarily: s.is_temporarily, price: s.price })),
+      services: services.rows.map((s) => ({ serviceName: s.service_name, isFinish: s.is_finish, isTemporarily: s.is_temporarily, price: s.price, systemNumber: s.system_number })),
       items: items.rows.map((i) => ({ id: i.id, category: i.category, itemName: i.item_name, description: i.description, quantity: i.quantity, price: i.price, techSupplied: i.tech_supplied })),
       // Scale/Fan evidence belongs to Weigh-In work. Keep the historical rows
       // intact, but do not expose that work evidence through a Cancelled visit.
