@@ -282,9 +282,14 @@
 - The server rewrites the per-system rows from the snapshot (`applySnapshotWork`), rejects a snapshot that leaves a system without a service ("System N: no service selected"), and compares the rows one to one, system number included. A version 1 snapshot (`service`) is still compared as before.
 - Several thermostat models are separate item rows and compare like any item.
 - Weigh-In measurements belong to the address; a Drive Run Report, like a Cancel Report, carries none.
-- Still pending in this pass: PP-01 below and field-level rejection reasons (WS-12), with the Receipt (W4).
+- PP-01 and field names in rejections: implemented in W-LF, see the next section.
 
-## Pending changes (2026-11-15, not implemented)
+## Local-first Workspace and PP-01 (2026-11-17, W-LF)
 
-- PP-01 (pre-production, `docs/status/MASTER-FUNCTION-INDEX.md` R-09): differences in catalog-derived values (`price`, `tech_supplied`) will no longer reject the submission. The server will accept the Report, store both values and flag the discrepancy for Dispatch. Until implemented, the reject-on-difference rules in this contract remain the current behavior.
-- WS-12 (`docs/status/QA-TRACKER.md`): a rejection must tell the technician what differs and what to do, not a generic "Correction required".
+- The Workspace prices the draft on the device with `frontend/shared/pricing.mjs`, the same module the server uses for the visit total. Workspace edits no longer write to the server; the snapshot carries every selection with its device price.
+- On submission the server rebuilds the work from the snapshot, prices it from its own catalog, and compares (`compareSubmission` in `src/services/report.js`):
+  - **Structural differences** (identity, address, terminal intent, services' system/name/Finish/Temporarily, items' name/category/description/quantity, systems, Weigh-In, notes, checklist findings, evidence) still reject with 409 `REPORT_CONTENT_MISMATCH`; the response lists the differing fields (`fields`).
+  - **Catalog-derived differences** (service and item prices, item `tech_supplied`, the total) are accepted (PP-01). The canonical Report keeps the server values; the embedded `sourceSubmission` keeps the device values; `priceDiscrepancies` lists each difference (`field`, `row`, `submitted`, `accepted`).
+- Dispatch shows the discrepancies on the Report view (History → visit details: a header flag and a "Price check" section).
+- The server no longer re-adds catalog companions on submission: a companion the technician turned off stays off.
+- Pending: the Ledger weekly review of discrepancies with an owner threshold (deferred, QA-TRACKER PP-01b) and the technician-facing rejection wording (WS-12, W4).

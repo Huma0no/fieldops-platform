@@ -159,7 +159,7 @@ A `CLOSED` section is a finished product area: its code, UX, and specifications 
 | Edit generated report | SPEC CLOSED | SUPERSEDED / NOT REQUIRED | Legacy standalone-PWA behavior; FieldOps uses Request Correction after Generate Report. Canonical report text is regenerated from source visit data, not edited directly. |
 | Share/export | SPEC CLOSED | QA VERIFIED | Reports surface. |
 | Canonical report snapshot | SPEC CLOSED (`docs/architecture/REPORT-SNAPSHOT-CONTRACT.md`) | IMPLEMENTED (automated verification) / QA pending | One accepted submission per visit (`UNIQUE(visit_id)`, migration 025); report JSON/text served from the accepted snapshot. |
-| Report price snapshot, non-blocking catalog discrepancy | REQUIREMENT RECORDED — spec pending | NOT IMPLEMENTED — **pre-production requirement** (after the WIP merge, before launch) | See R-09. Supersedes the strict reject-on-difference rule for catalog-derived values in `REPORT-SNAPSHOT-CONTRACT.md`. |
+| Report price snapshot, non-blocking catalog discrepancy | SPEC CLOSED (`REPORT-SNAPSHOT-CONTRACT.md`, W-LF section) | IMPLEMENTED (automated verification) — Report view flag; Ledger weekly review deferred (PP-01b) | See R-09. Supersedes the strict reject-on-difference rule for catalog-derived values. |
 
 ## 10. Company Google Form Integration
 
@@ -279,7 +279,7 @@ Decided 2026-11-15 by Kristo after WIP testing. Implement after the WIP merge an
 - Dispatch may edit a technician's Report only with prior agreement and notice to the technician, through the existing corrections channel.
 - Automatic catalog/shell versioning (Guided Phase 4) remains a secondary safeguard, not the fix.
 
-This supersedes the reject-on-difference rule for catalog-derived values in `docs/architecture/REPORT-SNAPSHOT-CONTRACT.md`. Other material Report differences keep their current rule. Kristo authorized (2026-11-15) changes to the CLOSED Reports and Ledger sections for PP-01 only, when it is implemented; updating `REPORT-SNAPSHOT-CONTRACT.md` is part of that work. Tracked as PP-01 in `docs/status/QA-TRACKER.md`.
+**Implemented 2026-11-17 (W-LF)** except the Ledger week review, deferred by Kristo (PP-01b). This supersedes the reject-on-difference rule for catalog-derived values in `docs/architecture/REPORT-SNAPSHOT-CONTRACT.md`. Other material Report differences keep their current rule. Kristo authorized (2026-11-15) changes to the CLOSED Reports and Ledger sections for PP-01 only, when it is implemented; updating `REPORT-SNAPSHOT-CONTRACT.md` is part of that work. Tracked as PP-01 in `docs/status/QA-TRACKER.md`.
 
 ### R-10 — Technician-defined price panel (future feature, out of current scope)
 

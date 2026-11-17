@@ -312,8 +312,8 @@ FieldOps is offline-first (`/docs/OFFLINE-FIRST-CONTRACT.md`) and must be able t
 ```
 GET /api/catalog/version
   auth: technician or dispatcher
-  returns: { version } — md5 of the items, equipment, lineset-configs and
-    item-relations rows. The PWA refetches its offline catalog copy when it
+  returns: { version } — md5 of the items, equipment, lineset-configs,
+    item-relations and services rows. The PWA refetches its offline catalog copy when it
     changes (requests carry ?v=<version> so the service worker's catalog
     cache keys the new copy).
 
@@ -381,7 +381,7 @@ Note: POST /api/dispatch/catalog/services does not exist — the service list is
 
 The endpoints in this section document the current server API behavior when called; their per-edit effects do not make immediate backend persistence a FieldOps correctness requirement. Under the offline-first contract, active Workspace state belongs to the durable Local Visit Draft and Generate Report delivers a complete submission snapshot.
 
-Active-work mutation endpoints remain transitional. Completion delivery is defined by the immutable submission payload and explicit ACK below; `/api/sync/changes` is not a bidirectional Workspace mutation protocol.
+Active-work mutation endpoints remain transitional. Since W-LF (2026-11-17) the Workspace no longer calls them (services, items, Weigh-In, notes): it works on the Local Visit Draft and delivers everything in the completion snapshot. They stay for earlier app versions. Completion delivery is defined by the immutable submission payload and explicit ACK below; `/api/sync/changes` is not a bidirectional Workspace mutation protocol.
 
 ```
 PATCH /api/visits/:id/services
@@ -500,7 +500,13 @@ POST /api/visits/:id/complete
           notification created for dispatcher: "completion_received"
           if any pending transfers exist for this visit → marked "expired",
           recipient's notification cleared automatically
-  returns: full completion record plus { acknowledged: true, submissionId }
+  returns: full completion record plus { acknowledged: true, submissionId,
+           priceDiscrepancies } — priceDiscrepancies lists catalog-derived values
+           (prices, tech_supplied, total) where the device differed from the
+           server catalog; the Report keeps the server values (PP-01).
+  409: { code: "REPORT_CONTENT_MISMATCH", fields } — a structural difference
+       between the snapshot and the Report the server derived from it; fields
+       names each differing field. See REPORT-SNAPSHOT-CONTRACT.md.
 
 GET /api/visits/:id/report-preview
   auth: technician (must be assigned) or dispatcher
