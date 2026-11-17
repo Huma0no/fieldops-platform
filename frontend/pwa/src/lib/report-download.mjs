@@ -45,20 +45,37 @@ export async function collectReportPhotos (visit, {
   return { photos, missing }
 }
 
+export const LOCAL_SOURCE = 'local, unconfirmed by server'
+
+// The Report JSON: the server's version once delivered and reachable (it may
+// carry PP-01 price corrections), otherwise the snapshot the phone built.
+async function reportJSON (visit, { delivered, loadServerReport }) {
+  if (delivered) {
+    try {
+      return { source: 'server', ...(await loadServerReport(visit.id)) }
+    } catch (_) {
+      // Offline or refused (e.g. transferred): fall back to the phone's copy.
+    }
+  }
+  return visit.snapshot ? { source: LOCAL_SOURCE, report: visit.snapshot } : null
+}
+
 // kind: 'json' | 'zip' (photos) | 'all' (JSON + photos in one ZIP).
-export async function buildReportDownload (visit, kind, { loadReport = id => api.get(`/visits/${id}/report-preview`), ...photoOptions } = {}) {
+export async function buildReportDownload (visit, kind, {
+  delivered = true,
+  loadServerReport = async id => {
+    const [report, preview] = await Promise.all([api.get(`/visits/${id}/download`), api.get(`/visits/${id}/report-preview`)])
+    return { reportText: preview?.reportText ?? null, report }
+  },
+  ...photoOptions
+} = {}) {
   const base = `report-${visit.id}`
-  // The Report JSON is built by the server: without a connection it is listed
-  // as missing, like a photo that is no longer on the phone.
   let json = null
   let jsonMissing = []
   if (kind !== 'zip') {
-    try {
-      json = JSON.stringify(await loadReport(visit.id), null, 2)
-    } catch (error) {
-      if (error?.status != null) throw error
-      jsonMissing = [{ name: `${base}.json`, needsConnection: true }]
-    }
+    const content = await reportJSON(visit, { delivered, loadServerReport })
+    if (content) json = JSON.stringify(content, null, 2)
+    else jsonMissing = [{ name: `${base}.json`, needsConnection: true }]
   }
   if (kind === 'json') {
     if (!json) return { fileName: null, blob: null, missing: jsonMissing }

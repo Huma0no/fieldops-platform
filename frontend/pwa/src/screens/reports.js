@@ -390,6 +390,7 @@ function buildReportCard (visit) {
       openReportPreview(visit)
     })
     actions.appendChild(previewBtn)
+    actions.appendChild(buildDownloadButton(visit, { delivered: false }))
 
     card.appendChild(actions)
     return card
@@ -401,17 +402,21 @@ function buildReportCard (visit) {
   previewBtn.addEventListener('click', () => openReportPreview(visit))
   actions.appendChild(previewBtn)
 
+  actions.appendChild(buildDownloadButton(visit, { delivered: true }))
+
+  card.appendChild(actions)
+  return card
+}
+
+function buildDownloadButton (visit, { delivered }) {
   const downloadBtn = document.createElement('button')
   downloadBtn.className   = 'rc-btn rc-btn--ghost'
   downloadBtn.textContent = 'Download'
   downloadBtn.addEventListener('click', e => {
     e.stopPropagation()
-    showDownloadMenu(downloadBtn, visit)
+    showDownloadMenu(downloadBtn, visit, { delivered })
   })
-  actions.appendChild(downloadBtn)
-
-  card.appendChild(actions)
-  return card
+  return downloadBtn
 }
 
 function showCardMenu (anchorEl, visit) {
@@ -551,7 +556,7 @@ async function openReportPreview (visit) {
 }
 
 // Same anchored menu as showCardMenu.
-function showDownloadMenu (anchorEl, visit) {
+function showDownloadMenu (anchorEl, visit, { delivered }) {
   document.querySelector('.rc-context-menu')?.remove()
   const menu = document.createElement('div')
   menu.className = 'rc-context-menu'
@@ -565,7 +570,7 @@ function showDownloadMenu (anchorEl, visit) {
     item.textContent = label
     item.addEventListener('click', () => {
       menu.remove()
-      void downloadReport(visit, kind)
+      void downloadReport(visit, kind, { delivered })
     })
     menu.appendChild(item)
   })
@@ -578,9 +583,9 @@ function showDownloadMenu (anchorEl, visit) {
   setTimeout(() => document.addEventListener('click', close), 0)
 }
 
-async function downloadReport (visit, kind) {
+async function downloadReport (visit, kind, { delivered }) {
   try {
-    const { fileName, blob, missing } = await buildReportDownload(visit, kind)
+    const { fileName, blob, missing } = await buildReportDownload(visit, kind, { delivered })
     if (blob) {
       const url  = URL.createObjectURL(blob)
       const a    = document.createElement('a')

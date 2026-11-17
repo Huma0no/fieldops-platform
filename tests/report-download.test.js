@@ -59,21 +59,23 @@ it('names photos with the address_tag[_SYSn] convention', () => {
   ]);
 });
 
-it('offline: zips the photos still on the phone, sent or not, and lists the rest as needing a connection', async () => {
-  const result = await download.buildReportDownload(visit, 'all', {
-    online: false,
-    loadLocal: onPhone,
-    loadReport: async () => { throw new TypeError('Failed to fetch'); },
-  });
+it('offline: exports the phone snapshot, marked unconfirmed, with the photos still on the phone', async () => {
+  const offline = { online: false, loadLocal: onPhone, loadServerReport: async () => { throw new TypeError('Failed to fetch'); } };
+  const result = await download.buildReportDownload(visit, 'all', offline);
   expect(result.fileName).toBe('report-visit-1.zip');
-  expect(await unzip(result.blob)).toEqual({
-    '7746_TRIBUTE_CIR_SCALE_SYS2.jpg': 'scale',
-    '5523_SILK_PETAL_ELECTRIC_METER.jpg': 'meter',
-  });
-  expect(result.missing).toEqual([
-    { name: 'report-visit-1.json', needsConnection: true },
-    { name: '5523_SILK_PETAL_ELECTRIC_METER_2.jpg', needsConnection: true },
-  ]);
+  const files = await unzip(result.blob);
+  expect(Object.keys(files)).toEqual(['report-visit-1.json', '7746_TRIBUTE_CIR_SCALE_SYS2.jpg', '5523_SILK_PETAL_ELECTRIC_METER.jpg']);
+  expect(JSON.parse(files['report-visit-1.json'])).toEqual({ source: 'local, unconfirmed by server', report: visit.snapshot });
+  expect(files['7746_TRIBUTE_CIR_SCALE_SYS2.jpg']).toBe('scale');
+  expect(result.missing).toEqual([{ name: '5523_SILK_PETAL_ELECTRIC_METER_2.jpg', needsConnection: true }]);
+
+  const json = await download.buildReportDownload(visit, 'json', offline);
+  expect(json.fileName).toBe('report-visit-1.json');
+  expect(JSON.parse(await json.blob.text()).source).toBe('local, unconfirmed by server');
+
+  // Not delivered yet: the phone snapshot even when the server is reachable.
+  const pending = await download.buildReportDownload(visit, 'json', { delivered: false, loadServerReport: async () => { throw new Error('not called'); } });
+  expect(JSON.parse(await pending.blob.text()).source).toBe('local, unconfirmed by server');
 });
 
 it('online: fetches older photos from the server and adds the Report JSON', async () => {
@@ -82,14 +84,16 @@ it('online: fetches older photos from the server and adds the Report JSON', asyn
     loadLocal: onPhone,
     loadServerList: async () => [{ id: 'p-4', slug: '5523_SILK_PETAL_FAN_SYS1' }],
     fetchPhoto: async (_visitId, id) => (id === 'p-4' ? new Blob(['fan']) : id === 'p-3' ? new Blob(['meter2']) : null),
-    loadReport: async () => ({ reportText: 'AC started $30' }),
+    loadServerReport: async () => ({ reportText: 'AC started $30', report: { totalPrice: 30, priceDiscrepancies: [] } }),
   });
   const files = await unzip(result.blob);
   expect(Object.keys(files)).toEqual([
     'report-visit-1.json', '7746_TRIBUTE_CIR_SCALE_SYS2.jpg', '5523_SILK_PETAL_ELECTRIC_METER.jpg',
     '5523_SILK_PETAL_ELECTRIC_METER_2.jpg', '5523_SILK_PETAL_FAN_SYS1.jpg',
   ]);
-  expect(JSON.parse(files['report-visit-1.json'])).toEqual({ reportText: 'AC started $30' });
+  expect(JSON.parse(files['report-visit-1.json'])).toEqual({
+    source: 'server', reportText: 'AC started $30', report: { totalPrice: 30, priceDiscrepancies: [] },
+  });
   expect(result.missing).toEqual([]);
 
   const photosOnly = await download.buildReportDownload(visit, 'zip', { online: false, loadLocal: onPhone });
