@@ -2,9 +2,23 @@ const crypto = require('crypto');
 const { pool, truncateTables } = require('./helpers/db');
 const { seedTechnicianWithToken, seedCompletedVisit } = require('./helpers/seeds');
 const { autoClosePeriods, ensureCurrentPeriodExists } = require('../src/services/autoClose');
+const { pool: servicePool } = require('../src/db/pool');
 
+// The service reads "today" from Postgres (CURRENT_DATE). Pin it to a fixed
+// Thursday so the week-boundary assertions hold whatever day the suite runs.
+// On a Thursday the previous week (ended Sunday) is already more than 3 days old.
+const FIXED_TODAY = '2026-11-19';
+
+beforeAll(() => {
+  const query = servicePool.query.bind(servicePool);
+  jest.spyOn(servicePool, 'query').mockImplementation((text, ...rest) =>
+    query(typeof text === 'string' ? text.replaceAll('CURRENT_DATE', `DATE '${FIXED_TODAY}'`) : text, ...rest));
+});
 beforeEach(truncateTables);
-afterAll(() => pool.end());
+afterAll(() => {
+  jest.restoreAllMocks();
+  return pool.end();
+});
 
 async function seedPayPeriod(weekStart, weekEnd, status = 'open') {
   const id = crypto.randomUUID();
@@ -36,8 +50,7 @@ function toDateStr(date) {
 }
 
 async function currentMonday() {
-  const { rows } = await pool.query('SELECT CURRENT_DATE AS today');
-  return mondayOf(new Date(rows[0].today));
+  return mondayOf(new Date(FIXED_TODAY));
 }
 
 describe('autoClosePeriods', () => {
@@ -73,7 +86,7 @@ describe('autoClosePeriods', () => {
   });
 
   it('does not touch periods that are not yet overdue', async () => {
-    const future = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+    const future = addDays(new Date(FIXED_TODAY), 30);
     const weekEnd = future.toISOString().slice(0, 10);
     const periodId = await seedPayPeriod(weekEnd, weekEnd, 'open');
 
