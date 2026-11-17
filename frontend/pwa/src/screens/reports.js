@@ -16,14 +16,18 @@ import { HomeTabs, attachHomeSwipe, homeTabStyles } from '../components/home-tab
 import {
   getActiveTechnicianId,
   getAllCompletionSubmissions,
+  getCatalog,
   getPendingCompletionSubmissions,
 } from '../lib/db.js'
 import {
   deliverCompletionSubmission,
+  describeReportMismatch,
   retryPendingCompletionSubmissions,
 } from '../lib/completion-submission.mjs'
 import { startSync }            from '../lib/sync.js'
 import { buildReportDownload }  from '../lib/report-download.mjs'
+import { receiptModel }         from '../lib/receipt.mjs'
+import { Receipt, receiptStyles } from '../components/receipt.js'
 import { CorrectionModal, correctionModalStyles } from '../components/correction-modal.js'
 
 const STYLES_ID = 'styles-reports'
@@ -33,7 +37,7 @@ function injectStyles () {
   if (document.getElementById(STYLES_ID)) return
   const style = document.createElement('style')
   style.id = STYLES_ID
-  style.textContent = screenStyles + navBarStyles + correctionModalStyles + homeTabStyles
+  style.textContent = screenStyles + navBarStyles + correctionModalStyles + homeTabStyles + receiptStyles
   document.head.appendChild(style)
 }
 
@@ -45,6 +49,8 @@ let downloadedIds = new Set()
 let retryingIds  = new Set()
 let retryErrors  = new Map()
 let isLoading    = true
+let openReceiptIds = new Set()
+let receiptCatalog = { services: [], items: [] }
 
 export default async function mount (appEl) {
   injectStyles()
@@ -112,6 +118,11 @@ async function loadReports () {
   } catch (err) {
     console.error('Failed to read local completion submissions:', err)
   }
+
+  try {
+    const [services, items] = await Promise.all([getCatalog('services'), getCatalog('items')])
+    receiptCatalog = { services: services ?? [], items: items ?? [] }
+  } catch (_) {}
 
   pendingSubmissions = localPending ?? []
   correctionRequiredSubmissions = (localAll ?? []).filter(entry => entry?.lifecycle === 'correction_required')
@@ -270,7 +281,52 @@ function renderList () {
     return
   }
 
-  ;[...pendingCards, ...sorted].forEach(visit => listEl.appendChild(buildReportCard(visit)))
+  ;[...pendingCards, ...sorted].forEach(visit => listEl.appendChild(buildReportEntry(visit)))
+}
+
+// W4: the receipt slides out from behind its card; cards below move down.
+function buildReportEntry (visit) {
+  const wrap = document.createElement('div')
+  wrap.className = 'rc-wrap'
+  wrap.appendChild(buildReportCard(visit))
+  if (visit.snapshot) {
+    const slot = document.createElement('div')
+    slot.className = `rc-slot${openReceiptIds.has(visit.id) ? ' open' : ''}`
+    slot.setAttribute('aria-hidden', String(!openReceiptIds.has(visit.id)))
+    const clip = document.createElement('div')
+    const paper = document.createElement('div')
+    paper.className = 'rc-paper'
+    paper.appendChild(Receipt(receiptModel(visit.snapshot, { catalog: receiptCatalog, technicianName: technicianName() })))
+    clip.appendChild(paper)
+    slot.appendChild(clip)
+    wrap.appendChild(slot)
+  }
+  return wrap
+}
+
+function technicianName () {
+  try { return JSON.parse(localStorage.getItem('technician') ?? 'null')?.name ?? null } catch { return null }
+}
+
+function buildViewButton (visit, { label, className }) {
+  const btn = document.createElement('button')
+  btn.className = className
+  btn.textContent = openReceiptIds.has(visit.id) ? 'Hide report' : label
+  btn.addEventListener('click', e => {
+    e.stopPropagation()
+    const slot = btn.closest('.rc-wrap')?.querySelector('.rc-slot')
+    if (!slot) {
+      openReportPreview(visit)
+      return
+    }
+    const open = !slot.classList.contains('open')
+    slot.classList.toggle('open', open)
+    slot.setAttribute('aria-hidden', String(!open))
+    if (open) openReceiptIds.add(visit.id)
+    else openReceiptIds.delete(visit.id)
+    btn.textContent = open ? 'Hide report' : label
+  })
+  return btn
 }
 
 function buildReportCard (visit) {
@@ -324,7 +380,7 @@ function buildReportCard (visit) {
   // Status label
   const statusLabel = document.createElement('p')
   if (correctionRequired) {
-    statusLabel.textContent = 'Correction required — edit the Report and confirm a new submission'
+    statusLabel.textContent = describeReportMismatch(visit._submissionRecord?.mismatchFields)
     statusLabel.className = 'rc-status rc-status--pending'
   } else if (isPending) {
     const isRetrying = retryingIds.has(visit.id)
@@ -358,14 +414,7 @@ function buildReportCard (visit) {
     })
     actions.appendChild(correctBtn)
 
-    const previewBtn = document.createElement('button')
-    previewBtn.className = 'rc-btn rc-btn--ghost'
-    previewBtn.textContent = 'Review saved submission'
-    previewBtn.addEventListener('click', e => {
-      e.stopPropagation()
-      openReportPreview(visit)
-    })
-    actions.appendChild(previewBtn)
+    actions.appendChild(buildViewButton(visit, { label: 'Review saved submission', className: 'rc-btn rc-btn--ghost' }))
     card.appendChild(actions)
     return card
   }
@@ -382,25 +431,14 @@ function buildReportCard (visit) {
     })
     actions.appendChild(retryBtn)
 
-    const previewBtn = document.createElement('button')
-    previewBtn.className   = 'rc-btn rc-btn--ghost'
-    previewBtn.textContent = 'View report'
-    previewBtn.addEventListener('click', e => {
-      e.stopPropagation()
-      openReportPreview(visit)
-    })
-    actions.appendChild(previewBtn)
+    actions.appendChild(buildViewButton(visit, { label: 'View report', className: 'rc-btn rc-btn--ghost' }))
     actions.appendChild(buildDownloadButton(visit, { delivered: false }))
 
     card.appendChild(actions)
     return card
   }
 
-  const previewBtn = document.createElement('button')
-  previewBtn.className   = 'rc-btn rc-btn--secondary'
-  previewBtn.textContent = 'View report'
-  previewBtn.addEventListener('click', () => openReportPreview(visit))
-  actions.appendChild(previewBtn)
+  actions.appendChild(buildViewButton(visit, { label: 'View report', className: 'rc-btn rc-btn--secondary' }))
 
   actions.appendChild(buildDownloadButton(visit, { delivered: true }))
 
@@ -681,6 +719,13 @@ const screenStyles = `
   .screen-title { font-size:var(--text-lg); font-weight:800; color:var(--fo-ink); letter-spacing:-0.01em; }
   .scroll-area { flex:1; overflow-y:auto; -webkit-overflow-scrolling:touch; overscroll-behavior:contain; }
   .visit-list { display:flex; flex-direction:column; gap:var(--space-2); padding:var(--space-3) var(--space-4) var(--space-6); }
+  .rc-wrap .report-card { position:relative; z-index:2; }
+  .rc-slot { display:grid; grid-template-rows:0fr; transition:grid-template-rows .55s cubic-bezier(.3,.7,.2,1), margin .55s cubic-bezier(.3,.7,.2,1); margin:0 10px; }
+  .rc-slot.open { grid-template-rows:1fr; margin:-14px 10px var(--space-2); }
+  .rc-slot > div { overflow:hidden; }
+  .rc-paper { transform:translateY(-100%); transition:transform .55s cubic-bezier(.3,.7,.2,1); }
+  .rc-slot.open .rc-paper { transform:none; }
+  @media (prefers-reduced-motion: reduce) { .rc-slot, .rc-paper { transition:none; } }
 
   .report-card { background:var(--fo-panel); box-shadow:var(--fo-shadow-raised); border-radius:var(--fo-radius); padding:var(--space-4); display:flex; flex-direction:column; gap:var(--space-2); }
   .rc-top { display:flex; justify-content:space-between; align-items:flex-start; gap:var(--space-3); }

@@ -91,9 +91,9 @@ Recorded from manual testing of `wip/auth-reports-offline-2026-11`. Not implemen
 | WS-07 | Accessories | LP Kit sub-options confirmed: Lennox 1Stg · Lennox 2Stg · Goodman (no change). | `workspace/ACC-SPEC.md` |
 | WS-08 | Weigh-In | Bug against spec: Subcooling is not calculated. Spec: computed field = Condenser Sat − Liquid Temp. | `workspace/WEIGHIN-SPEC.md` |
 | WS-09 | Weigh-In | Lineset dropdown is too long to use. Propose numeric entry (keypad or stepper) in the Workspace pass. | `workspace/WEIGHIN-SPEC.md` |
-| WS-10 | Report | Before submitting, a review screen summarizing services, tstat, accessories, fixes with amounts and total, weigh-in, notes and checklist, with explicit confirmation. (Current modal shows only service, item count, total and photos.) | `workspace/CHECKLIST-NOTES-SPEC.md` |
+| WS-10 | Report | Before submitting, a review screen summarizing services, tstat, accessories, fixes with amounts and total, weigh-in, notes and checklist, with explicit confirmation. (Current modal shows only service, item count, total and photos.) **Resolved in W4 (2026-11-17).** | `workspace/CHECKLIST-NOTES-SPEC.md` |
 | WS-11 | Fix / Accessories | Sub-options of Fixed Leaks, Extended Wire and LP Kit are always visible. They must stay hidden until the parent tile is selected. LP Kit: bug against spec (`ACC-SPEC.md` already requires hidden sub-options). Fixed Leaks and Extended Wire: new direction (`FIX-SPEC.md` describes flat tiles). | `workspace/FIX-SPEC.md`, `workspace/ACC-SPEC.md` |
-| WS-12 | Report | Report rejection messages must say what differs and what to do. No generic "Correction required". | `architecture/REPORT-SNAPSHOT-CONTRACT.md` |
+| WS-12 | Report | Report rejection messages must say what differs and what to do. No generic "Correction required". **Resolved in W4 (2026-11-17).** | `architecture/REPORT-SNAPSHOT-CONTRACT.md` |
 
 Verified OK in the same session: Lobby claim flow, GPS permission prompt on the first service, amount calculations.
 

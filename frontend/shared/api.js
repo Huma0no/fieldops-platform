@@ -23,14 +23,17 @@ async function request (method, path, body = null, options = {}) {
   if (!response.ok) {
     let message = `API error ${response.status}`
     let code = null
+    let fields = null
     try {
       const payload = await response.json()
       message = payload.error ?? payload.message ?? message
       code = payload.code ?? null
+      fields = Array.isArray(payload.fields) ? payload.fields : null
     } catch (_) {}
     const err = new Error(message)
     err.status = response.status
     if (code) err.code = code
+    if (fields) err.fields = fields
     throw err
   }
   if (response.status === 204) return null

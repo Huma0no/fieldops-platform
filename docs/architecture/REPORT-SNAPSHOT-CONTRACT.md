@@ -293,4 +293,5 @@
 - Dispatch shows the discrepancies on the Report view (History → visit details: a header flag and a "Price check" section).
 - The server no longer re-adds catalog companions on submission: a companion the technician turned off stays off.
 - Photos (2026-11-17): the snapshot's `evidenceRefs` create a row for each listed photo (stored or not); the comparison checks each photo's identity but not `storedAt`, because a photo may reach the server after its Report.
-- Pending: the Ledger weekly review of discrepancies with an owner threshold (deferred, QA-TRACKER PP-01b) and the technician-facing rejection wording (WS-12, W4).
+- Rejection wording (WS-12, W4, 2026-11-17): the phone keeps the 409's `fields` with the rejected submission and Reports names the differing parts in plain words (Service; T-stat, Accessories or Fix; Systems; Weigh-In; Checklist; Notes; Photos; Call details) and what to do: "Tap Correct report, check those sections and confirm a new submission". When Call details differ it adds that they come from the office.
+- Pending: the Ledger weekly review of discrepancies with an owner threshold (deferred, QA-TRACKER PP-01b).

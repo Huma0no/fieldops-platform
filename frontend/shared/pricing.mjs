@@ -57,7 +57,7 @@ export function priceVisit ({ services = [], items = [], systemCount = 1, catalo
   })
 
   if (pricedServices.some(row => row.serviceName === 'Cancel')) {
-    return { services: pricedServices, items: pricedItems, total: 0 }
+    return { services: pricedServices, items: pricedItems, total: 0, amounts: { services: pricedServices.map(() => 0), items: pricedItems.map(() => 0) } }
   }
 
   // Per-system rows are each charged on their own; a call-wide row keeps the
@@ -66,25 +66,26 @@ export function priceVisit ({ services = [], items = [], systemCount = 1, catalo
   const systemRows = pricedServices.filter(row => row.systemNumber != null)
   const finishSystems = systemRows.filter(row => row.isFinish).length
 
-  let total = 0
-  for (const row of pricedServices) {
+  // amounts: what each row adds to the total (the Report receipt lines).
+  const serviceAmounts = pricedServices.map(row => {
     let price = row.price
     if (row.systemNumber == null && !row.isFinish && serviceCatalog.get(row.serviceName)?.multiplies_by_system_count) price *= count
-    total += price
-  }
-  for (const item of pricedItems) {
+    return price
+  })
+  const itemAmounts = pricedItems.map(item => {
     const entry = itemCatalog.get(item.itemName)
     if (item.itemName === WEIGHT_IN_DATA && systemRows.length) {
-      total += (entry?.default_price ?? 0) * count + (entry?.finish_addon_price ?? 0) * finishSystems
-      continue
+      return (entry?.default_price ?? 0) * count + (entry?.finish_addon_price ?? 0) * finishSystems
     }
     let price
     if (item.itemName === WEIGHT_IN_DATA || entry?.custom_price) price = item.price ?? 0
     else if (Object.prototype.hasOwnProperty.call(overrides, item.itemName)) price = overrides[item.itemName]
     else price = entry?.default_price ?? 0
     if (entry?.multiplies_by_system_count) price = (price ?? 0) * count
-    total += price ?? 0
-    if (anyFinish && item.itemName !== WEIGHT_IN_DATA && entry?.finish_addon_price != null) total += entry.finish_addon_price
-  }
-  return { services: pricedServices, items: pricedItems, total }
+    let amount = price ?? 0
+    if (anyFinish && item.itemName !== WEIGHT_IN_DATA && entry?.finish_addon_price != null) amount += entry.finish_addon_price
+    return amount
+  })
+  const total = [...serviceAmounts, ...itemAmounts].reduce((sum, amount) => sum + amount, 0)
+  return { services: pricedServices, items: pricedItems, total, amounts: { services: serviceAmounts, items: itemAmounts } }
 }

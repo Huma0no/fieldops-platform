@@ -59,6 +59,28 @@ export function checklistAnswersFromDraft (draft) {
     }))
 }
 
+// WS-12: a rejected Report says which parts differ from the server and what
+// to do. `fields` are the server's REPORT_CONTENT_MISMATCH field names.
+const MISMATCH_SECTIONS = [
+  [/^(services|service|terminalIntent)\b/, 'Service'],
+  [/^items\b/, 'T-stat, Accessories or Fix'],
+  [/^(systems|hasMultipleSystems)\b/, 'Systems'],
+  [/^weighInData\b/, 'Weigh-In'],
+  [/^checklistAnswers\b/, 'Checklist'],
+  [/^notes\b/, 'Notes'],
+  [/^evidenceRefs\b/, 'Photos'],
+  [/^(address|orderNumber|scheduledDate|scheduledTime|propertyId|workType)\b/, 'Call details'],
+]
+
+export function describeReportMismatch (fields) {
+  if (!Array.isArray(fields) || !fields.length) return 'Correction required — edit the Report and confirm a new submission'
+  const sections = [...new Set(fields.map(field => MISMATCH_SECTIONS.find(([pattern]) => pattern.test(field))?.[1] ?? 'Other details'))]
+  const callDetails = sections.includes('Call details')
+    ? ' Call details come from the office: ask Dispatch if they look wrong.'
+    : ''
+  return `Not accepted — the office's copy differs in: ${sections.join(', ')}. Tap Correct report, check ${sections.length > 1 ? 'those sections' : 'that section'} and confirm a new submission.${callDetails}`
+}
+
 export function validateCompletionDraft (draft) {
   const cancel = draft?._cancelMode?.confirmed === true
   if (cancel && isCancelJustificationMissing({ notes: draft.notes, checklist: draft._checklist })) {
@@ -205,6 +227,7 @@ export async function deliverCompletionSubmission (record, { activeTechnicianId 
       lifecycle: error?.code === 'REPORT_CONTENT_MISMATCH' ? 'correction_required' : 'pending',
       attempts: (current.attempts ?? 0) + 1,
       lastError: error?.message ?? 'Delivery failed',
+      mismatchFields: error?.fields ?? null,
       lastAttemptAt: new Date().toISOString(),
     })
     throw error

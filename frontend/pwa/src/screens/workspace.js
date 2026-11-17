@@ -17,10 +17,12 @@ import { api }        from '../../../shared/api.js'
 import { priceVisit } from '../../../shared/pricing.mjs'
 import { keepPhoto, uploadPendingPhotos } from '../lib/photo-upload.mjs'
 import { getActiveTechnicianId, getCatalog, getLocalVisitDraft, saveLocalVisitDraft } from '../lib/db.js'
-import { createPendingCompletionSubmission, deliverCompletionSubmission } from '../lib/completion-submission.mjs'
+import { createCompletionSnapshot, createPendingCompletionSubmission, deliverCompletionSubmission } from '../lib/completion-submission.mjs'
 import { isCancelJustificationMissing } from '../lib/cancel-justification.mjs'
 import { cancelConfirmationStyles, showCancelConfirmation } from '../lib/cancel-confirmation.mjs'
 import { CalcPanel, calcPanelStyles } from '../components/calc-panel.js'
+import { Receipt, receiptStyles } from '../components/receipt.js'
+import { receiptModel } from '../lib/receipt.mjs'
 import { GUIDED_RETURN_KEY, guidedContextFromVisit, saveGuidedContext } from '../lib/guided-context.mjs'
 import {
   addLocalVisitDraftItem,
@@ -1442,7 +1444,7 @@ async function openGenerateModal () {
       return
     }
   }
-  openGenerateModalDirect()
+  openGenerateModalDirect().catch(err => console.error('Could not open the report review:', err))
 }
 
 function showServiceMissingBlock (message) {
@@ -1471,39 +1473,35 @@ function showCancelJustificationBlock () {
   document.getElementById('ws-screen')?.appendChild(overlay)
 }
 
-function openGenerateModalDirect () {
-  const overlay = makeOverlay()
-  const modal = makeModal('Generate Report')
-  const summary = document.createElement('div'); summary.className='ws-modal-summary'
-  const items = visit._items ?? []
-  ;[['Service', getSectionSummary('service')], ['Items', items.length ? `${items.length} item${items.length!==1?'s':''}` : 'None'],
-    ['Total', formatPrice(visit.totalPrice)], ['Photos', String(visit._photoCount ?? 0)]
-  ].forEach(([label, value]) => {
-    const row = document.createElement('div'); row.className='ws-modal-row'
-    row.innerHTML=`<span class="ws-modal-row-label">${label}</span><span class="ws-modal-row-value">${value}</span>`
-    summary.appendChild(row)
-  })
-  const note = document.createElement('p'); note.className='ws-modal-note'
-  note.textContent = 'Review before submitting. Corrections require a request after submission.'
+// W4: Generate Report opens the receipt the Report will carry, stamped DRAFT,
+// with Edit (back to the Workspace) and Confirm & send.
+async function openGenerateModalDirect () {
+  const activeTechnicianId = getActiveTechnicianId() ?? visit.technicianId
+  await persistCurrentDraft({ touch: false })
+  const draft = await getLocalVisitDraft(visit.id, activeTechnicianId) ?? visit
+  const checklistAnswers = buildChecklistAnswers()
+  const preview = createCompletionSnapshot(draft, { checklistAnswers, technicianId: activeTechnicianId })
+
+  const overlay = document.createElement('div'); overlay.className = 'ws-review'
+  const title = document.createElement('h2'); title.className = 'ws-review-title'; title.textContent = 'Review before sending'
+  overlay.appendChild(title)
+  overlay.appendChild(Receipt(receiptModel(preview, {
+    catalog: { services: catalogServices, items: catalogItems },
+    technicianName: technicianName(),
+  }), { draft: true }))
   if (_gpsPhotosMissing > 0) {
     const gpsWarn = document.createElement('p'); gpsWarn.className='ws-modal-note ws-modal-note--warn'
     gpsWarn.textContent = 'GPS required for SCALE and FAN photos. Retake or enable location access.'
-    modal.appendChild(gpsWarn)
+    overlay.appendChild(gpsWarn)
   }
   const actions = makeActions([
-    { label: 'Go back', cls: 'secondary', fn: () => overlay.remove() },
-    { label: 'Submit report', cls: 'primary', fn: async (btn) => {
+    { label: 'Edit', cls: 'secondary', fn: () => overlay.remove() },
+    { label: 'Confirm & send', cls: 'primary', fn: async (btn) => {
       btn.disabled=true; btn.textContent='Saving report…'
       try {
         // Persist the immutable submission before any transport attempt. A
         // retry will use this record, never the mutable Workspace draft.
-        const activeTechnicianId = getActiveTechnicianId() ?? visit.technicianId
-        await persistCurrentDraft({ touch: false })
-        const draft = await getLocalVisitDraft(visit.id, activeTechnicianId) ?? visit
-        const submission = await createPendingCompletionSubmission(draft, {
-          checklistAnswers: buildChecklistAnswers(),
-          technicianId: activeTechnicianId,
-        })
+        const submission = await createPendingCompletionSubmission(draft, { checklistAnswers, technicianId: activeTechnicianId })
         try {
           await deliverCompletionSubmission(submission, { activeTechnicianId })
         } catch (err) {
@@ -1513,7 +1511,7 @@ function openGenerateModalDirect () {
         sessionStorage.removeItem('workspace:visitId')
         window.dispatchEvent(new CustomEvent('app:navigate', { detail: { route: '/reports' } }))
       } catch (err) {
-        btn.disabled=false; btn.textContent='Submit report'
+        btn.disabled=false; btn.textContent='Confirm & send'
         console.error('Could not save report locally:', err)
       }
     }},
@@ -1522,9 +1520,15 @@ function openGenerateModalDirect () {
     const submitBtn = actions.querySelector('.ws-modal-btn--primary')
     if (submitBtn) submitBtn.disabled = true
   }
-  modal.appendChild(summary); modal.appendChild(note); modal.appendChild(actions)
-  overlay.appendChild(modal)
+  overlay.appendChild(actions)
+  const note = document.createElement('p'); note.className='ws-modal-note ws-review-note'
+  note.textContent = 'Corrections require a request after sending.'
+  overlay.appendChild(note)
   document.getElementById('ws-screen')?.appendChild(overlay)
+}
+
+function technicianName () {
+  try { return JSON.parse(localStorage.getItem('technician') ?? 'null')?.name ?? null } catch { return null }
 }
 
 function downloadLocalReport () {
@@ -1621,7 +1625,7 @@ const STYLES_ID = 'styles-workspace'
 function injectStyles () {
   if (document.getElementById(STYLES_ID)) return
   const style = document.createElement('style'); style.id=STYLES_ID
-  style.textContent = calcPanelStyles + `
+  style.textContent = calcPanelStyles + receiptStyles + `
   .ws-tools{position:absolute;right:var(--space-4);bottom:calc(10px + env(safe-area-inset-bottom,0px));display:flex;flex-direction:column;gap:8px;z-index:3;}
   .ws-tool-btn{width:44px;height:44px;border:none;border-radius:var(--fo-radius-md);background:var(--fo-panel);box-shadow:var(--fo-shadow-raised);color:var(--fo-accent-deep);display:grid;place-items:center;cursor:pointer;-webkit-tap-highlight-color:transparent;}
   .ws-screen{display:flex;flex-direction:column;height:100dvh;background:var(--fo-panel);overflow:hidden;position:relative;font-family:var(--fo-font-body);}
@@ -1681,6 +1685,10 @@ function injectStyles () {
   .ws-price-bar{background:var(--fo-panel);box-shadow:var(--fo-shadow-card);padding:var(--space-3) var(--space-4);padding-bottom:calc(var(--space-3) + env(safe-area-inset-bottom,0px));display:flex;align-items:center;justify-content:space-between;gap:var(--space-3);flex-shrink:0;position:relative;z-index:1;}
   .ws-price-label{font-size:var(--text-xs);color:var(--fo-ink-soft);font-family:var(--fo-font-mono);text-transform:uppercase;letter-spacing:.05em;}
   .ws-price-amount{font-size:20px;font-weight:800;font-family:var(--fo-font-mono);color:var(--fo-accent-deep);}
+  .ws-review{position:absolute;inset:0;z-index:50;overflow-y:auto;background:var(--fo-panel);padding:calc(var(--space-5) + env(safe-area-inset-top,0px)) 14px calc(var(--space-6) + env(safe-area-inset-bottom,0px));display:flex;flex-direction:column;gap:var(--space-3);}
+  .ws-review-title{margin:4px 2px 0;font:800 18px var(--fo-font-body);color:var(--fo-ink);}
+  .ws-review .ws-modal-actions{margin-top:var(--space-2);}
+  .ws-review-note{text-align:center;}
   .ws-modal-overlay{position:absolute;inset:0;background:var(--fo-scrim);display:flex;align-items:flex-end;z-index:50;}
   .ws-modal{width:100%;background:var(--fo-panel);box-shadow:var(--fo-shadow-card);border-radius:var(--fo-radius) var(--fo-radius) 0 0;padding:var(--space-5);display:flex;flex-direction:column;gap:var(--space-3);padding-bottom:calc(var(--space-5) + env(safe-area-inset-bottom,0px));}
   .ws-modal-title{font-size:var(--text-md);font-weight:700;color:var(--fo-ink);}

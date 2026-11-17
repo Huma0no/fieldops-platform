@@ -16,6 +16,10 @@
   backend ACK. The canonical report remains derived from accepted structured
   source data. See `/docs/OFFLINE-FIRST-CONTRACT.md`.
 
+- **View report (W4, 2026-11-17):** the Report receipt (same component as the Workspace review, without the DRAFT stamp) slides out from behind its card; the cards below move down; tapping again (Hide report) collapses it. Built from the snapshot stored on the phone, so it works offline; a Report without one on this phone keeps the text preview from the server. Pending and correction-required cards open the same receipt.
+- **Rejected Report (WS-12):** the card says which parts differ and what to do (`docs/architecture/REPORT-SNAPSHOT-CONTRACT.md`).
+- **Download:** JSON · ZIP (photos) · All, on delivered and pending Reports (`docs/shared/PHOTOS-GPS-INTEGRATIONS.md`).
+
 ## Missing
 
 Full screen layout and behavior — list structure, treatment of pending versus delivered submissions, what's shown per completed visit, export format.

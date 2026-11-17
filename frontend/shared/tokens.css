@@ -273,6 +273,7 @@
   --fo-panel-lo: #d3d0ca;
   --fo-well:     #f3f2ef;   /* = panel; wells read through --fo-shadow-well */
   --fo-tile:     #faf9f7;
+  --fo-paper:    #fffefb;   /* Report receipt paper */
 
   /* Ink */
   --fo-ink:      #2b2824;

@@ -45,10 +45,10 @@ Checklist answers, Notes, and their evidence references are durable Local Visit 
 
 Final button on this step (not accessible from any earlier step). The one blocking check: every system needs a service unless Drive Run is on ("System N: no service selected", with a Go to Service action — see `SERVICE-TSTAT-SPEC.md`). No other blocking or non-blocking advisory dialog on tap — the P-drain reminder lives as static text directly under the P-drain items' labels in the checklist itself (e.g. "Reviewing the P-drain is recommended before completing"), not as a separate popup evaluated at submission time.
 
+**Review before sending (W4, 2026-11-17, replaces the summary modal):** Generate Report opens the Report receipt stamped DRAFT, built from the same snapshot that will be sent: header (address, subdivision · builder, date · technician); SERVICE, T-STAT, ACCESSORIES and FIX lines with the amount each adds to the total; WEIGH-IN per system; CHECKLIST "No" items; NOTES; TOTAL. Paper look with a torn bottom edge (`docs/mockups/fieldops-ws-receipt-calc-mockup.html`). **Edit** returns to the Workspace; **Confirm & send** saves and sends the Report. The GPS warning for SCALE/FAN photos still disables Confirm & send. Works offline.
+
 **Report text order:** Date · Address · Subdivision · Builder · Notes + checklist "No" items (pipe-separated) · Service · Service $ · Accessories · Acc $ · Fix · Fix $.
 
-## Pending changes (QA 2026-11-15, not implemented)
+## Pending changes (QA 2026-11-15)
 
-Recorded in `docs/status/QA-TRACKER.md` (WS-10). Scheduled for the Workspace pass after Guided Phase 4; until then this spec's current text remains the closed behavior.
-
-- WS-10: before submitting, a review screen summarizing services, tstat, accessories, fixes with amounts and total, weigh-in, notes and checklist, with explicit confirmation.
+- WS-10: review screen before submitting. **Implemented in W4 (2026-11-17)** — see Generate Report above.
