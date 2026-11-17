@@ -276,6 +276,14 @@
 
 **Package 1 data gate:** The repository does not establish whether deployed data contains duplicate submission rows per Visit or terminal no-ID completions. Run the pre-migration audit before rollout. If duplicates exist, preserve every row and stop the migration until explicit row-level adjudication. Do not synthesize legacy snapshots from mutable rows; preserve legacy records and do not present reconstructed data as an immutable Report. Any such records block full historical immutability rollout until dispositioned. This is a data-dependent rollout gate, not an unresolved product rule.
 
+## Per-system services (2026-11-17, Workspace pass W1a)
+
+- Submission snapshot **version 2** replaces the single `service` object with `services`: one row per system `{ systemNumber, serviceName, isFinish, isTemporarily, price }`, or a lone `{ systemNumber: null, serviceName: "Drive Run" }`, or the Cancel row. Each price is the one the server confirmed for that exact selection (`PATCH /services` response). `terminalIntent` is `temporarily` when any system is Temporarily.
+- The server rewrites the per-system rows from the snapshot (`applySnapshotWork`), rejects a snapshot that leaves a system without a service ("System N: no service selected"), and compares the rows one to one, system number included. A version 1 snapshot (`service`) is still compared as before.
+- Several thermostat models are separate item rows and compare like any item.
+- Weigh-In measurements belong to the address; a Drive Run Report, like a Cancel Report, carries none.
+- Still pending in this pass: PP-01 below and field-level rejection reasons (WS-12), with the Receipt (W4).
+
 ## Pending changes (2026-11-15, not implemented)
 
 - PP-01 (pre-production, `docs/status/MASTER-FUNCTION-INDEX.md` R-09): differences in catalog-derived values (`price`, `tech_supplied`) will no longer reject the submission. The server will accept the Report, store both values and flag the discrepancy for Dispatch. Until implemented, the reject-on-difference rules in this contract remain the current behavior.

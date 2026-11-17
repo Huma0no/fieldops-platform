@@ -31,7 +31,9 @@ Every catalog item (Service, Accessory, Fix) has two separate strings, for two s
 | Cancel | "service canceled" | Voids all charge |
 | Finish | "Finish/ " always prints when active | Modifier, not its own catalog service — see Finish rules below |
 
-Multi-system visits append the actual system count to the report (e.g. "3 Systems") — driven by the visit's real system count, not a fixed label. See `/docs/fieldops/workspace/SERVICE-MULTISYSTEM-SPEC.md`.
+Multi-system visits append the actual system count to the report (e.g. "3 Systems") — driven by the visit's real system count, not a fixed label.
+
+**Per-system services** (`/docs/fieldops/workspace/SERVICE-TSTAT-SPEC.md`): systems with the same service (same service, Finish and Temporarily) print one line whose price is the sum of those systems. When every system shares it, the line keeps the format above ("Finish/ AC started (2 Systems) $40"). When systems differ, each line names its systems: "Finish/ AC started (Systems 1, 3) $40, System Prestarted (System 2) $20"; a Finish-only system prints "Finish/ (System 2)". Thermostats are placed before the first service price. Drive Run prints one "Drive Run $10" line for the call.
 
 ### Finish rules
 
@@ -109,7 +111,7 @@ Catalog item names below match `scripts/seed-catalog.sql` exactly (cross-checked
 
 ## The one price-modifier exception
 
-The only case where context changes an item's price is **Weight-In-Data + Finish active → $10 base + $10 addon = $20**. Every other non-standard price case is handled via the "Other"/"Other Fix" free-entry item — there are no other context-based price modifiers.
+The only case where context changes an item's price is **Weight-In-Data + Finish active → $10 base + $10 addon = $20**. With per-system services it applies per system: $20 for each system with Finish, $10 for each system without. Every other non-standard price case is handled via the "Other"/"Other Fix" free-entry item — there are no other context-based price modifiers.
 
 ## Full sentence format
 

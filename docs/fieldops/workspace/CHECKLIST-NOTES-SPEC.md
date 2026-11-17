@@ -43,7 +43,7 @@ Checklist answers, Notes, and their evidence references are durable Local Visit 
 
 ## Generate Report
 
-Final button on this step (not accessible from any earlier step). No blocking or non-blocking advisory dialog on tap — the P-drain reminder lives as static text directly under the P-drain items' labels in the checklist itself (e.g. "Reviewing the P-drain is recommended before completing"), not as a separate popup evaluated at submission time.
+Final button on this step (not accessible from any earlier step). The one blocking check: every system needs a service unless Drive Run is on ("System N: no service selected", with a Go to Service action — see `SERVICE-TSTAT-SPEC.md`). No other blocking or non-blocking advisory dialog on tap — the P-drain reminder lives as static text directly under the P-drain items' labels in the checklist itself (e.g. "Reviewing the P-drain is recommended before completing"), not as a separate popup evaluated at submission time.
 
 **Report text order:** Date · Address · Subdivision · Builder · Notes + checklist "No" items (pipe-separated) · Service · Service $ · Accessories · Acc $ · Fix · Fix $.
 

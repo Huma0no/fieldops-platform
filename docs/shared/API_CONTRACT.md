@@ -386,7 +386,18 @@ Active-work mutation endpoints remain transitional. Completion delivery is defin
 ```
 PATCH /api/visits/:id/services
   auth: technician (must be assigned)
-  body: { serviceName, isFinish, isTemporarily }
+  body (per system, current Workspace):
+        { services: [{ systemNumber, serviceName, isFinish, isTemporarily }] }
+        or { services: [{ serviceName: "Drive Run" }] } for the call-wide
+        Drive Run (alone). One row per system; systemNumber must be one of the
+        visit's systems; serviceName is AC, Heat, AC & Heat, Prestart or Finish.
+        An empty list clears the selection. Replaces every service row.
+  returns: { id, services: [{ systemNumber, serviceName, isFinish,
+             isTemporarily, price }], totalPrice }
+  400: invalid service or system number, a repeated system, or Drive Run
+       beside another service.
+
+  body (single service, kept for earlier app versions): { serviceName, isFinish, isTemporarily }
   note: serviceName carries the selected base value, including "Prestart".
         Finish-only uses serviceName: "Finish" and is persisted
         with isFinish: true and price 0; Finish + AC/Heat remains the same

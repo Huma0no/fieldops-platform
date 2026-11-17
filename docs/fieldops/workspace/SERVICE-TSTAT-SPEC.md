@@ -1,44 +1,44 @@
 # Service + Thermostat
 
-**Version:** 1.0
-**Date:** 2026-07-30
-**Status:** Closed design — built, neomorphic style applied
+**Version:** 2.0
+**Date:** 2026-11-17
+**Status:** Closed design — built (Workspace pass W1a). Mockup: `docs/mockups/fieldops-ws-service-tstat-mockup.html` (its "Per system ▾" list is replaced by the system switcher below).
 
 ## Purpose
 
-First step of Workspace: the base service and thermostat for the visit. Merged into one step (the rail shows 5 steps total, not 6).
+First step of Workspace: the service of each system and the call's thermostats. Merged into one step (the rail shows 5 steps total, not 6).
 
-Service and thermostat selection/quantity are durable Local Visit Draft state while the visit is active. They are submitted as part of Generate Report's complete snapshot, not dependent on an immediate server write. See `/docs/OFFLINE-FIRST-CONTRACT.md`.
+Service and thermostat selection/quantity are durable Local Visit Draft state while the visit is active. They are submitted as part of Generate Report's complete snapshot. See `/docs/OFFLINE-FIRST-CONTRACT.md`.
 
 ## Service
 
-Big tiles: **AC · Heat · Prestart · Finish · Drive Run · Cancel**. Finish is selectable by itself or alongside AC/Heat. Alone it is a valid zero-priced Finish selection; with AC/Heat it remains the documented pricing/report modifier.
+- Tiles: **AC · HEAT · PRESTART**. AC and Heat combine. **Prestart is exclusive**: selecting it clears everything else on that system.
+- **Finish** is always visible below the tiles. It combines with AC and/or Heat, or stands alone (a valid $0 selection for visits that only need an accessory, an adjustment, a refrigerant charge or a repair). Prestart clears it.
+- **Temporarily** appears only when AC or Heat is on, and is cleared when both are off.
+- **Drive Run** is a distinct button after the tiles. It is exclusive and call-wide: it replaces every service on every system; selecting any service turns it off. When something is selected, one confirmation is shown first; on confirm it clears T-stat, Accessories, Fixes, Weigh-In and the checklist. Notes and photos stay. With nothing selected it applies directly.
+- Tapping a selected tile turns it off; a system may be left without a service while working. Generate Report is blocked while any system has no service (and Drive Run is off): "System N: no service selected" (single-system: "No service selected").
+- Cancel is not part of the Service section — it is the job-level ✕ in the Active Job banner (see `WORKSPACE-SHELL.md`).
 
-A non-cancelled visit may begin with no Service selection. Once any valid Service-section selection exists, tapping its final remaining selection does nothing: Workspace keeps the current selection in the UI and Local Visit Draft, rather than creating an empty state. Cancel remains the explicit clearing path.
+**Active-state color:** AC active: `--fo-blue` text + blue glow ring. Heat active: `--fo-no` text + red glow ring. Both keep the inset shadow as the base.
 
-**Active-state color:**
-- AC active: `--fo-blue` text + blue inset glow ring.
-- Heat active: `--fo-no` (red) text + red inset glow ring.
-- Both keep the neomorphic inset shadow as the base — color is additive, never a replacement.
+### Per system
 
-Drive Run is a distinct action button placed after the Service tiles (not folded into the tile grid). Cancel is not part of this tile set — it's the job-level ✕ in the Active Job banner (see `/docs/fieldops/workspace/WORKSPACE-SHELL.md`).
+- The selection is made per system. By default one selection applies to every system ("applies to all N systems").
+- The **system switcher** in the Active Job banner (multi-system calls, Service step) selects one system: the banner subtitle shows "System N · outdoor model" and the tiles edit that system only. Tapping the selected system again returns to the default.
+- A system edited on its own is **custom**: the switcher marks it with a dot, the section header shows "System N · custom" with a reset ↺ that returns it to the default, and in default mode the header shows "N use default · M custom".
+- Each system is charged its own service (see Pricing).
 
-**Multi-system visits:** see `/docs/fieldops/workspace/SERVICE-MULTISYSTEM-SPEC.md` for per-system override behavior.
+### Pricing
+
+Per system: AC, Heat, or AC & Heat **$30**; with Finish **$20**; Finish alone **$0**; Prestart **$20**. Temporarily has no price effect. Drive Run **$10** once for the call. Weigh-In-Data follows Finish per system: $10 for a system without Finish, $20 for a system with Finish (`/docs/shared/REPORT-TEXT.md`, "The one price-modifier exception"). Prices come from `catalog_services`; see `/docs/shared/CATALOG.md`.
 
 ## Report text
 
-What each service prints in the Completion Report, and the full Finish priority-hierarchy rules: `/docs/shared/REPORT-TEXT.md`.
+What each service prints, and how per-system services are grouped: `/docs/shared/REPORT-TEXT.md`.
 
 ## Thermostat
 
-Compact single-line control: a narrow (~60% width), vertically-scrollable picker, about 1.5 line-heights tall (peek-scroll, larger font), with **"+ Add new"** as a row inside the scroll itself. No checkbox, no chips, no separate Add button — selecting a row is the add. A quantity stepper sits beside the scroll (~40% width), matched in height, completing one horizontal line.
-
-A job always has exactly one thermostat model (× quantity) — single-select + quantity is correct; no multi-model display is needed.
-
-## Pending changes (QA 2026-11-15, not implemented)
-
-Recorded in `docs/status/QA-TRACKER.md` (WS-01, WS-02, WS-03). Scheduled for the Workspace pass after Guided Phase 4; until then this spec's current text remains the closed behavior.
-
-- WS-01: AC, Heat, Temporarily and Finish combine freely; Prestart is exclusive.
-- WS-02: AC and Heat reveal Finish, Temporarily, and the per-system override on multi-system visits.
-- WS-03: the implementation's quantity modal does not match the single-line control above. New direction (replaces it once implemented): quantity hidden until a tstat is selected, then shown directly below the list — quick picks 1–4 plus open entry for higher counts.
+- A short scrollable picker lists the catalog thermostats. Tapping a row toggles that model (no modal). Several models may be selected on one call.
+- Each selected model has its own quantity row below the picker: quick picks **1 · 2 · 3 · 4** and **+** for higher counts (no upper limit). Each model is its own report line.
+- Thermostats have no price ($0).
+- "+ Add new" (a model not in the catalog) remains open — see `MASTER-FUNCTION-INDEX.md`, "Add new thermostat".

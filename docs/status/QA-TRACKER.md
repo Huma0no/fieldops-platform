@@ -80,9 +80,9 @@ Recorded from manual testing of `wip/auth-reports-offline-2026-11`. Not implemen
 
 | ID | Area | Finding | Owning spec |
 |---|---|---|---|
-| WS-01 | Service | AC, Heat, Temporarily and Finish combine freely. Prestart is exclusive and cannot combine with anything. | `workspace/SERVICE-TSTAT-SPEC.md` |
-| WS-02 | Service | AC and Heat reveal hidden options: Finish, Temporarily, and the per-system override when the visit has multiple systems. | `workspace/SERVICE-TSTAT-SPEC.md`, `workspace/SERVICE-MULTISYSTEM-SPEC.md` |
-| WS-03 | Tstat | Implementation opens a quantity modal; the closed spec requires a single-line control with no modal. New direction: quantity hidden until a tstat is selected, then shown directly below the list with quick picks 1–4 plus open entry for higher counts. | `workspace/SERVICE-TSTAT-SPEC.md` |
+| WS-01 | Service | AC, Heat, Temporarily and Finish combine freely. Prestart is exclusive and cannot combine with anything. **Resolved in W1a (2026-11-17).** | `workspace/SERVICE-TSTAT-SPEC.md` |
+| WS-02 | Service | AC and Heat reveal hidden options: Finish, Temporarily, and the per-system override when the visit has multiple systems. **Resolved in W1a (2026-11-17).** | `workspace/SERVICE-TSTAT-SPEC.md`, `workspace/SERVICE-MULTISYSTEM-SPEC.md` |
+| WS-03 | Tstat | Implementation opens a quantity modal; the closed spec requires a single-line control with no modal. New direction: quantity hidden until a tstat is selected, then shown directly below the list with quick picks 1–4 plus open entry for higher counts. **Resolved in W1a (2026-11-17).** | `workspace/SERVICE-TSTAT-SPEC.md` |
 | WS-04 | Accessories | Label change only: "Ecoil Wire" is renamed "EEV Wire" (catalog, specs, report text, tests). It stays in the UT3000 accessory group (UT3000 · DAPC · EEV Wire · eBypass); update the Guided UT3000-group reference too. Unrelated to the Fix items in WS-05/WS-06. | `workspace/ACC-SPEC.md` |
 | WS-05 | Fix | Fixed Leaks: hidden sub-options eCoil · Cunit · Wall, revealed on tap. Exact casing "eCoil", consistent with the checklist "P-drain [eCoil]" (catalog and spec currently say "Leaks Ecoil"). | `workspace/FIX-SPEC.md` |
 | WS-06 | Fix | Extended Wire: tile label becomes "Ext. Wire". Hidden sub-options Furnace · Cunit, revealed on tap. One location is required: it cannot be charged without a location. The location-less `Extended Wire` catalog item is retired from selection. | `workspace/FIX-SPEC.md` |

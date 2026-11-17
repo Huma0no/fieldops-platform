@@ -360,12 +360,13 @@ Services performed during a visit.
 | is_finish | boolean | Finish state. It is true for Finish-only and when Finish modifies a base service. With AC, Heat, or AC & Heat, resolves this visit's service price to $20; see rules below. |
 | is_temporarily | boolean | Temporarily modifier applied to service_name — label only, no pricing effect. Its only consequence is setting the visit's final status to "temporarily" instead of "completed". |
 | price | real | Resolved service price for this visit after current service rules are applied; it is the price consumed by the Completion Report generator, not merely the catalog base price. |
+| system_number | integer, nullable | Set: this row is that system's service, charged on its own (one row per system). Null: a visit-level service — Drive Run, Cancel, rows written before per-system services, and Dispatch corrections — which keeps the system-count multiplier rule. Migration 028. |
 
 **Rules:**
 - `is_finish` and `is_temporarily` are separate modifiers. "Finish/AC" = service_name "AC" + is_finish true; Finish-only = service_name "Finish" + is_finish true + price 0.
 - Under the current service model, Finish + AC, Heat, or AC & Heat stores a resolved service price of $20. This replaces the normal AC/Heat service price; it is not an additional charge. The Weigh-In-Data Finish addon remains separate on the applicable visit item.
 - `generateReportText()` consumes this resolved, persisted service price and does not recreate Finish pricing independently.
-- Pricing rules (bundle, system-count multiplier, cancel) are applied by the server before storing price. The future per-system service model in `/docs/fieldops/workspace/SERVICE-MULTISYSTEM-SPEC.md` is outside this rule and remains deferred.
+- Pricing rules (bundle, system-count multiplier, cancel) are applied by the server before storing price. Per-system rows (`system_number` set) are each charged their own resolved price; the system-count multiplier applies only to a visit-level row. With per-system rows, Weight-In-Data is charged per system: base price for each system plus the Finish addon for each system with Finish. See `/docs/fieldops/workspace/SERVICE-TSTAT-SPEC.md`.
 - **Implementation alignment:** `src/routes/workspace.js` resolves and persists the $20 Finish service price, and `src/services/pricing.js` consumes that persisted service price while retaining the separate `catalog_items.finish_addon_price` rule.
 
 ---

@@ -11,7 +11,7 @@ The frame that holds every Workspace sub-section: the rail, the active-job banne
 ## Structure, top to bottom
 
 1. **Header** — back button + address. Workspace is reached from a job card's "Start Report" action, not from a persistent nav item — see `/docs/fieldops/NAVIGATION.md`.
-2. **Active Job banner** — compact: address, subdivision, builder, system count. Carries the running price total (top-right) and the job-level Cancel control.
+2. **Active Job banner** — compact: address, subdivision, builder, system count. Carries the running price total (top-right) and the job-level Cancel control. On multi-system calls the Service step adds the **system switcher** (segmented pill 1 · 2 · 3, active system raised, a dot on systems with a custom service); with a system selected the subtitle reads "System N · outdoor model". See `SERVICE-TSTAT-SPEC.md`. Weigh-In adopts the same switcher in its own pass (W3); adding a system from the switcher ("+") is W1b.
 3. **Step rail** — 5 steps, horizontally scrollable, jumpable directly or via inline Back/Next: **Service+Tstat · Acc · Fix · Weigh-In · Notes**. Current step raised/accent-colored; completed steps marked; pending steps muted. Styled distinct from the top text-tabs.
 4. **Scrollable section content** — the active step's content, see per-section docs.
 5. **Inline Back/Next** — Next becomes **Generate Report** only on the last step (Notes), never earlier.

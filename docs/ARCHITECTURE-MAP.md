@@ -71,4 +71,4 @@ For active FieldOps work, a durable Local Visit Draft is the technician's workin
 
 ## 10. Deferred Architecture Boundaries
 
-Major explicitly deferred boundaries are the per-system multi-system Service redesign, catalog deactivate/reactivate, a consumption-level restock model, and refrigerant auto-restock. They are not implied by the current architecture and require their own current specification before implementation.
+Major explicitly deferred boundaries are catalog deactivate/reactivate, a consumption-level restock model, and refrigerant auto-restock. They are not implied by the current architecture and require their own current specification before implementation.

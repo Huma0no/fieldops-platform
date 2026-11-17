@@ -87,13 +87,13 @@ A `CLOSED` section is a finished product area: its code, UX, and specifications 
 | AC service | SPEC CLOSED | IMPLEMENTED | Catalog-driven. |
 | Heat service | SPEC CLOSED | IMPLEMENTED | Catalog-driven. |
 | Prestart service | SPEC CLOSED | IMPLEMENTED | Catalog-driven. |
-| Finish modifier | SPEC CLOSED | IMPLEMENTED (automated verification) | Current single-service model: Finish + AC, Heat, or AC & Heat persists the resolved $20 service price; without AC/Heat, `Finish/` remains an independent report marker. The separate Weight-In-Data addon remains independent. |
-| Drive Run | SPEC CLOSED | IMPLEMENTED | Separate action. |
+| Finish modifier | SPEC CLOSED | IMPLEMENTED (automated verification) | Per system: Finish + AC, Heat, or AC & Heat persists the resolved $20 service price for that system; Finish alone is a valid $0 selection and prints the `Finish/` marker. Weight-In-Data follows Finish per system ($20 with Finish, $10 without). |
+| Drive Run | SPEC CLOSED | IMPLEMENTED | Call-wide and exclusive; one confirmation clears the other work sections (W1a, 2026-11-17). |
 | Cancel | SPEC CLOSED | MOVED TO JOB LEVEL | Not a service tile. |
-| Thermostat single-select | SPEC CLOSED | IMPLEMENTED | Catalog/SearchableSelect behavior. |
-| Thermostat quantity | SPEC CLOSED | IMPLEMENTED | Single model × quantity. |
+| Thermostat models | SPEC CLOSED | IMPLEMENTED | Several models per call; tapping a row toggles it (W1a, 2026-11-17). |
+| Thermostat quantity | SPEC CLOSED | IMPLEMENTED | One quantity row per model: 1–4 quick picks and + (W1a, 2026-11-17). |
 | Add new thermostat | SPEC CLOSED | OPEN | Known SearchableSelect `+ Add new` issue from implementation history. |
-| Multi-system service behavior | SPEC PARTIAL | DEFERRED | `SERVICE-MULTISYSTEM-SPEC.md` is a separate future per-system Service redesign; it is not implemented and does not block the current report generator. |
+| Multi-system service behavior | SPEC CLOSED | IMPLEMENTED (automated verification) | Per-system services with a default selection and per-system overrides through the banner system switcher; each system charged on its own (`SERVICE-TSTAT-SPEC.md`; W1a, 2026-11-17). `SERVICE-MULTISYSTEM-SPEC.md` is superseded. Dispatch corrections still write one visit-level service. |
 
 ## 5. Workspace — Accessories
 
@@ -296,7 +296,7 @@ The next pass should focus on the highest-value reconciliation items in this ord
 5. Load Sheet Summary — perform the implementation audit for the My Calls aggregate.
 6. Accessories/restock data model — define consumption quantity and technician-controlled restock state before coding; existing Other participation does not complete this work.
 7. Refrigerant auto-restock — create the canonical implementation spec after the business rule is confirmed.
-8. Multi-system Service redesign — schedule the deferred per-system model when intentionally prioritized.
+8. Multi-system Service redesign — done in Workspace pass W1a (2026-11-17).
 9. Workspace Shell documentation cleanup — reconcile stale Active Job banner wording in `WORKSPACE-SHELL.md`; this is documentation-only and does not reopen the implemented banner.
 
 No application behavior should be changed solely because an index entry says so; the index is an audit map, not authorization to redesign a closed UX.

@@ -1,5 +1,7 @@
 # Service Multi-System — Spec funcional
 
+> **Superseded (2026-11-17, Workspace pass W1a).** Per-system Service is built as specified in `/docs/fieldops/workspace/SERVICE-TSTAT-SPEC.md` (default selection plus per-system overrides through the banner system switcher, instead of the "All systems" MIXED control below; Drive Run with one confirmation instead of §4.4's double confirmation; Finish per system). Storage: `visit_services.system_number` (`/docs/shared/DATA_MODEL.md`). This document is kept as history only.
+
 **⚠ PENDING TRANSLATION TO ENGLISH — flagged 2026-07-30, content below still in Spanish.**
 
 Estado: confirmado como el enfoque vigente (2026-07-30) — planeado, no implementado.
