@@ -429,14 +429,37 @@ describe('POST /api/visits/:id/complete', () => {
     expect(forgedRetry.status).toBe(403);
   });
 
-  it('rolls back server pricing differences without accepting or finalizing the Service', async () => {
+  it('accepts a catalog-derived total that differs and records both values (PP-01)', async () => {
     const { visitId, token, tech } = await seedAssignedVisit();
     await addService(visitId, 'AC');
     const snapshot = {
-      version: 1, submissionId: 'server-total-mismatch', visitId, technicianId: tech.id,
+      version: 1, submissionId: 'server-total-discrepancy', visitId, technicianId: tech.id,
       createdAt: '2026-08-23T10:00:00.000Z', terminalIntent: 'completed', cancel: false,
       service: { serviceName: 'AC', ac: true }, items: [], weighInData: [], systems: [],
-      notes: 'Must roll back', checklistAnswers: [], evidenceRefs: [], totalPrice: 999,
+      notes: 'Device total differs', checklistAnswers: [], evidenceRefs: [], totalPrice: 999,
+    };
+
+    const response = await request(app)
+      .post(`/api/visits/${visitId}/complete`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ submissionId: snapshot.submissionId, snapshot: await reviewedSnapshot(visitId, snapshot) });
+    expect(response.status).toBe(200);
+    expect(response.body.priceDiscrepancies).toEqual([
+      expect.objectContaining({ field: 'totalPrice', submitted: 999 }),
+    ]);
+    const stored = (await pool.query('SELECT snapshot FROM completion_submissions WHERE visit_id = $1', [visitId])).rows[0].snapshot;
+    expect(stored.sourceSubmission.totalPrice).toBe(999);
+    expect(stored.totalPrice).not.toBe(999);
+  });
+
+  it('rolls back a structural difference without accepting or finalizing the Service, naming the field', async () => {
+    const { visitId, token, tech } = await seedAssignedVisit();
+    await addService(visitId, 'AC');
+    const snapshot = {
+      version: 1, submissionId: 'server-structure-mismatch', visitId, technicianId: tech.id,
+      createdAt: '2026-08-23T10:00:00.000Z', terminalIntent: 'completed', cancel: false,
+      service: { serviceName: 'AC', ac: true }, items: [], weighInData: [], systems: [],
+      notes: 'Must roll back', checklistAnswers: [], evidenceRefs: [], totalPrice: 150,
     };
     await pool.query(
       `INSERT INTO transfers (id, visit_id, from_tech_id, to_tech_id, status, created_at)
@@ -444,12 +467,14 @@ describe('POST /api/visits/:id/complete', () => {
       [visitId, tech.id, tech.id, new Date().toISOString()]
     );
 
+    const reviewed = { ...await reviewedSnapshot(visitId, snapshot), scheduledTime: 'changed on device' };
     const response = await request(app)
       .post(`/api/visits/${visitId}/complete`)
       .set('Authorization', `Bearer ${token}`)
-      .send({ submissionId: snapshot.submissionId, snapshot: await reviewedSnapshot(visitId, snapshot) });
+      .send({ submissionId: snapshot.submissionId, snapshot: reviewed });
     expect(response.status).toBe(409);
     expect(response.body.error).toMatch(/correct and resubmit/i);
+    expect(response.body.fields).toEqual(['scheduledTime']);
     expect((await pool.query('SELECT status FROM visits WHERE id = $1', [visitId])).rows[0].status).toBe('assigned');
     expect((await pool.query('SELECT count(*)::int AS count FROM completion_submissions WHERE visit_id = $1', [visitId])).rows[0].count).toBe(0);
     expect((await pool.query('SELECT status FROM transfers WHERE visit_id = $1', [visitId])).rows[0].status).toBe('pending');

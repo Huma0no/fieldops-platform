@@ -5,7 +5,7 @@
 
 import { AuthScreen, PasswordChangeScreen, authStyles } from './src/screens/auth.js'
 import { api }                   from './shared/api.js'
-import { setCatalog, getCatalog } from './src/lib/db.js'
+import { setCatalog, getCatalog, getActiveTechnicianId } from './src/lib/db.js'
 import { stopSync }              from './src/lib/sync.js'
 import { stopCompletionSubmissionRetry } from './src/lib/completion-submission.mjs'
 import { resolveBootScreen }   from './src/lib/session-boot.mjs'
@@ -130,24 +130,34 @@ function boot () {
 // The server's catalog version is a hash of the catalog data; a change
 // replaces the device copy. Offline, the cached copy stays in use.
 async function preloadCatalog () {
+  // The technician's own prices are not part of the catalog version; refresh
+  // them whenever the server is reachable so local pricing matches it.
+  const technicianId = getActiveTechnicianId()
+  if (technicianId) {
+    api.get('/technicians/me/price-overrides')
+      .then(rows => setCatalog(`price-overrides:${technicianId}`, rows))
+      .catch(() => {})
+  }
   try {
     const { version } = await api.get('/catalog/version')
-    const [storedVersion, cachedRelations] = await Promise.all([getCatalog('version'), getCatalog('item-relations')])
-    if (storedVersion === version && Array.isArray(cachedRelations)) return
+    const [storedVersion, cachedServices] = await Promise.all([getCatalog('version'), getCatalog('services')])
+    if (storedVersion === version && Array.isArray(cachedServices)) return
 
     // The query string keys a fresh copy past the service worker's catalog cache.
     const query = `?v=${encodeURIComponent(version)}`
-    const [items, equipment, linesetConfigs, itemRelations] = await Promise.all([
+    const [items, equipment, linesetConfigs, itemRelations, services] = await Promise.all([
       api.get(`/catalog/items${query}`),
       api.get(`/catalog/equipment${query}`),
       api.get(`/catalog/lineset-configs${query}`),
       api.get(`/catalog/item-relations${query}`),
+      api.get(`/catalog/services${query}`),
     ])
     await Promise.all([
       setCatalog('items', items),
       setCatalog('equipment', equipment),
       setCatalog('lineset-configs', linesetConfigs),
       setCatalog('item-relations', itemRelations),
+      setCatalog('services', services),
     ])
     await setCatalog('version', version)
   } catch (_) {

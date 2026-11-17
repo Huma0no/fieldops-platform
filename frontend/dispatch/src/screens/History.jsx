@@ -59,7 +59,7 @@ export default function History ({ onCorrectReport }) {
         api.get(`/visits/${visit.id}/download`),
         visit.addressId ? api.get(`/dispatch/history/address/${visit.addressId}`) : Promise.resolve([]),
       ])
-      const merged = { ...detail, weighInData: report?.weighInData ?? [] }
+      const merged = { ...detail, weighInData: report?.weighInData ?? [], priceDiscrepancies: report?.priceDiscrepancies ?? [] }
       setSelected(merged)
       setEditLog(log ?? [])
       setPropertyHistory((propHist ?? []).filter(v => v.id !== visit.id))
@@ -218,6 +218,25 @@ function ChecklistSection ({ answers }) {
   )
 }
 
+const DISCREPANCY_FIELDS = {
+  totalPrice: 'Total',
+  'service.price': 'Service price',
+  'services.price': 'Service price',
+  'items.price': 'Price',
+  'items.techSupplied': 'Tech supplied',
+}
+
+function discrepancyLabel (d) {
+  const field = DISCREPANCY_FIELDS[d.field] ?? d.field
+  return d.row ? `${d.row} · ${field}` : field
+}
+
+function discrepancyValue (value) {
+  if (typeof value === 'number') return `$${value.toFixed(2)}`
+  if (typeof value === 'boolean') return value ? 'yes' : 'no'
+  return value ?? '—'
+}
+
 function VisitDetail ({ visit, editLog, propertyHistory, onBack, onCorrectReport }) {
   const FIELDS = [
     { label: 'Address',        value: visit.address?.street },
@@ -241,6 +260,9 @@ function VisitDetail ({ visit, editLog, propertyHistory, onBack, onCorrectReport
         <button style={styles.openBtn} onClick={() => onCorrectReport?.(visit.id)}>Correct Report</button>
         {visit.has_price_anomaly && (
           <span style={styles.anomalyBanner}>⚠ Price outside catalog range</span>
+        )}
+        {(visit.priceDiscrepancies ?? []).length > 0 && (
+          <span style={styles.anomalyBanner}>⚠ Device prices differ from catalog</span>
         )}
       </div>
 
@@ -270,6 +292,18 @@ function VisitDetail ({ visit, editLog, propertyHistory, onBack, onCorrectReport
           </>}
 
           <ChecklistSection answers={visit.checklistAnswers} />
+
+          {/* PP-01: values the technician's device sent that differ from the catalog.
+              The Report uses the catalog (server) value. */}
+          {(visit.priceDiscrepancies ?? []).length > 0 && <>
+            <div style={styles.sectionTitle}>Price check</div>
+            {visit.priceDiscrepancies.map((d, i) => (
+              <div key={i} style={{ display: 'flex', justifyContent: 'space-between', gap: '12px', fontSize: '12px', color: 'var(--text-secondary)', padding: '5px 0', borderBottom: '0.5px solid var(--border-subtle)' }}>
+                <span>{discrepancyLabel(d)}</span>
+                <span style={{ whiteSpace: 'nowrap' }}>device {discrepancyValue(d.submitted)} · catalog {discrepancyValue(d.accepted)}</span>
+              </div>
+            ))}
+          </>}
 
           {/* Services (B3) */}
           {(visit.services ?? []).length > 0 && <>

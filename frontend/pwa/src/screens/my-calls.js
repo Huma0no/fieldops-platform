@@ -16,8 +16,8 @@ import { HomeTabs, attachHomeSwipe, homeTabStyles } from '../components/home-tab
 import { JobCard, jobCardStyles }       from '../components/job-card.js'
 import { startSync, forceSync }         from '../lib/sync.js'
 import { NotificationBell, notificationStyles } from '../components/notifications.js'
-import { cacheMyCallsVisits, getActiveTechnicianId, getAllCompletionSubmissions, getAllLocalVisitDrafts, getCachedMyCallsVisits } from '../lib/db.js'
-import { confirmedLocalCancelVisitIds } from '../lib/workspace-visit.mjs'
+import { cacheMyCallsVisits, getActiveTechnicianId, getAllCompletionSubmissions, getAllLocalVisitDrafts, getCachedMyCallsVisits, getCatalog, getLocalVisitDraft, saveLocalVisitDraft } from '../lib/db.js'
+import { confirmedLocalCancelVisitIds, createLocalVisitDraft } from '../lib/workspace-visit.mjs'
 import { localMyCallsVisits, mergeMyCallsVisits, shouldShowMyCallsLoadError } from '../lib/my-calls-visit.mjs'
 
 // ── Styles (injected once) ─────────────────────────────────
@@ -118,6 +118,7 @@ async function loadVisits () {
     // A cache write cannot delay rendering or turn a working server response
     // into an error state. It is only used by the next offline boot.
     void cacheMyCallsVisits(remoteVisits, activeTechnicianId).catch(err => console.error('Failed to cache My Calls:', err))
+    void downloadVisitDrafts(remoteVisits, activeTechnicianId)
   } catch (err) {
     if (sequence !== loadSequence) return
     loadError = err
@@ -132,6 +133,24 @@ async function loadVisits () {
 
 let localDrafts = []
 let localVisits = []
+
+// Offline-first download (docs/OFFLINE-FIRST-CONTRACT.md): while the server is
+// reachable, every active call without a Local Visit Draft gets one, so it can
+// be started and worked later without a connection.
+async function downloadVisitDrafts (remoteVisits, technicianId) {
+  const catalogVersion = await getCatalog('version').catch(() => null)
+  for (const remote of remoteVisits ?? []) {
+    if (!['assigned', 'in_progress'].includes(remote.status)) continue
+    try {
+      if (await getLocalVisitDraft(remote.id, technicianId)) continue
+      const detail = await api.get(`/visits/${remote.id}`)
+      const draft = createLocalVisitDraft({ ...detail, technicianId: detail.technicianId ?? technicianId }, { catalogVersion })
+      await saveLocalVisitDraft(draft, technicianId)
+    } catch (err) {
+      console.error('Offline download failed for visit', remote.id, err)
+    }
+  }
+}
 
 async function refreshLocalDraftState (activeTechnicianId = getActiveTechnicianId()) {
   try {

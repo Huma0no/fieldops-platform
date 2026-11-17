@@ -18,6 +18,7 @@ import { guidedContextFromVisit, saveGuidedContext } from '../lib/guided-context
 import { Badge, Tag } from './badge.js'
 import { cancelConfirmationStyles, showCancelConfirmation } from '../lib/cancel-confirmation.mjs'
 import { getJobCardActionState, openPendingCancelWorkspace, startJobAndOpenWorkspace } from '../lib/job-card-actions.mjs'
+import { startVisitLocalFirst } from '../lib/pending-starts.mjs'
 
 export function JobCard ({ visit, isCancelPending = false, onStart, onOpenWorkspace, onNavigate, onItemsLoaded }) {
   let expanded  = false
@@ -170,7 +171,7 @@ export function JobCard ({ visit, isCancelPending = false, onStart, onOpenWorksp
           try {
             await startJobAndOpenWorkspace({
               visitId: visit.id,
-              startVisit: () => api.post(`/visits/${visit.id}/start`),
+              startVisit: () => startVisitLocalFirst(visit.id),
               setWorkspaceVisitId: id => sessionStorage.setItem('workspace:visitId', id),
               onStarted: onStart,
               openWorkspace: id => onOpenWorkspace?.(id),

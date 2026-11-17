@@ -365,6 +365,7 @@ function reportJSONFromSnapshot(snapshot, submission) {
     items: snapshot.items,
     photos: snapshot.photos,
     weighInData: snapshot.weighInData,
+    priceDiscrepancies: snapshot.priceDiscrepancies ?? [],
     workType: snapshot.workType,
     generatedAt: snapshot.generatedAt ?? snapshot.createdAt,
     acceptedAt: submission.accepted_at,
@@ -383,7 +384,18 @@ function sameReportNumber(submitted, accepted) {
     && Math.abs(Number(submitted) - Number(accepted)) <= 0.005;
 }
 
-function reportContentMatchesSubmission(submitted, accepted) {
+// Compares a submitted snapshot with the Report the server derived from it.
+// PP-01: catalog-derived values (service and item prices, tech_supplied, the
+// total) that differ are accepted and returned as discrepancies, keeping both
+// values. Any other difference is a mismatch: it rejects the Report and names
+// the field.
+function compareSubmission(submitted, accepted) {
+  const mismatches = [];
+  const discrepancies = [];
+  const same = (value, expected) => (typeof expected === 'number'
+    ? sameReportNumber(value, expected)
+    : value === expected);
+
   const exactFields = [
     ['orderNumber', accepted.orderNumber],
     ['scheduledDate', accepted.scheduledDate],
@@ -393,62 +405,82 @@ function reportContentMatchesSubmission(submitted, accepted) {
     ['hasMultipleSystems', accepted.hasMultipleSystems],
     ['terminalIntent', accepted.terminalIntent],
   ];
-  if (exactFields.some(([key, expected]) => submitted[key] !== expected)) return false;
-  if (!sameReportNumber(submitted.totalPrice, accepted.totalPrice)) return false;
+  for (const [key, expected] of exactFields) if (submitted[key] !== expected) mismatches.push(key);
+  if (!sameReportNumber(submitted.totalPrice, accepted.totalPrice)) {
+    discrepancies.push({ field: 'totalPrice', submitted: submitted.totalPrice ?? null, accepted: accepted.totalPrice ?? null });
+  }
 
   const addressFields = ['street', 'city', 'state', 'zip', 'subdivision', 'builder'];
-  if (!submitted.address || addressFields.some(field =>
-    !Object.prototype.hasOwnProperty.call(submitted.address, field)
-      || submitted.address[field] !== accepted.address?.[field]
-  )) return false;
+  if (!submitted.address) mismatches.push('address');
+  else {
+    for (const field of addressFields) {
+      if (!Object.prototype.hasOwnProperty.call(submitted.address, field)
+          || submitted.address[field] !== accepted.address?.[field]) mismatches.push(`address.${field}`);
+    }
+  }
 
-  const compareRows = (suppliedRows, acceptedRows, fields, aliases = {}) => {
-    if (!Array.isArray(suppliedRows) || suppliedRows.length !== acceptedRows.length) return false;
-    const sortKey = row => fields.map(field => String(getSubmittedValue(row, ...(aliases[field] ?? [field])) ?? '')).join('\u0000');
-    const supplied = [...suppliedRows].sort((a, b) => sortKey(a).localeCompare(sortKey(b)));
-    const expected = [...acceptedRows].sort((a, b) => sortKey(a).localeCompare(sortKey(b)));
-    return supplied.every((row, index) => fields.every(field => {
-      const value = getSubmittedValue(row, ...(aliases[field] ?? [field]));
-      const expectedValue = expected[index][field];
-      return typeof expectedValue === 'number'
-        ? sameReportNumber(value, expectedValue)
-        : value === expectedValue;
-    }));
+  // keyFields must match (they identify each row); valueFields may differ as
+  // discrepancies. `label` names the row in a discrepancy.
+  const compareRows = (name, suppliedRows, acceptedRows, keyFields, { valueFields = [], aliases = {}, label } = {}) => {
+    if (!Array.isArray(suppliedRows) || suppliedRows.length !== acceptedRows.length) {
+      mismatches.push(name);
+      return;
+    }
+    const read = (row, field) => getSubmittedValue(row, ...(aliases[field] ?? [field]));
+    const sortKey = (row, reader) => keyFields.map(field => String(reader(row, field) ?? '')).join('\u0000');
+    const supplied = [...suppliedRows].sort((a, b) => sortKey(a, read).localeCompare(sortKey(b, read)));
+    const expected = [...acceptedRows].sort((a, b) => sortKey(a, (row, f) => row[f]).localeCompare(sortKey(b, (row, f) => row[f])));
+    supplied.forEach((row, index) => {
+      const acceptedRow = expected[index];
+      for (const field of keyFields) {
+        if (!same(read(row, field), acceptedRow[field])) mismatches.push(`${name}.${field}`);
+      }
+      for (const field of valueFields) {
+        const value = read(row, field);
+        if (!same(value, acceptedRow[field])) {
+          discrepancies.push({ field: `${name}.${field}`, row: label?.(acceptedRow) ?? null, submitted: value ?? null, accepted: acceptedRow[field] ?? null });
+        }
+      }
+    });
   };
 
   if (Array.isArray(submitted.services)) {
     // Per-system snapshot: one row per system, or a lone call-wide Drive Run.
-    if (!compareRows(submitted.services, accepted.services ?? [], [
-      'systemNumber', 'serviceName', 'isFinish', 'isTemporarily', 'price',
-    ])) return false;
+    compareRows('services', submitted.services, accepted.services ?? [],
+      ['systemNumber', 'serviceName', 'isFinish', 'isTemporarily'],
+      { valueFields: ['price'], label: row => (row.systemNumber == null ? row.serviceName : `System ${row.systemNumber} ${row.serviceName}`) });
   } else {
     const acceptedService = accepted.services?.[0];
     const submittedService = submitted.service;
-    if (!acceptedService || !submittedService
-        || submittedService.serviceName !== acceptedService.serviceName
-        || getSubmittedValue(submittedService, 'isFinish', 'is_finish', 'finish') !== acceptedService.isFinish
-        || getSubmittedValue(submittedService, 'isTemporarily', 'is_temporarily', 'temporarily') !== acceptedService.isTemporarily
-        || !sameReportNumber(submittedService.price, acceptedService.price)) return false;
-    if ((accepted.services ?? []).length !== 1) return false;
+    if (!acceptedService || !submittedService || (accepted.services ?? []).length !== 1) mismatches.push('service');
+    else {
+      if (submittedService.serviceName !== acceptedService.serviceName) mismatches.push('service.serviceName');
+      if (getSubmittedValue(submittedService, 'isFinish', 'is_finish', 'finish') !== acceptedService.isFinish) mismatches.push('service.isFinish');
+      if (getSubmittedValue(submittedService, 'isTemporarily', 'is_temporarily', 'temporarily') !== acceptedService.isTemporarily) mismatches.push('service.isTemporarily');
+      if (!sameReportNumber(submittedService.price, acceptedService.price)) {
+        discrepancies.push({ field: 'service.price', row: acceptedService.serviceName, submitted: submittedService.price ?? null, accepted: acceptedService.price ?? null });
+      }
+    }
   }
 
-  if (!compareRows(submitted.items, accepted.items ?? [], [
-    'itemName', 'category', 'description', 'quantity', 'price', 'techSupplied',
-  ], {
-    itemName: ['itemName', 'item_name'],
-    description: ['description'],
-    quantity: ['quantity'],
-    techSupplied: ['techSupplied', 'tech_supplied'],
-  })) return false;
+  compareRows('items', submitted.items, accepted.items ?? [],
+    ['itemName', 'category', 'description', 'quantity'],
+    {
+      valueFields: ['price', 'techSupplied'],
+      aliases: { itemName: ['itemName', 'item_name'], techSupplied: ['techSupplied', 'tech_supplied'] },
+      label: row => row.itemName,
+    });
 
-  if (!compareRows(submitted.systems, accepted.systems ?? [], [
-    'systemNumber', 'indoorModel', 'outdoorModel', 'coilModel', 'refrigerant',
-  ], {
-    systemNumber: ['systemNumber', 'system_number'],
-    indoorModel: ['indoorModel', 'indoor_model'],
-    outdoorModel: ['outdoorModel', 'outdoor_model'],
-    coilModel: ['coilModel', 'coil_model'],
-  })) return false;
+  compareRows('systems', submitted.systems, accepted.systems ?? [],
+    ['systemNumber', 'indoorModel', 'outdoorModel', 'coilModel', 'refrigerant'],
+    {
+      aliases: {
+        systemNumber: ['systemNumber', 'system_number'],
+        indoorModel: ['indoorModel', 'indoor_model'],
+        outdoorModel: ['outdoorModel', 'outdoor_model'],
+        coilModel: ['coilModel', 'coil_model'],
+      },
+    });
 
   const weighInFields = [
     'systemNumber', 'linesetLength', 'factoryChargeOz', 'factoryLineConfig',
@@ -456,24 +488,22 @@ function reportContentMatchesSubmission(submitted, accepted) {
     'suctionLineTemp', 'condenserSatTemp', 'subcoolingValue',
     'oemSubcoolingGoal', 'subcoolingDeviation',
   ];
-  const weighInAliases = Object.fromEntries(weighInFields.map(field => [
-    field,
-    field.replace(/[A-Z]/g, letter => `_${letter.toLowerCase()}`),
-  ]));
-  if (!compareRows(submitted.weighInData, accepted.weighInData ?? [], weighInFields,
-    Object.fromEntries(Object.entries(weighInAliases).map(([field, snake]) => [field, [field, snake]])))) return false;
+  compareRows('weighInData', submitted.weighInData, accepted.weighInData ?? [], weighInFields, {
+    aliases: Object.fromEntries(weighInFields.map(field => [
+      field, [field, field.replace(/[A-Z]/g, letter => `_${letter.toLowerCase()}`)],
+    ])),
+  });
 
   if (typeof submitted.notes !== 'string'
-      || submitted.notes.trim() !== String(accepted.notes ?? '').trim()) return false;
+      || submitted.notes.trim() !== String(accepted.notes ?? '').trim()) mismatches.push('notes');
   const reportFindings = answers => Array.isArray(answers)
     ? answers
       .filter(answer => answer.answer === 'no' && typeof answer.reportText === 'string' && answer.reportText.trim())
       .map(answer => answer.reportText.trim())
     : null;
   if (!Array.isArray(submitted.checklistAnswers)
-      || !isDeepStrictEqual(reportFindings(submitted.checklistAnswers), reportFindings(accepted.checklistAnswers))) return false;
+      || !isDeepStrictEqual(reportFindings(submitted.checklistAnswers), reportFindings(accepted.checklistAnswers))) mismatches.push('checklistAnswers');
 
-  const evidenceFields = ['id', 'slug', 'tag', 'label', 'category', 'systemNumber', 'storedAt'];
   const acceptedEvidence = (accepted.photoEvidence ?? []).map(photo => ({
     id: photo.id,
     slug: photo.slug,
@@ -483,7 +513,14 @@ function reportContentMatchesSubmission(submitted, accepted) {
     systemNumber: photo.system_number,
     storedAt: photo.stored_at,
   }));
-  return compareRows(submitted.evidenceRefs, acceptedEvidence, evidenceFields);
+  compareRows('evidenceRefs', submitted.evidenceRefs, acceptedEvidence,
+    ['id', 'slug', 'tag', 'label', 'category', 'systemNumber', 'storedAt']);
+
+  return { mismatches: [...new Set(mismatches)], discrepancies };
+}
+
+function reportContentMatchesSubmission(submitted, accepted) {
+  return compareSubmission(submitted, accepted).mismatches.length === 0;
 }
 
 async function findAcceptedSubmission(db, visitId) {
@@ -538,6 +575,7 @@ async function generateReportText(db, visitId) {
 module.exports = {
   createCanonicalReportSnapshot,
   findAcceptedSubmission,
+  compareSubmission,
   reportContentMatchesSubmission,
   generateReportText,
   generateReportJSON,

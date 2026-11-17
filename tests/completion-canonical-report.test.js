@@ -98,7 +98,7 @@ it('accepts a normal Report built from the PWA snapshot constructor and current 
   expect((await pool.query('SELECT count(*)::int AS count FROM completion_submissions WHERE visit_id = $1', [visitId])).rows[0].count).toBe(1);
 });
 
-it('rejects a stale service total from an unsettled service selection, then accepts after synchronization', async () => {
+it('accepts a stale device total and records the discrepancy (PP-01)', async () => {
   const { visitId, token, tech } = await seedAssignedVisit();
   await pool.query(
     `INSERT INTO catalog_services (service_name, default_price, is_bundle, multiplies_by_system_count)
@@ -124,34 +124,15 @@ it('rejects a stale service total from an unsettled service selection, then acce
     now: '2026-11-13T10:00:00.000Z',
     technicianId: tech.id,
   });
-  const rejected = await request(app)
-    .post(`/api/visits/${visitId}/complete`)
-    .set('Authorization', `Bearer ${token}`)
-    .send({ submissionId: staleSnapshot.submissionId, snapshot: staleSnapshot });
-  expect(rejected.status).toBe(409);
-  expect((await pool.query('SELECT status FROM visits WHERE id = $1', [visitId])).rows[0].status).toBe('assigned');
-  expect((await pool.query('SELECT count(*)::int AS count FROM completion_submissions WHERE visit_id = $1', [visitId])).rows[0].count).toBe(0);
-
-  const synchronized = await request(app)
-    .patch(`/api/visits/${visitId}/services`)
-    .set('Authorization', `Bearer ${token}`)
-    .send({ services: [{ systemNumber: 1, serviceName: 'AC' }] });
-  expect(synchronized.status).toBe(200);
-  const synchronizedDetail = await request(app)
-    .get(`/api/visits/${visitId}`)
-    .set('Authorization', `Bearer ${token}`);
-  const correctedDraft = createLocalVisitDraft(synchronizedDetail.body, { now: '2026-11-13T10:01:00.000Z' });
-  const correctedSnapshot = createCompletionSnapshot(correctedDraft, {
-    id: 'pwa-synchronized-service-total',
-    now: '2026-11-13T10:01:00.000Z',
-    technicianId: tech.id,
-  });
   const accepted = await request(app)
     .post(`/api/visits/${visitId}/complete`)
     .set('Authorization', `Bearer ${token}`)
-    .send({ submissionId: correctedSnapshot.submissionId, snapshot: correctedSnapshot });
+    .send({ submissionId: staleSnapshot.submissionId, snapshot: staleSnapshot });
   expect(accepted.status).toBe(200);
   expect(accepted.body).toMatchObject({ acknowledged: true, status: 'completed', totalPrice: 150 });
+  expect(accepted.body.priceDiscrepancies).toEqual([
+    { field: 'totalPrice', submitted: 0, accepted: 150 },
+  ]);
 });
 
 it('rolls back an incomplete PWA snapshot and accepts the explicitly corrected snapshot with a fresh identity', async () => {

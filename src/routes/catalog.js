@@ -15,7 +15,8 @@ router.get('/version', async (req, res, next) => {
         (SELECT string_agg(row_to_json(c)::text, ',' ORDER BY row_to_json(c)::text) FROM catalog_items c),
         (SELECT string_agg(row_to_json(c)::text, ',' ORDER BY row_to_json(c)::text) FROM catalog_equipment c),
         (SELECT string_agg(row_to_json(c)::text, ',' ORDER BY row_to_json(c)::text) FROM catalog_lineset_configs c),
-        (SELECT string_agg(row_to_json(c)::text, ',' ORDER BY row_to_json(c)::text) FROM catalog_item_relations c)
+        (SELECT string_agg(row_to_json(c)::text, ',' ORDER BY row_to_json(c)::text) FROM catalog_item_relations c),
+        (SELECT string_agg(row_to_json(c)::text, ',' ORDER BY row_to_json(c)::text) FROM catalog_services c)
       )) AS version`);
     res.json({ version: result.rows[0].version });
   } catch (err) { next(err) }

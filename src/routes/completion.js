@@ -7,7 +7,6 @@ const { createNotification } = require('../helpers/notify');
 const reportService = require('../services/report');
 const {
   calculateVisitPrice,
-  resolveCompanionCascade,
   resolveServicePrice,
   resolveWeightInDataPrice,
 } = require('../services/pricing');
@@ -90,9 +89,8 @@ async function applySnapshotWork(client, visit, snapshot) {
       [visit.id, item.item_name, catalog.category, description, quantity, price, catalog.tech_supplied]
     );
   }
-  for (const itemName of itemNames) {
-    await resolveCompanionCascade(client, visit.id, itemName, 'add');
-  }
+  // The snapshot is the Workspace's own item list: companions the technician
+  // turned off stay off (no server-side companion cascade on submission).
 
   // Weigh-In remains address/system structured data. Snapshot delivery may
   // update an existing measurement but never changes visit system topology.
@@ -346,12 +344,18 @@ router.post('/:id/complete', requireRole('technician'), async (req, res, next) =
         acceptedAt,
         sourceSubmission,
       });
-      if (snapshot && !reportService.reportContentMatchesSubmission(snapshot, canonicalSnapshot)) {
+      const comparison = snapshot
+        ? reportService.compareSubmission(snapshot, canonicalSnapshot)
+        : { mismatches: [], discrepancies: [] };
+      if (comparison.mismatches.length) {
         throw Object.assign(
-          new Error('Server validation changed Report content. Correct and resubmit the Report.'),
-          { status: 409, code: 'REPORT_CONTENT_MISMATCH' }
+          new Error(`Report content differs from the server (${comparison.mismatches.join(', ')}). Correct and resubmit the Report.`),
+          { status: 409, code: 'REPORT_CONTENT_MISMATCH', fields: comparison.mismatches }
         );
       }
+      // PP-01: catalog-derived differences are accepted; the canonical Report
+      // keeps the server values, the source submission keeps the device values.
+      if (comparison.discrepancies.length) canonicalSnapshot.priceDiscrepancies = comparison.discrepancies;
       await client.query(
         'UPDATE completion_submissions SET snapshot = $1 WHERE submission_id = $2',
         [JSON.stringify(canonicalSnapshot), acceptedSubmissionId]
@@ -390,7 +394,7 @@ router.post('/:id/complete', requireRole('technician'), async (req, res, next) =
     res.json({ ...completedReport, acknowledged: true, submissionId: normalizedSubmissionId });
   } catch (err) {
     if (err?.code === 'REPORT_CONTENT_MISMATCH') {
-      return res.status(409).json({ error: err.message, code: err.code });
+      return res.status(409).json({ error: err.message, code: err.code, fields: err.fields ?? [] });
     }
     // Two delivery attempts can cross after both preflight reads. The unique
     // submission identity is still authoritative: once the competing

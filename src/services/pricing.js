@@ -26,89 +26,61 @@ async function syncWeightInDataPrice(db, visitId, isFinish) {
   }
 }
 
+// The visit total, computed by the pricing module the PWA also uses
+// (frontend/shared/pricing.mjs). resolveServicePrice and
+// resolveWeightInDataPrice above repeat its two one-line rules for synchronous
+// callers; tests/pricing-shared.test.js keeps them identical.
+let pricingModule;
+function sharedPricing() {
+  pricingModule ??= import('../../frontend/shared/pricing.mjs');
+  return pricingModule;
+}
+
 async function calculateVisitPrice(db, visitId) {
-  const servicesRes = await db.query(
-    `SELECT vs.service_name, vs.is_finish, vs.price, vs.system_number,
-            cs.multiplies_by_system_count
-     FROM visit_services vs
-     JOIN catalog_services cs ON cs.service_name = vs.service_name
-     WHERE vs.visit_id = $1`,
-    [visitId]
-  );
-  const itemsRes = await db.query(
-    `SELECT vi.item_name, vi.price AS stored_price,
-            ci.default_price, ci.multiplies_by_system_count,
-            ci.custom_price, ci.finish_addon_price
-     FROM visit_items vi
-     JOIN catalog_items ci ON ci.item_name = vi.item_name
-     WHERE vi.visit_id = $1`,
-    [visitId]
-  );
-  const systemsRes = await db.query(
-    `SELECT COUNT(*)::int AS cnt FROM visit_systems WHERE visit_id = $1`,
-    [visitId]
-  );
-  const visitRes = await db.query(
-    `SELECT technician_id FROM visits WHERE id = $1`,
-    [visitId]
-  );
-
-  if (servicesRes.rows.some(r => r.service_name === 'Cancel')) return 0;
-
-  const systemCount = systemsRes.rows[0].cnt || 1;
+  const [servicesRes, itemsRes, systemsRes, visitRes, catalogServicesRes] = await Promise.all([
+    db.query(
+      'SELECT service_name, is_finish, is_temporarily, price, system_number FROM visit_services WHERE visit_id = $1',
+      [visitId]
+    ),
+    db.query(
+      'SELECT item_name, category, description, quantity, price FROM visit_items WHERE visit_id = $1',
+      [visitId]
+    ),
+    db.query('SELECT COUNT(*)::int AS cnt FROM visit_systems WHERE visit_id = $1', [visitId]),
+    db.query('SELECT technician_id FROM visits WHERE id = $1', [visitId]),
+    db.query('SELECT * FROM catalog_services'),
+  ]);
+  const itemNames = [...new Set(itemsRes.rows.map(row => row.item_name))];
+  const catalogItemsRes = await db.query('SELECT * FROM catalog_items WHERE item_name = ANY($1)', [itemNames]);
   const techId = visitRes.rows[0]?.technician_id;
-
-  const overridesMap = new Map();
+  const overrides = {};
   if (techId) {
     const ovRes = await db.query(
-      `SELECT item_name, override_price FROM technician_price_overrides WHERE technician_id = $1`,
+      'SELECT item_name, override_price FROM technician_price_overrides WHERE technician_id = $1',
       [techId]
     );
-    ovRes.rows.forEach(r => overridesMap.set(r.item_name, r.override_price));
+    ovRes.rows.forEach(row => { overrides[row.item_name] = row.override_price; });
   }
-
-  const hasFinish = servicesRes.rows.some(r => r.is_finish);
-  // Per-system rows are each charged on their own; a visit-level row keeps the
-  // system-count multiplier. With per-system rows, Weight-In-Data follows Finish
-  // per system ($10 base, +$10 addon on each system with Finish).
-  const systemRows = servicesRes.rows.filter(r => r.system_number != null);
-  const finishSystems = systemRows.filter(r => r.is_finish).length;
-
-  let serviceTotal = 0;
-  for (const s of servicesRes.rows) {
-    let price = s.price ?? 0;
-    if (s.system_number == null && !s.is_finish && s.multiplies_by_system_count) price *= systemCount;
-    serviceTotal += price;
-  }
-
-  let finishAddonTotal = 0;
-  if (hasFinish) {
-    for (const item of itemsRes.rows) {
-      if (item.item_name !== WEIGHT_IN_DATA && item.finish_addon_price != null) {
-        finishAddonTotal += item.finish_addon_price;
-      }
-    }
-  }
-
-  let itemTotal = 0;
-  for (const item of itemsRes.rows) {
-    if (item.item_name === WEIGHT_IN_DATA && systemRows.length) {
-      itemTotal += (item.default_price ?? 0) * systemCount + (item.finish_addon_price ?? 0) * finishSystems;
-      continue;
-    }
-    let price;
-    if (item.item_name === WEIGHT_IN_DATA || item.custom_price) {
-      price = item.stored_price ?? 0;
-    } else if (overridesMap.has(item.item_name)) {
-      price = overridesMap.get(item.item_name);
-    } else {
-      price = item.default_price ?? 0;
-    }
-    if (item.multiplies_by_system_count) price = (price ?? 0) * systemCount;
-    itemTotal += price ?? 0;
-  }
-
-  return serviceTotal + itemTotal + finishAddonTotal;
+  const { priceVisit } = await sharedPricing();
+  return priceVisit({
+    services: servicesRes.rows.map(row => ({
+      systemNumber: row.system_number,
+      serviceName: row.service_name,
+      isFinish: row.is_finish,
+      isTemporarily: row.is_temporarily,
+      price: row.price,
+    })),
+    items: itemsRes.rows.map(row => ({
+      itemName: row.item_name,
+      category: row.category,
+      description: row.description,
+      quantity: row.quantity,
+      price: row.price,
+    })),
+    systemCount: systemsRes.rows[0].cnt || 1,
+    catalog: { services: catalogServicesRes.rows, items: catalogItemsRes.rows },
+    overrides,
+  }).total;
 }
 
 async function resolveCompanionCascade(db, visitId, itemName, mode) {

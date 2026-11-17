@@ -14,6 +14,7 @@
  */
 
 import { api }        from '../../../shared/api.js'
+import { priceVisit } from '../../../shared/pricing.mjs'
 import { getActiveTechnicianId, getCatalog, getLocalVisitDraft, saveLocalVisitDraft } from '../lib/db.js'
 import { createPendingCompletionSubmission, deliverCompletionSubmission } from '../lib/completion-submission.mjs'
 import { isCancelJustificationMissing } from '../lib/cancel-justification.mjs'
@@ -21,6 +22,7 @@ import { cancelConfirmationStyles, showCancelConfirmation } from '../lib/cancel-
 import { CalcPanel, calcPanelStyles } from '../components/calc-panel.js'
 import { GUIDED_RETURN_KEY, guidedContextFromVisit, saveGuidedContext } from '../lib/guided-context.mjs'
 import {
+  addLocalVisitDraftItem,
   createLocalVisitDraft,
   consumeConfirmedCancelForVisit,
   discardLegacyUnconfirmedCancelOrigin,
@@ -33,10 +35,12 @@ import {
   migrateLegacyConfirmedCancelMode,
   missingServiceSystems,
   normalizeServiceState,
+  removeLocalVisitDraftItem,
   resetSystemService,
   serviceRowsFromState,
   serviceStateFromRows,
   setDriveRun,
+  setLocalVisitDraftItemQuantity,
   systemNumbersOf,
   systemServiceName,
   tapService,
@@ -94,7 +98,10 @@ let gps = { lat: null, lon: null, source: null, denied: false }
 let _gpsPhotosMissing = 0
 let _exifrLoaded = false
 let notesDraftTimer = null
-let serviceSyncPromise = Promise.resolve()
+// Cached catalog data for local pricing (docs/OFFLINE-FIRST-CONTRACT.md).
+let catalogServices = []
+let itemRelations = []
+let priceOverrides = {}
 // Service step: the system the switcher selected, or null for the default
 // selection that applies to every system without its own override.
 let selectedSystem = null
@@ -106,7 +113,6 @@ export default async function mount (appEl) {
   selectedSystem = null
   completedSections.clear()
   clearTimeout(notesDraftTimer)
-  serviceSyncPromise = Promise.resolve()
 
   const visitId = sessionStorage.getItem('workspace:visitId')
   const activeTechnicianId = getActiveTechnicianId()
@@ -118,17 +124,23 @@ export default async function mount (appEl) {
   appEl.appendChild(loading)
 
   try {
-    const [localDraft, cachedItems, cachedLinesetConfigs, cachedEquipment, catalogVersion] = await Promise.all([
+    const [localDraft, cachedItems, cachedLinesetConfigs, cachedEquipment, catalogVersion, cachedServices, cachedRelations, cachedOverrides] = await Promise.all([
       getLocalVisitDraft(visitId, activeTechnicianId),
       getCatalog('items').then(d => d ?? []),
       getCatalog('lineset-configs').then(d => d ?? []),
       getCatalog('equipment').then(d => d ?? []),
       getCatalog('version'),
+      getCatalog('services').then(d => d ?? []),
+      getCatalog('item-relations').then(d => d ?? []),
+      getCatalog(`price-overrides:${activeTechnicianId}`).then(d => d ?? []),
     ])
 
     catalogItems = cachedItems
     linesetConfigs = cachedLinesetConfigs
     equipmentCatalog = cachedEquipment
+    catalogServices = cachedServices
+    itemRelations = cachedRelations
+    priceOverrides = Object.fromEntries(cachedOverrides.map(row => [row.itemName, row.overridePrice]))
 
     if (localDraft) {
       visit = localDraft
@@ -172,10 +184,13 @@ export default async function mount (appEl) {
     if (!catalogItems.length) catalogItems = await api.get('/catalog/items').catch(() => [])
     if (!linesetConfigs.length) linesetConfigs = await api.get('/catalog/lineset-configs').catch(() => [])
     if (!equipmentCatalog.length) equipmentCatalog = await api.get('/catalog/equipment').catch(() => [])
+    if (!catalogServices.length) catalogServices = await api.get('/catalog/services').catch(() => [])
+    if (!itemRelations.length) itemRelations = await api.get('/catalog/item-relations').catch(() => [])
 
     visit._service = visit._service
       ? normalizeServiceState(visit._service)
       : serviceStateFromRows(visit.services ?? [], systemNumbersOf(visit))
+    repriceVisit()
     if (!visit._checklist) visit._checklist = {}
     if (!visit._checklistPhotoCounts) visit._checklistPhotoCounts = {}
 
@@ -697,25 +712,44 @@ function serviceSelectionLabel (selection) {
 }
 
 function afterServiceChange () {
-  syncService()
+  repriceVisit()
   refreshSection('service')
 }
 
-function syncService () {
-  const pending = serviceSyncPromise.catch(() => {}).then(async () => {
-    const service = visit?._service
-    if (!service || service.cancel) return
-    try {
-      const result = await api.patch(`/visits/${visit.id}/services`, {
-        services: serviceRowsFromState(service, systemNumbersOf(visit)),
-      })
-      if (Array.isArray(result?.services)) service.rows = result.services
-      if (result?.totalPrice !== undefined) updatePrice(result.totalPrice)
-      await persistCurrentDraft({ touch: false })
-    } catch (err) { console.error('Service sync failed:', err) }
+function afterItemChange (sectionId) {
+  repriceVisit()
+  refreshSection(sectionId)
+}
+
+// Local-first pricing (docs/OFFLINE-FIRST-CONTRACT.md): every edit reprices the
+// draft on the device with the shared pricing module and the cached catalog.
+// The server recomputes from its own catalog when the Report is submitted and
+// records any difference (PP-01).
+function repriceVisit () {
+  if (!visit) return
+  const service = visit._service
+  const numbers = systemNumbersOf(visit)
+  const customNames = new Set(catalogItems.filter(entry => entry.custom_price).map(entry => entry.item_name))
+  const result = priceVisit({
+    services: service.cancel ? [] : serviceRowsFromState(service, numbers),
+    items: (visit._items ?? []).map(item => ({
+      itemName: item.item_name,
+      category: item.category,
+      description: item.description ?? null,
+      quantity: item.quantity ?? 1,
+      price: customNames.has(item.item_name) ? item.price : undefined,
+    })),
+    systemCount: numbers.length,
+    catalog: { services: catalogServices, items: catalogItems },
+    overrides: priceOverrides,
   })
-  serviceSyncPromise = pending
-  return pending
+  service.rows = result.services
+  visit._items = (visit._items ?? []).map((item, index) => ({
+    ...item,
+    price: result.items[index].price,
+    tech_supplied: result.items[index].techSupplied,
+  }))
+  updatePrice(service.cancel || isCancelMode() ? 0 : result.total)
 }
 
 // Drive Run replaces every service on the call and clears the other work
@@ -755,15 +789,7 @@ function confirmDriveRun () {
   })
 }
 
-async function clearWorkForDriveRun () {
-  // Companion rows carry a client-made id; deleting their parent removes them.
-  for (const item of [...(visit._items ?? [])]) {
-    if (String(item.id).includes(':')) continue
-    try {
-      const result = await api.delete(`/visits/${visit.id}/items/${item.id}`)
-      if (result?.totalPrice !== undefined) updatePrice(result.totalPrice)
-    } catch (err) { console.error('Clearing item for Drive Run failed:', err) }
-  }
+function clearWorkForDriveRun () {
   visit._items = []
   visit._weighInData = []
   visit._weighinDone = false
@@ -849,30 +875,16 @@ function buildThermostatSection () {
   return wrap
 }
 
-async function toggleThermostat (item) {
+function toggleThermostat (item) {
   const existing = (visit._items ?? []).find(i => i.category === 'thermostat' && i.item_name === item.item_name)
-  try {
-    if (existing) {
-      const result = await api.delete(`/visits/${visit.id}/items/${existing.id}`)
-      visit._items = (visit._items ?? []).filter(i => i.id !== existing.id)
-      if (result?.totalPrice !== undefined) updatePrice(result.totalPrice)
-    } else {
-      const result = await api.post(`/visits/${visit.id}/items`, { itemName: item.item_name, category: 'thermostat', quantity: 1 })
-      visit._items = [...(visit._items ?? []), { id: result.id, item_name: item.item_name, category: 'thermostat', quantity: 1, price: item.default_price, tech_supplied: item.tech_supplied ?? false }]
-      if (result?.totalPrice !== undefined) updatePrice(result.totalPrice)
-    }
-  } catch (err) { console.error('Thermostat change failed:', err) }
-  refreshSection('thermostat')
+  if (existing) removeLocalVisitDraftItem(visit, existing.id, itemRelations)
+  else addLocalVisitDraftItem(visit, item, { quantity: 1, catalogItems, itemRelations })
+  afterItemChange('thermostat')
 }
 
-async function setThermostatQuantity (item, quantity) {
-  if (item.quantity === quantity) return
-  try {
-    const result = await api.post(`/visits/${visit.id}/items`, { itemName: item.item_name, category: 'thermostat', quantity })
-    item.quantity = quantity
-    if (result?.totalPrice !== undefined) updatePrice(result.totalPrice)
-  } catch (err) { console.error('Thermostat quantity change failed:', err) }
-  refreshSection('thermostat')
+function setThermostatQuantity (item, quantity) {
+  if (!setLocalVisitDraftItemQuantity(visit, item.id, quantity)) return
+  afterItemChange('thermostat')
 }
 
 function buildItemsSection (category) {
@@ -898,16 +910,13 @@ function buildItemsSection (category) {
       if (isActive) {
         const existing = activeItems.find(a => a.item_name === item.item_name)
         if (existing) {
-          const result = await api.delete(`/visits/${visit.id}/items/${existing.id}`)
-          if (result.totalPrice !== undefined) updatePrice(result.totalPrice)
-          const removedNames = new Set(result.removedItems ?? [existing.item_name])
-          visit._items = (visit._items ?? []).filter(i => i.id !== existing.id && !removedNames.has(i.item_name))
-          refreshSection(sectionId)
+          removeLocalVisitDraftItem(visit, existing.id, itemRelations)
+          afterItemChange(sectionId)
         }
         return
       }
       if (item.custom_price) { showCustomPriceModal(item, ({ price, description }) => addItem(item, category, 1, price, description)); return }
-      await addItem(item, category, 1)
+      addItem(item, category, 1)
     })
     grid.appendChild(btn)
   })
@@ -927,56 +936,9 @@ function buildItemsSection (category) {
   return wrap
 }
 
-async function addItem (item, category, quantity, customPrice, description) {
-  try {
-    const body = { itemName: item.item_name, category, quantity }
-    if (customPrice !== undefined) body.price = customPrice
-    if (description !== undefined) body.description = description
-    const result = await api.post(`/visits/${visit.id}/items`, body)
-    const newItem = result.item
-      ? {
-          id: result.item.id,
-          item_name: result.item.itemName,
-          description: result.item.description,
-          category: result.item.category,
-          quantity: result.item.quantity,
-          price: result.item.price,
-          tech_supplied: result.item.techSupplied,
-        }
-      : {
-          id: result.id,
-          item_name: item.item_name,
-          description: description ?? null,
-          category,
-          quantity,
-          price: customPrice ?? item.default_price,
-          tech_supplied: item.tech_supplied ?? false,
-        }
-    const removedNames = new Set(result.removedItems ?? [])
-    const retainedItems = (visit._items ?? []).filter(i =>
-      !removedNames.has(i.item_name) && i.item_name !== newItem.item_name
-    )
-    const existingNames = new Set(retainedItems.map(i => i.item_name))
-    existingNames.add(newItem.item_name)
-    const companionItems = []
-    for (const addedName of result.addedItems ?? []) {
-      if (!addedName || existingNames.has(addedName) || removedNames.has(addedName)) continue
-      const companionCatalog = catalogItems.find(c => c.item_name === addedName)
-      companionItems.push({
-        id: `${newItem.id}:${addedName}`,
-        item_name: addedName,
-        description: null,
-        category: companionCatalog?.category ?? category,
-        quantity: 1,
-        price: companionCatalog?.default_price ?? 0,
-        tech_supplied: companionCatalog?.tech_supplied ?? false,
-      })
-      existingNames.add(addedName)
-    }
-    visit._items = [...retainedItems, newItem, ...companionItems]
-    if (result.totalPrice !== undefined) updatePrice(result.totalPrice)
-    refreshSection(category === 'accessory' ? 'accessories' : 'fixes')
-  } catch (err) { console.error('Add item failed:', err) }
+function addItem (item, category, quantity, customPrice, description) {
+  addLocalVisitDraftItem(visit, item, { quantity, price: customPrice, description, catalogItems, itemRelations })
+  afterItemChange(category === 'accessory' ? 'accessories' : 'fixes')
 }
 
 function showCustomPriceModal (item, onConfirm) {
@@ -1068,11 +1030,21 @@ function buildWeighInPanel (systemNum, showLabel) {
       ? (document.getElementById(`wi-${systemNum}-charge`)?.value || 'factory')
       : 'factory'
 
+    // Computed on the device from the cached catalog (local-first); the
+    // measurements travel in the Report snapshot.
+    if (cfg && body.linesetLength != null) {
+      body.approxAdjustOz = (body.linesetLength - cfg.reference_length_ft) * cfg.adjust_rate_oz_per_ft
+    }
+    const equipment = equipmentCatalog.find(e => e.model === outdoorModel)
+    if (equipment) {
+      body.factoryChargeOz = (body.factoryChargeUsed === 'revised' ? equipment.revised_charge_oz : equipment.factory_charge_oz) ?? null
+    }
+    body.oemSubcoolingGoal = body.oemSubcoolingGoal ?? 10
+    if (body.subcoolingValue != null) body.subcoolingDeviation = body.subcoolingValue - body.oemSubcoolingGoal
+
     const currentWeighIn = (visit._weighInData ?? []).find(
       data => (data.systemNumber ?? data.system_number) === systemNum
     )
-    // Preserve the technician's current measurements before attempting the
-    // transitional legacy API write. Pricing is not derived in the PWA.
     visit._weighInData = [
       ...(visit._weighInData ?? []).filter(
         data => (data.systemNumber ?? data.system_number) !== systemNum
@@ -1080,20 +1052,6 @@ function buildWeighInPanel (systemNum, showLabel) {
       { ...(currentWeighIn ?? {}), ...body, systemNumber: systemNum },
     ]
     await persistCurrentDraft()
-    try {
-      const saved = await api.put(`/visits/${visit.id}/weigh-in/${systemNum}`, body)
-      const latestWeighIn = (visit._weighInData ?? []).find(
-        data => (data.systemNumber ?? data.system_number) === systemNum
-      )
-      visit._weighInData = [
-        ...(visit._weighInData ?? []).filter(
-          data => (data.systemNumber ?? data.system_number) !== systemNum
-        ),
-        { ...(latestWeighIn ?? {}), ...saved, systemNumber: systemNum },
-      ]
-      persistCurrentDraft({ touch: false })
-    }
-    catch (err) { console.error('Weigh-in sync failed:', err) }
   }
 
   // Numeric fields
@@ -1378,8 +1336,6 @@ function buildNotesSection () {
   textarea.addEventListener('blur', async () => {
     updateLocalVisitDraftNotes(visit, textarea.value)
     await flushNotesDraftSave()
-    try { await api.patch(`/visits/${visit.id}/notes`, { notes: textarea.value }) }
-    catch (err) { console.error('Notes sync failed:', err) }
   })
   const doneBtn = document.createElement('button')
   doneBtn.className='ws-done-btn'; doneBtn.textContent='Done'
@@ -1504,12 +1460,8 @@ async function openGenerateModal () {
     showCancelJustificationBlock()
     return
   }
-  syncService()
-  let synced
-  do {
-    synced = serviceSyncPromise
-    await synced
-  } while (synced !== serviceSyncPromise)
+  repriceVisit()
+  await persistCurrentDraft({ touch: false })
   if (!isCancelMode()) {
     const numbers = systemNumbersOf(visit)
     const missing = missingServiceSystems(visit._service, numbers)
@@ -1622,15 +1574,9 @@ function buildItemChip (item) {
     price.textContent = `$${Number(item.price).toFixed(2)}`; right.appendChild(price)
   }
   const del = document.createElement('button'); del.className='ws-chip-del'; del.textContent='×'
-  del.addEventListener('click', async () => {
-    try {
-      const result = await api.delete(`/visits/${visit.id}/items/${item.id}`)
-      if (result.totalPrice !== undefined) updatePrice(result.totalPrice)
-      const removedNames = new Set(result.removedItems ?? [item.item_name])
-      visit._items = (visit._items ?? []).filter(i => i.id !== item.id && !removedNames.has(i.item_name))
-      const sectionId = item.category==='thermostat' ? 'thermostat' : item.category==='accessory' ? 'accessories' : 'fixes'
-      refreshSection(sectionId)
-    } catch (err) { console.error('Delete item failed:', err) }
+  del.addEventListener('click', () => {
+    removeLocalVisitDraftItem(visit, item.id, itemRelations)
+    afterItemChange(item.category==='thermostat' ? 'thermostat' : item.category==='accessory' ? 'accessories' : 'fixes')
   })
   right.appendChild(del); chip.appendChild(name); chip.appendChild(right)
   return chip

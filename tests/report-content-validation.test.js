@@ -1,4 +1,4 @@
-const { reportContentMatchesSubmission } = require('../src/services/report');
+const { compareSubmission, reportContentMatchesSubmission } = require('../src/services/report');
 
 const accepted = {
   orderNumber: 'ORD-1', scheduledDate: '2026-11-12', scheduledTime: '09:00',
@@ -43,18 +43,17 @@ describe('reportContentMatchesSubmission', () => {
     ['work type', s => { delete s.workType }, s => { s.workType = 'startup' }],
     ['system count flag', s => { delete s.hasMultipleSystems }, s => { s.hasMultipleSystems = false }],
     ['terminal intent', s => { delete s.terminalIntent }, s => { s.terminalIntent = 'temporarily' }],
-    ['total price', s => { delete s.totalPrice }, s => { s.totalPrice = 46 }],
     ...Object.keys(accepted.address).flatMap(field => [
       [`address ${field} omission`, s => { delete s.address[field] }, null],
       [`address ${field} mismatch`, null, s => { s.address[field] = `changed ${field}` }],
     ]),
-    ...[['serviceName', 'Heat'], ['isFinish', true], ['isTemporarily', true], ['price', 31]].flatMap(([field, value]) => [
+    ...[['serviceName', 'Heat'], ['isFinish', true], ['isTemporarily', true]].flatMap(([field, value]) => [
       [`service ${field} omission`, s => { delete s.service[field] }, null],
       [`service ${field} mismatch`, null, s => { s.service[field] = value }],
     ]),
-    ...['itemName', 'category', 'description', 'quantity', 'price', 'techSupplied'].flatMap(field => [
+    ...['itemName', 'category', 'description', 'quantity'].flatMap(field => [
       [`item ${field} omission`, s => { delete s.items[0][field] }, null],
-      [`item ${field} mismatch`, null, s => { s.items[0][field] = field === 'quantity' || field === 'price' ? 99 : 'changed' }],
+      [`item ${field} mismatch`, null, s => { s.items[0][field] = field === 'quantity' ? 99 : 'changed' }],
     ]),
     ...['systemNumber', 'indoorModel', 'outdoorModel', 'coilModel', 'refrigerant'].flatMap(field => [
       [`system ${field} omission`, s => { delete s.systems[0][field] }, null],
@@ -85,5 +84,26 @@ describe('reportContentMatchesSubmission', () => {
       change(candidate);
       expect(reportContentMatchesSubmission(candidate, accepted)).toBe(false);
     }
+  });
+
+  it('names the differing field', () => {
+    const candidate = submission();
+    candidate.items[0].quantity = 3;
+    candidate.notes = 'different note';
+    expect(compareSubmission(candidate, accepted).mismatches).toEqual(['items.quantity', 'notes']);
+  });
+
+  // PP-01: catalog-derived values that differ are accepted, keeping both values.
+  it.each([
+    ['total price', s => { s.totalPrice = 46 }, { field: 'totalPrice', submitted: 46, accepted: 45 }],
+    ['service price', s => { s.service.price = 31 }, { field: 'service.price', row: 'AC', submitted: 31, accepted: 30 }],
+    ['item price', s => { s.items[0].price = 99 }, { field: 'items.price', row: 'Filter', submitted: 99, accepted: 15 }],
+    ['item techSupplied', s => { s.items[0].techSupplied = true }, { field: 'items.techSupplied', row: 'Filter', submitted: true, accepted: false }],
+  ])('accepts a different %s as a discrepancy', (_label, change, expected) => {
+    const candidate = submission();
+    change(candidate);
+    const result = compareSubmission(candidate, accepted);
+    expect(result.mismatches).toEqual([]);
+    expect(result.discrepancies).toEqual([expected]);
   });
 });
