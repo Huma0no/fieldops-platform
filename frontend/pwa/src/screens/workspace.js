@@ -97,7 +97,6 @@ let completedSections = new Set()
 const GPS_STORAGE_KEY = 'fo_gps_state'
 let gps = { lat: null, lon: null, source: null, denied: false }
 let _gpsPhotosMissing = 0
-let _exifrLoaded = false
 let notesDraftTimer = null
 // Cached catalog data for local pricing (docs/OFFLINE-FIRST-CONTRACT.md).
 let catalogServices = []
@@ -1354,20 +1353,10 @@ async function compressImage (file, maxPx=1600, quality=0.8) {
   })
 }
 
-async function loadExifr () {
-  if (_exifrLoaded) return window.exifr
-  return new Promise((resolve, reject) => {
-    const s = document.createElement('script')
-    s.src = 'https://unpkg.com/exifr/dist/full.umd.cjs'
-    s.onload = () => { _exifrLoaded = true; resolve(window.exifr) }
-    s.onerror = () => reject(new Error('exifr load failed'))
-    document.head.appendChild(s)
-  })
-}
-
 async function getGpsFromPhoto (file) {
   try {
-    const exifr = await loadExifr()
+    // Bundled with the app (precached), so it also works offline.
+    const exifr = await import('../vendor/exifr-lite.mjs')
     const result = await exifr.gps(file)
     if (result?.latitude && result?.longitude) {
       return { lat: result.latitude.toFixed(6), lon: result.longitude.toFixed(6) }
