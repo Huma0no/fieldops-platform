@@ -72,6 +72,7 @@ Leyenda: ⬜ no iniciado · 🟡 en curso / bloqueado · 🟢 completo
 | P-01 | Varias secciones | Labels de botones muestran "undefined" | bug | Alta | Abierto | QA walkthrough | — |
 | P-02 | Varias secciones | Comportamiento show/hide errático | bug | Media | Abierto | QA walkthrough | — |
 | P-03 | Varias secciones | Botones "Siguiente" redundantes | UX | Media | Abierto | QA walkthrough | — |
+| P-04 | Photos | No UI to view or discard photos the server rejected: they stay on the phone and are retried forever. Logged by Kristo (2026-11-17), no code yet. | UX | Media | Abierto | Photos phase | — |
 
 ---
 
