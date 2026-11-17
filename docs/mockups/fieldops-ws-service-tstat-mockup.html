@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>FieldOps · Service + T-stat mockup</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;600;700;800&family=Azeret+Mono:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{--bg:#f3f2ef;--tile:#faf9f7;--hi:#ffffff;--lo:#d3d0ca;--ink:#2b2824;--soft:#6b665f;--acc:#a85a18;--accd:#8a4a13;--blue:#1d4ed8;--red:#b42318;
+    --raise:6px 6px 12px var(--lo),-6px -6px 12px var(--hi);--raise-s:3px 3px 6px var(--lo),-3px -3px 6px var(--hi);
+    --inset:inset 3px 3px 6px var(--lo),inset -3px -3px 6px var(--hi)}
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;height:100%;background:var(--bg);color:var(--ink);font:15px/1.35 Archivo,system-ui,sans-serif;overscroll-behavior:none}
+  .app{display:flex;flex-direction:column;height:100dvh;max-width:480px;margin:0 auto;padding-top:env(safe-area-inset-top)}
+  .mock{display:flex;align-items:center;gap:8px;padding:6px 12px;background:#2b2824;color:#eceae5;font:600 11px 'Azeret Mono',monospace}
+  .mock span{flex:1;opacity:.7}
+  .mock .seg{display:flex;border-radius:8px;overflow:hidden;border:1px solid #57514a}
+  .mock button{background:none;border:0;color:#cfc8bd;font:700 11px 'Azeret Mono',monospace;padding:6px 9px}
+  .mock button.on{background:var(--acc);color:#fff}
+  .banner{display:flex;align-items:center;gap:10px;padding:10px 14px 6px}
+  .banner .grow{flex:1} .banner b{display:block;font:800 16px Archivo} .banner span{font:600 11px 'Azeret Mono';color:var(--soft)}
+  .total{font:700 13px 'Azeret Mono';color:var(--accd)}
+  .rail{display:flex;gap:6px;padding:4px 14px 10px}
+  .rail span{flex:1;text-align:center;padding:8px 0;border-radius:10px;font:700 11px 'Azeret Mono';color:var(--soft);box-shadow:var(--inset)}
+  .rail span.on{box-shadow:var(--raise-s);color:var(--accd)}
+  .body{flex:1;overflow-y:auto;padding:4px 14px 30px}
+  .panel{background:var(--bg);border-radius:18px;box-shadow:var(--raise);padding:14px;margin-bottom:14px}
+  .ph{display:flex;align-items:center;margin-bottom:10px}
+  .ph b{flex:1;font:800 15px Archivo}
+  .ph small{font:600 11px 'Azeret Mono';color:var(--soft)}
+  .tiles{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+  .tile{height:58px;border:0;border-radius:14px;background:var(--bg);box-shadow:var(--raise-s);font:800 15px 'Azeret Mono';color:var(--soft);cursor:pointer;transition:box-shadow .15s,color .15s}
+  .tile.on{box-shadow:var(--inset);color:var(--accd)}
+  .tile.ac.on{color:var(--blue);box-shadow:var(--inset),0 0 0 2px rgba(29,78,216,.18)}
+  .tile.heat.on{color:var(--red);box-shadow:var(--inset),0 0 0 2px rgba(180,35,24,.18)}
+  .reveal{display:grid;grid-template-rows:0fr;transition:grid-template-rows .3s}
+  .reveal.open{grid-template-rows:1fr}
+  .reveal>div{overflow:hidden}
+  .tray{margin-top:10px;padding:8px;border-radius:14px;box-shadow:var(--inset);display:flex;gap:8px}
+  .chip{flex:1;height:40px;border:0;border-radius:11px;background:var(--bg);box-shadow:var(--raise-s);font:700 12px 'Azeret Mono';color:var(--soft);cursor:pointer}
+  .chip.on{box-shadow:var(--inset);color:var(--accd)}
+  .hint{font:600 11px 'Azeret Mono';color:var(--soft);margin:8px 2px 0}
+  .ps{margin-top:12px;border-top:1px dashed #d8d4cd;padding-top:10px}
+  .psbtn{border:0;background:none;padding:6px 2px;font:700 12px 'Azeret Mono';color:var(--accd);cursor:pointer}
+  .sys{display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid #e7e4de}
+  .sys:last-child{border-bottom:0}
+  .sys .n{width:64px;font:700 11px 'Azeret Mono'}
+  .sys .n small{display:block;color:var(--soft);font-weight:600}
+  .sys .opts{flex:1;display:flex;gap:5px;flex-wrap:wrap}
+  .mini{height:30px;padding:0 9px;border:0;border-radius:9px;background:var(--bg);box-shadow:var(--raise-s);font:700 11px 'Azeret Mono';color:var(--soft);cursor:pointer}
+  .mini.on{box-shadow:var(--inset);color:var(--accd)}
+  .mini.ac.on{color:var(--blue)} .mini.heat.on{color:var(--red)}
+  .tag{font:700 9px 'Azeret Mono';color:var(--accd);padding:2px 6px;border-radius:6px;box-shadow:var(--inset);margin-left:4px}
+  .drive{width:100%;height:46px;margin-top:12px;border:0;border-radius:14px;background:var(--bg);box-shadow:var(--raise-s);font:700 14px Archivo;color:var(--soft)}
+  .drive.on{box-shadow:var(--inset);color:var(--accd)}
+  /* tstat */
+  .picker{height:132px;overflow-y:auto;scroll-snap-type:y mandatory;border-radius:14px;box-shadow:var(--inset);padding:6px}
+  .opt{scroll-snap-align:start;display:flex;align-items:center;height:40px;padding:0 12px;border-radius:10px;font:600 15px Archivo;color:var(--ink);cursor:pointer}
+  .opt.on{background:var(--bg);box-shadow:var(--raise-s);color:var(--accd);font-weight:800}
+  .opt.add{color:var(--accd);font:700 13px 'Azeret Mono'}
+  .qty{display:flex;align-items:center;gap:8px;margin-top:10px}
+  .qty .lbl{font:700 11px 'Azeret Mono';color:var(--soft);width:44px}
+  .qb{width:44px;height:44px;border:0;border-radius:12px;background:var(--bg);box-shadow:var(--raise-s);font:800 16px 'Azeret Mono';color:var(--soft)}
+  .qb.on{box-shadow:var(--inset);color:var(--accd)}
+  .more{display:flex;align-items:center;gap:6px;margin-left:auto}
+  .more button{width:36px;height:36px;border:0;border-radius:10px;background:var(--bg);box-shadow:var(--raise-s);font:800 16px Archivo;color:var(--accd)}
+  .more span{min-width:26px;text-align:center;font:800 16px 'Azeret Mono';color:var(--accd)}
+  /* receipt preview */
+  .rp{font:12px/1.5 'Azeret Mono';background:#fffefb;border-radius:12px;padding:10px 12px;box-shadow:var(--raise-s)}
+  .rp .li{display:flex}.rp .li .t{flex:1}.rp .tree{color:#b9b3aa;margin-right:6px}
+  .rp .empty{color:var(--soft)}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="mock"><span>MOCKUP · SYSTEMS ON CALL</span><div class="seg" id="ns"><button data-n="1">1</button><button data-n="2">2</button><button data-n="3" class="on">3</button></div></div>
+  <div class="banner"><div class="grow"><b>4821 Cedar Hollow Ln</b><span id="bsub">Bridgeland · 3 systems</span></div><span class="total" id="tot">$0</span></div>
+  <div class="rail"><span class="on">Srv+T</span><span>Acc</span><span>Fix</span><span>Wght</span><span>Notes</span></div>
+  <div class="body">
+    <div class="panel">
+      <div class="ph"><b>Service</b><small id="appl"></small></div>
+      <div class="tiles">
+        <button class="tile ac" data-s="AC">AC</button>
+        <button class="tile heat" data-s="Heat">HEAT</button>
+        <button class="tile" data-s="Prestart">PRESTART</button>
+      </div>
+      <div class="reveal" id="rv"><div>
+        <div class="tray"><button class="chip" data-o="Finish">FINISH</button><button class="chip" data-o="Temporarily">TEMPORARILY</button></div>
+      </div></div>
+      <div class="hint" id="hint"></div>
+      <div class="ps" id="psWrap">
+        <button class="psbtn" id="psBtn">Per system ▾</button>
+        <div class="reveal" id="psRv"><div id="psList"></div></div>
+      </div>
+      <button class="drive" id="drive">Drive Run</button>
+    </div>
+
+    <div class="panel">
+      <div class="ph"><b>T-stat</b><small id="tsum">none</small></div>
+      <div class="picker" id="pick"></div>
+      <div id="qList"></div>
+    </div>
+
+    <div class="panel">
+      <div class="ph"><b>Receipt preview</b><small>what the report will say</small></div>
+      <div class="rp" id="rp"></div>
+    </div>
+  </div>
+</div>
+<script>
+const $=id=>document.getElementById(id);
+const SYS=[['Goodman','3T'],['Daikin','2T'],['Lennox','4T']];
+const PRICE={AC:65,Heat:65,Prestart:55,Finish:30,Temporarily:20,Drive:25,tstat:15}; // sample prices
+const TSTATS=['Daikin One Touch','Ecobee 3 Lite','Honeywell T6 Pro','Honeywell T5','Nest Learning','Lennox S40','Trane XL850'];
+let nSys=3;
+// state: default selection + per-system overrides
+let def={main:new Set(),opts:new Set()}, over={}, drive=false, tst={};
+
+/* ---------- rules ---------- */
+// AC, Heat combine freely. Prestart is exclusive. Finish/Temporarily only appear once AC or Heat is on.
+function toggleMain(st,s){
+  if(s==='Prestart'){ if(st.main.has('Prestart')) st.main.clear(); else { st.main=new Set(['Prestart']); st.opts.clear(); } }
+  else { st.main.delete('Prestart'); st.main.has(s)?st.main.delete(s):st.main.add(s); }
+  if(!st.main.has('AC') && !st.main.has('Heat')) st.opts.clear();
+}
+function toggleOpt(st,o){ st.opts.has(o)?st.opts.delete(o):st.opts.add(o); }
+const effective=i=> over[i] || def;
+const label=st=>{ if(!st.main.size) return null;
+  const m=[...st.main].join(' + '); const o=[...st.opts]; return o.length? `${m} · ${o.join(' · ')}` : m; };
+const cost=st=>[...st.main,...st.opts].reduce((a,k)=>a+(PRICE[k]||0),0);
+
+/* ---------- render ---------- */
+function render(){
+  document.querySelectorAll('.tile').forEach(t=>t.classList.toggle('on',def.main.has(t.dataset.s)));
+  const showOpts = def.main.has('AC')||def.main.has('Heat');
+  $('rv').classList.toggle('open',showOpts);
+  document.querySelectorAll('.chip').forEach(c=>c.classList.toggle('on',def.opts.has(c.dataset.o)));
+  $('hint').textContent = drive ? 'Drive Run is exclusive — it replaces every service on the call.' : def.main.has('Prestart') ? 'Prestart is exclusive — it can\'t combine with other services.' : '';
+  const nCustom=Object.keys(over).filter(k=>+k<nSys).length;
+  $('appl').textContent = nSys>1 ? (nCustom? `${nSys-nCustom} use default · ${nCustom} custom` : `applies to all ${nSys} systems`) : '';
+  $('psWrap').style.display = nSys>1 ? 'block':'none';
+  $('drive').classList.toggle('on',drive);
+  // per-system list
+  $('psList').innerHTML = SYS.slice(0,nSys).map((s,i)=>{ const st=effective(i), custom=!!over[i];
+    const btn=(k,cls,kind)=>`<button class="mini ${cls}${(kind==='m'?st.main:st.opts).has(k)?' on':''}" data-i="${i}" data-k="${k}" data-kind="${kind}">${k==='Temporarily'?'Temp':k}</button>`;
+    const optsVisible = st.main.has('AC')||st.main.has('Heat');
+    return `<div class="sys"><div class="n">System ${i+1}<small>${s[0]} ${s[1]}</small></div><div class="opts">
+      ${btn('AC','ac','m')}${btn('Heat','heat','m')}${btn('Prestart','','m')}
+      ${optsVisible?btn('Finish','','o')+btn('Temporarily','','o'):''}
+      ${custom?`<span class="tag">custom</span><button class="mini" data-reset="${i}">↺</button>`:''}</div></div>`; }).join('');
+  $('psList').querySelectorAll('[data-k]').forEach(b=>b.onclick=()=>{
+    drive=false; const i=+b.dataset.i; if(!over[i]) over[i]={main:new Set(def.main),opts:new Set(def.opts)};
+    b.dataset.kind==='m'?toggleMain(over[i],b.dataset.k):toggleOpt(over[i],b.dataset.k); render(); });
+  $('psList').querySelectorAll('[data-reset]').forEach(b=>b.onclick=()=>{ delete over[+b.dataset.reset]; render(); });
+  // tstat
+  $('pick').innerHTML = TSTATS.map(t=>`<div class="opt${tst[t]?' on':''}" data-t="${t}">${t}</div>`).join('')+`<div class="opt add">+ Add new</div>`;
+  $('pick').querySelectorAll('[data-t]').forEach(o=>o.onclick=()=>{ const t=o.dataset.t; if(tst[t]) delete tst[t]; else tst[t]=1; render(); });
+  const names=Object.keys(tst);
+  $('qList').innerHTML = names.map(t=>`<div class="qty"><span class="lbl" style="width:auto;flex:1;font-size:12px;color:var(--ink)">${t}</span>
+      ${[1,2,3,4].map(q=>`<button class="qb${tst[t]===q?' on':''}" data-tq="${t}" data-q="${q}" style="width:36px;height:36px">${q}</button>`).join('')}
+      <button class="qb" data-tp="${t}" style="width:36px;height:36px">+</button>${tst[t]>4?`<span style="font:800 14px Azeret Mono;color:var(--accd)">${tst[t]}</span>`:''}</div>`).join('');
+  $('qList').querySelectorAll('[data-tq]').forEach(b=>b.onclick=()=>{ tst[b.dataset.tq]=+b.dataset.q; render(); });
+  $('qList').querySelectorAll('[data-tp]').forEach(b=>b.onclick=()=>{ tst[b.dataset.tp]=Math.max(4,tst[b.dataset.tp])+1; render(); });
+  $('tsum').textContent = names.length ? names.map(t=>`${t.split(' ')[0]} × ${tst[t]}`).join(' · ') : 'none';
+  // receipt preview + total
+  let lines=[], total=0;
+  const missing=[];
+  for(let i=0;i<nSys;i++){ const st=effective(i), l=label(st); if(l){ lines.push([`${l}${nSys>1?' · System '+(i+1):''}`, cost(st)]); total+=cost(st);} else if(!drive) missing.push(i+1); }
+  if(drive){ lines.push(['Drive Run',PRICE.Drive]); total+=PRICE.Drive; }
+  Object.entries(tst).forEach(([t,q])=>{ lines.push([`${t} × ${q}`,PRICE.tstat*q]); total+=PRICE.tstat*q; });
+  $('rp').innerHTML = lines.length ? lines.map((l,k)=>`<div class="li"><span class="tree">${k===lines.length-1?'└':'├'}</span><span class="t">${l[0]}</span><span>$${l[1]}</span></div>`).join('') : '<div class="empty">Nothing selected yet.</div>';
+  if(lines.length && missing.length && nSys>1) $('rp').innerHTML += `<div style="color:#b42318;margin-top:6px">⚠ System ${missing.join(', ')}: no service selected — required before Generate Report.</div>`;
+  $('tot').textContent='$'+total;
+}
+document.querySelectorAll('.tile').forEach(t=>t.onclick=()=>{ drive=false; toggleMain(def,t.dataset.s); render(); });
+document.querySelectorAll('.chip').forEach(c=>c.onclick=()=>{ toggleOpt(def,c.dataset.o); render(); });
+$('drive').onclick=()=>{ drive=!drive; if(drive){ def={main:new Set(),opts:new Set()}; over={}; } render(); };
+$('psBtn').onclick=()=>{ const r=$('psRv'); r.classList.toggle('open'); $('psBtn').textContent = r.classList.contains('open')?'Per system ▴':'Per system ▾'; };
+
+document.querySelectorAll('#ns button').forEach(b=>b.onclick=()=>{ nSys=+b.dataset.n; document.querySelectorAll('#ns button').forEach(x=>x.classList.toggle('on',x===b));
+  $('bsub').textContent=`Bridgeland · ${nSys} system${nSys>1?'s':''}`; render(); });
+render();
+</script>
+</body>
+</html>

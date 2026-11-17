@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>FieldOps · Weigh-In mockup</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;600;700;800&family=Azeret+Mono:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{--bg:#f3f2ef;--tile:#faf9f7;--hi:#ffffff;--lo:#d3d0ca;--ink:#2b2824;--soft:#6b665f;--acc:#a85a18;--accd:#8a4a13;--warn:#b42318;--ok:#2f7a4a;
+    --raise:6px 6px 12px var(--lo),-6px -6px 12px var(--hi);--raise-s:3px 3px 6px var(--lo),-3px -3px 6px var(--hi);
+    --inset:inset 3px 3px 6px var(--lo),inset -3px -3px 6px var(--hi)}
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;height:100%;background:var(--bg);color:var(--ink);font:15px/1.35 Archivo,system-ui,sans-serif;overscroll-behavior:none}
+  .app{display:flex;flex-direction:column;height:100dvh;max-width:480px;margin:0 auto;padding-top:env(safe-area-inset-top)}
+  .mock{display:flex;align-items:center;gap:8px;padding:6px 12px;background:#2b2824;color:#eceae5;font:600 11px 'Azeret Mono',monospace}
+  .mock span{flex:1;opacity:.7}
+  .mock .seg{display:flex;border-radius:8px;overflow:hidden;border:1px solid #57514a}
+  .mock button{background:none;border:0;color:#cfc8bd;font:700 11px 'Azeret Mono',monospace;padding:6px 9px}
+  .mock button.on{background:var(--acc);color:#fff}
+  .banner{display:flex;align-items:center;gap:10px;padding:10px 14px 6px}
+  .banner .grow{flex:1} .banner b{display:block;font:800 16px Archivo} .banner span{font:600 11px 'Azeret Mono';color:var(--soft)}
+  .rail{display:flex;gap:6px;padding:4px 14px 10px}
+  .rail span{flex:1;text-align:center;padding:8px 0;border-radius:10px;font:700 11px 'Azeret Mono';color:var(--soft);box-shadow:var(--inset)}
+  .rail span.on{box-shadow:var(--raise-s);color:var(--accd)}
+  .body{flex:1;overflow-y:auto;padding:4px 14px 40px}
+  .panel{background:var(--bg);border-radius:18px;box-shadow:var(--raise);padding:14px;margin-bottom:14px}
+  .ph{display:flex;align-items:center;margin-bottom:8px}
+  .ph b{flex:1;font:800 15px Archivo}
+  .ph small{font:600 11px 'Azeret Mono';color:var(--soft)}
+  label{display:block;font:700 10px 'Azeret Mono';letter-spacing:.05em;color:var(--soft);margin:10px 2px 5px}
+  .chips{display:flex;gap:6px;flex-wrap:wrap}
+  .c{height:38px;padding:0 12px;border:0;border-radius:11px;background:var(--bg);box-shadow:var(--raise-s);font:700 12px 'Azeret Mono';color:var(--soft);cursor:pointer}
+  .c.on{box-shadow:var(--inset);color:var(--accd)}
+  .c.pre::after{content:"•";color:var(--acc);margin-left:5px}
+  input{width:100%;height:42px;border:0;border-radius:11px;background:var(--tile);box-shadow:var(--inset);padding:0 10px;font:600 15px 'Azeret Mono';color:var(--ink);min-width:0}
+  input.calc{background:transparent;box-shadow:none;color:var(--accd);font-weight:800;padding-left:2px}
+  .g3{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+  .g2{display:grid;grid-template-columns:repeat(2,1fr);gap:8px}
+  .derived{margin-top:10px;padding:10px 12px;border-radius:12px;box-shadow:var(--inset);background:var(--tile);font:12px/1.6 'Azeret Mono'}
+  .derived b{color:var(--accd)}
+  .ref{display:inline-block;font:700 10px 'Azeret Mono';padding:2px 7px;border-radius:7px;background:var(--bg);box-shadow:var(--raise-s);margin-left:6px}
+  .hide{display:none!important}
+  .sysSeg{display:flex;padding:3px;border-radius:12px;box-shadow:var(--inset);gap:2px}
+  .sysSeg button{position:relative;min-width:34px;height:34px;border:0;border-radius:9px;background:none;font:800 13px 'Azeret Mono';color:var(--soft)}
+  .sysSeg button.on{background:var(--bg);box-shadow:var(--raise-s);color:var(--accd)}
+  .sysSeg button.done::after{content:"";position:absolute;top:4px;right:5px;width:5px;height:5px;border-radius:50%;background:var(--ok)}
+  .sysSeg button.add{color:var(--accd)}
+  .line3{display:grid;grid-template-columns:72px 1fr 92px;gap:8px}
+  select{width:100%;height:42px;border:0;border-radius:11px;background:var(--tile);box-shadow:var(--inset);padding:0 8px;font:700 14px 'Azeret Mono';color:var(--ink);-webkit-appearance:none;appearance:none;
+    background-image:linear-gradient(45deg,transparent 50%,#8a4a13 50%),linear-gradient(135deg,#8a4a13 50%,transparent 50%);background-position:calc(100% - 14px) 18px,calc(100% - 9px) 18px;background-size:5px 5px;background-repeat:no-repeat}
+  label{white-space:nowrap}
+  .mfbox{position:relative}
+  .mfbox input{padding-right:34px}
+  .mfbox button{position:absolute;right:4px;top:4px;width:30px;height:34px;border:0;border-radius:9px;background:var(--bg);box-shadow:var(--raise-s);color:var(--accd);font:800 12px Archivo}
+  .tagc{font:700 8px 'Azeret Mono';color:var(--soft);margin-left:4px}
+  .seg2{display:flex;gap:6px;padding:4px;border-radius:12px;box-shadow:var(--inset);margin-top:8px}
+  .seg2 button{flex:1;border:0;background:none;height:34px;border-radius:9px;font:700 11px 'Azeret Mono';color:var(--soft)}
+  .seg2 button.on{background:var(--bg);box-shadow:var(--raise-s);color:var(--accd)}
+  .big{display:flex;align-items:baseline;gap:10px;margin-top:6px}
+  .big b{font:800 26px Archivo;color:var(--accd)}
+  .big span{font:600 12px 'Azeret Mono';color:var(--soft)}
+  .note{font:600 11px 'Azeret Mono';color:var(--soft);margin:8px 2px 0}
+  .dev.bad{color:var(--warn)} .dev.good{color:var(--ok)}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="mock"><span>MOCKUP · OUTDOOR OF THIS SYSTEM</span><div class="seg" id="od"><button data-b="Lennox" class="on">Lennox</button><button data-b="Trane">Trane</button><button data-b="Daikin">Daikin</button><button data-b="Goodman">Goodman</button></div></div>
+  <div class="banner"><div class="grow"><b>4821 Cedar Hollow Ln</b><span>System <span id="sysN">1</span> · <span id="odName"></span></span></div>
+    <div class="sysSeg" id="sysSeg"></div></div>
+  <div class="rail"><span>Srv+T</span><span>Acc</span><span>Fix</span><span class="on">Wght</span><span>Notes</span></div>
+  <div class="body">
+    <div class="panel">
+      <div class="ph"><b>Lineset</b></div>
+      <div class="line3">
+        <div><label>LINESET FT</label><input id="ls" inputmode="numeric" placeholder="—"></div>
+        <div><label>MANUFACTURER</label><div class="mfbox"><select id="mf"></select><input id="mfTxt" class="hide" placeholder="Type brand…"><button id="mfBack" class="hide" title="Back to list">▾</button></div></div>
+        <div><label>FACTORY LEN</label><select id="len"></select></div>
+      </div>
+      <div id="extra" class="line3 hide">
+        <div id="xOz"><label>OZ / FT</label><input id="ozft" inputmode="decimal" placeholder="0.6"></div>
+        <div id="xRef"><label>REFRIGERANT</label><input id="refIn" placeholder="R-…"></div>
+        <div id="xLen"><label>LENGTH FT</label><input id="lenIn" inputmode="numeric" placeholder="ft"></div>
+      </div>
+      <div class="derived" id="drv"></div>
+    </div>
+
+    <div class="panel">
+      <div class="ph"><b>Charge</b><small>oz unless noted</small></div>
+      <div class="g3">
+        <div><label>FACTORY <span class="tagc" id="fcTag"></span></label><input id="fc" inputmode="decimal" placeholder="—"></div>
+        <div><label>APPROX ADJ</label><input id="apx" class="calc" readonly></div>
+        <div><label>ADJUSTED</label><input id="adj" inputmode="decimal" placeholder="—"></div>
+      </div>
+      <div class="big"><b id="nt">—</b><span id="ntSub">New total charge</span></div>
+    </div>
+
+    <div class="panel">
+      <div class="ph"><b>Readings</b><small>°F</small></div>
+      <div class="g3">
+        <div><label>LIQUID</label><input id="lt" inputmode="decimal" placeholder="—"></div>
+        <div><label>SUCTION</label><input id="st" inputmode="decimal" placeholder="—"></div>
+        <div><label>COND SAT</label><input id="cs" inputmode="decimal" placeholder="—"></div>
+      </div>
+      <div class="g3">
+        <div><label>SUBCOOLING</label><input id="sc" class="calc" readonly></div>
+        <div><label>OEM SC GOAL</label><input id="goal" class="calc" readonly></div>
+        <div><label>SC DEVIATION</label><input id="dev" class="calc dev" readonly></div>
+      </div>
+      <div class="g2"><div><label>FAN CFM</label><input id="cfm" inputmode="numeric" placeholder="—"></div><div></div></div>
+      <p class="note">Scale + Fan Speed photos (GPS) stay as today.</p>
+    </div>
+  </div>
+</div>
+<script>
+const $=id=>document.getElementById(id);
+/* Manufacturer → oz/ft + refrigerant (refrigerant comes from the equipment catalog in the real app — sample here) */
+const MF={Daikin:{oz:0.6,ref:'R-32'},Goodman:{oz:0.6,ref:'R-32'},Lennox:{oz:0.6,ref:'R-454B'},Trane:{oz:0.47,ref:'R-454B'}};
+const LENS=[10,15,25,30];
+/* Outdoor unit on the call (sample catalog data) */
+const OD={Lennox:{name:'Lennox EL16XC1-036',len:30,fc:118,rev:124,goal:10},Trane:{name:'Trane 4TTR4036 (2025-08)',len:25,fc:102,rev:108,goal:11},
+          Daikin:{name:'Daikin DC6VS3010',len:15,fc:96,goal:10},Goodman:{name:'Goodman GSXN403010',len:15,fc:97,goal:9}};
+let brand='Lennox', mf='Lennox', len=30, revMode='factory';
+const lbOz=o=>{ const s=o<0?'−':''; o=Math.abs(Math.round(o)); return `${s}${Math.floor(o/16)} lb ${o%16} oz`; };
+
+let fcEdited=false;
+function fillSelects(){
+  $('mf').innerHTML=[...Object.keys(MF).map(m=>`<option value="${m}"${m===mf?' selected':''}>${m}</option>`),`<option value="Other">+ New</option>`].join('');
+  $('len').innerHTML=[...LENS.map(l=>`<option value="${l}"${l===len?' selected':''}>${l} ft</option>`),`<option value="custom"${len==='custom'?' selected':''}>+ Custom</option>`].join('');
+}
+function catalogFC(){ const o=OD[brand]; return (mf===brand) ? o.fc : null; } // catalog value for this outdoor unit (sample)
+function calc(){
+  const other = mf==='Other', custom = len==='custom';
+  $('extra').classList.toggle('hide',!other && !custom);
+  $('xOz').classList.toggle('hide',!other); $('xRef').classList.toggle('hide',!other); $('xLen').classList.toggle('hide',!custom);
+  const oz = other ? (+$('ozft').value||0) : MF[mf].oz;
+  const ref = other ? ($('refIn').value||'—') : MF[mf].ref;
+  const base = custom ? (+$('lenIn').value||0) : len;
+  const ls=$('ls').value;
+  const extra = ls==='' ? null : (+ls - base);
+  const apx = extra===null ? null : +(extra*oz).toFixed(1);
+  $('drv').innerHTML = `${oz} oz/ft · baseline ${base||'—'} ft<span class="ref">${ref}</span>` +
+    (extra===null ? '' : `<br>${ls} ft − ${base} ft = <b>${extra} ft ${extra>=0?'extra':'short'}</b> · ${extra} × ${oz} = <b>${apx} oz</b>`);
+  // factory charge: autofilled from catalog, editable
+  if(!fcEdited){ const c=catalogFC(); $('fc').value = c!==null ? c : ''; $('fcTag').textContent = c!==null ? '· catalog' : ''; }
+  const o=OD[brand], fc = $('fc').value==='' ? null : +$('fc').value;
+  $('apx').value = apx!==null ? `${apx>=0?'+':''}${apx}` : '—';
+  const adj=$('adj').value;
+  if(fc!==null && adj!==''){ const t=fc + +adj; $('nt').textContent=lbOz(t); $('ntSub').textContent=`${t} oz · new total charge`; }
+  else { $('nt').textContent='—'; $('ntSub').textContent = fc===null ? 'Enter factory charge' : 'New total charge (enter Adjusted)'; }
+  $('goal').value=o.goal;
+  const lt=$('lt').value, cs=$('cs').value;
+  if(lt!==''&&cs!==''){ const sc=+cs - +lt; $('sc').value=sc; const d=sc-o.goal; $('dev').value=(d>0?'+':'')+d; $('dev').className='calc dev '+(Math.abs(d)<=3?'good':'bad'); }
+  else { $('sc').value='—'; $('dev').value='—'; $('dev').className='calc dev'; }
+}
+$('mf').onchange=()=>{ mf=$('mf').value;
+  if(mf==='Other'){ $('mf').classList.add('hide'); $('mfTxt').classList.remove('hide'); $('mfBack').classList.remove('hide'); $('mfTxt').value=''; $('mfTxt').focus(); }
+  calc(); };
+$('mfBack').onclick=()=>{ mf=brand; $('mfTxt').classList.add('hide'); $('mfBack').classList.add('hide'); $('mf').classList.remove('hide'); fillSelects(); calc(); };
+$('len').onchange=()=>{ len=$('len').value==='custom'?'custom':+$('len').value; calc(); };
+$('fc').addEventListener('input',()=>{ fcEdited=true; $('fcTag').textContent='· edited'; calc(); });
+['ls','ozft','refIn','lenIn','adj','lt','cs'].forEach(id=>$(id).addEventListener('input',calc));
+
+document.querySelectorAll('#od button').forEach(b=>b.onclick=()=>{ brand=b.dataset.b; mf=brand; len=OD[brand].len; fcEdited=false; fillSelects();
+  document.querySelectorAll('#od button').forEach(x=>x.classList.toggle('on',x===b)); $('odName').textContent=OD[brand].name; calc(); });
+/* ---------- systems ---------- */
+const FIELDS=['ls','ozft','refIn','lenIn','fc','adj','lt','st','cs','cfm','mfTxt'];
+let systems=[{brand:'Lennox'},{brand:'Daikin'},{brand:'Trane'}], cur=0;
+function save(){ const st=systems[cur]; st.brand=brand; st.mf=mf; st.len=len; st.fcEdited=fcEdited; st.v={}; FIELDS.forEach(f=>st.v[f]=$(f).value); }
+function load(i){ cur=i; const st=systems[i]; brand=st.brand; mf=st.mf||brand; len=st.len!==undefined?st.len:OD[brand].len; fcEdited=!!st.fcEdited;
+  FIELDS.forEach(f=>$(f).value=(st.v&&st.v[f])||''); $('mfTxt').classList.toggle('hide',mf!=='Other'); $('mfBack').classList.toggle('hide',mf!=='Other'); $('mf').classList.toggle('hide',mf==='Other');
+  document.querySelectorAll('#od button').forEach(x=>x.classList.toggle('on',x.dataset.b===brand));
+  $('odName').textContent=OD[brand].name; $('sysN').textContent=i+1; fillSelects(); calc(); seg(); }
+function isDone(st){ return st.v && st.v.ls && st.v.adj && st.v.lt && st.v.cs; }
+function seg(){
+  $('sysSeg').innerHTML = systems.map((st,i)=>`<button class="${i===cur?'on':''} ${isDone(i===cur?{v:Object.fromEntries(FIELDS.map(f=>[f,$(f).value]))}:st)?'done':''}" data-s="${i}">${i+1}</button>`).join('') + `<button class="add" id="addSys" title="Add system">+</button>`;
+  $('sysSeg').querySelectorAll('[data-s]').forEach(b=>b.onclick=()=>{ save(); load(+b.dataset.s); });
+  $('addSys').onclick=()=>{ save(); systems.push({brand:'Goodman',added:true}); load(systems.length-1); };
+}
+FIELDS.forEach(f=>$(f).addEventListener('input',seg));
+document.querySelectorAll('#od button').forEach(b=>b.addEventListener('click',()=>{ systems[cur].brand=brand; }));
+$('odName').textContent=OD[brand].name; fillSelects(); calc(); seg();
+</script>
+</body>
+</html>
