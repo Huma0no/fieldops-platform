@@ -29,3 +29,17 @@ Before applying a change, state:
 - Verdict: is this the minimum code needed to solve the problem?
 
 If the net change is positive, justify why.
+
+## Phase reports
+
+Phase reports are read by Claude (planner), not by Kristo. English, terse, this format only:
+- DONE: one line per item
+- COMMITS: hash — subject
+- TESTS: suite result + new tests (one line)
+- SPECS/QA: docs changed, findings opened/closed
+- DECISIONS NEEDED: numbered, each with your recommendation
+- RISKS/OPEN: one line each
+- ENV: anything Kristo must do or know (servers, DB, credentials)
+- NEXT: what you'll do on approval
+
+No narrative, no screenshot paths unless asked (just say "screenshots: yes, N").
