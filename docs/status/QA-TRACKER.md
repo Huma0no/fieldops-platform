@@ -131,6 +131,7 @@ Must be implemented after the WIP merge and before launch.
 | ID | Feature | Reference |
 |---|---|---|
 | FF-01 | Technician-defined price panel, as in the legacy app (hvacstartup-dev.netlify.app); needed if FieldOps is commercialized. Options to evaluate then: preset agreed prices, zero prices filled on first use, or a price panel filled before the first job. | `MASTER-FUNCTION-INDEX.md` R-10 |
+| FF-02 | System identifier in report text (2026-11-17). Per-system report lines name systems "System 1/2/3", which another technician cannot match on site. Replace with an unambiguous real-world identifier: preferably a location label captured in Dispatch (e.g. DS/US), falling back to capacity (e.g. 4 ton) when no label exists; capacity alone can repeat. | `shared/REPORT-TEXT.md` (per-system services) |
 
 ## Backlog / pendiente de decisión
 
