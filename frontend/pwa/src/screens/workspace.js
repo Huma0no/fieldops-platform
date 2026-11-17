@@ -49,6 +49,8 @@ import {
   tapService,
   toggleLocalVisitDraftChecklist,
   updateLocalVisitDraftNotes,
+  REFRESH_CALL_DATA_KEY,
+  refreshCallData,
 } from '../lib/workspace-visit.mjs'
 
 const CHECKLIST_ITEMS = [
@@ -164,6 +166,10 @@ export default async function mount (appEl) {
           hasMultipleSystems: localDraft.hasMultipleSystems ?? detail?.hasMultipleSystems,
           address: localDraft.address ?? detail?.address,
           systems: localDraft.systems ?? detail?.systems,
+        }
+        if (sessionStorage.getItem(REFRESH_CALL_DATA_KEY) === visitId) {
+          visit = refreshCallData(visit, detail)
+          sessionStorage.removeItem(REFRESH_CALL_DATA_KEY)
         }
         await saveLocalVisitDraft(visit, activeTechnicianId)
       } catch (_) {

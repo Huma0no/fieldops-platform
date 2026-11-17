@@ -16,7 +16,9 @@
   backend ACK. The canonical report remains derived from accepted structured
   source data. See `/docs/OFFLINE-FIRST-CONTRACT.md`.
 
-- **View report (W4, 2026-11-17):** the Report receipt (same component as the Workspace review, without the DRAFT stamp) slides out from behind its card; the cards below move down; tapping again (Hide report) collapses it. Built from the snapshot stored on the phone, so it works offline; a Report without one on this phone keeps the text preview from the server. Pending and correction-required cards open the same receipt.
+- **View report (W4, 2026-11-17):** the Report receipt (same component as the Workspace review, without the DRAFT stamp) slides out from behind its card; the cards below move down; tapping again (Hide report) collapses it. Pending and correction-required Reports use the snapshot stored on the phone (works offline). A delivered Report uses the server's Report when reachable (W4.1): its prices include PP-01 corrections, and each re-priced line, and the total, read "adjusted by office (was $X)"; until it loads, or offline, the phone's snapshot. A Report not on this phone (sent from another device) is drawn from the server's Report, or says it needs a connection.
+- **Correct report (W4.1):** reopens the Workspace with the call data (address, order, date and time, work type, property) refreshed from the server; the technician's work is kept. A Report rejected for changed call details can then be resent.
+- After a download, a delivered card reads "Sent · downloaded".
 - **Rejected Report (WS-12):** the card says which parts differ and what to do (`docs/architecture/REPORT-SNAPSHOT-CONTRACT.md`).
 - **Download:** JSON · ZIP (photos) · All, on delivered and pending Reports (`docs/shared/PHOTOS-GPS-INTEGRATIONS.md`).
 

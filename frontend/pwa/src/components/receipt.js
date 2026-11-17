@@ -20,6 +20,10 @@ function treeLines (parent, lines) {
     row.appendChild(el('span', 'rcpt-t', line.label))
     if (line.amount != null) row.appendChild(el('span', 'rcpt-p', money(line.amount)))
     parent.appendChild(row)
+    if (line.adjustedFrom !== undefined) {
+      const was = line.adjustedFrom == null ? '' : ` (was ${money(line.adjustedFrom)})`
+      parent.appendChild(el('div', 'rcpt-adj', `adjusted by office${was}`))
+    }
   })
 }
 
@@ -66,6 +70,10 @@ export function Receipt (model, { draft = false } = {}) {
   total.appendChild(el('span', 'rcpt-t', 'TOTAL'))
   total.appendChild(el('span', null, money(model.total)))
   receipt.appendChild(total)
+  if (model.totalAdjustedFrom !== undefined) {
+    const was = model.totalAdjustedFrom == null ? '' : ` (was ${money(model.totalAdjustedFrom)})`
+    receipt.appendChild(el('div', 'rcpt-adj', `adjusted by office${was}`))
+  }
   return receipt
 }
 
@@ -82,6 +90,7 @@ export const receiptStyles = `
   .rcpt-t{flex:1;min-width:0;overflow-wrap:anywhere;}
   .rcpt-tree{color:var(--fo-ink-soft);}
   .rcpt-p{min-width:64px;text-align:right;}
+  .rcpt-adj{padding-left:14px;font-size:11px;font-style:italic;color:var(--fo-accent-deep);}
   .rcpt-note{color:var(--fo-ink-soft);font-size:12px;white-space:pre-wrap;overflow-wrap:anywhere;}
   .rcpt-tot{display:flex;border-top:1px dashed var(--fo-panel-lo);margin-top:12px;padding-top:10px;font-weight:700;font-size:15px;}
   .rcpt-draft{position:absolute;top:8px;right:12px;font:700 10px var(--fo-font-mono);color:var(--fo-accent);

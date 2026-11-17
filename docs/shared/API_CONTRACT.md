@@ -527,7 +527,9 @@ GET /api/visits/:id/report-preview
 
 GET /api/visits/:id/download
   auth: technician (must be assigned) or dispatcher
-  returns: JSON file matching current completion JSON format
+  returns: JSON file matching current completion JSON format; the accepted
+        Report (server prices, priceDiscrepancies) once one exists. Includes
+        notes and checklistAnswers (2026-11-17, for the PWA receipt).
   note: must be generable entirely from local device data — no server round-trip
         required when offline
 ```

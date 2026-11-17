@@ -195,7 +195,7 @@ async function generateLiveReportJSON(db, visitId) {
   const visitRow = await db.query(
     `SELECT v.id, v.order_number, v.date, v.scheduled_time, v.status, v.technician_id,
             v.has_multiple_systems, v.total_price, v.completed_at,
-            v.address_id,
+            v.address_id, v.notes, v.checklist_answers,
             a.street, a.city, a.state, a.zip, a.subdivision, a.builder
      FROM visits v
      JOIN addresses a ON a.id = v.address_id
@@ -242,6 +242,8 @@ async function generateLiveReportJSON(db, visitId) {
     technicianId: v.technician_id,
     totalPrice: v.total_price,
     hasMultipleSystems: v.has_multiple_systems,
+    notes: v.notes ?? '',
+    checklistAnswers: v.checklist_answers ?? [],
     address: {
       street: v.street,
       city: v.city,
@@ -366,6 +368,8 @@ function reportJSONFromSnapshot(snapshot, submission) {
     photos: snapshot.photos,
     weighInData: snapshot.weighInData,
     priceDiscrepancies: snapshot.priceDiscrepancies ?? [],
+    notes: snapshot.notes ?? '',
+    checklistAnswers: snapshot.checklistAnswers ?? [],
     workType: snapshot.workType,
     generatedAt: snapshot.generatedAt ?? snapshot.createdAt,
     acceptedAt: submission.accepted_at,

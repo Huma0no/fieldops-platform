@@ -1954,6 +1954,8 @@ describe('GET /api/visits/:id/download', () => {
     expect(res.body.items).toBeDefined();
     expect(res.body.photos).toBeDefined();
     expect(res.body.weighInData).toBeDefined();
+    expect(res.body.notes).toBe('');
+    expect(res.body.checklistAnswers).toEqual([]);
   });
 
   it('allows dispatcher to download', async () => {

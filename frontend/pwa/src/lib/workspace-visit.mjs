@@ -355,6 +355,20 @@ export function isLocalVisitDraft (record) {
 // Converts one server detail response into the single mutable Workspace model.
 // Field names intentionally match existing Workspace consumers; no parallel view
 // model is maintained alongside this draft.
+// Call data comes from the office. Correct report (after a rejection) takes
+// it from the server so a Report rejected for changed call details can be
+// resent; the technician's work in the draft is kept.
+export const REFRESH_CALL_DATA_KEY = 'workspace:refreshCallData'
+export const CALL_DATA_FIELDS = ['address', 'orderNumber', 'scheduledDate', 'scheduledTime', 'workType', 'propertyId']
+
+export function refreshCallData (draft, detail) {
+  const refreshed = { ...draft }
+  for (const field of CALL_DATA_FIELDS) {
+    if (detail?.[field] !== undefined) refreshed[field] = detail[field]
+  }
+  return refreshed
+}
+
 export function createLocalVisitDraft (detail, { catalogVersion = null, now = new Date().toISOString() } = {}) {
   const evidence = evidenceFromDetail(detail.photos ?? [])
 

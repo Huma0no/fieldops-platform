@@ -4,6 +4,7 @@ const path = require('path');
 let receiptModel;
 let describeReportMismatch;
 let priceVisit;
+let refreshCallData;
 
 function asModule(source) {
   return `data:text/javascript;base64,${Buffer.from(source).toString('base64')}`;
@@ -22,6 +23,7 @@ beforeAll(async () => {
     .replace("'./cancel-justification.mjs'", `'${asModule(await lib('cancel-justification.mjs'))}'`)
     .replace("'./workspace-visit.mjs'", `'${asModule(await lib('workspace-visit.mjs'))}'`);
   ({ describeReportMismatch } = await import(asModule(submission)));
+  ({ refreshCallData } = await import(asModule(await lib('workspace-visit.mjs'))));
 });
 
 const catalog = {
@@ -107,4 +109,41 @@ it('says which parts of a rejected Report differ and what to do (WS-12)', () => 
     "Not accepted — the office's copy differs in: Call details. Tap Correct report, check that section and confirm a new submission. Call details come from the office: ask Dispatch if they look wrong."
   );
   expect(describeReportMismatch(null)).toBe('Correction required — edit the Report and confirm a new submission');
+});
+
+it('shows the server prices of a delivered Report and marks what the office adjusted (PP-01)', () => {
+  const server = {
+    address: { street: '1907 Amber Ridge Dr', subdivision: 'Towne Lake', builder: 'Lennar' },
+    generatedAt: '2026-11-17T15:00:00.000Z',
+    technicianName: 'Kristo',
+    systems: [{ systemNumber: 1 }],
+    services: [{ systemNumber: 1, serviceName: 'AC', isFinish: false, isTemporarily: false, price: 35 }],
+    items: [{ itemName: 'UT3000', category: 'accessory', quantity: 1, price: 42 }],
+    notes: '',
+    checklistAnswers: [],
+    totalPrice: 77,
+    priceDiscrepancies: [
+      { field: 'services.price', row: 'System 1 AC', submitted: 30, accepted: 35 },
+      { field: 'items.price', row: 'UT3000', submitted: 40, accepted: 42 },
+      { field: 'items.techSupplied', row: 'UT3000', submitted: false, accepted: true },
+      { field: 'totalPrice', row: null, submitted: 70, accepted: 77 },
+    ],
+  };
+  const model = receiptModel(server, { catalog });
+  expect(model.technicianName).toBe('Kristo');
+  expect(model.groups).toEqual([
+    { title: 'SERVICE', lines: [{ label: 'AC', amount: 35, adjustedFrom: 30 }] },
+    { title: 'ACCESSORIES', lines: [{ label: 'UT3000', amount: 42, adjustedFrom: 40 }] },
+  ]);
+  expect(model).toMatchObject({ total: 77, totalAdjustedFrom: 70 });
+});
+
+it('Correct report takes the call data from the server and keeps the technician work', () => {
+  const draft = {
+    id: 'v1', address: { street: '123 TEST LANE' }, orderNumber: 'A1', notes: 'kept', _items: [{ item_name: 'UT3000' }],
+  };
+  const refreshed = refreshCallData(draft, { address: { street: '123 TEST LANE NORTH' }, orderNumber: 'A2', notes: 'server' });
+  expect(refreshed).toEqual({
+    id: 'v1', address: { street: '123 TEST LANE NORTH' }, orderNumber: 'A2', notes: 'kept', _items: [{ item_name: 'UT3000' }],
+  });
 });

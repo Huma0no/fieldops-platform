@@ -29,9 +29,21 @@ function weighInLine (row) {
   return parts.join(' · ')
 }
 
+// PP-01 price corrections, keyed like the server labels its discrepancy rows.
+function adjustedPrices (discrepancies, field) {
+  return new Map((discrepancies ?? [])
+    .filter(entry => entry.field === field)
+    .map(entry => [entry.row, entry.submitted]))
+}
+
+// source: the phone's completion snapshot, or the server's report JSON (same
+// field names) whose prices include PP-01 corrections.
 // catalog: { services, items } from the device cache (row flags: system-count
-// multiplier, Finish add-on). Line prices are the snapshot's own (CC-08).
+// multiplier, Finish add-on). Line prices are the source's own (CC-08).
+// Lines the office re-priced carry `adjustedFrom` (the technician's price).
 export function receiptModel (snapshot, { catalog = { services: [], items: [] }, technicianName = null } = {}) {
+  const serviceAdjusted = adjustedPrices(snapshot.priceDiscrepancies, 'services.price')
+  const itemAdjusted = adjustedPrices(snapshot.priceDiscrepancies, 'items.price')
   const multiSystem = (snapshot.systems ?? []).length > 1 || snapshot.hasMultipleSystems === true
   const items = (snapshot.items ?? []).map(item => ({ ...item, itemName: item.itemName ?? item.item_name }))
   const overrides = Object.fromEntries(items.filter(item => item.price != null).map(item => [item.itemName, Number(item.price)]))
@@ -44,13 +56,18 @@ export function receiptModel (snapshot, { catalog = { services: [], items: [] },
   })
 
   const groups = []
-  const services = (snapshot.services ?? []).map((row, i) => ({ label: serviceLabel(row, multiSystem), amount: priced.amounts.services[i] }))
+  const mark = (line, adjusted, key) => (adjusted.has(key) ? { ...line, adjustedFrom: adjusted.get(key) } : line)
+  const services = (snapshot.services ?? []).map((row, i) => mark(
+    { label: serviceLabel(row, multiSystem), amount: priced.amounts.services[i] },
+    serviceAdjusted,
+    row.systemNumber == null ? row.serviceName : `System ${row.systemNumber} ${row.serviceName}`,
+  ))
   if (services.length) groups.push({ title: 'SERVICE', lines: services })
   for (const [category, title] of GROUPS) {
     const lines = items
       .map((item, i) => ({ item, amount: priced.amounts.items[i] }))
       .filter(({ item }) => item.category === category)
-      .map(({ item, amount }) => ({ label: itemLabel(item), amount }))
+      .map(({ item, amount }) => mark({ label: itemLabel(item), amount }, itemAdjusted, item.itemName))
     if (lines.length) groups.push({ title, lines })
   }
 
@@ -58,8 +75,8 @@ export function receiptModel (snapshot, { catalog = { services: [], items: [] },
   return {
     street: address.street ?? '',
     place: [address.subdivision, address.builder].filter(Boolean).join(' · '),
-    date: snapshot.createdAt ?? null,
-    technicianName,
+    date: snapshot.createdAt ?? snapshot.generatedAt ?? snapshot.completedAt ?? null,
+    technicianName: technicianName ?? snapshot.technicianName ?? null,
     groups,
     weighIn: (snapshot.weighInData ?? []).map(weighInLine),
     checklist: (snapshot.checklistAnswers ?? [])
@@ -67,5 +84,6 @@ export function receiptModel (snapshot, { catalog = { services: [], items: [] },
       .map(answer => answer.reportText ?? answer.item),
     notes: snapshot.notes ?? '',
     total: Number(snapshot.totalPrice ?? 0),
+    totalAdjustedFrom: (snapshot.priceDiscrepancies ?? []).find(entry => entry.field === 'totalPrice')?.submitted,
   }
 }

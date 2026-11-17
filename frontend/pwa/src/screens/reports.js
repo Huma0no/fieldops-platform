@@ -5,7 +5,6 @@
  * Status icons:
  *   sent            — ✓ green
  *   pending_send    — ⏳ amber (queued, will retry)
- *   downloaded      — ↓ static (offline download, not sent)
  *
  * Exported as default(appEl) per app.js routing contract.
  */
@@ -27,6 +26,7 @@ import {
 import { startSync }            from '../lib/sync.js'
 import { buildReportDownload }  from '../lib/report-download.mjs'
 import { receiptModel }         from '../lib/receipt.mjs'
+import { REFRESH_CALL_DATA_KEY } from '../lib/workspace-visit.mjs'
 import { Receipt, receiptStyles } from '../components/receipt.js'
 import { CorrectionModal, correctionModalStyles } from '../components/correction-modal.js'
 
@@ -50,6 +50,7 @@ let retryingIds  = new Set()
 let retryErrors  = new Map()
 let isLoading    = true
 let openReceiptIds = new Set()
+let serverReports = new Map()
 let receiptCatalog = { services: [], items: [] }
 
 export default async function mount (appEl) {
@@ -285,22 +286,53 @@ function renderList () {
 }
 
 // W4: the receipt slides out from behind its card; cards below move down.
+// A delivered Report shows the server's version (PP-01 price corrections
+// marked), fetched on open; until then, or offline, the phone's snapshot.
+function isDelivered (visit) {
+  return !(visit._localPending || queuedIds.has(visit.id)) && visit._correctionRequired !== true
+}
+
+function receiptContent (visit) {
+  const server = isDelivered(visit) ? serverReports.get(visit.id) : null
+  const source = server ?? visit.snapshot
+  if (!source) {
+    const note = document.createElement('p')
+    note.className = 'rc-receipt-note'
+    note.textContent = navigator.onLine === false ? 'Needs connection — this report is not on this phone.' : 'Loading report…'
+    return note
+  }
+  return Receipt(receiptModel(source, {
+    catalog: receiptCatalog,
+    technicianName: server ? null : technicianName(),
+  }))
+}
+
+async function loadServerReceipt (visit, paper) {
+  if (!isDelivered(visit) || serverReports.has(visit.id)) return
+  try {
+    serverReports.set(visit.id, await api.get(`/visits/${visit.id}/download`))
+  } catch (_) {
+    if (visit.snapshot) return
+  }
+  paper.replaceChildren(receiptContent(visit))
+}
+
 function buildReportEntry (visit) {
   const wrap = document.createElement('div')
   wrap.className = 'rc-wrap'
   wrap.appendChild(buildReportCard(visit))
-  if (visit.snapshot) {
-    const slot = document.createElement('div')
-    slot.className = `rc-slot${openReceiptIds.has(visit.id) ? ' open' : ''}`
-    slot.setAttribute('aria-hidden', String(!openReceiptIds.has(visit.id)))
-    const clip = document.createElement('div')
-    const paper = document.createElement('div')
-    paper.className = 'rc-paper'
-    paper.appendChild(Receipt(receiptModel(visit.snapshot, { catalog: receiptCatalog, technicianName: technicianName() })))
-    clip.appendChild(paper)
-    slot.appendChild(clip)
-    wrap.appendChild(slot)
-  }
+  const open = openReceiptIds.has(visit.id)
+  const slot = document.createElement('div')
+  slot.className = `rc-slot${open ? ' open' : ''}`
+  slot.setAttribute('aria-hidden', String(!open))
+  const clip = document.createElement('div')
+  const paper = document.createElement('div')
+  paper.className = 'rc-paper'
+  paper.appendChild(receiptContent(visit))
+  clip.appendChild(paper)
+  slot.appendChild(clip)
+  wrap.appendChild(slot)
+  if (open) void loadServerReceipt(visit, paper)
   return wrap
 }
 
@@ -315,16 +347,13 @@ function buildViewButton (visit, { label, className }) {
   btn.addEventListener('click', e => {
     e.stopPropagation()
     const slot = btn.closest('.rc-wrap')?.querySelector('.rc-slot')
-    if (!slot) {
-      openReportPreview(visit)
-      return
-    }
     const open = !slot.classList.contains('open')
     slot.classList.toggle('open', open)
     slot.setAttribute('aria-hidden', String(!open))
     if (open) openReceiptIds.add(visit.id)
     else openReceiptIds.delete(visit.id)
     btn.textContent = open ? 'Hide report' : label
+    if (open) void loadServerReceipt(visit, slot.querySelector('.rc-paper'))
   })
   return btn
 }
@@ -357,7 +386,7 @@ function buildReportCard (visit) {
   const rightWrap = document.createElement('div')
   rightWrap.className = 'rc-card-right'
 
-  const statusIcon = buildStatusIcon(isPending || correctionRequired, isDownloaded)
+  const statusIcon = buildStatusIcon(isPending || correctionRequired)
   rightWrap.appendChild(statusIcon)
 
   if (!isPending && !correctionRequired) {
@@ -392,8 +421,8 @@ function buildReportCard (visit) {
         : 'Pending send — will retry when online'
     statusLabel.className = 'rc-status rc-status--pending'
   } else if (isDownloaded) {
-    statusLabel.textContent = 'Downloaded locally — not sent'
-    statusLabel.className = 'rc-status rc-status--downloaded'
+    statusLabel.textContent = 'Sent · downloaded'
+    statusLabel.className = 'rc-status rc-status--sent'
   } else {
     statusLabel.textContent = 'Sent'
     statusLabel.className = 'rc-status rc-status--sent'
@@ -410,6 +439,7 @@ function buildReportCard (visit) {
     correctBtn.textContent = 'Correct report'
     correctBtn.addEventListener('click', () => {
       sessionStorage.setItem('workspace:visitId', visit.id)
+      sessionStorage.setItem(REFRESH_CALL_DATA_KEY, visit.id)
       navigate('/workspace')
     })
     actions.appendChild(correctBtn)
@@ -494,16 +524,12 @@ function openCorrectionModal (visit) {
   document.body.appendChild(modal)
 }
 
-function buildStatusIcon (isPending, isDownloaded) {
+function buildStatusIcon (isPending) {
   const wrap = document.createElement('div')
   wrap.className = 'rc-status-icon'
   if (isPending) {
     wrap.textContent = '⏳'
     wrap.title = 'Pending send'
-  } else if (isDownloaded) {
-    wrap.textContent = '↓'
-    wrap.title = 'Downloaded, not sent'
-    wrap.classList.add('rc-status-icon--downloaded')
   } else {
     wrap.textContent = '✓'
     wrap.classList.add('rc-status-icon--sent')
@@ -512,88 +538,6 @@ function buildStatusIcon (isPending, isDownloaded) {
   return wrap
 }
 
-function formatLocalSnapshotPreview (visit) {
-  const snap = visit?.snapshot
-  if (!snap) return null
-  const lines = [
-    `${snap.address?.street ?? visit.address?.street ?? '—'}`,
-    `Status: ${snap.terminalIntent ?? 'pending'} (Pending send)`,
-    `Service: ${snap.cancel ? 'Cancel' : (snap.service?.serviceName ?? '—')}`,
-    `Total: ${formatPrice(snap.totalPrice ?? visit.total_price ?? 0)}`,
-  ]
-  if (Array.isArray(snap.items) && snap.items.length > 0) {
-    lines.push(
-      'Items:',
-      ...snap.items.map(item => `  - ${item.item_name ?? item.itemName} x${item.quantity ?? 1}`)
-    )
-  }
-  if (snap.notes) {
-    lines.push(`Notes: ${snap.notes}`)
-  }
-  return lines.join('\n')
-}
-
-async function openReportPreview (visit) {
-  const overlay = document.createElement('div')
-  overlay.className = 'rp-overlay'
-  overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove() })
-
-  const modal = document.createElement('div')
-  modal.className = 'rp-modal'
-
-  const header = document.createElement('div')
-  header.className = 'rp-modal-header'
-  const title = document.createElement('h2')
-  title.className   = 'rp-modal-title'
-  title.textContent = visit.address?.street ?? 'Report'
-  const closeBtn = document.createElement('button')
-  closeBtn.className   = 'rp-close-btn'
-  closeBtn.textContent = '×'
-  closeBtn.addEventListener('click', () => overlay.remove())
-  header.appendChild(title)
-  header.appendChild(closeBtn)
-  modal.appendChild(header)
-
-  const body = document.createElement('div')
-  body.className   = 'rp-modal-body'
-  body.textContent = 'Loading…'
-  modal.appendChild(body)
-
-  overlay.appendChild(modal)
-  document.body.appendChild(overlay)
-
-  if (visit._localPending && visit.snapshot) {
-    body.innerHTML = ''
-    const pre = document.createElement('pre')
-    pre.className   = 'rp-preview-text'
-    pre.textContent = formatLocalSnapshotPreview(visit)
-    body.appendChild(pre)
-    return
-  }
-
-  try {
-    const preview = await api.get(`/visits/${visit.id}/report-preview`)
-    body.innerHTML = ''
-    const pre = document.createElement('pre')
-    pre.className   = 'rp-preview-text'
-    pre.textContent = preview?.reportText ?? preview?.text ?? JSON.stringify(preview, null, 2)
-    body.appendChild(pre)
-  } catch (err) {
-    const fallback = formatLocalSnapshotPreview(visit)
-    if (fallback) {
-      body.innerHTML = ''
-      const pre = document.createElement('pre')
-      pre.className   = 'rp-preview-text'
-      pre.textContent = fallback
-      body.appendChild(pre)
-      return
-    }
-    body.textContent = 'Could not load report preview.'
-    console.error('Preview failed:', err)
-  }
-}
-
-// Same anchored menu as showCardMenu.
 function showDownloadMenu (anchorEl, visit, { delivered }) {
   document.querySelector('.rc-context-menu')?.remove()
   const menu = document.createElement('div')
@@ -720,6 +664,7 @@ const screenStyles = `
   .scroll-area { flex:1; overflow-y:auto; -webkit-overflow-scrolling:touch; overscroll-behavior:contain; }
   .visit-list { display:flex; flex-direction:column; gap:var(--space-2); padding:var(--space-3) var(--space-4) var(--space-6); }
   .rc-wrap .report-card { position:relative; z-index:2; }
+  .rc-receipt-note { margin:0; padding:26px 18px 18px; background:var(--fo-paper); color:var(--fo-ink-soft); font-size:var(--text-sm); text-align:center; }
   .rc-slot { display:grid; grid-template-rows:0fr; transition:grid-template-rows .55s cubic-bezier(.3,.7,.2,1), margin .55s cubic-bezier(.3,.7,.2,1); margin:0 10px; }
   .rc-slot.open { grid-template-rows:1fr; margin:-14px 10px var(--space-2); }
   .rc-slot > div { overflow:hidden; }
@@ -733,11 +678,9 @@ const screenStyles = `
   .rc-address { font-size:var(--text-base); font-weight:800; color:var(--fo-ink); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
   .rc-meta { font-size:var(--text-sm); font-family:var(--fo-font-mono); color:var(--fo-ink-soft); }
   .rc-status-icon { font-size:18px; flex-shrink:0; }
-  .rc-status-icon--downloaded { color: var(--fo-ink-soft); }
   .rc-status-icon--sent { color: var(--fo-ok); }
   .rc-status { font-size:var(--text-sm); font-family:var(--fo-font-mono); }
   .rc-status--pending { color: var(--fo-accent); }
-  .rc-status--downloaded { color: var(--fo-ink-soft); }
   .rc-status--sent { color: var(--fo-ok); }
   .rc-card-right { display:flex; align-items:center; gap:8px; }
   .rc-actions { display:flex; gap:var(--space-2); margin-top:var(--space-1); }
@@ -756,11 +699,4 @@ const screenStyles = `
   .rc-context-menu { position:fixed; background:var(--fo-panel); box-shadow:var(--fo-shadow-card); border-radius:var(--fo-radius-sm); padding:var(--space-2) 0; min-width:180px; z-index:100; }
   .rc-context-item { display:block; width:100%; background:none; border:none; text-align:left; font-size:var(--text-base); color:var(--fo-ink); padding:var(--space-3) var(--space-4); cursor:pointer; }
   .rc-context-item:active { background:var(--fo-well); box-shadow:var(--fo-shadow-inset); }
-  .rp-overlay { position:fixed; inset:0; background:var(--fo-scrim); display:flex; align-items:flex-end; z-index:100; }
-  .rp-modal { width:100%; background:var(--fo-panel); box-shadow:var(--fo-shadow-card); border-radius:var(--fo-radius) var(--fo-radius) 0 0; max-height:80dvh; display:flex; flex-direction:column; padding-bottom:env(safe-area-inset-bottom,0px); }
-  .rp-modal-header { display:flex; justify-content:space-between; align-items:center; padding:var(--space-4) var(--space-4) var(--space-3); box-shadow:inset 0 -1px 0 var(--fo-panel-lo); flex-shrink:0; }
-  .rp-modal-title { font-size:var(--text-base); font-weight:700; color:var(--fo-ink); }
-  .rp-close-btn { background:none; border:none; color:var(--fo-ink-soft); font-size:22px; cursor:pointer; padding:0 4px; line-height:1; }
-  .rp-modal-body { flex:1; overflow-y:auto; padding:var(--space-4); }
-  .rp-preview-text { font-family:var(--fo-font-mono); font-size:var(--text-sm); color:var(--fo-ink); background:var(--fo-well); box-shadow:var(--fo-shadow-well); border-radius:var(--fo-radius-sm); padding:var(--space-3); display:block; white-space:pre-wrap; word-break:break-word; line-height:1.6; }
 `
