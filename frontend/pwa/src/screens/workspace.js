@@ -332,26 +332,28 @@ function buildActiveJobBanner () {
   return el
 }
 
-// System switcher (Service step, multi-system calls). Tapping a system edits
-// that system; tapping it again returns to the default for every system.
-// A dot marks systems with their own (custom) service.
+// System switcher (Service step, multi-system calls): All edits the default
+// for every system; a number edits that system. A dot marks systems with
+// their own (custom) service.
 function buildSystemSwitcher () {
   const numbers = systemNumbersOf(visit)
-  if (activeStep !== 'service' || numbers.length < 2 || isCancelMode()) return null
+  if (activeStep !== 'service' || numbers.length < 2 || isCancelMode() || isDriveRunMode()) return null
   const el = document.createElement('div')
   el.className = 'ws-sys-switch'
   el.setAttribute('role', 'group')
   el.setAttribute('aria-label', 'Systems')
-  numbers.forEach((number) => {
+  ;[null, ...numbers].forEach((number) => {
     const btn = document.createElement('button')
     btn.type = 'button'
-    const custom = isCustomSystemService(visit._service, number)
-    btn.className = `ws-sys-btn${selectedSystem === number ? ' ws-sys-btn--on' : ''}${custom ? ' ws-sys-btn--custom' : ''}`
-    btn.textContent = String(number)
-    btn.setAttribute('aria-pressed', String(selectedSystem === number))
-    btn.setAttribute('aria-label', `System ${number}${custom ? ', custom' : ''}`)
+    const on = selectedSystem === number
+    const custom = number != null && isCustomSystemService(visit._service, number)
+    btn.className = `ws-sys-btn${on ? ' ws-sys-btn--on' : ''}${custom ? ' ws-sys-btn--custom' : ''}`
+    btn.textContent = number == null ? 'All' : String(number)
+    btn.setAttribute('aria-pressed', String(on))
+    btn.setAttribute('aria-label', number == null ? 'All systems' : `System ${number}${custom ? ', custom' : ''}`)
     btn.addEventListener('click', () => {
-      selectedSystem = selectedSystem === number ? null : number
+      if (on) return
+      selectedSystem = number
       renderBody()
     })
     el.appendChild(btn)
@@ -445,6 +447,7 @@ function buildStepFooter (stepIndex) {
 
 function buildStepContent (stepId) {
   if (isCancelMode() && stepId !== 'notes') return buildCancelModeNotice()
+  if (isDriveRunMode() && ['accessories', 'fixes', 'weighin'].includes(stepId)) return buildDriveRunNotice()
   switch (stepId) {
     case 'service':     return buildServiceStepContent()
     case 'accessories': return stripTrailingButton(buildItemsSection('accessory'))
@@ -459,6 +462,19 @@ function buildCancelModeNotice () {
   const notice = document.createElement('div')
   notice.className = 'ws-section-content ws-cancel-mode-notice'
   notice.textContent = 'Cancel mode keeps Notes and Checklist available for the required justification. Work selections are cleared until Generate Report.'
+  return notice
+}
+
+// Drive Run active: every section is locked except Notes and the checklist
+// (whose answers lead to its photos). Drive Run itself stays usable in Service.
+function isDriveRunMode () {
+  return visit?._service?.driveRun === true && !isCancelMode()
+}
+
+function buildDriveRunNotice () {
+  const notice = document.createElement('div')
+  notice.className = 'ws-section-content ws-cancel-mode-notice'
+  notice.textContent = 'Drive Run active — this section is locked. Turn Drive Run off in Service to edit it.'
   return notice
 }
 
@@ -630,6 +646,7 @@ function buildServiceSection () {
     btn.className = `ws-item-btn${on ? (key === 'ac' ? ' ws-item-btn--ac' : key === 'heat' ? ' ws-item-btn--heat' : ' ws-item-btn--active') : ''}`
     btn.textContent = label
     btn.setAttribute('aria-pressed', String(on))
+    btn.disabled = service.driveRun
     btn.addEventListener('click', tap(key))
     tiles.appendChild(btn)
   })
@@ -645,13 +662,14 @@ function buildServiceSection () {
     btn.className = `ws-item-btn ws-btn--modifier${on ? ' ws-item-btn--active' : ''}`
     btn.textContent = label
     btn.setAttribute('aria-pressed', String(on))
+    btn.disabled = service.driveRun
     btn.addEventListener('click', tap(key))
     mods.appendChild(btn)
   })
   wrap.appendChild(mods)
 
   const hint = service.driveRun
-    ? 'Drive Run is exclusive — it replaces every service on the call.'
+    ? 'Drive Run active — services, T-stat, Accessories, Fixes and Weigh-In are locked. Tap Drive Run to turn it off.'
     : selection.prestart ? 'Prestart is exclusive — it can’t combine with other services.' : ''
   if (hint) {
     const hintEl = document.createElement('p')
@@ -794,6 +812,7 @@ function buildThermostatSection () {
     row.type = 'button'
     row.className = `ws-tstat-opt${isActive ? ' ws-tstat-opt--on' : ''}`
     row.setAttribute('aria-pressed', String(isActive))
+    row.disabled = isDriveRunMode()
     row.textContent = item.item_name
     if (!isActive && preSpec === item.item_name) {
       const pre = document.createElement('span'); pre.className = 'ws-pre-label'; pre.textContent = 'suggested'
@@ -1761,6 +1780,7 @@ function injectStyles () {
   .ws-drive-btn{flex:none;width:100%;}
   .ws-tstat-picker{max-height:176px;overflow-y:auto;padding:4px;border-radius:var(--fo-radius-sm);box-shadow:var(--fo-shadow-well);display:flex;flex-direction:column;gap:2px;}
   .ws-tstat-opt{display:flex;align-items:center;justify-content:space-between;width:100%;min-height:44px;flex-shrink:0;padding:0 var(--space-3);border:none;border-radius:var(--fo-radius-sm);background:none;color:var(--fo-ink);font-family:var(--fo-font-mono);font-size:var(--text-sm);font-weight:600;text-align:left;cursor:pointer;-webkit-tap-highlight-color:transparent;}
+  .ws-tstat-opt:disabled{opacity:.35;cursor:not-allowed;}
   .ws-tstat-opt--on{background:var(--fo-panel);box-shadow:var(--fo-shadow-raised);color:var(--fo-accent-deep);}
   .ws-tqty-row{display:flex;align-items:center;gap:6px;}
   .ws-tqty-name{flex:1;min-width:0;font-family:var(--fo-font-mono);font-size:var(--text-sm);font-weight:600;color:var(--fo-ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
