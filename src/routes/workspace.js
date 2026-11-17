@@ -46,7 +46,14 @@ async function requirePhotoOwnership(req, res, next) {
     const result = await pool.query('SELECT id, technician_id, address_id FROM visits WHERE id = $1', [req.params.id]);
     if (result.rows.length === 0) return res.status(404).json({ error: 'Visit not found' });
     if (result.rows[0].technician_id !== req.technician.id) {
-      return res.status(403).json({ error: 'This visit is not assigned to you' });
+      // A transferred visit: the technician who already submitted its Report
+      // may still deliver that Report's photos (checked per photo below).
+      const submitted = await pool.query(
+        'SELECT 1 FROM completion_submissions WHERE visit_id = $1 AND technician_id = $2',
+        [req.params.id, req.technician.id]
+      );
+      if (!submitted.rows.length) return res.status(403).json({ error: 'This visit is not assigned to you' });
+      req.submittedByFormerOwner = true;
     }
     req.visit = result.rows[0];
     next();
@@ -608,6 +615,15 @@ router.post(
         return res.status(400).json({ error: 'Invalid photo id' });
       }
       const photoId = requestedId ? String(requestedId) : crypto.randomUUID();
+      if (req.submittedByFormerOwner) {
+        const referenced = await pool.query(
+          `SELECT 1 FROM completion_submissions
+           WHERE visit_id = $1 AND technician_id = $2
+             AND snapshot->'evidenceRefs' @> jsonb_build_array(jsonb_build_object('id', $3::text))`,
+          [id, req.technician.id, photoId]
+        );
+        if (!referenced.rows.length) return res.status(403).json({ error: 'This visit is not assigned to you' });
+      }
 
       const existing = await pool.query('SELECT visit_id, slug, stored_at FROM visit_photos WHERE id = $1', [photoId]);
       if (existing.rows.length && existing.rows[0].visit_id !== id) {

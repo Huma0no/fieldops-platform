@@ -460,7 +460,9 @@ PUT /api/visits/:id/weigh-in/:systemNumber
 
 POST /api/visits/:id/photos
   auth: technician (must be assigned; any visit status — photos may arrive
-        after their Report)
+        after their Report). After a transfer, the technician who submitted
+        the visit's Report may still upload the photos that Report lists;
+        any other photo is 403.
   body: image file (multipart) + { category, tag, systemNumber?, label?,
         photoId?, slug?, lat?, lon? }
   current behavior (2026-11-17): the phone uploads each kept photo with its own

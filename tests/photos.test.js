@@ -131,3 +131,28 @@ it('stores a photo and accepts its Report when both arrive at the same time', as
   const stored = await pool.query('SELECT stored_at FROM visit_photos WHERE id = $1', [photoId]);
   expect(stored.rows[0].stored_at).toBe(`${visit.visitId}/${photoId}.jpg`);
 });
+
+it('accepts a reported photo from the original technician after the visit was transferred', async () => {
+  const visit = await seedAssignedVisit();
+  const photoId = randomUUID();
+  const detail = await request(app).get(`/api/visits/${visit.visitId}`).set('Authorization', `Bearer ${visit.token}`);
+  const draft = drafts.createLocalVisitDraft({ ...detail.body, technicianId: visit.tech.id }, { now: '2026-11-17T10:00:00.000Z' });
+  drafts.tapService(draft._service, null, 'prestart');
+  draft._service.rows = [{ systemNumber: 1, serviceName: 'Prestart', isFinish: false, isTemporarily: false, price: 20 }];
+  draft.totalPrice = 20;
+  draft.evidenceRefs = [{ id: photoId, slug: 'SITE_NO_PDRAIN', tag: 'NO_PDRAIN', label: null, category: 'site_evidence', systemNumber: null, storedAt: null }];
+  const snapshot = createCompletionSnapshot(draft, { id: `moved-${photoId}`, now: '2026-11-17T10:00:00.000Z' });
+  expect((await request(app).post(`/api/visits/${visit.visitId}/complete`).set('Authorization', `Bearer ${visit.token}`)
+    .send({ submissionId: snapshot.submissionId, snapshot })).status).toBe(200);
+
+  const { token: dispatcherToken } = await seedDispatcherWithToken();
+  const { tech: newTech } = await seedTechnicianWithToken({ name: 'New owner' });
+  expect((await request(app).patch(`/api/dispatch/visits/${visit.visitId}/reassign`)
+    .set('Authorization', `Bearer ${dispatcherToken}`).send({ technicianId: newTech.id })).status).toBe(200);
+
+  // Not in that Report: still refused.
+  expect((await uploadPhoto(visit, randomUUID())).status).toBe(403);
+  const uploaded = await uploadPhoto(visit, photoId);
+  expect(uploaded.status).toBe(200);
+  expect(uploaded.body.storedAt).toBe(`${visit.visitId}/${photoId}.jpg`);
+});
