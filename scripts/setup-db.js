@@ -1,4 +1,5 @@
-// Builds a FieldOps database from scratch: schema.sql + canonical catalog seed.
+// Builds a FieldOps database from scratch: schema.sql + canonical catalog seed,
+// then records every migration as applied (schema.sql already contains them).
 // Usage: npm run db:setup        (DATABASE_URL: schema + catalog seed)
 //        npm run db:setup:test   (TEST_DATABASE_URL: schema only; tests seed their own data)
 // Refuses to run against a database that already holds visits, because
@@ -7,6 +8,7 @@ require('dotenv').config();
 const fs = require('fs');
 const path = require('path');
 const { Client } = require('pg');
+const { migrate } = require('./migrate');
 
 async function main() {
   const isTest = process.argv.includes('--test');
@@ -25,6 +27,8 @@ async function main() {
       await client.query(fs.readFileSync(path.join(__dirname, '..', file), 'utf8'));
       console.log(`applied ${file}`);
     }
+    // schema.sql already contains every migration; record them so db:migrate skips them.
+    await migrate(client, { baseline: true });
     console.log(isTest ? 'Test database ready.' : 'Database ready. Start the server to create the Dispatcher account.');
   } finally {
     await client.end();

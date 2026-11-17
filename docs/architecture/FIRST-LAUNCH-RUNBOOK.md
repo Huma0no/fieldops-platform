@@ -5,8 +5,10 @@
 
 ## 1. Database
 
-- **New database:** `npm run db:setup` applies `src/db/schema.sql` and the catalog seed. `schema.sql` already includes every migration through 027. The script refuses to run on a database that already has visits.
-- **Existing database:** apply the pending migrations in order: `npm run db:migrate025`, `npm run db:migrate026`, `npm run db:migrate027` (each needs `DATABASE_URL` in the shell). Migration 025 aborts without changes if any visit has more than one completion submission. Migration 027 removes existing sessions (everyone signs in again).
+- **New database:** `npm run db:setup` applies `src/db/schema.sql` and the catalog seed, then records every migration as applied in `schema_migrations` (`schema.sql` already contains them). The script refuses to run on a database that already has visits.
+- **Existing database:** `npm run db:migrate` applies the pending files of `src/db/migrations/` in filename order, each in its own transaction, and records them in `schema_migrations`. Deploys run it before starting the server.
+- **Existing database without `schema_migrations`** (built before the runner): bring it up to migration 027 by hand (`npm run db:migrate025`, `026`, `027`; 025 aborts without changes if any visit has more than one completion submission, 027 removes existing sessions), then run `npm run db:migrate -- --baseline` once.
+- **Adding a migration:** a new numbered file in `src/db/migrations/` without `BEGIN`/`COMMIT` (the runner wraps it), and the same change folded into `schema.sql` in the same commit.
 
 ## 2. Server environment
 
