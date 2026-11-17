@@ -134,6 +134,9 @@ Must be implemented after the WIP merge and before launch.
 |---|---|---|
 | FF-01 | Technician-defined price panel, as in the legacy app (hvacstartup-dev.netlify.app); needed if FieldOps is commercialized. Options to evaluate then: preset agreed prices, zero prices filled on first use, or a price panel filled before the first job. | `MASTER-FUNCTION-INDEX.md` R-10 |
 | FF-02 | System identifier in report text (2026-11-17). Per-system report lines name systems "System 1/2/3", which another technician cannot match on site. Replace with an unambiguous real-world identifier: preferably a location label captured in Dispatch (e.g. DS/US), falling back to capacity (e.g. 4 ton) when no label exists; capacity alone can repeat. | `shared/REPORT-TEXT.md` (per-system services) |
+| FF-03 | Company-level setting "contractors may set their own prices" (2026-11-17). On: a contractor edits a price catalog inside FieldOps (their overrides). Off: company catalog prices only. | `MASTER-FUNCTION-INDEX.md` R-10 (related: FF-01) |
+| FF-04 | Dispatch navigation from the mockups (2026-11-17, future UX decision): Home overview, a Dispatch Transfer screen, Properties as its own screen, and Inventory merged with Restock. Not adopted in the restyle; the real navigation stays. | `mockups/fieldops-dispatch-mockups.html` (00, 03, 06), `history-properties-mockup.html` (09) |
+| FF-05 | Ledger Money In/Out, Ledger compensation report, and Technicians compensation history (2026-11-17). Shown in the mockups; not built and out of the restyle scope. The mockup's Technicians invite code is dropped: accounts use username and password. | `mockups/ledger-mockup.html` (11a, 11b), `technicians-mockup.html` (10b) |
 
 ## Backlog / pendiente de decisión
 
