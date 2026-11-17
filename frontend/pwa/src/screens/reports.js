@@ -23,6 +23,7 @@ import {
   retryPendingCompletionSubmissions,
 } from '../lib/completion-submission.mjs'
 import { startSync }            from '../lib/sync.js'
+import { buildReportDownload }  from '../lib/report-download.mjs'
 import { CorrectionModal, correctionModalStyles } from '../components/correction-modal.js'
 
 const STYLES_ID = 'styles-reports'
@@ -403,7 +404,10 @@ function buildReportCard (visit) {
   const downloadBtn = document.createElement('button')
   downloadBtn.className   = 'rc-btn rc-btn--ghost'
   downloadBtn.textContent = 'Download'
-  downloadBtn.addEventListener('click', () => downloadReport(visit))
+  downloadBtn.addEventListener('click', e => {
+    e.stopPropagation()
+    showDownloadMenu(downloadBtn, visit)
+  })
   actions.appendChild(downloadBtn)
 
   card.appendChild(actions)
@@ -546,20 +550,56 @@ async function openReportPreview (visit) {
   }
 }
 
-async function downloadReport (visit) {
+// Same anchored menu as showCardMenu.
+function showDownloadMenu (anchorEl, visit) {
+  document.querySelector('.rc-context-menu')?.remove()
+  const menu = document.createElement('div')
+  menu.className = 'rc-context-menu'
+  ;[
+    ['json', 'JSON'],
+    ['zip', 'ZIP — photos'],
+    ['all', 'All — JSON + photos'],
+  ].forEach(([kind, label]) => {
+    const item = document.createElement('button')
+    item.className   = 'rc-context-item'
+    item.textContent = label
+    item.addEventListener('click', () => {
+      menu.remove()
+      void downloadReport(visit, kind)
+    })
+    menu.appendChild(item)
+  })
+  const rect = anchorEl.getBoundingClientRect()
+  menu.style.top   = `${rect.bottom + 4}px`
+  menu.style.right = `${window.innerWidth - rect.right}px`
+  document.body.appendChild(menu)
+
+  function close (e) { if (!menu.contains(e.target)) { menu.remove(); document.removeEventListener('click', close) } }
+  setTimeout(() => document.addEventListener('click', close), 0)
+}
+
+async function downloadReport (visit, kind) {
   try {
-    const payload = await api.get(`/visits/${visit.id}/report-preview`)
-    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' })
-    const url  = URL.createObjectURL(blob)
-    const a    = document.createElement('a')
-    a.href     = url
-    a.download = `report-${visit.id}.json`
-    a.click()
-    URL.revokeObjectURL(url)
-    downloadedIds.add(visit.id)
-    renderList()
+    const { fileName, blob, missing } = await buildReportDownload(visit, kind)
+    if (blob) {
+      const url  = URL.createObjectURL(blob)
+      const a    = document.createElement('a')
+      a.href     = url
+      a.download = fileName
+      a.click()
+      setTimeout(() => URL.revokeObjectURL(url), 1000)
+      downloadedIds.add(visit.id)
+      renderList()
+    }
+    if (missing.length) {
+      const lines = missing.map(m => `${m.name} — ${m.needsConnection ? 'needs connection' : 'not available'}`)
+      alert(`${blob ? 'Downloaded without' : 'Nothing to download'}:\n${lines.join('\n')}`)
+    } else if (!blob) {
+      alert('This report has no photos.')
+    }
   } catch (err) {
     console.error('Download failed:', err)
+    alert('Download failed.')
   }
 }
 

@@ -284,4 +284,17 @@ describe('Local Visit Draft IndexedDB persistence', () => {
     await expect(db.getQueue()).resolves.toEqual([])
     await expect(db.getLocalVisitDraft('visit-photo-1')).resolves.toBeNull()
   })
+
+  it('keeps a sent photo on the phone until it is older than the cutoff', async () => {
+    const id = await db.savePendingPhoto({ photoId: 'p-1', visitId: 'visit-photo-2', blob: new Blob(['jpeg']), tag: 'FAN' })
+    await db.markPhotoUploaded(id, 1000)
+    await expect(db.getPendingPhotos()).resolves.toEqual([])
+    const [kept] = await db.getPhotosForVisit('visit-photo-2')
+    expect(kept).toMatchObject({ photoId: 'p-1', pendingUpload: false, uploadedAt: 1000 })
+
+    await db.savePendingPhoto({ photoId: 'p-2', visitId: 'visit-photo-2', blob: new Blob(['jpeg']), tag: 'SCALE' })
+    await db.deleteUploadedPhotosBefore(1001)
+    const left = await db.getPhotosForVisit('visit-photo-2')
+    expect(left.map(photo => photo.photoId)).toEqual(['p-2'])
+  })
 })

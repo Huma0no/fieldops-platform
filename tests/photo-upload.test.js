@@ -10,7 +10,7 @@ function asModule(source) {
 beforeAll(async () => {
   const source = (await fs.readFile(path.join(__dirname, '../frontend/pwa/src/lib/photo-upload.mjs'), 'utf8'))
     .replace("'../../../shared/api.js'", `'${asModule('export const api = {};')}'`)
-    .replace("'./db.js'", `'${asModule('export const getActiveTechnicianId = () => null; export const getPendingPhotos = async () => []; export const deletePendingPhoto = async () => {}; export const savePendingPhoto = async () => {};')}'`);
+    .replace("'./db.js'", `'${asModule('export const getActiveTechnicianId = () => null; export const getPendingPhotos = async () => []; export const markPhotoUploaded = async () => {}; export const deleteUploadedPhotosBefore = async () => {}; export const savePendingPhoto = async () => {};')}'`);
   photos = await import(asModule(source));
 });
 
@@ -30,36 +30,36 @@ it('keeps the photo on the phone and returns its evidence reference', async () =
   expect(saved[0][1]).toBe('tech-1');
 });
 
-it('deletes a photo from the phone only after the server stored it', async () => {
-  const removed = [];
+it('marks a photo sent only after the server stored it', async () => {
+  const marked = [];
   const sent = [];
   await photos.uploadPendingPhotos({
     technicianId: 'tech-1',
     load: async () => [record(1, 'p-1'), record(2, 'p-2')],
-    remove: async id => removed.push(id),
+    markUploaded: async id => marked.push(id),
     send: async (visitId, form) => sent.push([visitId, form.get('photoId'), form.get('systemNumber'), form.get('lat')]),
   });
   expect(sent).toEqual([['visit-1', 'p-1', '2', '29.7'], ['visit-1', 'p-2', '2', '29.7']]);
-  expect(removed).toEqual([1, 2]);
+  expect(marked).toEqual([1, 2]);
 });
 
 it('stops while offline and keeps a rejected photo for the next attempt', async () => {
-  const removed = [];
+  const marked = [];
   await photos.uploadPendingPhotos({
     technicianId: 'tech-1',
     load: async () => [record(1, 'p-1'), record(2, 'p-2')],
-    remove: async id => removed.push(id),
+    markUploaded: async id => marked.push(id),
     send: async () => { throw new TypeError('Failed to fetch') },
   });
-  expect(removed).toEqual([]);
+  expect(marked).toEqual([]);
 
   await photos.uploadPendingPhotos({
     technicianId: 'tech-1',
     load: async () => [record(1, 'p-1'), record(2, 'p-2')],
-    remove: async id => removed.push(id),
+    markUploaded: async id => marked.push(id),
     send: async (_visit, form) => {
       if (form.get('photoId') === 'p-1') throw Object.assign(new Error('rejected'), { status: 409 });
     },
   });
-  expect(removed).toEqual([2]);
+  expect(marked).toEqual([2]);
 });

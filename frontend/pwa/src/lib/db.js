@@ -463,9 +463,20 @@ export async function getPendingPhotos (technicianId = getActiveTechnicianId()) 
   return records.filter(record => record?.pendingUpload === true && normalizeTechnicianId(record.technicianId) === techId)
 }
 
-export async function deletePendingPhoto (id) {
+// The server stored the photo: keep the local copy (for offline download) as
+// sent; deleteUploadedPhotosBefore removes it later.
+export async function markPhotoUploaded (id, uploadedAt = Date.now()) {
   const store = await tx('photos', 'readwrite')
-  return promisify(store.delete(id))
+  const record = await promisify(store.get(id))
+  if (!record) return
+  return promisify(store.put({ ...record, pendingUpload: false, uploadedAt }))
+}
+
+export async function deleteUploadedPhotosBefore (cutoff) {
+  const store = await tx('photos', 'readwrite')
+  const records = await promisify(store.getAll())
+  const expired = records.filter(record => record?.pendingUpload === false && record.uploadedAt < cutoff)
+  await Promise.all(expired.map(record => promisify(store.delete(record.id))))
 }
 
 export async function deletePhotosForVisit (visitId, technicianId = getActiveTechnicianId()) {

@@ -3,7 +3,11 @@
 // moment it is taken, counted in the draft through its evidence reference, and
 // uploaded whenever the server is reachable — before or after the Report.
 import { api } from '../../../shared/api.js'
-import { deletePendingPhoto, getActiveTechnicianId, getPendingPhotos, savePendingPhoto } from './db.js'
+import { deleteUploadedPhotosBefore, getActiveTechnicianId, getPendingPhotos, markPhotoUploaded, savePendingPhoto } from './db.js'
+
+// A sent photo stays on the phone this long, so its Report can be downloaded
+// offline with its photos.
+export const KEEP_SENT_PHOTOS_MS = 7 * 24 * 60 * 60 * 1000
 
 // Same file name the server builds: {ADDRESS}_{TAG}[_SYS{n}].
 export function photoSlug (street, tag, systemNumber) {
@@ -33,7 +37,7 @@ let uploading = null
 export function uploadPendingPhotos ({
   technicianId = getActiveTechnicianId(),
   load = getPendingPhotos,
-  remove = deletePendingPhoto,
+  markUploaded = markPhotoUploaded,
   send = (visitId, form) => api.upload(`/visits/${visitId}/photos`, form),
 } = {}) {
   if (uploading) return uploading
@@ -54,7 +58,7 @@ export function uploadPendingPhotos ({
       }
       try {
         await send(record.visitId, form)
-        await remove(record.id)
+        await markUploaded(record.id)
       } catch (error) {
         // Offline or signed out: stop and retry later. A rejected photo stays
         // on the phone (never deleted unseen) and is retried next time.
@@ -78,6 +82,7 @@ export function startPhotoUploadRetry () {
   const upload = async () => {
     clearTimeout(retryTimer)
     try {
+      await deleteUploadedPhotosBefore(Date.now() - KEEP_SENT_PHOTOS_MS)
       await uploadPendingPhotos()
       const waiting = await getPendingPhotos()
       if (waiting.length && navigator.onLine !== false) retryTimer = setTimeout(upload, RETRY_MS)
