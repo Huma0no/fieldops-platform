@@ -48,19 +48,10 @@ export default function Auth () {
 
   return (
     <div style={styles.page}>
-      <div style={styles.card}>
-        <div style={styles.logo}>
-          <svg width="44" height="44" viewBox="0 0 40 40" fill="none">
-            <rect width="40" height="40" rx="10" fill="var(--color-signal)"/>
-            <path d="M12 28 L20 12 L28 28" stroke="white" strokeWidth="2.5"
-                  strokeLinecap="round" strokeLinejoin="round"/>
-            <path d="M15 22 L25 22" stroke="white" strokeWidth="2.5"
-                  strokeLinecap="round"/>
-          </svg>
-        </div>
-
-        <h1 style={styles.title}>Field Ops Dispatch</h1>
-        <p style={styles.subtitle}>Sign in to the dispatch panel.</p>
+      <div className="vd-rack" style={styles.card}>
+        <Screws />
+        <h1 className="vd-brand" style={styles.title}>FieldOps · Dispatch</h1>
+        <p className="vd-stencil" style={styles.subtitle}>Sign in to the dispatch panel</p>
 
         <form onSubmit={handleSubmit} style={styles.form} noValidate>
           <input
@@ -71,6 +62,7 @@ export default function Auth () {
             autoComplete="username"
             autoCapitalize="none"
             spellCheck={false}
+            className="vd-input data"
             style={styles.input}
           />
           <div style={styles.passwordField}>
@@ -81,6 +73,7 @@ export default function Auth () {
               placeholder="Password"
               autoComplete="current-password"
               spellCheck={false}
+              className="vd-input data"
               style={{ ...styles.input, ...styles.passwordInput }}
             />
             <button type="button" style={styles.visibilityButton} aria-label={showPassword ? 'Hide password' : 'Show password'} onClick={() => setShowPassword(value => !value)}>
@@ -92,14 +85,14 @@ export default function Auth () {
             Keep me signed in on this device
           </label>
 
-          {error && <p style={styles.error}>{error}</p>}
+          {error && <p className="vd-error" style={styles.error}>{error}</p>}
 
-          <button type="submit" disabled={loading} style={styles.btn}>
+          <button type="submit" disabled={loading} className="vd-key dark wide">
             {loading ? 'Signing in…' : 'Sign in'}
           </button>
         </form>
 
-        <p style={styles.help}>Contact your Dispatch Owner if you need access.</p>
+        <p className="vd-stencil" style={styles.help}>Contact your Dispatch Owner if you need access.</p>
       </div>
     </div>
   )
@@ -133,26 +126,31 @@ export function PasswordChange () {
       setLoading(false)
     }
   }
-  return <div style={styles.page}><form onSubmit={submit} style={styles.card}>
-    <h1 style={styles.title}>Change your temporary password</h1>
-    <p style={styles.subtitle}>Choose a password with at least 12 characters.</p>
-    <input style={styles.input} type="password" autoComplete="current-password" placeholder="Temporary password" value={currentPassword} onChange={e => setCurrentPassword(e.target.value)} required />
+  return <div style={styles.page}><form onSubmit={submit} className="vd-rack" style={styles.card}>
+    <Screws />
+    <h1 className="vd-brand" style={styles.title}>Change your temporary password</h1>
+    <p className="vd-stencil" style={styles.subtitle}>Choose a password with at least 12 characters</p>
+    <input className="vd-input data" style={styles.input} type="password" autoComplete="current-password" placeholder="Temporary password" value={currentPassword} onChange={e => setCurrentPassword(e.target.value)} required />
     <div style={styles.passwordField}>
-      <input style={{ ...styles.input, ...styles.passwordInput }} type={visiblePasswords.newPassword ? 'text' : 'password'} autoComplete="new-password" placeholder="New Password" value={newPassword} onChange={e => { setNewPassword(e.target.value); setError('') }} minLength={12} required />
+      <input className="vd-input data" style={{ ...styles.input, ...styles.passwordInput }} type={visiblePasswords.newPassword ? 'text' : 'password'} autoComplete="new-password" placeholder="New Password" value={newPassword} onChange={e => { setNewPassword(e.target.value); setError('') }} minLength={12} required />
       <button type="button" style={styles.visibilityButton} aria-label={visiblePasswords.newPassword ? 'Hide new password' : 'Show new password'} onClick={() => setVisiblePasswords(value => togglePasswordVisibility(value, 'newPassword'))}>
         <PasswordVisibilityIcon visible={visiblePasswords.newPassword} />
       </button>
     </div>
     <div style={styles.passwordField}>
-      <input style={{ ...styles.input, ...styles.passwordInput }} type={visiblePasswords.confirmPassword ? 'text' : 'password'} autoComplete="new-password" placeholder="Confirm New Password" value={confirmPassword} onChange={e => { setConfirmPassword(e.target.value); setError('') }} minLength={12} required />
+      <input className="vd-input data" style={{ ...styles.input, ...styles.passwordInput }} type={visiblePasswords.confirmPassword ? 'text' : 'password'} autoComplete="new-password" placeholder="Confirm New Password" value={confirmPassword} onChange={e => { setConfirmPassword(e.target.value); setError('') }} minLength={12} required />
       <button type="button" style={styles.visibilityButton} aria-label={visiblePasswords.confirmPassword ? 'Hide confirmation password' : 'Show confirmation password'} onClick={() => setVisiblePasswords(value => togglePasswordVisibility(value, 'confirmPassword'))}>
         <PasswordVisibilityIcon visible={visiblePasswords.confirmPassword} />
       </button>
     </div>
-    {newPassword && confirmPassword && newPassword !== confirmPassword && <p style={styles.error} role="alert">New passwords do not match.</p>}
-    {error && <p style={styles.error}>{error}</p>}
-    <button type="submit" disabled={loading || Boolean(validationError)} style={styles.btn}>{loading ? 'Updating…' : 'Update password'}</button>
+    {newPassword && confirmPassword && newPassword !== confirmPassword && <p className="vd-error" style={styles.error} role="alert">New passwords do not match.</p>}
+    {error && <p className="vd-error" style={styles.error}>{error}</p>}
+    <button type="submit" disabled={loading || Boolean(validationError)} className="vd-key dark wide">{loading ? 'Updating…' : 'Update password'}</button>
   </form></div>
+}
+
+function Screws () {
+  return <><span className="vd-screw tl" /><span className="vd-screw tr" /><span className="vd-screw bl" /><span className="vd-screw br" /></>
 }
 
 function PasswordVisibilityIcon ({ visible }) {
@@ -169,50 +167,41 @@ const styles = {
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
-    background: 'var(--surface-base)',
     padding: '24px',
   },
   card: {
     width: '100%',
-    maxWidth: '360px',
+    maxWidth: '400px',
     display: 'flex',
     flexDirection: 'column',
     alignItems: 'center',
     gap: '16px',
-  },
-  logo: {
-    marginBottom: '8px',
+    padding: '32px 28px 28px',
   },
   title: {
-    fontSize: 'var(--text-xl)',
-    fontWeight: 500,
-    color: 'var(--text-primary)',
-    letterSpacing: '-0.02em',
+    margin: 0,
+    fontWeight: 400,
+    textAlign: 'center',
+    borderBottom: '3px solid var(--vd-ink)',
+    paddingBottom: '12px',
+    alignSelf: 'stretch',
   },
   subtitle: {
-    fontSize: 'var(--text-base)',
-    color: 'var(--text-muted)',
+    margin: 0,
     textAlign: 'center',
   },
   form: {
     width: '100%',
     display: 'flex',
     flexDirection: 'column',
-    gap: '12px',
-    marginTop: '8px',
+    gap: '14px',
+    marginTop: '4px',
   },
   input: {
-    width: '100%',
-    background: 'var(--surface-2)',
-    border: '0.5px solid var(--border-default)',
-    borderRadius: 'var(--radius-md)',
-    color: 'var(--text-primary)',
-    fontSize: 'var(--text-lg)',
-    fontFamily: 'var(--font-mono)',
-    letterSpacing: '0.12em',
-    padding: '16px',
+    fontSize: 'var(--text-md)',
+    letterSpacing: '0.08em',
+    padding: '13px 14px',
     textAlign: 'center',
-    outline: 'none',
   },
   passwordField: {
     position: 'relative',
@@ -224,14 +213,14 @@ const styles = {
   visibilityButton: {
     position: 'absolute',
     top: '50%',
-    right: '12px',
+    right: '8px',
     transform: 'translateY(-50%)',
     display: 'grid',
     placeItems: 'center',
     padding: '8px',
     border: 'none',
     background: 'transparent',
-    color: 'var(--text-muted)',
+    color: 'var(--vd-ink)',
     cursor: 'pointer',
   },
   keep: {
@@ -239,29 +228,16 @@ const styles = {
     alignItems: 'center',
     gap: 'var(--space-2)',
     fontSize: 'var(--text-sm)',
-    color: 'var(--text-secondary)',
     cursor: 'pointer',
   },
   error: {
-    fontSize: 'var(--text-sm)',
-    color: 'var(--color-heat)',
     textAlign: 'center',
-  },
-  btn: {
-    width: '100%',
-    background: 'var(--color-signal)',
-    border: 'none',
-    borderRadius: 'var(--radius-md)',
-    color: '#fff',
-    fontSize: 'var(--text-base)',
-    fontWeight: 500,
-    padding: '16px',
-    cursor: 'pointer',
   },
   help: {
-    fontSize: 'var(--text-sm)',
-    color: 'var(--text-disabled)',
+    margin: '4px 0 0',
     textAlign: 'center',
-    marginTop: '8px',
+    letterSpacing: '1px',
+    textTransform: 'none',
+    fontSize: 'var(--text-sm)',
   },
 }

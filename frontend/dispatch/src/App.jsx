@@ -50,27 +50,11 @@ function Toast ({ id, msg, onDismiss }) {
     return () => clearTimeout(t)
   }, [id, onDismiss])
   return (
-    <div style={toastStyle}>
-      <span style={{ fontSize: '12px', color: 'var(--text-secondary)', flex: 1, lineHeight: 1.4 }}>{msg}</span>
-      <button
-        style={{ background: 'none', border: 'none', color: 'var(--text-disabled)', cursor: 'pointer', padding: '0 0 0 8px', fontSize: '11px', flexShrink: 0 }}
-        onClick={() => onDismiss(id)}
-      >✕</button>
+    <div className="vd-alert" role="status">
+      <span style={{ fontSize: '12px', flex: 1, lineHeight: 1.4 }}>{msg}</span>
+      <button type="button" className="vd-key sm" aria-label="Dismiss" onClick={() => onDismiss(id)}>✕</button>
     </div>
   )
-}
-
-const toastStyle = {
-  background: 'var(--surface-1)',
-  border: '0.5px solid var(--border-default)',
-  borderRadius: '8px',
-  padding: '10px 14px',
-  display: 'flex',
-  alignItems: 'flex-start',
-  gap: '8px',
-  boxShadow: '0 2px 12px rgba(0,0,0,0.18)',
-  minWidth: '240px',
-  maxWidth: '340px',
 }
 
 const spinStyle = document.createElement('style')
@@ -104,14 +88,24 @@ function AppRoutes () {
   const Screen = SCREENS[active] ?? CallIntake
 
   return (
-    <div style={{ display:'flex', flexDirection:'column', height:'100dvh', background:'var(--surface-base)', fontFamily:'var(--font-sans)', color:'var(--text-primary)' }}>
-      <NavBar active={active} onNavigate={(next) => { setActive(next); setScreenState(null) }} onLogout={logout} />
-      <Screen
-        initialVisitId={active === 'corrections' ? screenState?.visitId : undefined}
-        onCorrectReport={(visitId) => { setScreenState({ visitId }); setActive('corrections') }}
-      />
+    <div className="vd-shell">
+      <div className="vd-rack">
+        <span className="vd-screw tl" /><span className="vd-screw tr" /><span className="vd-screw bl" /><span className="vd-screw br" />
+        <NavBar
+          active={active}
+          operator={session.dispatcher.name ?? session.dispatcher.username}
+          onNavigate={(next) => { setActive(next); setScreenState(null) }}
+          onLogout={logout}
+        />
+        <main className="vd-well">
+          <Screen
+            initialVisitId={active === 'corrections' ? screenState?.visitId : undefined}
+            onCorrectReport={(visitId) => { setScreenState({ visitId }); setActive('corrections') }}
+          />
+        </main>
+      </div>
       {toasts.length > 0 && (
-        <div style={{ position:'fixed', bottom:'20px', right:'20px', display:'flex', flexDirection:'column', gap:'8px', zIndex:9999 }}>
+        <div className="vd-toasts">
           {toasts.map(t => <Toast key={t.id} id={t.id} msg={t.msg} onDismiss={dismiss} />)}
         </div>
       )}

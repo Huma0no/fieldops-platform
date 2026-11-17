@@ -354,3 +354,75 @@
 :where(:root[data-app="fieldops"]) :where(button, input, textarea, select) {
   font-family: inherit;
 }
+
+/* ===== Dispatch: vintage industrial =====
+ * Palette from docs/mockups/fieldops-dispatch-mockups.html, with the D0
+ * contrast fixes (WCAG AA): --vd-dim is #57554F (mockup #6E6E68 is 3.9:1 on
+ * panel); screens sit on panel, paper is only the outer frame. Dispatch-only;
+ * components live in frontend/dispatch/src/styles/dispatch.css.
+ */
+:root {
+  --vd-paper: #C6C4BC;   /* outer frame */
+  --vd-panel: #E3E1D9;   /* screens, inputs */
+  --vd-plate: #F2F1EB;   /* units, cards */
+  --vd-ink:   #101010;   /* 14.5:1 on panel */
+  --vd-dim:   #57554F;   /* secondary text: 5.7:1 on panel, 6.6:1 on plate */
+  --vd-line:  #A9A79F;   /* hairlines (not text) */
+  --vd-heat:  #8B1A1A;   /* errors only: 7.1:1 on panel */
+  --vd-key-shadow:      0 4px 0 var(--vd-ink);
+  --vd-key-shadow-sm:   0 3px 0 var(--vd-ink);
+  --vd-key-shadow-dark: 0 4px 0 #55534E;
+  --vd-inset:           inset 2px 2px 0 rgba(16, 16, 16, 0.12);
+
+  --vd-font-brand:   'Gelasio', Georgia, serif;
+  --vd-font-stencil: 'Archivo Narrow', 'Arial Narrow', sans-serif;
+  --vd-font-body:    -apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif;
+  --vd-font-data:    'Courier Prime', 'Courier New', monospace;
+}
+
+/* Dispatch's <html data-app="dispatch"> maps the shared dark tokens onto the
+ * monochrome palette, so screens not yet restyled read in the same tone. */
+:root[data-app="dispatch"] {
+  --color-void:   var(--vd-panel);
+  --color-signal: var(--vd-ink);
+  --color-plasma: var(--vd-ink);
+  --color-heat:   var(--vd-heat);
+  --color-static: var(--vd-dim);
+
+  --surface-base: var(--vd-panel);
+  --surface-1:    var(--vd-plate);
+  --surface-2:    var(--vd-panel);
+  --surface-3:    var(--vd-panel);
+
+  --text-primary:   var(--vd-ink);
+  --text-secondary: var(--vd-ink);
+  --text-muted:     var(--vd-dim);
+  --text-disabled:  var(--vd-dim);
+
+  --signal-tint:   rgba(16, 16, 16, 0.08);
+  --signal-border: var(--vd-ink);
+  --plasma-tint:   rgba(16, 16, 16, 0.08);
+  --plasma-border: var(--vd-ink);
+  --heat-tint:     rgba(139, 26, 26, 0.08);
+  --heat-border:   var(--vd-heat);
+
+  --border-subtle:  var(--vd-line);
+  --border-default: var(--vd-ink);
+  --border-strong:  var(--vd-ink);
+
+  --radius-sm: 0;
+  --radius-md: 0;
+  --radius-lg: 0;
+
+  --badge-assigned:         transparent;
+  --badge-in-progress:      rgba(16, 16, 16, 0.10);
+  --badge-deferred:         rgba(16, 16, 16, 0.10);
+  --badge-completed:        var(--vd-ink);
+  --badge-text-assigned:    var(--vd-ink);
+  --badge-text-in-progress: var(--vd-ink);
+  --badge-text-deferred:    var(--vd-ink);
+  --badge-text-completed:   var(--vd-plate);
+
+  --font-sans: var(--vd-font-body);
+  --font-mono: var(--vd-font-data);
+}

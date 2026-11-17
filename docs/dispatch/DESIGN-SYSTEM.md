@@ -1,8 +1,8 @@
 # Dispatch — Design System
 
-**Version:** 1.0
-**Date:** 2026-07-30
-**Status:** Live — matches built mockups (Home, Call Intake + Lobby)
+**Version:** 2.0
+**Date:** 2026-11-17
+**Status:** Live — D1 (tokens, components, fonts, shell, navigation, toasts, Auth). Source mockup: `docs/mockups/fieldops-dispatch-mockups.html` (00 Shell). Other screens adopt the components in D2–D6.
 
 ## Purpose
 
@@ -14,32 +14,35 @@ Vintage industrial radio-dispatch. Monochrome, hard edges, typewriter data — t
 
 ## Color
 
+Tokens `--vd-*` in `frontend/shared/tokens.css`. Dispatch's `<html data-app="dispatch">` also maps the shared legacy tokens (`--surface-*`, `--text-*`, `--border-*`, `--color-*`, radius 0) onto this palette, so screens not yet restyled read in the same tone.
+
 | Token | Value | Use |
 |---|---|---|
-| Page background | `#D8D8D2` | Outermost background |
-| Panel background | `#EAEAE6` | Main panel, inputs |
-| Box/card background | `#F4F4F1` | Nested boxes within a panel |
-| Recommended-field background | `#FAEEDA` | Fields flagged as recommended-but-optional |
-| Ink (primary text/borders) | `#141414` | Text, all structural borders |
-| Muted text | `#5A5A5A` | Secondary text, meta info, labels |
-| Recommended-field accent | `#854F0B` label / `#BA7517` border | Recommended-field emphasis |
-
-No accent color beyond the recommended-field amber — everything else is ink-on-panel.
+| `--vd-paper` | `#C6C4BC` | Outer frame only (no small text on it) |
+| `--vd-panel` | `#E3E1D9` | Rack, screens, inputs |
+| `--vd-plate` | `#F2F1EB` | Units, cards, function-key row |
+| `--vd-ink` | `#101010` | Text and all structural borders (14.5:1 on panel) |
+| `--vd-dim` | `#57554F` | Secondary text, labels (5.7:1 on panel). The mockup's `#6E6E68` fails AA. |
+| `--vd-line` | `#A9A79F` | Hairlines only, never text |
+| `--vd-heat` | `#8B1A1A` | Error text only — the one color besides the recommended-field amber (7.1:1 on panel) |
+| Recommended-field accent | `#854F0B` label / `#BA7517` border | Recommended-field emphasis (Intake) |
 
 ## Typography
 
-- **Masthead/brand:** Georgia or Times New Roman serif, ~22px, weight 500, letter-spacing 0.5px. Reserved for the app wordmark only — never used for data or body text.
-- **Data/timestamps/mono values:** Courier New, monospace.
-- **Everything else (labels, nav, body):** system sans-serif (-apple-system, Helvetica, Arial).
-- Section labels and box titles: ~11-12px, bold, letter-spacing 1px, uppercase.
+Bundled OFL fonts (woff2, latin, `frontend/dispatch/src/styles/fonts/`, no CDN):
+- **Masthead/brand:** Gelasio (Georgia metrics), `--vd-font-brand`. Wordmark and page titles only.
+- **Data, numbers, dates:** Courier Prime, `--vd-font-data`.
+- **Stencil labels, nav keys, table heads:** Archivo Narrow uppercase with letter-spacing, `--vd-font-stencil`.
+- **Body:** system sans, `--vd-font-body`.
 
 ## Structure
 
 - **No rounded corners anywhere.** Every border is a hard edge.
-- **Borders carry the hierarchy**, not shadows or color: 3px solid ink for the outer panel and masthead divider, 2px solid ink for boxes and box-title dividers, 1px solid ink for inputs and smaller dividers.
-- Active nav item: solid ink background, panel-color text (inverted, not highlighted).
-- Buttons: `btn-solid` = 2px ink border, no fill; `btn-ghost` = 1px muted-gray border, muted text — used for secondary/discard actions.
-- Tags/pills: 10px text, 1px ink border, no fill, uppercase letter-spacing.
+- Borders carry the hierarchy: 3px ink for the rack and masthead divider, 2px ink for units, fields and keys, 1px `--vd-line` for row dividers.
+- Components (`frontend/dispatch/src/styles/dispatch.css`): `vd-rack` with corner `vd-screw`s and `vd-knurl`; `vd-unit` (head/name/body); `vd-key` (variants `dark`, `sm`, `wide`, `off`) with a hard drop shadow that sinks on press; `vd-led`; `vd-fnrow`/`vd-fkey` function keys (active = inverted, LED filled); `vd-label`/`vd-input`; `vd-table`; `vd-alert` (hatched plate, also the toast); `vd-stencil`, `vd-data`, `vd-plaque`.
+- Secondary/discard action: `vd-key off` — dim text and a dotted border (the mockup's grey key fails contrast).
+- **Focus:** every focusable element shows a 2px ink outline, 2px offset (`:focus-visible`).
+- Shell: rack around the viewport; masthead (brand, operator, date plaque); function-key row with Sign out; the screen sits in a bordered well and keeps its own layout and scrolling. Navigation is the real app's (QA-TRACKER FF-04 keeps the mockup's navigation as a future decision).
 
 ## Icons
 

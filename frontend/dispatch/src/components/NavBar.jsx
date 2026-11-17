@@ -1,94 +1,57 @@
 /**
  * src/components/NavBar.jsx
- * Top navigation bar for the Dispatch panel.
+ * Dispatch masthead and function-key navigation (docs/mockups/fieldops-dispatch-mockups.html, 00 Shell).
  * Added in F6 — first phase with multiple screens.
  */
 
 const TABS = [
-  { id: 'intake',      label: 'Call Intake',  icon: '📄' },
-  { id: 'lobby',       label: 'Lobby',        icon: '🕐' },
-  { id: 'history',     label: 'History',      icon: '📋' },
-  { id: 'inventory',   label: 'Inventory',    icon: '📦' },
-  { id: 'restock',     label: 'Restock',      icon: '🔄' },
-  { id: 'pay',         label: 'Pay Periods',  icon: '💵' },
-  { id: 'corrections', label: 'Corrections',  icon: '✏️' },
-  { id: 'chat',        label: 'Chat',         icon: '💬' },
-  { id: 'catalog',     label: 'Catalog',      icon: '🗂️' },
-  { id: 'technicians', label: 'Technicians',  icon: '👥' },
-  { id: 'reports',     label: 'Reports',      icon: '📊' },
+  { id: 'intake',      label: 'Call Intake' },
+  { id: 'lobby',       label: 'Lobby' },
+  { id: 'history',     label: 'History' },
+  { id: 'inventory',   label: 'Inventory' },
+  { id: 'restock',     label: 'Restock' },
+  { id: 'pay',         label: 'Pay Periods' },
+  { id: 'corrections', label: 'Corrections' },
+  { id: 'chat',        label: 'Chat' },
+  { id: 'catalog',     label: 'Catalog' },
+  { id: 'technicians', label: 'Technicians' },
+  { id: 'reports',     label: 'Reports' },
 ]
 
-export default function NavBar ({ active, onNavigate, onLogout }) {
-  return (
-    <nav style={styles.nav}>
-      <div style={styles.logo}>Field Ops</div>
-      <div style={styles.tabs}>
-        {TABS.map(tab => (
-          <button
-            key={tab.id}
-            style={{
-              ...styles.tab,
-              ...(active === tab.id ? styles.tabActive : {}),
-            }}
-            onClick={() => onNavigate(tab.id)}
-          >
-            <span style={styles.tabIcon}>{tab.icon}</span>
-            <span>{tab.label}</span>
-          </button>
-        ))}
-      </div>
-      <button style={styles.logout} onClick={onLogout}>Sign out</button>
-    </nav>
-  )
+// THU · JUL 16 · 2026
+function plateDate (date = new Date()) {
+  const day = date.toLocaleDateString('en-US', { weekday: 'short' })
+  const month = date.toLocaleDateString('en-US', { month: 'short' })
+  return `${day} · ${month} ${date.getDate()} · ${date.getFullYear()}`.toUpperCase()
 }
 
-const styles = {
-  nav: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '24px',
-    padding: '0 24px',
-    height: '52px',
-    background: 'var(--surface-1)',
-    borderBottom: '0.5px solid var(--border-subtle)',
-    flexShrink: 0,
-  },
-  logo: {
-    fontSize: '14px',
-    fontWeight: 600,
-    color: 'var(--color-signal)',
-    letterSpacing: '-0.01em',
-    flexShrink: 0,
-  },
-  tabs: {
-    display: 'flex',
-    gap: '4px',
-  },
-  logout: {
-    marginLeft: 'auto',
-    border: '0.5px solid var(--border-default)',
-    borderRadius: '6px',
-    background: 'transparent',
-    color: 'var(--text-muted)',
-    padding: '6px 10px',
-    cursor: 'pointer',
-  },
-  tab: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '6px',
-    background: 'none',
-    border: 'none',
-    borderRadius: '6px',
-    padding: '6px 12px',
-    fontSize: '13px',
-    color: 'var(--text-muted)',
-    cursor: 'pointer',
-    transition: 'background 100ms, color 100ms',
-  },
-  tabActive: {
-    background: 'var(--signal-tint)',
-    color: 'var(--color-signal)',
-  },
-  tabIcon: { fontSize: '14px' },
+export default function NavBar ({ active, onNavigate, onLogout, operator }) {
+  return (
+    <>
+      <header className="vd-masthead">
+        <div className="vd-brand">FieldOps · Dispatch</div>
+        <div className="vd-meta">
+          {operator && <><span className="vd-stencil">Operator</span><span>{operator}</span></>}
+          <span className="vd-plaque">{plateDate()}</span>
+        </div>
+      </header>
+      <div className="vd-shell-nav">
+        <nav className="vd-fnrow" aria-label="Dispatch sections">
+          {TABS.map(tab => (
+            <button
+              key={tab.id}
+              type="button"
+              className={`vd-fkey${active === tab.id ? ' on' : ''}`}
+              aria-current={active === tab.id ? 'page' : undefined}
+              onClick={() => onNavigate(tab.id)}
+            >
+              <span className={`vd-led${active === tab.id ? ' on' : ''}`} aria-hidden="true" />
+              {tab.label}
+            </button>
+          ))}
+        </nav>
+        <button type="button" className="vd-key sm" onClick={onLogout}>Sign out</button>
+      </div>
+    </>
+  )
 }
