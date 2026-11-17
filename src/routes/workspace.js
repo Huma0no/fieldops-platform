@@ -8,6 +8,8 @@ const {
   syncWeightInDataPrice,
 } = require('../services/pricing');
 const { normalizeServiceRows, visitSystemNumbers, writeServiceRows } = require('../services/visitServices');
+const { PHOTO_CATEGORIES, PHOTO_ID_PATTERN, photoKey, photoStorage } = require('../services/photos');
+const crypto = require('crypto');
 const multer = require('multer');
 const piexif = require('piexifjs');
 
@@ -37,7 +39,21 @@ function embedGps(buffer, lat, lon) {
 
 const VALID_SERVICES = ['AC', 'Heat', 'AC & Heat', 'Prestart', 'Drive Run', 'Finish', 'Cancel'];
 const VALID_CATEGORIES = ['accessory', 'fix', 'thermostat'];
-const VALID_PHOTO_CATEGORIES = ['weigh_in_scale', 'fan_speed', 'site_evidence'];
+
+// Photos may arrive after the Report: only ownership is checked, not status.
+async function requirePhotoOwnership(req, res, next) {
+  try {
+    const result = await pool.query('SELECT id, technician_id, address_id FROM visits WHERE id = $1', [req.params.id]);
+    if (result.rows.length === 0) return res.status(404).json({ error: 'Visit not found' });
+    if (result.rows[0].technician_id !== req.technician.id) {
+      return res.status(403).json({ error: 'This visit is not assigned to you' });
+    }
+    req.visit = result.rows[0];
+    next();
+  } catch (err) {
+    next(err);
+  }
+}
 
 async function requireVisitOwnership(req, res, next) {
   try {
@@ -567,52 +583,82 @@ router.put(
 );
 
 // POST /api/visits/:id/photos
+// The phone keeps each photo until the server stores it, so an upload can come
+// before or after the Report (any visit status) and may be retried: the photo
+// id is the phone's, and a stored photo is not stored twice.
 router.post(
   '/:id/photos',
   requireRole('technician'),
-  requireVisitOwnership,
+  requirePhotoOwnership,
   upload.single('photo'),
   async (req, res, next) => {
     const { id } = req.params;
-    const { category, tag, systemNumber, label, lat, lon } = req.body;
+    const { category, tag, systemNumber, label, lat, lon, photoId: requestedId, slug: requestedSlug } = req.body;
     try {
-      if (!VALID_PHOTO_CATEGORIES.includes(category)) {
+      if (!PHOTO_CATEGORIES.includes(category)) {
         return res.status(400).json({ error: 'Invalid category' });
       }
       if (!tag) {
         return res.status(400).json({ error: 'tag is required' });
       }
+      if (!req.file?.buffer?.length) {
+        return res.status(400).json({ error: 'photo is required' });
+      }
+      if (requestedId != null && !PHOTO_ID_PATTERN.test(String(requestedId))) {
+        return res.status(400).json({ error: 'Invalid photo id' });
+      }
+      const photoId = requestedId ? String(requestedId) : crypto.randomUUID();
 
-      const addrRes = await pool.query(
-        `SELECT street FROM addresses WHERE id = $1`,
-        [req.visit.address_id]
-      );
-      const street = addrRes.rows[0].street;
+      const existing = await pool.query('SELECT visit_id, slug, stored_at FROM visit_photos WHERE id = $1', [photoId]);
+      if (existing.rows.length && existing.rows[0].visit_id !== id) {
+        return res.status(409).json({ error: 'Photo belongs to a different visit' });
+      }
+      if (existing.rows[0]?.stored_at) {
+        return res.json({ photoId, slug: existing.rows[0].slug, storedAt: existing.rows[0].stored_at });
+      }
 
-      const slugBase = `${street}_${tag}`.toUpperCase().replace(/\s+/g, '_');
-      const slug = systemNumber ? `${slugBase}_SYS${systemNumber}` : slugBase;
+      let slug = typeof requestedSlug === 'string' && requestedSlug.trim() ? requestedSlug.trim() : null;
+      if (!slug) {
+        const addrRes = await pool.query(`SELECT street FROM addresses WHERE id = $1`, [req.visit.address_id]);
+        const slugBase = `${addrRes.rows[0].street}_${tag}`.toUpperCase().replace(/\s+/g, '_');
+        slug = systemNumber ? `${slugBase}_SYS${systemNumber}` : slugBase;
+      }
 
-      if ((tag === 'SCALE' || tag === 'FAN') && lat && lon && req.file?.buffer) {
+      let buffer = req.file.buffer;
+      if ((tag === 'SCALE' || tag === 'FAN') && lat && lon) {
         try {
-          req.file.buffer = embedGps(req.file.buffer, parseFloat(lat), parseFloat(lon));
+          buffer = embedGps(buffer, parseFloat(lat), parseFloat(lon));
         } catch (gpsErr) {
           console.warn('GPS embedding failed, saving original:', gpsErr.message);
         }
       }
 
-      const photoRes = await pool.query(
-        `INSERT INTO visit_photos (id, visit_id, system_number, slug, tag, label, category, stored_at)
-         VALUES (gen_random_uuid()::text, $1, $2, $3, $4, $5, $6, null) RETURNING id`,
-        [id, systemNumber ? parseInt(systemNumber, 10) : null, slug, tag, label ?? null, category]
-      );
-      const photoId = photoRes.rows[0].id;
+      const storedAt = await photoStorage.put(photoKey(id, photoId), buffer);
+      // Lock the visit before the photo row, in the same order as Report
+      // delivery, so a photo and its Report arriving together cannot deadlock.
+      const client = await pool.connect();
+      try {
+        await client.query('BEGIN');
+        await client.query('SELECT id FROM visits WHERE id = $1 FOR UPDATE', [id]);
+        await client.query(
+          `INSERT INTO visit_photos (id, visit_id, system_number, slug, tag, label, category, stored_at)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+           ON CONFLICT (id) DO UPDATE SET stored_at = EXCLUDED.stored_at`,
+          [photoId, id, systemNumber ? parseInt(systemNumber, 10) : null, slug, tag, label ?? null, category, storedAt]
+        );
+        await client.query(
+          `UPDATE visits SET updated_at = $1 WHERE id = $2`,
+          [new Date().toISOString(), id]
+        );
+        await client.query('COMMIT');
+      } catch (err) {
+        await client.query('ROLLBACK').catch(() => {});
+        throw err;
+      } finally {
+        client.release();
+      }
 
-      await pool.query(
-        `UPDATE visits SET updated_at = $1 WHERE id = $2`,
-        [new Date().toISOString(), id]
-      );
-
-      res.json({ photoId, slug, storedAt: null });
+      res.json({ photoId, slug, storedAt });
     } catch (err) {
       next(err);
     }

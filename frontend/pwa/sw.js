@@ -11,7 +11,7 @@
  * assets; a test fails when the stamp is stale. Do not edit it by hand.
  */
 
-const SHELL_CACHE  = 'fieldops-shell-6d17477e9740'
+const SHELL_CACHE  = 'fieldops-shell-0366052c8919'
 const CATALOG_CACHE = 'fieldops-catalog-v1'
 
 const SHELL_ASSETS = [
@@ -41,6 +41,7 @@ const SHELL_ASSETS = [
   '/src/lib/sync.js',
   '/src/lib/queue.js',
   '/src/lib/pending-starts.mjs',
+  '/src/lib/photo-upload.mjs',
   '/src/lib/cancel-confirmation.mjs',
   '/src/lib/cancel-justification.mjs',
   '/src/lib/completion-submission.mjs',

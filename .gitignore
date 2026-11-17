@@ -3,3 +3,5 @@ node_modules/
 .DS_Store
 nano .env
 .env.test
+# Server photo storage (PHOTO_STORAGE_DIR default)
+data/

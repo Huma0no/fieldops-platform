@@ -446,6 +446,28 @@ export async function getPhotosForVisit (visitId, technicianId = getActiveTechni
   return records.filter(record => normalizeTechnicianId(record?.technicianId) === techId)
 }
 
+// Photos waiting for the server (docs/OFFLINE-FIRST-CONTRACT.md). Each record
+// carries the image, its evidence metadata and the photo id the server keeps.
+export async function savePendingPhoto (record, technicianId = getActiveTechnicianId()) {
+  const techId = normalizeTechnicianId(technicianId)
+  if (!techId) throw new Error('Photo capture requires an authenticated technician')
+  const store = await tx('photos', 'readwrite')
+  return promisify(store.add({ ...record, technicianId: techId, pendingUpload: true }))
+}
+
+export async function getPendingPhotos (technicianId = getActiveTechnicianId()) {
+  const techId = normalizeTechnicianId(technicianId)
+  if (!techId) return []
+  const store = await tx('photos')
+  const records = await promisify(store.getAll())
+  return records.filter(record => record?.pendingUpload === true && normalizeTechnicianId(record.technicianId) === techId)
+}
+
+export async function deletePendingPhoto (id) {
+  const store = await tx('photos', 'readwrite')
+  return promisify(store.delete(id))
+}
+
 export async function deletePhotosForVisit (visitId, technicianId = getActiveTechnicianId()) {
   const techId = normalizeTechnicianId(technicianId)
   if (!techId) return

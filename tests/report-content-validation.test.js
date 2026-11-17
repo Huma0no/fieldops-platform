@@ -67,7 +67,7 @@ describe('reportContentMatchesSubmission', () => {
     ['notes mismatch', null, s => { s.notes = 'different note' }],
     ['checklist finding omission', s => { delete s.checklistAnswers[0].reportText }, null],
     ['checklist finding mismatch', null, s => { s.checklistAnswers[0].reportText = 'different finding' }],
-    ...['id', 'slug', 'tag', 'label', 'category', 'systemNumber', 'storedAt'].flatMap(field => [
+    ...['id', 'slug', 'tag', 'label', 'category', 'systemNumber'].flatMap(field => [
       [`photo ${field} omission`, s => { delete s.evidenceRefs[0][field] }, null],
       [`photo ${field} mismatch`, null, s => { s.evidenceRefs[0][field] = 'changed' }],
     ]),
@@ -84,6 +84,12 @@ describe('reportContentMatchesSubmission', () => {
       change(candidate);
       expect(reportContentMatchesSubmission(candidate, accepted)).toBe(false);
     }
+  });
+
+  it('accepts a photo the server has not stored yet (it arrives after the Report)', () => {
+    const candidate = submission();
+    candidate.evidenceRefs[0].storedAt = null;
+    expect(compareSubmission(candidate, accepted)).toEqual({ mismatches: [], discrepancies: [] });
   });
 
   it('names the differing field', () => {

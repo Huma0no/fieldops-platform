@@ -16,6 +16,7 @@ const {
   visitSystemNumbers,
   writeServiceRows,
 } = require('../services/visitServices');
+const { recordEvidenceRefs } = require('../services/photos');
 
 const router = express.Router();
 
@@ -337,6 +338,9 @@ router.post('/:id/complete', requireRole('technician'), async (req, res, next) =
           [id]
         );
       }
+      // Photos named by the Report may still be on the phone; their rows exist
+      // from now on and the upload fills them in.
+      await recordEvidenceRefs(client, id, snapshot?.evidenceRefs);
       await client.query(
         `UPDATE visits
          SET status = $1, total_price = CASE WHEN $5 THEN 0 WHEN $7::real IS NOT NULL THEN $7::real ELSE total_price END,

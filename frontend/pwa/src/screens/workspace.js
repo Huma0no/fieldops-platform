@@ -15,6 +15,7 @@
 
 import { api }        from '../../../shared/api.js'
 import { priceVisit } from '../../../shared/pricing.mjs'
+import { keepPhoto, uploadPendingPhotos } from '../lib/photo-upload.mjs'
 import { getActiveTechnicianId, getCatalog, getLocalVisitDraft, saveLocalVisitDraft } from '../lib/db.js'
 import { createPendingCompletionSubmission, deliverCompletionSubmission } from '../lib/completion-submission.mjs'
 import { isCancelJustificationMissing } from '../lib/cancel-justification.mjs'
@@ -1146,29 +1147,20 @@ async function captureWeighInPhoto (tag, systemNum, btn) {
     btn.classList.add('ws-item-btn--active')
     const compressed = await compressImage(file)
     const category = tag === 'SCALE' ? 'weigh_in_scale' : 'fan_speed'
-    const form = new FormData()
-    form.append('photo', compressed, file.name)
-    form.append('tag', tag)
-    form.append('category', category)
-    form.append('systemNumber', systemNum)
-    await appendGpsFields(form, tag, file)
+    const coords = await photoGps(tag, file)
     try {
-      const uploaded = await api.upload(`/visits/${visit.id}/photos`, form)
-      visit.evidenceRefs = visit.evidenceRefs ?? []
-      visit.evidenceRefs.push({
-        id: uploaded.photoId,
-        slug: uploaded.slug,
-        tag,
-        label: null,
-        category,
-        systemNumber: Number(systemNum),
-        storedAt: uploaded.storedAt ?? null,
+      const ref = await keepPhoto({
+        visitId: visit.id, technicianId: getActiveTechnicianId() ?? visit.technicianId,
+        blob: compressed, fileName: file.name, tag, category, systemNumber: Number(systemNum),
+        street: visit.address?.street, lat: coords?.lat ?? null, lon: coords?.lon ?? null,
       })
+      visit.evidenceRefs = [...(visit.evidenceRefs ?? []), ref]
       visit._photoCount = (visit._photoCount ?? 0) + 1
       visit._weighInPhotos = visit._weighInPhotos ?? {}
       visit._weighInPhotos[`${systemNum}-${tag}`] = true
       await persistCurrentDraft({ touch: false })
-    } catch (err) { console.error('Weigh-in photo upload failed:', err); btn.classList.remove('ws-item-btn--active') }
+      void uploadPendingPhotos()
+    } catch (err) { console.error('Weigh-in photo could not be saved:', err); btn.classList.remove('ws-item-btn--active') }
   })
   input.click()
 }
@@ -1299,27 +1291,21 @@ async function captureStartupItemPhoto (itemKey, btn) {
   input.addEventListener('change', async () => {
     const file = input.files[0]; if (!file) return
     const compressed = await compressImage(file)
-    const form = new FormData()
-    form.append('photo', compressed, file.name); form.append('tag', itemKey.toUpperCase()); form.append('category', 'site_evidence')
     try {
-      const uploaded = await api.upload(`/visits/${visit.id}/photos`, form)
-      visit.evidenceRefs = visit.evidenceRefs ?? []
-      visit.evidenceRefs.push({
-        id: uploaded.photoId,
-        slug: uploaded.slug,
-        tag: itemKey.toUpperCase(),
-        label: null,
-        category: 'site_evidence',
-        systemNumber: null,
-        storedAt: uploaded.storedAt ?? null,
+      const ref = await keepPhoto({
+        visitId: visit.id, technicianId: getActiveTechnicianId() ?? visit.technicianId,
+        blob: compressed, fileName: file.name, tag: itemKey.toUpperCase(), category: 'site_evidence',
+        street: visit.address?.street,
       })
+      visit.evidenceRefs = [...(visit.evidenceRefs ?? []), ref]
       visit._checklistPhotoCounts = visit._checklistPhotoCounts ?? {}
       visit._checklistPhotoCounts[itemKey] = (visit._checklistPhotoCounts[itemKey] ?? 0) + 1
       visit._photoCount = (visit._photoCount ?? 0) + 1
       const count = visit._checklistPhotoCounts[itemKey]
       btn.textContent = `📷 ${count} photo${count !== 1 ? 's' : ''}`
       await persistCurrentDraft({ touch: false })
-    } catch (err) { console.error('Checklist photo failed:', err) }
+      void uploadPendingPhotos()
+    } catch (err) { console.error('Checklist photo could not be saved:', err) }
   })
   input.click()
 }
@@ -1390,16 +1376,13 @@ async function getGpsFromPhoto (file) {
   return null
 }
 
-async function appendGpsFields (form, tag, file) {
-  if (tag !== 'SCALE' && tag !== 'FAN') return
+// SCALE and FAN photos need GPS (embedded by the server on upload).
+async function photoGps (tag, file) {
+  if (tag !== 'SCALE' && tag !== 'FAN') return null
   const fromPhoto = await getGpsFromPhoto(file)
   const coords = fromPhoto ?? (gps.lat ? { lat: gps.lat, lon: gps.lon } : null)
-  if (coords) {
-    form.append('lat', coords.lat)
-    form.append('lon', coords.lon)
-  } else {
-    _gpsPhotosMissing++
-  }
+  if (!coords) _gpsPhotosMissing++
+  return coords
 }
 
 function loadGpsState () {

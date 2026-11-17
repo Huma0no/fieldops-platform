@@ -2,6 +2,7 @@ const express = require('express');
 const { pool } = require('../db/pool');
 const { requireRole } = require('../middleware/auth');
 const { createNotification } = require('../helpers/notify');
+const { photoStorage } = require('../services/photos');
 
 const visitsRouter = express.Router();
 const dispatchVisitsRouter = express.Router();
@@ -222,6 +223,30 @@ visitsRouter.post('/:id/start', requireRole('technician'), async (req, res, next
 });
 
 // GET /api/visits/:id — declared after /mine to avoid param capture
+// GET /api/visits/:id/photos/:photoId — the stored image, for the assigned
+// technician or Dispatch. 404 while the photo is still on the phone.
+visitsRouter.get('/:id/photos/:photoId', async (req, res, next) => {
+  try {
+    const { id, photoId } = req.params;
+    const result = await pool.query(
+      `SELECT p.stored_at, v.technician_id
+       FROM visit_photos p JOIN visits v ON v.id = p.visit_id
+       WHERE p.id = $1 AND p.visit_id = $2`,
+      [photoId, id]
+    );
+    const row = result.rows[0];
+    if (!row) return res.status(404).json({ error: 'Photo not found' });
+    if (req.technician.role === 'technician' && row.technician_id !== req.technician.id) {
+      return res.status(403).json({ error: 'This visit is not assigned to you' });
+    }
+    if (!row.stored_at) return res.status(404).json({ error: 'Photo not uploaded yet' });
+    const image = await photoStorage.read(row.stored_at);
+    res.set('Cache-Control', 'private, max-age=86400').type('jpeg').send(image);
+  } catch (err) {
+    next(err);
+  }
+});
+
 visitsRouter.get('/:id', async (req, res, next) => {
   const { id } = req.params;
   try {

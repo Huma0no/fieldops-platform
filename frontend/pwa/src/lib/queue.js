@@ -10,11 +10,13 @@ import {
   stopCompletionSubmissionRetry,
 } from './completion-submission.mjs'
 import { startPendingStartRetry } from './pending-starts.mjs'
+import { startPhotoUploadRetry } from './photo-upload.mjs'
 
 // Compatibility export for the application bootstrap. Completion retries are
 // event-driven (boot and connectivity return), never a polling loop.
 export function startQueueRetry () {
   startPendingStartRetry()
+  startPhotoUploadRetry()
   startCompletionSubmissionRetry()
 }
 

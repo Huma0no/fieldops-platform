@@ -902,7 +902,7 @@ describe('PUT /api/visits/:id/weigh-in/:systemNumber', () => {
 
 // ── POST /api/visits/:id/photos ───────────────────────────────────────────────
 describe('POST /api/visits/:id/photos', () => {
-  it('returns photoId, slug, and storedAt null', async () => {
+  it('stores the photo and returns photoId, slug, and its storage key', async () => {
     const { visitId, token } = await seedAssignedVisit();
     const res = await request(app)
       .post(`/api/visits/${visitId}/photos`)
@@ -912,7 +912,13 @@ describe('POST /api/visits/:id/photos', () => {
       .attach('photo', Buffer.from('fake-image-bytes'), 'scale.jpg');
     expect(res.status).toBe(200);
     expect(res.body.photoId).toBeTruthy();
-    expect(res.body.storedAt).toBeNull();
+    expect(res.body.storedAt).toBe(`${visitId}/${res.body.photoId}.jpg`);
+    const image = await request(app)
+      .get(`/api/visits/${visitId}/photos/${res.body.photoId}`)
+      .set('Authorization', `Bearer ${token}`);
+    expect(image.status).toBe(200);
+    expect(image.headers['content-type']).toMatch(/image\/jpeg/);
+    expect(Buffer.from(image.body).toString()).toBe('fake-image-bytes');
     expect(res.body.slug).toMatch(/SCALE_READING/);
     expect(res.body.slug).not.toMatch(/ /); // no spaces in slug
   });

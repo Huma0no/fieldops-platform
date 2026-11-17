@@ -341,14 +341,22 @@ function VisitDetail ({ visit, editLog, propertyHistory, onBack, onCorrectReport
             {visit.weighInData.map(w => <WeighInSection key={w.systemNumber} data={w} />)}
           </>}
 
-          {/* Photos (B3) */}
+          {/* Photos (B3). A photo can reach the server after its Report; until
+              then it shows as pending. */}
           {(visit.photos ?? []).length > 0 && <>
             <div style={styles.sectionTitle}>Photos</div>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '5px' }}>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px' }}>
               {visit.photos.map(p => (
-                <span key={p.id} style={{ fontSize: '11px', color: 'var(--text-muted)', background: 'var(--surface-3)', padding: '2px 8px', borderRadius: '99px', border: '0.5px solid var(--border-subtle)' }}>
-                  {p.label || p.tag || p.category || 'Evidence'}{p.systemNumber ? ` · System ${p.systemNumber}` : ''}
-                </span>
+                <figure key={p.id} style={{ margin: 0, width: '160px' }}>
+                  {p.storedAt
+                    ? <a href={`/api/visits/${visit.id}/photos/${p.id}`} target="_blank" rel="noreferrer">
+                        <img src={`/api/visits/${visit.id}/photos/${p.id}`} alt={p.slug} style={{ width: '160px', height: '120px', objectFit: 'cover', display: 'block', border: '0.5px solid var(--border-subtle)' }} />
+                      </a>
+                    : <div style={{ width: '160px', height: '120px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px', color: 'var(--text-muted)', border: '0.5px dashed var(--border-default)' }}>Upload pending</div>}
+                  <figcaption style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px' }}>
+                    {p.label || p.tag || p.category || 'Evidence'}{p.systemNumber ? ` · System ${p.systemNumber}` : ''}
+                  </figcaption>
+                </figure>
               ))}
             </div>
           </>}

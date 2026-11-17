@@ -513,8 +513,9 @@ function compareSubmission(submitted, accepted) {
     systemNumber: photo.system_number,
     storedAt: photo.stored_at,
   }));
+  // storedAt is not compared: a photo may reach the server after its Report.
   compareRows('evidenceRefs', submitted.evidenceRefs, acceptedEvidence,
-    ['id', 'slug', 'tag', 'label', 'category', 'systemNumber', 'storedAt']);
+    ['id', 'slug', 'tag', 'label', 'category', 'systemNumber']);
 
   return { mismatches: [...new Set(mismatches)], discrepancies };
 }
