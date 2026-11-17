@@ -20,9 +20,11 @@ export function resolveWeightInDataPrice (defaultPrice, finishAddonPrice, isFini
 //   is resolved from the catalog (the PWA passes no prices).
 // items: [{ itemName, category, quantity, description, price }]
 //   price is read for custom-price items and, when given, for Weight-In-Data
-//   (its stored Finish-resolved price); every other item uses the catalog.
+//   (its stored Finish-resolved price); every other item uses the technician's
+//   own price when one exists, otherwise the catalog price.
 // catalog: { services: catalog_services rows, items: catalog_items rows }
-// overrides: { [itemName]: technician override price }
+// overrides: { [itemName]: technician's own price } — what the contractor
+//   charges; it is both the line price and the price in the total.
 // Returns the services and items with their resolved line prices (and the
 // catalog tech_supplied of each item) plus the visit total.
 export function priceVisit ({ services = [], items = [], systemCount = 1, catalog, overrides = {} }) {
@@ -49,6 +51,7 @@ export function priceVisit ({ services = [], items = [], systemCount = 1, catalo
         ? Number(item.price)
         : resolveWeightInDataPrice(entry?.default_price, entry?.finish_addon_price, anyFinish)
     }
+    else if (Object.prototype.hasOwnProperty.call(overrides, item.itemName)) price = overrides[item.itemName]
     else price = entry?.default_price ?? 0
     return { ...item, price, techSupplied: entry?.tech_supplied ?? false }
   })

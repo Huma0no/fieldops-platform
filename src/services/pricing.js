@@ -132,6 +132,7 @@ async function resolveCompanionCascade(db, visitId, itemName, mode) {
 }
 
 module.exports = {
+  sharedPricing,
   calculateVisitPrice,
   resolveCompanionCascade,
   resolveServicePrice,

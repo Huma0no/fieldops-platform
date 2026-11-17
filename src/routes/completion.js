@@ -8,7 +8,7 @@ const reportService = require('../services/report');
 const {
   calculateVisitPrice,
   resolveServicePrice,
-  resolveWeightInDataPrice,
+  sharedPricing,
 } = require('../services/pricing');
 const {
   missingServiceSystems,
@@ -22,8 +22,40 @@ const router = express.Router();
 const TERMINAL_STATUSES = ['completed', 'temporarily', 'cancelled'];
 const MAX_SUBMISSION_ID_LENGTH = 120;
 
+async function priceSnapshotItems(client, visit, services, validItems) {
+  if (!validItems.length) return [];
+  const [technicianRes, systemsRes] = await Promise.all([
+    client.query('SELECT technician_id FROM visits WHERE id = $1', [visit.id]),
+    client.query('SELECT COUNT(*)::int AS cnt FROM visit_systems WHERE visit_id = $1', [visit.id]),
+  ]);
+  const overrides = {};
+  const technicianId = technicianRes.rows[0]?.technician_id;
+  if (technicianId) {
+    const result = await client.query(
+      'SELECT item_name, override_price FROM technician_price_overrides WHERE technician_id = $1',
+      [technicianId]
+    );
+    result.rows.forEach(row => { overrides[row.item_name] = row.override_price; });
+  }
+  const { priceVisit } = await sharedPricing();
+  return priceVisit({
+    services,
+    items: validItems.map(({ item, catalog, description, quantity }) => ({
+      itemName: item.item_name,
+      category: catalog.category,
+      description,
+      quantity,
+      price: catalog.custom_price ? Number(item.price) : undefined,
+    })),
+    systemCount: systemsRes.rows[0].cnt || 1,
+    catalog: { services: [], items: validItems.map(({ catalog }) => catalog) },
+    overrides,
+  }).items;
+}
+
 async function applySnapshotWork(client, visit, snapshot) {
   let isFinish;
+  let pricingServices;
   if (Array.isArray(snapshot.services)) {
     const systemNumbers = await visitSystemNumbers(client, visit.id);
     const rows = normalizeServiceRows(snapshot.services, systemNumbers);
@@ -33,6 +65,7 @@ async function applySnapshotWork(client, visit, snapshot) {
     }
     await writeServiceRows(client, visit.id, rows);
     isFinish = rows.some(row => row.isFinish);
+    pricingServices = rows;
   } else {
     const service = snapshot.service ?? {};
     const serviceName = service.serviceName;
@@ -44,6 +77,7 @@ async function applySnapshotWork(client, visit, snapshot) {
     if (!serviceCatalog.rows.length) throw Object.assign(new Error('Invalid service name'), { status: 400 });
 
     isFinish = serviceName === 'Finish' || service.finish === true;
+    pricingServices = [{ systemNumber: null, serviceName, isFinish }];
     const servicePrice = resolveServicePrice(serviceName, isFinish, serviceCatalog.rows[0].default_price);
     await client.query('DELETE FROM visit_services WHERE visit_id = $1', [visit.id]);
     await client.query(
@@ -55,6 +89,7 @@ async function applySnapshotWork(client, visit, snapshot) {
 
   await client.query('DELETE FROM visit_items WHERE visit_id = $1', [visit.id]);
   const itemNames = new Set();
+  const validItems = [];
   for (const item of snapshot.items ?? []) {
     if (!item?.item_name || itemNames.has(item.item_name)) {
       throw Object.assign(new Error('Duplicate or invalid item in completion snapshot'), { status: 400 });
@@ -73,20 +108,20 @@ async function applySnapshotWork(client, visit, snapshot) {
     if (!Number.isInteger(quantity) || quantity < 1) {
       throw Object.assign(new Error('Invalid item quantity'), { status: 400 });
     }
-    let price;
-    if (catalog.category === 'thermostat') {
-      price = catalog.default_price ?? null;
-    } else {
-      price = catalog.custom_price ? Number(item.price) : catalog.default_price;
-      if (!Number.isFinite(price) || price < 0) throw Object.assign(new Error('Invalid item price'), { status: 400 });
-      if (item.item_name === 'Weight-In-Data') {
-        price = resolveWeightInDataPrice(catalog.default_price, catalog.finish_addon_price, isFinish);
-      }
+    if (catalog.custom_price) {
+      const customPrice = Number(item.price);
+      if (!Number.isFinite(customPrice) || customPrice < 0) throw Object.assign(new Error('Invalid item price'), { status: 400 });
     }
+    validItems.push({ item, catalog, description, quantity });
+  }
+  // Line prices come from the shared pricing module: the catalog price, or the
+  // technician's own price when one exists (the same price the total uses).
+  const pricedItems = await priceSnapshotItems(client, visit, pricingServices, validItems);
+  for (const [index, { item, catalog, description, quantity }] of validItems.entries()) {
     await client.query(
       `INSERT INTO visit_items (id, visit_id, item_name, category, description, quantity, price, tech_supplied)
        VALUES (gen_random_uuid()::text, $1, $2, $3, $4, $5, $6, $7)`,
-      [visit.id, item.item_name, catalog.category, description, quantity, price, catalog.tech_supplied]
+      [visit.id, item.item_name, catalog.category, description, quantity, pricedItems[index].price, catalog.tech_supplied]
     );
   }
   // The snapshot is the Workspace's own item list: companions the technician

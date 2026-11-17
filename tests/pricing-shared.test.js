@@ -65,7 +65,7 @@ it('charges Drive Run once and resolves custom, tech-supplied and multiplied ite
   expect(result.total).toBe(10 + 20 + 12);
 });
 
-it('applies a technician override to the total only', () => {
+it('uses a technician override as the line price and in the total (CC-08)', () => {
   const result = shared.priceVisit({
     services: [{ systemNumber: 1, serviceName: 'AC', isFinish: false }],
     items: [{ itemName: 'FIN180P', category: 'accessory', quantity: 1 }],
@@ -73,7 +73,7 @@ it('applies a technician override to the total only', () => {
     catalog,
     overrides: { FIN180P: 15 },
   });
-  expect(result.items[0].price).toBe(10);
+  expect(result.items[0].price).toBe(15);
   expect(result.total).toBe(45);
 });
 

@@ -111,3 +111,43 @@ it('accepts a Report priced on the device with no discrepancy, keeping a compani
     { item_name: TSTAT, quantity: 2 },
   ].sort((a, b) => a.item_name.localeCompare(b.item_name)));
 });
+
+it('prints the technician override as the line price, the same one used for the total (CC-08)', async () => {
+  const { visitId, token, tech } = await seedAssignedVisit();
+  await pool.query(
+    `INSERT INTO technician_price_overrides (technician_id, item_name, override_price) VALUES ($1, $2, 35)`,
+    [tech.id, BOARD]
+  );
+  const detail = await request(app).get(`/api/visits/${visitId}`).set('Authorization', `Bearer ${token}`);
+  const draft = drafts.createLocalVisitDraft({ ...detail.body, technicianId: tech.id }, { now: '2026-11-17T10:00:00.000Z' });
+  const [services, items, relations] = await Promise.all([
+    pool.query('SELECT * FROM catalog_services'),
+    pool.query('SELECT * FROM catalog_items'),
+    pool.query("SELECT * FROM catalog_item_relations WHERE relation_type <> 'companion'"),
+  ]);
+  drafts.tapService(draft._service, null, 'ac');
+  drafts.addLocalVisitDraftItem(draft, items.rows.find(row => row.item_name === BOARD), { catalogItems: items.rows, itemRelations: relations.rows });
+  const numbers = drafts.systemNumbersOf(draft);
+  const priced = pricing.priceVisit({
+    services: drafts.serviceRowsFromState(draft._service, numbers),
+    items: draft._items.map(item => ({ itemName: item.item_name, category: item.category, quantity: item.quantity })),
+    systemCount: numbers.length,
+    catalog: { services: services.rows, items: items.rows },
+    overrides: { [BOARD]: 35 },
+  });
+  draft._service.rows = priced.services;
+  draft._items = draft._items.map((item, i) => ({ ...item, price: priced.items[i].price, tech_supplied: priced.items[i].techSupplied }));
+  draft.totalPrice = priced.total;
+  expect(draft._items[0].price).toBe(35);
+
+  const snapshot = createCompletionSnapshot(draft, { id: `override-${tag}`, now: '2026-11-17T10:00:00.000Z' });
+  const res = await request(app)
+    .post(`/api/visits/${visitId}/complete`)
+    .set('Authorization', `Bearer ${token}`)
+    .send({ submissionId: snapshot.submissionId, snapshot });
+  expect(res.status).toBe(200);
+  expect(res.body.priceDiscrepancies).toEqual([]);
+  const stored = await pool.query('SELECT price FROM visit_items WHERE visit_id = $1 AND item_name = $2', [visitId, BOARD]);
+  expect(stored.rows[0].price).toBe(35);
+  await pool.query('DELETE FROM technician_price_overrides WHERE technician_id = $1', [tech.id]);
+});

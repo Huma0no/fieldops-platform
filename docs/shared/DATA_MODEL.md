@@ -267,6 +267,7 @@ Per-technician customized prices on catalog defaults (SYSTEM_DESIGN.md §4.5 —
 **Rules:**
 - A row here takes precedence over `catalog_items.default_price` / `catalog_services.default_price` when this technician creates a visit_item or visit_service for that item.
 - Does not affect `custom_price` items (e.g. "Other") — those are already free-form per visit and have no default to override.
+- It is what the contractor charges the company: the Report line (`visit_items.price`) shows the override, the same price used for the visit total (CC-08, 2026-11-17).
 - A technician can only read/write their own overrides.
 
 ---
