@@ -292,4 +292,5 @@
   - **Catalog-derived differences** (service and item prices, item `tech_supplied`, the total) are accepted (PP-01). The canonical Report keeps the server values; the embedded `sourceSubmission` keeps the device values; `priceDiscrepancies` lists each difference (`field`, `row`, `submitted`, `accepted`).
 - Dispatch shows the discrepancies on the Report view (History → visit details: a header flag and a "Price check" section).
 - The server no longer re-adds catalog companions on submission: a companion the technician turned off stays off.
+- Photos (2026-11-17): the snapshot's `evidenceRefs` create a row for each listed photo (stored or not); the comparison checks each photo's identity but not `storedAt`, because a photo may reach the server after its Report.
 - Pending: the Ledger weekly review of discrepancies with an owner threshold (deferred, QA-TRACKER PP-01b) and the technician-facing rejection wording (WS-12, W4).

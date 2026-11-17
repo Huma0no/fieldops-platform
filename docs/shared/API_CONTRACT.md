@@ -459,8 +459,15 @@ PUT /api/visits/:id/weigh-in/:systemNumber
   returns: full weigh-in record with calculated fields
 
 POST /api/visits/:id/photos
-  auth: technician (must be assigned)
-  body: image file (multipart) + { category, tag, systemNumber?, label? }
+  auth: technician (must be assigned; any visit status — photos may arrive
+        after their Report)
+  body: image file (multipart) + { category, tag, systemNumber?, label?,
+        photoId?, slug?, lat?, lon? }
+  current behavior (2026-11-17): the phone uploads each kept photo with its own
+        photoId (idempotent: a retry stores it once; 409 if the id belongs to
+        another visit). The server stores the file (PHOTO_STORAGE_DIR) and
+        returns { photoId, slug, storedAt } with storedAt = storage key. The
+        historical note below (ZIP at completion) is superseded.
   note: tag identifies which fixed button was pressed (SCALE, FAN, NO_GAS_METER,
         NO_ELECTRIC_METER, NO_PDRAIN, BREAKERS_MISSING) or carries free text when
         the technician uses +Other. category alone cannot disambiguate this —
@@ -507,6 +514,10 @@ POST /api/visits/:id/complete
   409: { code: "REPORT_CONTENT_MISMATCH", fields } — a structural difference
        between the snapshot and the Report the server derived from it; fields
        names each differing field. See REPORT-SNAPSHOT-CONTRACT.md.
+
+GET /api/visits/:id/photos/:photoId
+  auth: technician (must be assigned) or dispatcher
+  returns: the stored JPEG; 404 while the photo is still on the phone
 
 GET /api/visits/:id/report-preview
   auth: technician (must be assigned) or dispatcher

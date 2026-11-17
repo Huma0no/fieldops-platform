@@ -94,7 +94,8 @@ Dispatch may rely on assignment state and successfully submitted terminal states
 - **Start offline:** Start marks the draft started at once. Without a connection the Start is recorded per technician and sent when the server is reachable (on reconnect or app start); Dispatch sees "in progress" then. A server answer that the Start no longer applies (already finished) discards it. Start still needs a downloaded draft.
 - **Workspace:** every edit (Service, T-stat, Accessories, Fixes, quantities, Weigh-In, Notes, checklist) updates only the draft and is repriced on the device with `frontend/shared/pricing.mjs`. No Workspace edit writes to the server.
 - **Generate Report** creates the pending snapshot offline; delivery happens on reconnect. The server recomputes prices from its catalog and records differences without rejecting (PP-01, `REPORT-SNAPSHOT-CONTRACT.md`).
-- **Not covered yet:** photos still upload immediately and need a connection (estimate pending); a call never downloaded cannot be worked offline.
+- **Photos** (2026-11-17): kept on the phone when taken and uploaded whenever the server is reachable, before or after the Report (`/docs/shared/PHOTOS-GPS-INTEGRATIONS.md`).
+- **Not covered yet:** a call never downloaded cannot be worked offline.
 
 ## Contract opens
 

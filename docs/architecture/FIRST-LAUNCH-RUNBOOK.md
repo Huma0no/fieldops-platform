@@ -16,6 +16,9 @@
 - `TRUST_PROXY`: number of reverse proxies in front of the server (for example `1` on a PaaS). Leave it empty when the server is exposed directly.
 - `COMPANY_TIME_ZONE`: time zone for sessions that end at 03:00 (default `America/Chicago`). The server refuses to start with an invalid zone.
 - `NODE_ENV=production` so the session cookie is `Secure` (requires HTTPS).
+- `PHOTO_STORAGE_DIR`: folder where photos are stored (default `data/photos/` in the app folder). It must persist across deploys (a mounted disk on a PaaS).
+
+**Backup:** with each database backup, take a dated copy of the photos folder, for example `tar -czf photos-$(date +%F).tar.gz -C "$PHOTO_STORAGE_DIR" .` next to `fieldops-$(date +%F).sql.gz`. Restore both from the same date.
 
 Start the server. On first start it creates the `Dispatcher` owner account (`docs/architecture/AUTHENTICATION-BOOTSTRAP.md`).
 
