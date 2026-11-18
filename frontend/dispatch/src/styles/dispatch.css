@@ -62,6 +62,96 @@ input[type="checkbox"], input[type="radio"] { accent-color: var(--vd-ink); }
 .vd-unit-name { font-family: var(--vd-font-stencil); text-transform: uppercase; letter-spacing: 2px; font-size: 12px; font-weight: 700; }
 .vd-unit-body { padding: 18px; }
 
+.vd-unit-id { font-family: var(--vd-font-data); font-weight: 700; font-size: 11px; background: var(--vd-ink); color: var(--vd-plate); padding: 2px 6px; }
+.vd-unit-note { margin-left: auto; color: var(--vd-dim); font-family: var(--vd-font-stencil); text-transform: uppercase; letter-spacing: 1.2px; font-size: 10px; }
+.vd-sub {
+  margin: 0 0 9px; padding-bottom: 5px; border-bottom: 1px solid var(--vd-line); color: var(--vd-dim);
+  font-family: var(--vd-font-stencil); text-transform: uppercase; letter-spacing: 2px; font-size: 11px; font-weight: 400;
+  display: flex; justify-content: space-between; align-items: center;
+}
+.vd-hint { font-size: 11px; color: var(--vd-dim); line-height: 1.5; }
+
+/* ── Layout grids (collapse at narrow widths) ─────────── */
+.vd-cols { display: grid; grid-template-columns: 250px 1fr; gap: 18px; align-items: start; }
+.vd-cols-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.vd-cols-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }
+
+/* ── Readout: counter in a recessed window ────────────── */
+.vd-readout { background: var(--vd-panel); border: 2px solid var(--vd-ink); box-shadow: inset 2px 2px 0 rgba(16, 16, 16, 0.14); padding: 12px 14px; }
+.vd-readout .num { font-family: var(--vd-font-data); font-weight: 700; font-size: 34px; line-height: 1; }
+.vd-readout .cap { margin-top: 6px; color: var(--vd-dim); font-family: var(--vd-font-stencil); text-transform: uppercase; letter-spacing: 1.4px; font-size: 10px; }
+.vd-readout.inline { display: inline-flex; align-items: baseline; gap: 8px; padding: 8px 12px; }
+.vd-readout.inline .num { font-size: 24px; }
+.vd-readout.inline .cap { margin-top: 0; }
+
+/* ── Rocker switch (two-way mode) ─────────────────────── */
+.vd-rocker { display: inline-flex; border: 2px solid var(--vd-ink); box-shadow: var(--vd-key-shadow-sm); }
+.vd-rocker button {
+  padding: 8px 14px; border: none; border-right: 2px solid var(--vd-ink); border-radius: 0; background: var(--vd-panel); color: var(--vd-ink); cursor: pointer;
+  font-family: var(--vd-font-stencil); text-transform: uppercase; letter-spacing: 1.4px; font-size: 11px; font-weight: 700;
+}
+.vd-rocker button:last-child { border-right: none; }
+.vd-rocker button.on { background: var(--vd-ink); color: var(--vd-plate); }
+
+/* ── Drop zone / empty slot ───────────────────────────── */
+.vd-placeholder { border: 2px dashed var(--vd-line); padding: 26px; text-align: center; background: var(--vd-plate); cursor: pointer; }
+.vd-placeholder:hover { border-color: var(--vd-ink); }
+
+/* ── Progress (segment bar) ───────────────────────────── */
+.vd-progress { height: 10px; border: 2px solid var(--vd-ink); background: var(--vd-plate); }
+.vd-progress > i { display: block; height: 100%; background: var(--vd-ink); transition: width 200ms ease; }
+
+/* ── Lobby: group bar and call card ───────────────────── */
+.vd-group-bar { display: flex; align-items: center; gap: 10px; background: var(--vd-ink); color: var(--vd-plate); padding: 5px 10px; margin-bottom: 10px; }
+.vd-group-bar .name { font-family: var(--vd-font-stencil); text-transform: uppercase; letter-spacing: 2px; font-size: 11px; font-weight: 700; }
+.vd-group-bar .count { margin-left: auto; font-family: var(--vd-font-data); font-weight: 700; font-size: 11px; }
+.vd-card { border: 2px solid var(--vd-ink); background: var(--vd-panel); padding: 12px 14px; }
+.vd-card.prio { box-shadow: inset 6px 0 0 var(--vd-ink); padding-left: 20px; }
+.vd-card .addr { font-size: 14px; font-weight: 600; }
+.vd-card .sub { font-size: 11px; color: var(--vd-dim); margin-top: 3px; }
+.vd-card .tags { display: flex; gap: 5px; flex-wrap: wrap; margin-top: 9px; }
+.vd-card .foot { display: flex; justify-content: flex-end; align-items: center; margin-top: 11px; }
+
+/* ── Menu (dropdown of keys) ──────────────────────────── */
+.vd-menu {
+  position: absolute; right: 0; top: calc(100% + 6px); min-width: 180px; z-index: 10;
+  border: 2px solid var(--vd-ink); background: var(--vd-plate); box-shadow: 4px 4px 0 rgba(16, 16, 16, 0.22);
+}
+.vd-menu button, .vd-menu .empty {
+  display: block; width: 100%; text-align: left; padding: 8px 10px; border: none; border-bottom: 1px solid var(--vd-line);
+  background: none; color: var(--vd-ink); font-size: 12px; cursor: pointer;
+}
+.vd-menu button:last-child { border-bottom: none; }
+.vd-menu button:hover { background: var(--vd-panel); }
+.vd-menu .empty { cursor: default; color: var(--vd-dim); }
+
+/* ── Typeahead select and chips (Intake) ──────────────── */
+.vd-select { position: relative; }
+.vd-select-dropdown {
+  position: absolute; left: 0; right: 0; top: 100%; z-index: 20; max-height: 220px; overflow-y: auto;
+  border: 2px solid var(--vd-ink); border-top: none; background: var(--vd-panel);
+}
+.vd-select-item { padding: 8px 10px; font-size: 12px; border-bottom: 1px solid var(--vd-line); cursor: pointer; }
+.vd-select-item:hover { background: var(--vd-plate); }
+.vd-select-add { padding: 8px 10px; font-size: 11px; color: var(--vd-ink); font-weight: 700; cursor: pointer; }
+.vd-select-empty { padding: 8px 10px; font-size: 11px; color: var(--vd-dim); }
+.vd-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 6px; }
+.vd-chip { display: inline-flex; align-items: center; gap: 6px; border: 1.5px solid var(--vd-ink); background: var(--vd-plate); padding: 2px 6px; font-size: 11px; }
+.vd-chip-remove { cursor: pointer; color: var(--vd-dim); font-size: 13px; line-height: 1; }
+
+/* ── Option card (choice with a title and a line) ─────── */
+.vd-option {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 2px; width: 100%; text-align: left; cursor: pointer;
+  border: 2px solid var(--vd-ink); border-radius: 0; background: var(--vd-panel); color: var(--vd-ink); padding: 12px 14px; box-shadow: var(--vd-key-shadow-sm);
+}
+.vd-option:active { transform: translateY(3px); box-shadow: none; }
+.vd-option .title { font-family: var(--vd-font-stencil); text-transform: uppercase; letter-spacing: 1.4px; font-size: 12px; font-weight: 700; }
+.vd-option .line { font-size: 12px; color: var(--vd-dim); }
+.vd-option.off { border-style: dotted; box-shadow: 0 3px 0 var(--vd-dim); }
+
+/* ── Modal sheet ──────────────────────────────────────── */
+.vd-scrim { position: fixed; inset: 0; z-index: 100; display: flex; align-items: center; justify-content: center; padding: 24px; background: var(--vd-scrim); }
+
 /* ── Keys: hard drop shadow that sinks on press ───────── */
 .vd-key {
   display: inline-flex; align-items: center; justify-content: center; gap: 7px;
@@ -104,6 +194,11 @@ input[type="checkbox"], input[type="radio"] { accent-color: var(--vd-ink); }
   font-family: var(--vd-font-body); font-size: 13px; padding: 9px 10px; box-shadow: var(--vd-inset);
 }
 .vd-input.data { font-family: var(--vd-font-data); font-weight: 700; }
+.vd-input.sm { font-size: 12px; padding: 7px 8px; }
+/* Recommended-but-optional field (Intake): amber label and fill. */
+.vd-label.rec { color: var(--vd-rec-ink); }
+.vd-input.rec { border-color: var(--vd-rec-line); background: var(--vd-rec-bg); }
+textarea.vd-input { resize: vertical; line-height: 1.5; }
 .vd-input::placeholder { color: var(--vd-dim); }
 
 /* ── Table ────────────────────────────────────────────── */
@@ -150,6 +245,7 @@ input[type="checkbox"], input[type="radio"] { accent-color: var(--vd-ink); }
 .vd-toasts .vd-alert { min-width: 240px; max-width: 340px; }
 
 @media (max-width: 820px) {
+  .vd-cols, .vd-cols-2, .vd-cols-3 { grid-template-columns: 1fr; }
   .vd-shell { padding: 8px; }
   .vd-shell > .vd-rack { padding: 14px 14px 16px; }
 }

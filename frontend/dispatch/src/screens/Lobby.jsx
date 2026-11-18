@@ -45,83 +45,89 @@ export default function Lobby() {
   }
   const groupEntries = Object.entries(groups).sort(([a], [b]) => a.localeCompare(b))
 
-  if (loading) return <div style={s.loading}>Loading…</div>
+  if (loading) return <div className="vd-hint" style={s.loading}>Loading…</div>
 
   return (
     <div style={s.page} onClick={() => setOpenAssign(null)}>
-      {visits.length === 0 ? (
-        <p style={s.empty}>No visits in lobby.</p>
-      ) : (
-        groupEntries.map(([subdivision, group]) => (
-          <div key={subdivision} style={{ marginBottom: 24 }}>
-            <div style={s.subdivisionLabel}>{subdivision}</div>
-            <div style={s.lobbyGrid}>
-              {group.map(v => (
-                <div key={v.id} style={s.visitCard}>
-                  <div style={s.visitAddr}>{v.address.street}</div>
-                  <div style={s.visitSub}>
-                    {[v.address.builder, v.workType].filter(Boolean).join(' · ')}
-                  </div>
-                  {v.tags.length > 0 && (
-                    <div style={s.tags}>
-                      {v.tags.map(t => (
-                        <span key={t} style={s.tag}>{TAG_LABELS[t] || t.toUpperCase()}</span>
-                      ))}
-                    </div>
-                  )}
-                  <div style={s.assignRow}>
-                    <div style={{ position: 'relative' }} onClick={e => e.stopPropagation()}>
-                      <button
-                        style={s.assignBtn}
-                        onClick={() => setOpenAssign(openAssign === v.id ? null : v.id)}
-                      >
-                        Assign ▾
-                      </button>
-                      {openAssign === v.id && (
-                        <div style={s.assignDropdown}>
-                          {technicians.length === 0 ? (
-                            <div style={s.assignOption}>No technicians available</div>
-                          ) : (
-                            technicians
-                              .slice()
-                              .sort((a, b) => a.name.localeCompare(b.name))
-                              .map(t => (
-                                <div
-                                  key={t.id}
-                                  style={s.assignOption}
-                                  onClick={() => handleAssign(v.id, t.id)}
-                                >
-                                  {t.name}
-                                </div>
-                              ))
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              ))}
+      <div className="vd-unit">
+        <div className="vd-unit-head"><span className="vd-unit-id">LBY</span><span className="vd-unit-name">Lobby</span></div>
+        <div className="vd-knurl" />
+        <div className="vd-unit-body">
+          <div style={s.summary}>
+            <div className="vd-readout inline">
+              <span className="num">{String(visits.length).padStart(2, '0')}</span>
+              <span className="cap">waiting</span>
             </div>
           </div>
-        ))
-      )}
+          {visits.length === 0 ? (
+            <p className="vd-hint" style={s.flush}>No visits in lobby.</p>
+          ) : (
+            groupEntries.map(([subdivision, group]) => (
+              <div key={subdivision} style={s.group}>
+                <div className="vd-group-bar">
+                  <span className="name">{subdivision}</span>
+                  <span className="count">{String(group.length).padStart(2, '0')}</span>
+                </div>
+                <div className="vd-cols-2" style={s.cards}>
+                  {group.map(v => (
+                    <div key={v.id} className={`vd-card${v.tags.includes('priority') ? ' prio' : ''}`}>
+                      <div className="addr">{v.address.street}</div>
+                      <div className="sub">
+                        {[v.address.builder, v.workType].filter(Boolean).join(' · ')}
+                      </div>
+                      {v.tags.length > 0 && (
+                        <div className="tags">
+                          {v.tags.map(t => (
+                            <span key={t} className={`vd-badge${t === 'priority' ? ' solid' : ''}`}>{TAG_LABELS[t] || t.toUpperCase()}</span>
+                          ))}
+                        </div>
+                      )}
+                      <div className="foot">
+                        <div style={{ position: 'relative' }} onClick={e => e.stopPropagation()}>
+                          <button
+                            type="button"
+                            className="vd-key sm"
+                            aria-expanded={openAssign === v.id}
+                            onClick={() => setOpenAssign(openAssign === v.id ? null : v.id)}
+                          >
+                            Assign ▾
+                          </button>
+                          {openAssign === v.id && (
+                            <div className="vd-menu">
+                              {technicians.length === 0 ? (
+                                <div className="empty">No technicians available</div>
+                              ) : (
+                                technicians
+                                  .slice()
+                                  .sort((a, b) => a.name.localeCompare(b.name))
+                                  .map(t => (
+                                    <button type="button" key={t.id} onClick={() => handleAssign(v.id, t.id)}>
+                                      {t.name}
+                                    </button>
+                                  ))
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+      </div>
     </div>
   )
 }
 
+// Layout only; the look comes from dispatch.css (vd-*).
 const s = {
-  page:  { flex: 1, overflowY: 'auto', padding: '20px 24px', background: '#EAEAE6', color: '#141414', fontFamily: '-apple-system, Helvetica, Arial, sans-serif' },
-  loading: { flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '13px', color: '#5A5A5A', background: '#EAEAE6' },
-  empty:   { fontSize: '13px', color: '#5A5A5A' },
-  subdivisionLabel: { fontSize: '11px', fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase', color: '#5A5A5A', marginBottom: 8 },
-  lobbyGrid:  { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 16 },
-  visitCard:  { border: '1px solid #141414', padding: '12px 14px', background: '#F4F4F1' },
-  visitAddr:  { fontSize: '13px', fontWeight: 500 },
-  visitSub:   { fontSize: '11px', color: '#5A5A5A', marginTop: 2 },
-  tags:       { marginTop: 8, display: 'flex', gap: 5, flexWrap: 'wrap' },
-  tag:        { fontSize: '10px', border: '1px solid #141414', padding: '2px 6px', letterSpacing: '0.3px' },
-  assignRow:  { marginTop: 10, display: 'flex', justifyContent: 'flex-end' },
-  assignBtn:  { border: '1px solid #141414', padding: '5px 10px', fontSize: '11px', background: 'none', cursor: 'pointer', color: '#141414', fontFamily: 'inherit' },
-  assignDropdown: { position: 'absolute', right: 0, top: '100%', background: '#EAEAE6', border: '1px solid #141414', minWidth: 160, zIndex: 10 },
-  assignOption:   { padding: '7px 10px', fontSize: '12px', cursor: 'pointer', borderBottom: '1px solid #DDD' },
+  page:    { flex: 1, overflowY: 'auto', padding: '16px 18px 18px' },
+  loading: { flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' },
+  summary: { display: 'flex', alignItems: 'center', gap: 14, marginBottom: 18 },
+  flush:   { margin: 0 },
+  group:   { marginBottom: 18 },
+  cards:   { gap: 12 },
 }

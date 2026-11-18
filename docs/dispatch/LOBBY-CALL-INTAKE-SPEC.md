@@ -137,6 +137,8 @@ Aplicación directa del lenguaje visual ya establecido en el resto de Dispatch �
 
 Sin componentes ni tokens de color nuevos — todo reutiliza la paleta ya en uso (`#EAEAE6` fondo, `#141414` texto/bordes, `#5A5A5A` texto secundario, `#F4F4F1` fondo de panel).
 
+**Visual update (D2, 2026-11-17):** Intake (PDF and Manual) and Lobby now use the Dispatch design system v2 (`docs/dispatch/DESIGN-SYSTEM.md`): rack units, keys, readout counters, typeahead and chips, Lobby group bars and cards (priority = left spine), and the amber recommended fields as `--vd-rec-*` tokens. The hex values above are superseded by the `--vd-*` tokens; behavior is unchanged.
+
 ---
 
 ## Pendientes / fuera de alcance de este chat

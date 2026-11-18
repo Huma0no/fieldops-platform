@@ -88,7 +88,7 @@ function equipmentOptions(list) {
 
 // Single-value typeahead. Free-text entry is optional for fields that are not
 // catalog-backed. `options`: [{ value, label }]. `classes`: CSS class names
-// from tokens.css (see .intake-select-* / .intake-select-*-light).
+// from dispatch.css (.vd-select-*).
 function SearchableSelect({ value, onChange, options, placeholder, classes, allowFreeText = true }) {
   const [query, setQuery] = useState(value || '')
   const [open, setOpen]   = useState(false)
@@ -106,7 +106,7 @@ function SearchableSelect({ value, onChange, options, placeholder, classes, allo
   }
 
   return (
-    <div className="intake-select-wrap">
+    <div className="vd-select">
       <input
         className={classes.input}
         value={query}
@@ -165,7 +165,7 @@ function MultiSelectChips({ value, onChange, options, placeholder, classes, allo
           ))}
         </div>
       )}
-      <div className="intake-select-wrap">
+      <div className="vd-select">
         <input
           className={classes.input}
           value={query}
@@ -201,18 +201,14 @@ export default function CallIntake() {
   return (
     <div style={s.page}>
       <div style={s.modeBar}>
-        <button
-          style={{ ...s.modeBtn, ...(mode === 'pdf' ? s.modeBtnActive : {}) }}
-          onClick={() => setMode('pdf')}
-        >
-          PDF Upload
-        </button>
-        <button
-          style={{ ...s.modeBtn, ...(mode === 'manual' ? s.modeBtnActive : {}) }}
-          onClick={() => setMode('manual')}
-        >
-          Manual Entry
-        </button>
+        <div className="vd-rocker" role="group" aria-label="Intake mode">
+          <button type="button" className={mode === 'pdf' ? 'on' : ''} aria-pressed={mode === 'pdf'} onClick={() => setMode('pdf')}>
+            PDF Upload
+          </button>
+          <button type="button" className={mode === 'manual' ? 'on' : ''} aria-pressed={mode === 'manual'} onClick={() => setMode('manual')}>
+            Manual Entry
+          </button>
+        </div>
       </div>
       {mode === 'pdf' ? <PdfFlow /> : <ManualFlow />}
     </div>
@@ -424,26 +420,33 @@ function PdfFlow() {
 function PdfUploadStage({ uploading, error, dropRef, fileInputRef, onDrop, onDragOver, onFile }) {
   return (
     <div style={s.center}>
-      <div style={s.uploadCard}>
-        <h1 style={s.uploadTitle}>PDF Intake</h1>
-        <p style={s.uploadSub}>Upload today's route sheet to extract service calls.</p>
-        <div ref={dropRef} style={s.dropZone} onDrop={onDrop} onDragOver={onDragOver} onClick={() => fileInputRef.current?.click()}>
-          {uploading ? (
-            <div style={s.uploadProgress}>
-              <div style={s.spinner} />
-              <p style={s.uploadProgressText}>Extracting calls…</p>
-              <p style={s.uploadProgressSub}>This usually takes 3–8 seconds.</p>
-            </div>
-          ) : (
-            <>
-              <p style={s.dropIcon}>📄</p>
-              <p style={s.dropText}>Drop PDF here or click to browse</p>
-              <p style={s.dropSub}>PDF files only</p>
-            </>
-          )}
+      <div className="vd-unit" style={s.uploadCard}>
+        <div className="vd-unit-head"><span className="vd-unit-id">PDF</span><span className="vd-unit-name">PDF Intake</span></div>
+        <div className="vd-knurl" />
+        <div className="vd-unit-body" style={s.stack}>
+          <p className="vd-hint" style={s.flush}>Upload today's route sheet to extract service calls.</p>
+          <div
+            ref={dropRef} className="vd-placeholder" role="button" tabIndex={0}
+            onDrop={onDrop} onDragOver={onDragOver}
+            onClick={() => fileInputRef.current?.click()}
+            onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); fileInputRef.current?.click() } }}
+          >
+            {uploading ? (
+              <div style={s.uploadProgress}>
+                <div style={s.spinner} />
+                <p className="vd-stencil" style={s.flush}>Extracting calls…</p>
+                <p className="vd-hint" style={s.flush}>This usually takes 3–8 seconds.</p>
+              </div>
+            ) : (
+              <>
+                <p className="vd-stencil" style={{ ...s.flush, color: 'var(--vd-ink)' }}>Drop PDF here or click to browse</p>
+                <p className="vd-hint" style={s.flush}>PDF files only</p>
+              </>
+            )}
+          </div>
+          {error && <p className="vd-error">{error}</p>}
+          <input ref={fileInputRef} type="file" accept="application/pdf" style={{ display: 'none' }} onChange={e => onFile(e.target.files[0])} />
         </div>
-        {error && <p style={s.errorText}>{error}</p>}
-        <input ref={fileInputRef} type="file" accept="application/pdf" style={{ display: 'none' }} onChange={e => onFile(e.target.files[0])} />
       </div>
     </div>
   )
@@ -453,24 +456,30 @@ function PdfReviewStage({ batch, callIndex, call, loading, fields, onFieldChange
   const pct = Math.round(((callIndex - 1) / batch.totalCalls) * 100)
   return (
     <div style={s.reviewLayout}>
-      <div style={s.pdfPane}>
-        <p style={s.pdfLabel}>Original PDF</p>
-        {pdfUrl ? <iframe src={pdfUrl} style={s.pdfFrame} title="Route sheet PDF" /> : <div style={s.pdfPlaceholder}>PDF preview unavailable</div>}
+      <div className="vd-unit" style={s.pdfPane}>
+        <div className="vd-unit-head"><span className="vd-unit-id">PDF</span><span className="vd-unit-name">Original PDF</span></div>
+        {pdfUrl ? <iframe src={pdfUrl} style={s.pdfFrame} title="Route sheet PDF" /> : <div className="vd-hint" style={s.pdfPlaceholder}>PDF preview unavailable</div>}
       </div>
-      <div style={s.formPane}>
+      <div className="vd-unit" style={s.formPane}>
+        <div className="vd-unit-head">
+          <span className="vd-unit-id">REV</span><span className="vd-unit-name">Review extraction</span>
+          <span className="vd-unit-note vd-data">Call {callIndex} / {batch.totalCalls}</span>
+        </div>
+        <div className="vd-knurl" />
+        <div style={s.formBody}>
         <div style={s.progressWrap}>
-          <div style={s.progressBar}><div style={{ ...s.progressFill, width: `${pct}%` }} /></div>
-          <p style={s.progressLabel}>Reviewing call {callIndex} of {batch.totalCalls}</p>
+          <div className="vd-progress"><i style={{ width: `${pct}%` }} /></div>
+          <p className="vd-hint" style={s.flush}>Reviewing call {callIndex} of {batch.totalCalls}</p>
         </div>
         {loading ? (
-          <div style={s.loadingCall}>Loading call…</div>
+          <div className="vd-hint" style={s.loadingCall}>Loading call…</div>
         ) : (
           <>
             {editedSystems.length > 0 && (
               <div style={s.systemsBox}>
                 {editedSystems.map((sys, i) => (
                   <div key={i} style={s.sysRow}>
-                    {editedSystems.length > 1 && <p style={s.sysLabel}>System {i + 1}</p>}
+                    {editedSystems.length > 1 && <h4 className="vd-sub">System {i + 1}</h4>}
                     <SearchableSelect
                       value={sys.indoorModel ?? ''} onChange={v => onSystemChange(i, 'indoorModel', v)}
                       options={indoorOptions} placeholder="Indoor model" classes={s.selectClasses}
@@ -479,7 +488,7 @@ function PdfReviewStage({ batch, callIndex, call, loading, fields, onFieldChange
                       value={sys.outdoorModel ?? ''} onChange={v => onSystemChange(i, 'outdoorModel', v)}
                       options={outdoorOptions} placeholder="Outdoor model" classes={s.selectClasses}
                     />
-                    <input style={s.fieldInput} value={sys.coilModel ?? ''} onChange={e => onSystemChange(i, 'coilModel', e.target.value)} placeholder="Coil model" />
+                    <input className="vd-input" value={sys.coilModel ?? ''} onChange={e => onSystemChange(i, 'coilModel', e.target.value)} placeholder="Coil model" />
                   </div>
                 ))}
               </div>
@@ -487,23 +496,23 @@ function PdfReviewStage({ batch, callIndex, call, loading, fields, onFieldChange
             <div style={s.fieldsGrid}>
               {Object.entries(PDF_FIELD_LABELS).filter(([key]) => key !== 'preSpecifiedThermostat').map(([key, label]) => (
                 <div key={key} style={s.fieldRow}>
-                  <label style={s.fieldLabel}>{label}</label>
+                  <label className="vd-label">{label}</label>
                   {key === 'companyNotes' ? (
-                    <textarea style={s.fieldTextarea} value={fields[key] ?? ''} onChange={e => onFieldChange(key, e.target.value)} rows={4} />
+                    <textarea className="vd-input" value={fields[key] ?? ''} onChange={e => onFieldChange(key, e.target.value)} rows={4} />
                   ) : (
-                    <input style={s.fieldInput} value={fields[key] ?? ''} onChange={e => onFieldChange(key, e.target.value)} />
+                    <input className="vd-input" value={fields[key] ?? ''} onChange={e => onFieldChange(key, e.target.value)} />
                   )}
                 </div>
               ))}
               <div style={s.fieldRow}>
-                <label style={s.fieldLabel}>{PDF_FIELD_LABELS.preSpecifiedThermostat}</label>
+                <label className="vd-label">{PDF_FIELD_LABELS.preSpecifiedThermostat}</label>
                 <SearchableSelect
                   value={fields.preSpecifiedThermostat ?? ''} onChange={v => onFieldChange('preSpecifiedThermostat', v)}
                   options={thermostatOptions} placeholder="Model or N/A" classes={s.selectClasses} allowFreeText={false}
                 />
               </div>
               <div style={s.fieldRow}>
-                <label style={s.fieldLabel}>Accessories</label>
+                <label className="vd-label">Accessories</label>
                 <MultiSelectChips
                   value={fields.preIdentifiedAccessories ?? ''} onChange={v => onFieldChange('preIdentifiedAccessories', v)}
                   options={accessoryOptions} placeholder="Search accessories…" classes={s.selectClasses} allowFreeText={false}
@@ -511,51 +520,40 @@ function PdfReviewStage({ batch, callIndex, call, loading, fields, onFieldChange
               </div>
             </div>
             <div style={s.reviewActions}>
-              <button style={s.skipBtn} onClick={onSkip} disabled={skipping || confirming}>{skipping ? 'Skipping…' : 'Skip'}</button>
-              <button style={s.confirmBtn} onClick={onConfirm} disabled={confirming || skipping}>{confirming ? 'Confirming…' : 'Confirm'}</button>
+              <button type="button" className="vd-key off" onClick={onSkip} disabled={skipping || confirming}>{skipping ? 'Skipping…' : 'Skip'}</button>
+              <button type="button" className="vd-key dark" onClick={onConfirm} disabled={confirming || skipping}>{confirming ? 'Confirming…' : 'Confirm'}</button>
             </div>
           </>
         )}
+        </div>
       </div>
     </div>
   )
 }
 
 function PdfDoneStage({ batch, onRelease, releasing, result }) {
-  if (result?.success) {
-    return (
-      <div style={s.center}>
-        <div style={s.doneCard}>
-          <p style={s.doneIcon}>✓</p>
-          <h2 style={s.doneTitle}>{result.count} visit{result.count !== 1 ? 's' : ''} released to Lobby</h2>
-          <p style={s.doneSub}>Technicians can now claim their calls.</p>
-        </div>
-      </div>
-    )
-  }
-  if (result?.mismatch) {
-    return (
-      <div style={s.center}>
-        <div style={s.doneCard}>
-          <p style={s.doneIcon}>⚠</p>
-          <h2 style={s.doneTitle}>Count mismatch — not released</h2>
-          <p style={s.doneSub}>Expected {result.expected} visits, found {result.actual}. Contact support.</p>
-        </div>
-      </div>
-    )
-  }
-  return (
+  const card = (mark, title, sub, action) => (
     <div style={s.center}>
-      <div style={s.doneCard}>
-        <p style={s.doneIcon}>📋</p>
-        <h2 style={s.doneTitle}>All calls reviewed</h2>
-        <p style={s.doneSub}>Ready to release confirmed calls to the Lobby.</p>
-        <button style={s.releaseBtn} onClick={onRelease} disabled={releasing}>
-          {releasing ? 'Releasing…' : 'Release to Lobby'}
-        </button>
+      <div className="vd-unit" style={s.doneCard}>
+        <div className="vd-unit-head"><span className="vd-unit-id">PDF</span><span className="vd-unit-name">{title}</span></div>
+        <div className="vd-unit-body" style={s.doneBody}>
+          {mark && <div className="vd-readout inline"><span className="num">{mark}</span></div>}
+          <p className="vd-hint" style={s.flush}>{sub}</p>
+          {action}
+        </div>
       </div>
     </div>
   )
+  if (result?.success) {
+    return card('✓', `${result.count} visit${result.count !== 1 ? 's' : ''} released to Lobby`, 'Technicians can now claim their calls.')
+  }
+  if (result?.mismatch) {
+    return card('⚠', 'Count mismatch — not released', `Expected ${result.expected} visits, found ${result.actual}. Contact support.`)
+  }
+  return card(null, 'All calls reviewed', 'Ready to release confirmed calls to the Lobby.',
+    <button type="button" className="vd-key dark" onClick={onRelease} disabled={releasing}>
+      {releasing ? 'Releasing…' : 'Release to Lobby'}
+    </button>)
 }
 
 // ── Manual flow ────────────────────────────────────────────
@@ -714,67 +712,72 @@ function ManualFlow() {
   if (releaseResult?.success) {
     return (
       <div style={m.successMsg}>
-        <p>✓ {releaseResult.count} visit{releaseResult.count !== 1 ? 's' : ''} released to Lobby.</p>
-        <button style={m.btnSolid} onClick={() => setReleaseResult(null)}>Start new session</button>
+        <p className="vd-stencil" style={{ color: 'var(--vd-ink)' }}>✓ {releaseResult.count} visit{releaseResult.count !== 1 ? 's' : ''} released to Lobby.</p>
+        <button type="button" className="vd-key dark" onClick={() => setReleaseResult(null)}>Start new session</button>
       </div>
     )
   }
   if (releaseResult?.mismatch) {
     return (
       <div style={m.successMsg}>
-        <p>⚠ Count mismatch — not released. Expected {releaseResult.expected}, found {releaseResult.actual}.</p>
-        <button style={m.btnSolid} onClick={() => setReleaseResult(null)}>Back</button>
+        <p className="vd-stencil" style={{ color: 'var(--vd-ink)' }}>⚠ Count mismatch — not released. Expected {releaseResult.expected}, found {releaseResult.actual}.</p>
+        <button type="button" className="vd-key" onClick={() => setReleaseResult(null)}>Back</button>
       </div>
     )
   }
 
   return (
-    <div style={m.layout}>
+    <div className="vd-cols" style={m.layout}>
       {/* Left: batch list */}
-      <div style={m.box}>
-        <div style={m.boxTitle}>
-          Batch <span style={m.mono}>· {session.confirmedCalls.length}</span>
+      <div className="vd-unit">
+        <div className="vd-unit-head"><span className="vd-unit-id">BATCH</span><span className="vd-unit-name">Batch</span></div>
+        <div className="vd-unit-body">
+        <div className="vd-readout" style={{ marginBottom: 14 }}>
+          <div className="num">{String(session.confirmedCalls.length).padStart(2, '0')}</div>
+          <div className="cap">calls held</div>
         </div>
 
         {session.confirmedCalls.length === 0 && (
-          <p style={m.emptyBatch}>No calls confirmed yet.</p>
+          <p className="vd-hint" style={m.emptyBatch}>No calls confirmed yet.</p>
         )}
 
         {session.confirmedCalls.map(c => (
           <div key={c.visitId} style={m.batchItem}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
               <span>{c.street}</span>
-              <button style={m.deleteCallBtn} onClick={() => handleDeleteCall(c.visitId)} title="Remove call">×</button>
+              <button type="button" className="vd-key sm off" onClick={() => handleDeleteCall(c.visitId)} title="Remove call" aria-label={`Remove ${c.street}`}>×</button>
             </div>
-            {c.subdivision && <div style={m.batchSub}>{c.subdivision}</div>}
+            {c.subdivision && <div className="vd-hint">{c.subdivision}</div>}
           </div>
         ))}
 
-        <div style={m.addCallDashed} onClick={() => addressRef.current?.focus()}>
+        <button type="button" className="vd-key sm wide" style={{ marginTop: 14 }} onClick={() => addressRef.current?.focus()}>
           + Add another call
-        </div>
+        </button>
 
         {session.confirmedCalls.length > 0 && (
-          <div style={{ ...m.releaseBtn, opacity: releasing ? 0.6 : 1 }} onClick={releasing ? undefined : handleRelease}>
+          <button type="button" className="vd-key dark wide" style={{ marginTop: 12 }} onClick={handleRelease} disabled={releasing}>
             {releasing ? 'Releasing…' : 'Release to lobby'}
-          </div>
+          </button>
         )}
 
         {session.batchId && (
-          <button style={m.deleteBatchBtn} onClick={handleDeleteBatch}>Delete entire batch</button>
+          <button type="button" className="vd-key sm off wide" style={{ marginTop: 12 }} onClick={handleDeleteBatch}>Delete entire batch</button>
         )}
+        </div>
       </div>
 
       {/* Right: entry form */}
-      <div style={m.box}>
-        <div style={m.boxTitle}>New call</div>
+      <div className="vd-unit">
+        <div className="vd-unit-head"><span className="vd-unit-id">MAN</span><span className="vd-unit-name">New call — manual entry</span></div>
+        <div className="vd-unit-body">
 
         {/* Address */}
-        <div style={{ marginBottom: 14, position: 'relative' }}>
-          <label style={m.label}>Address *</label>
+        <div className="vd-select" style={{ marginBottom: 14 }}>
+          <label className="vd-label">Address *</label>
           <input
             ref={addressRef}
-            style={m.input}
+            className="vd-input"
             value={draft.address}
             onChange={e => handleAddressInput(e.target.value)}
             onBlur={() => setTimeout(() => setShowSuggest(false), 150)}
@@ -782,12 +785,12 @@ function ManualFlow() {
             placeholder="Street address"
           />
           {showSuggest && suggestions.length > 0 && (
-            <div style={m.typeahead}>
+            <div className="vd-select-dropdown">
               {suggestions.map(sug => (
-                <div key={sug.id} style={m.typeaheadItem} onMouseDown={() => selectSuggestion(sug)}>
+                <div key={sug.id} className="vd-select-item" onMouseDown={() => selectSuggestion(sug)}>
                   {sug.street}
                   {sug.city && ` — ${sug.city}`}
-                  {sug.subdivision && <span style={{ color: '#5A5A5A' }}> ({sug.subdivision})</span>}
+                  {sug.subdivision && <span className="vd-stencil"> ({sug.subdivision})</span>}
                 </div>
               ))}
             </div>
@@ -795,27 +798,27 @@ function ManualFlow() {
         </div>
 
         {/* Subdivision + Builder (recommended) */}
-        <div style={m.row2}>
+        <div className="vd-cols-2" style={m.row2}>
           <div>
-            <label style={m.labelRec}>Subdivision (recommended)</label>
-            <input style={m.inputRec} value={draft.subdivision} onChange={e => setDraftField('subdivision', e.target.value)} />
+            <label className="vd-label rec">Subdivision (recommended)</label>
+            <input className="vd-input rec" value={draft.subdivision} onChange={e => setDraftField('subdivision', e.target.value)} />
           </div>
           <div>
-            <label style={m.labelRec}>Builder (recommended)</label>
-            <input style={m.inputRec} value={draft.builder} onChange={e => setDraftField('builder', e.target.value)} />
+            <label className="vd-label rec">Builder (recommended)</label>
+            <input className="vd-input rec" value={draft.builder} onChange={e => setDraftField('builder', e.target.value)} />
           </div>
         </div>
 
         {/* Systems */}
         {draft.systems.map((sys, i) => (
           <div key={i}>
-            <div style={m.sysLabel}>
+            <h4 className="vd-sub">
               {draft.systems.length > 1 ? `System ${i + 1}` : 'System'}
               {draft.systems.length > 1 && i > 0 && (
-                <button style={m.removeSysBtn} onClick={() => removeSystem(i)}>Remove</button>
+                <button type="button" className="vd-key sm off" onClick={() => removeSystem(i)}>Remove</button>
               )}
-            </div>
-            <div style={m.sysRow}>
+            </h4>
+            <div className="vd-cols-3" style={m.sysRow}>
               <SearchableSelect
                 value={sys.indoorModel} onChange={v => updateSystem(i, 'indoorModel', v)}
                 options={indoorOptions} placeholder="Indoor model" classes={m.selectClassesSm}
@@ -824,16 +827,16 @@ function ManualFlow() {
                 value={sys.outdoorModel} onChange={v => updateSystem(i, 'outdoorModel', v)}
                 options={outdoorOptions} placeholder="Outdoor model" classes={m.selectClassesSm}
               />
-              <input style={m.inputSm} placeholder="Coil model" value={sys.coilModel} onChange={e => updateSystem(i, 'coilModel', e.target.value)} />
+              <input className="vd-input sm" placeholder="Coil model" value={sys.coilModel} onChange={e => updateSystem(i, 'coilModel', e.target.value)} />
             </div>
           </div>
         ))}
-        <div style={m.addSystem} onClick={addSystem}>+ Add system</div>
+        <button type="button" className="vd-key sm" style={m.addSystem} onClick={addSystem}>+ Add system</button>
 
         {/* Thermostat + Accessories */}
-        <div style={m.row2}>
+        <div className="vd-cols-2" style={m.row2}>
           <div>
-            <label style={m.label}>Thermostat</label>
+            <label className="vd-label">Thermostat</label>
             <div style={{ display: 'flex', gap: 6 }}>
               <div style={{ flex: 1 }}>
                 <SearchableSelect
@@ -841,11 +844,11 @@ function ManualFlow() {
                   options={thermostatOptions} placeholder="Model or N/A" classes={m.selectClasses} allowFreeText={false}
                 />
               </div>
-              <input style={{ ...m.input, width: 52 }} type="number" min="1" value={draft.thermostatQty} onChange={e => setDraftField('thermostatQty', parseInt(e.target.value, 10) || 1)} />
+              <input className="vd-input data" style={{ width: 64 }} type="number" min="1" aria-label="Thermostat quantity" value={draft.thermostatQty} onChange={e => setDraftField('thermostatQty', parseInt(e.target.value, 10) || 1)} />
             </div>
           </div>
           <div>
-            <label style={m.label}>Accessories</label>
+            <label className="vd-label">Accessories</label>
             <MultiSelectChips
               value={draft.accessories} onChange={v => setDraftField('accessories', v)}
               options={accessoryOptions} placeholder="Search accessories…" classes={m.selectClasses} allowFreeText={false}
@@ -855,40 +858,40 @@ function ManualFlow() {
 
         {/* Notes */}
         <div style={{ marginBottom: 10 }}>
-          <label style={m.label}>Notes</label>
-          <textarea style={{ ...m.input, resize: 'none' }} rows={2} value={draft.notes} onChange={e => setDraftField('notes', e.target.value)} />
+          <label className="vd-label">Notes</label>
+          <textarea className="vd-input" style={{ resize: 'none' }} rows={2} value={draft.notes} onChange={e => setDraftField('notes', e.target.value)} />
         </div>
 
         {/* Collapsible details */}
-        <div style={m.expandLink} onClick={() => setDetailsOpen(v => !v)}>
+        <button type="button" className="vd-key sm" style={m.expandLink} aria-expanded={detailsOpen} onClick={() => setDetailsOpen(v => !v)}>
           {detailsOpen ? '− Hide call details' : '+ Add call details (time, order #, contact, work type)'}
-        </div>
+        </button>
 
         {detailsOpen && (
           <div style={{ marginBottom: 4 }}>
-            <div style={m.row2}>
+            <div className="vd-cols-2" style={m.row2}>
               <div>
-                <label style={m.label}>Scheduled time</label>
-                <input style={m.input} type="time" value={draft.scheduledTime} onChange={e => setDraftField('scheduledTime', e.target.value)} />
+                <label className="vd-label">Scheduled time</label>
+                <input className="vd-input" type="time" value={draft.scheduledTime} onChange={e => setDraftField('scheduledTime', e.target.value)} />
               </div>
               <div>
-                <label style={m.label}>Order #</label>
-                <input style={m.input} value={draft.orderNumber} onChange={e => setDraftField('orderNumber', e.target.value)} />
+                <label className="vd-label">Order #</label>
+                <input className="vd-input" value={draft.orderNumber} onChange={e => setDraftField('orderNumber', e.target.value)} />
               </div>
             </div>
-            <div style={m.row2}>
+            <div className="vd-cols-2" style={m.row2}>
               <div>
-                <label style={m.label}>Contact name</label>
-                <input style={m.input} value={draft.contactName} onChange={e => setDraftField('contactName', e.target.value)} />
+                <label className="vd-label">Contact name</label>
+                <input className="vd-input" value={draft.contactName} onChange={e => setDraftField('contactName', e.target.value)} />
               </div>
               <div>
-                <label style={m.label}>Contact phone</label>
-                <input style={m.input} value={draft.contactPhone} onChange={e => setDraftField('contactPhone', e.target.value)} />
+                <label className="vd-label">Contact phone</label>
+                <input className="vd-input" value={draft.contactPhone} onChange={e => setDraftField('contactPhone', e.target.value)} />
               </div>
             </div>
             <div style={{ marginBottom: 14 }}>
-              <label style={m.label}>Work type</label>
-              <input style={m.input} value={draft.workType} onChange={e => setDraftField('workType', e.target.value)} />
+              <label className="vd-label">Work type</label>
+              <input className="vd-input" value={draft.workType} onChange={e => setDraftField('workType', e.target.value)} />
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
               <input
@@ -898,21 +901,23 @@ function ManualFlow() {
                 onChange={e => setDraftField('isPriority', e.target.checked)}
                 style={{ width: 'auto', margin: 0 }}
               />
-              <label htmlFor="isPriority" style={{ ...m.label, marginBottom: 0 }}>Prioritario</label>
+              <label htmlFor="isPriority" className="vd-label" style={{ marginBottom: 0 }}>Prioritario</label>
             </div>
           </div>
         )}
 
         {/* Actions */}
         <div style={m.actions}>
-          <button style={m.btnGhost} onClick={handleDiscard}>Discard</button>
+          <button type="button" className="vd-key off" onClick={handleDiscard}>Discard</button>
           <button
-            style={{ ...m.btnSolid, opacity: saving || !draft.address.trim() ? 0.5 : 1 }}
+            type="button"
+            className="vd-key dark"
             onClick={handleConfirm}
             disabled={saving || !draft.address.trim()}
           >
             {saving ? 'Saving…' : 'Confirm'}
           </button>
+        </div>
         </div>
       </div>
 
@@ -952,111 +957,57 @@ function buildBody(draft, batchId) {
   }
 }
 
-// ── PDF styles (dark theme — existing tokens) ──────────────
+// ── Styles: layout only. Look comes from dispatch.css (vd-*) ─
 
 const s = {
-  page: { flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', background: 'var(--surface-base)', color: 'var(--text-primary)', fontFamily: 'var(--font-sans)' },
-  modeBar: { display: 'flex', gap: 0, borderBottom: '0.5px solid var(--border-subtle)', flexShrink: 0, background: 'var(--surface-1)' },
-  modeBtn: { padding: '8px 20px', fontSize: '12px', background: 'none', border: 'none', borderBottom: '2px solid transparent', color: 'var(--text-muted)', cursor: 'pointer', fontFamily: 'var(--font-sans)' },
-  modeBtnActive: { color: 'var(--color-signal)', borderBottomColor: 'var(--color-signal)' },
-  center: { flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px' },
-  uploadCard: { width: '100%', maxWidth: '480px', display: 'flex', flexDirection: 'column', gap: '16px' },
-  uploadTitle: { fontSize: '22px', fontWeight: 500, color: 'var(--text-primary)', letterSpacing: '-0.02em' },
-  uploadSub: { fontSize: '14px', color: 'var(--text-muted)' },
-  dropZone: { border: '1.5px dashed var(--border-default)', borderRadius: '12px', padding: '48px 24px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '8px', cursor: 'pointer', background: 'var(--surface-1)' },
-  dropIcon: { fontSize: '40px', lineHeight: 1 },
-  dropText: { fontSize: '14px', fontWeight: 500, color: 'var(--text-secondary)' },
-  dropSub:  { fontSize: '12px', color: 'var(--text-disabled)' },
-  uploadProgress: { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px' },
-  uploadProgressText: { fontSize: '14px', fontWeight: 500, color: 'var(--text-primary)' },
-  uploadProgressSub:  { fontSize: '12px', color: 'var(--text-muted)' },
-  errorText: { fontSize: '13px', color: 'var(--color-heat)' },
-  spinner: { width: '28px', height: '28px', border: '2.5px solid var(--surface-3)', borderTopColor: 'var(--color-signal)', borderRadius: '50%', animation: 'spin 0.7s linear infinite' },
-  reviewLayout: { flex: 1, display: 'flex', overflow: 'hidden' },
-  pdfPane: { flex: '0 0 50%', display: 'flex', flexDirection: 'column', borderRight: '0.5px solid var(--border-subtle)', padding: '16px', gap: '8px', background: 'var(--surface-1)' },
-  pdfLabel: { fontSize: '11px', color: 'var(--text-disabled)', textTransform: 'uppercase', letterSpacing: '0.05em', flexShrink: 0 },
-  pdfFrame: { flex: 1, border: 'none', borderRadius: '8px', background: '#fff' },
-  pdfPlaceholder: { flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '13px', color: 'var(--text-disabled)' },
-  formPane: { flex: '0 0 50%', display: 'flex', flexDirection: 'column', overflow: 'hidden', padding: '16px', gap: '12px' },
+  page: { flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' },
+  modeBar: { display: 'flex', alignItems: 'center', gap: 16, padding: '16px 18px 0', flexShrink: 0 },
+  center: { flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px', overflowY: 'auto' },
+  uploadCard: { width: '100%', maxWidth: '520px' },
+  stack: { display: 'flex', flexDirection: 'column', gap: '14px' },
+  flush: { margin: 0 },
+  uploadProgress: { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '10px' },
+  spinner: { width: '24px', height: '24px', border: '3px solid var(--vd-line)', borderTopColor: 'var(--vd-ink)', borderRadius: '50%', animation: 'spin 0.7s linear infinite' },
+  reviewLayout: { flex: 1, display: 'flex', gap: '18px', padding: '16px 18px 18px', overflow: 'hidden', minHeight: 0 },
+  pdfPane: { flex: '1 1 50%', display: 'flex', flexDirection: 'column', minWidth: 0 },
+  pdfFrame: { flex: 1, border: 'none', background: 'var(--vd-plate)' },
+  pdfPlaceholder: { flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' },
+  formPane: { flex: '1 1 50%', display: 'flex', flexDirection: 'column', minWidth: 0, overflow: 'hidden' },
+  formBody: { flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', gap: '14px', padding: '14px 18px 18px' },
   progressWrap: { display: 'flex', flexDirection: 'column', gap: '6px', flexShrink: 0 },
-  progressBar: { height: '3px', borderRadius: '2px', background: 'var(--surface-3)', overflow: 'hidden' },
-  progressFill: { height: '100%', background: 'var(--color-signal)', transition: 'width 200ms ease' },
-  progressLabel: { fontSize: '12px', color: 'var(--text-muted)' },
-  loadingCall: { flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '13px', color: 'var(--text-muted)' },
-  systemsBox: { background: 'var(--surface-2)', borderRadius: '8px', padding: '10px 12px', border: '0.5px solid var(--border-subtle)', display: 'flex', flexDirection: 'column', gap: '8px', flexShrink: 0 },
-  sysRow:  { display: 'flex', flexDirection: 'column', gap: '2px' },
-  sysLabel:{ fontSize: '10px', color: 'var(--text-disabled)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '2px' },
-  sysLine: { fontSize: '12px', color: 'var(--text-secondary)' },
-  fieldsGrid: { flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '8px' },
-  fieldRow: { display: 'flex', flexDirection: 'column', gap: '3px' },
-  fieldLabel: { fontSize: '11px', color: 'var(--text-muted)', fontWeight: 500 },
-  fieldInput: { background: 'var(--surface-2)', border: '0.5px solid var(--border-default)', borderRadius: '6px', color: 'var(--text-primary)', fontSize: '13px', padding: '6px 10px', outline: 'none', fontFamily: 'var(--font-sans)' },
-  fieldTextarea: { background: 'var(--surface-2)', border: '0.5px solid var(--border-default)', borderRadius: '6px', color: 'var(--text-primary)', fontSize: '13px', padding: '6px 10px', outline: 'none', resize: 'vertical', fontFamily: 'var(--font-sans)', lineHeight: 1.5 },
-  reviewActions: { display: 'flex', gap: '8px', flexShrink: 0, paddingTop: '4px' },
-  skipBtn: { flex: '0 0 auto', background: 'var(--surface-3)', color: 'var(--text-secondary)', border: 'none', borderRadius: '8px', fontSize: '14px', fontWeight: 500, padding: '10px 20px', cursor: 'pointer' },
-  confirmBtn: { flex: 1, background: 'var(--color-signal)', color: '#fff', border: 'none', borderRadius: '8px', fontSize: '14px', fontWeight: 500, padding: '10px', cursor: 'pointer' },
-  doneCard: { width: '100%', maxWidth: '400px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px', textAlign: 'center' },
-  doneIcon:  { fontSize: '48px', lineHeight: 1 },
-  doneTitle: { fontSize: '18px', fontWeight: 500, color: 'var(--text-primary)' },
-  doneSub:   { fontSize: '14px', color: 'var(--text-muted)' },
-  releaseBtn: { marginTop: '8px', background: 'var(--color-signal)', color: '#fff', border: 'none', borderRadius: '8px', fontSize: '14px', fontWeight: 500, padding: '12px 32px', cursor: 'pointer' },
+  loadingCall: { flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' },
+  systemsBox: { display: 'flex', flexDirection: 'column', gap: '10px', flexShrink: 0 },
+  sysRow: { display: 'flex', flexDirection: 'column', gap: '6px' },
+  fieldsGrid: { flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '12px', paddingRight: '4px' },
+  fieldRow: { display: 'flex', flexDirection: 'column' },
+  reviewActions: { display: 'flex', justifyContent: 'flex-end', gap: '12px', flexShrink: 0, paddingTop: '4px', paddingBottom: '4px' },
+  doneCard: { width: '100%', maxWidth: '440px' },
+  doneBody: { display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: '14px' },
 }
 
-// CSS classes defined in shared/tokens.css (.intake-select-*)
+// Typeahead and chips (dispatch.css .vd-select-*), shared by both flows.
 s.selectClasses = {
-  input:        'intake-select-input',
-  dropdown:     'intake-select-dropdown',
-  dropdownItem: 'intake-select-dropdown-item',
-  addNewItem:   'intake-select-add-new',
-  empty:        'intake-select-empty',
-  chipsWrap:    'intake-select-chips-wrap',
-  chip:         'intake-select-chip',
-  chipRemove:   'intake-select-chip-remove',
+  input:        'vd-input',
+  dropdown:     'vd-select-dropdown',
+  dropdownItem: 'vd-select-item',
+  addNewItem:   'vd-select-add',
+  empty:        'vd-select-empty',
+  chipsWrap:    'vd-chips',
+  chip:         'vd-chip',
+  chipRemove:   'vd-chip-remove',
 }
-
-// ── Manual styles (monochrome light — per mockup) ──────────
 
 const m = {
-  layout:     { flex: 1, display: 'grid', gridTemplateColumns: '240px 1fr', gap: 20, padding: '20px 24px', overflowY: 'auto', background: '#EAEAE6', color: '#141414', fontFamily: '-apple-system, Helvetica, Arial, sans-serif', alignContent: 'start' },
-  successMsg: { flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 16, background: '#EAEAE6', color: '#141414', fontFamily: '-apple-system, Helvetica, Arial, sans-serif', fontSize: '13px' },
-  box:        { border: '2px solid #141414', padding: 16, background: '#F4F4F1', alignSelf: 'start' },
-  boxTitle:   { fontSize: '12px', fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase', borderBottom: '2px solid #141414', paddingBottom: 10, marginBottom: 14 },
-  mono:       { fontFamily: "'Courier New', monospace", fontWeight: 400 },
-  emptyBatch: { fontSize: '12px', color: '#5A5A5A', marginBottom: 12 },
-  batchItem:  { fontSize: '12px', padding: '8px 0', borderBottom: '1px solid #DDD' },
-  batchSub:   { color: '#5A5A5A', fontSize: '11px', marginTop: 2 },
-  deleteCallBtn: { background: 'none', border: 'none', color: '#999', fontSize: '14px', cursor: 'pointer', padding: '0 2px', lineHeight: 1, flexShrink: 0 },
-  addCallDashed: { marginTop: 16, border: '1px dashed #999', padding: 10, textAlign: 'center', fontSize: '11px', color: '#5A5A5A', cursor: 'pointer' },
-  releaseBtn:    { marginTop: 10, border: '2px solid #141414', padding: 10, textAlign: 'center', fontSize: '12px', letterSpacing: '0.3px', cursor: 'pointer', userSelect: 'none' },
-  deleteBatchBtn:{ marginTop: 10, border: 'none', background: 'none', fontSize: '11px', color: '#999', cursor: 'pointer', textDecoration: 'underline', display: 'block', textAlign: 'center', width: '100%', padding: '4px 0' },
-  label:     { fontSize: '11px', color: '#141414', display: 'block', marginBottom: 4 },
-  labelRec:  { fontSize: '11px', color: '#854F0B', display: 'block', marginBottom: 4 },
-  input:     { width: '100%', boxSizing: 'border-box', fontSize: '13px', border: '1px solid #141414', padding: '8px 10px', background: '#EAEAE6', color: '#141414', fontFamily: 'inherit', outline: 'none', marginBottom: 0 },
-  inputRec:  { width: '100%', boxSizing: 'border-box', fontSize: '13px', border: '1px solid #BA7517', padding: '8px 10px', background: '#FAEEDA', color: '#141414', fontFamily: 'inherit', outline: 'none' },
-  inputSm:   { width: '100%', boxSizing: 'border-box', fontSize: '12px', border: '1px solid #141414', padding: '7px 8px', background: '#EAEAE6', color: '#141414', fontFamily: 'inherit', outline: 'none' },
-  typeahead:     { position: 'absolute', left: 0, right: 0, border: '1px solid #141414', borderTop: 'none', background: '#EAEAE6', zIndex: 10 },
-  typeaheadItem: { padding: '7px 10px', fontSize: '12px', borderBottom: '1px solid #DDD', cursor: 'pointer' },
-  sysLabel:  { fontSize: '11px', fontWeight: 700, letterSpacing: '0.5px', textTransform: 'uppercase', color: '#5A5A5A', borderTop: '1px solid #999', paddingTop: 12, marginBottom: 10, display: 'flex', justifyContent: 'space-between', alignItems: 'center' },
-  sysRow:    { display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10, marginBottom: 8 },
-  removeSysBtn:{ background: 'none', border: 'none', fontSize: '11px', color: '#999', cursor: 'pointer', textDecoration: 'underline', padding: 0 },
-  addSystem: { fontSize: '11px', color: '#5A5A5A', marginBottom: 18, cursor: 'pointer' },
-  row2:      { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginBottom: 18 },
-  expandLink:{ fontSize: '11px', color: '#5A5A5A', textDecoration: 'underline', marginBottom: 18, cursor: 'pointer' },
-  actions:   { display: 'flex', justifyContent: 'flex-end', gap: 10, paddingTop: 4 },
-  btnGhost:  { border: '1px solid #999', color: '#5A5A5A', padding: '9px 18px', fontSize: '12px', letterSpacing: '0.3px', background: 'none', cursor: 'pointer', fontFamily: 'inherit' },
-  btnSolid:  { border: '2px solid #141414', padding: '9px 18px', fontSize: '12px', letterSpacing: '0.3px', background: 'none', color: '#141414', cursor: 'pointer', fontFamily: 'inherit' },
+  layout:     { flex: 1, padding: '16px 18px 18px', overflowY: 'auto', alignContent: 'start' },
+  successMsg: { flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 16 },
+  emptyBatch: { margin: '0 0 12px' },
+  batchItem:  { fontSize: '12px', padding: '8px 0', borderBottom: '1px solid var(--vd-line)' },
+  sysRow:     { marginBottom: 8 },
+  addSystem:  { marginBottom: 18 },
+  row2:       { marginBottom: 18 },
+  expandLink: { marginBottom: 18 },
+  actions:    { display: 'flex', justifyContent: 'flex-end', gap: 12, paddingTop: 4 },
 }
 
-// CSS classes defined in shared/tokens.css (.intake-select-*-light)
-m.selectClasses = {
-  input:        'intake-select-input-light',
-  dropdown:     'intake-select-dropdown-light',
-  dropdownItem: 'intake-select-dropdown-item-light',
-  addNewItem:   'intake-select-add-new-light',
-  empty:        'intake-select-empty-light',
-  chipsWrap:    'intake-select-chips-wrap',
-  chip:         'intake-select-chip-light',
-  chipRemove:   'intake-select-chip-remove-light',
-}
-
-m.selectClassesSm = { ...m.selectClasses, input: 'intake-select-input-light-sm' }
+m.selectClasses = s.selectClasses
+m.selectClassesSm = { ...s.selectClasses, input: 'vd-input sm' }
