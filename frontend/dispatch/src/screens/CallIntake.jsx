@@ -614,6 +614,18 @@ function ManualFlow() {
     }, 300)
   }
 
+  // A pending address search must not reopen the list after the draft moves on.
+  function closeSuggestions() {
+    clearTimeout(searchTimer.current)
+    setSuggestions([])
+    setShowSuggest(false)
+  }
+
+  function resetDraft() {
+    closeSuggestions()
+    setDraft(emptyDraft())
+  }
+
   function selectSuggestion(sug) {
     setDraft(d => ({
       ...d,
@@ -627,6 +639,7 @@ function ManualFlow() {
 
   async function handleConfirm() {
     if (!draft.address.trim()) { addressRef.current?.focus(); return }
+    closeSuggestions()
     setSaving(true)
     try {
       const body = buildBody(draft, session.batchId)
@@ -640,7 +653,7 @@ function ManualFlow() {
 
       const call = { visitId: result.visitId, street: draft.address.trim(), subdivision: draft.subdivision.trim() }
       setSession(sess => ({ batchId: result.batchId, confirmedCalls: [...sess.confirmedCalls, call] }))
-      setDraft(emptyDraft())
+      resetDraft()
     } catch (err) {
       console.error('create-manual failed:', err)
     } finally {
@@ -659,7 +672,7 @@ function ManualFlow() {
       })
       const call = { visitId: result.visitId, street: body.address, subdivision: body.subdivision || '' }
       setSession(sess => ({ batchId, confirmedCalls: [...sess.confirmedCalls, call] }))
-      setDraft(emptyDraft())
+      resetDraft()
     } catch (err) {
       console.error('resolve-comparison failed:', err)
     }
@@ -681,12 +694,12 @@ function ManualFlow() {
       try { await api.delete(`/dispatch/batch/${session.batchId}`) } catch {}
     }
     setSession(emptySession())
-    setDraft(emptyDraft())
+    resetDraft()
     localStorage.removeItem(STORAGE_KEY)
   }
 
   function handleDiscard() {
-    setDraft(emptyDraft())
+    resetDraft()
   }
 
   async function handleRelease() {
@@ -699,7 +712,7 @@ function ManualFlow() {
       } else {
         setReleaseResult({ success: true, count: result.releasedCount })
         setSession(emptySession())
-        setDraft(emptyDraft())
+        resetDraft()
         localStorage.removeItem(STORAGE_KEY)
       }
     } catch (err) {
@@ -780,7 +793,7 @@ function ManualFlow() {
             className="vd-input"
             value={draft.address}
             onChange={e => handleAddressInput(e.target.value)}
-            onBlur={() => setTimeout(() => setShowSuggest(false), 150)}
+            onBlur={() => { clearTimeout(searchTimer.current); setTimeout(() => setShowSuggest(false), 150) }}
             onFocus={() => suggestions.length > 0 && setShowSuggest(true)}
             placeholder="Street address"
           />
