@@ -16,7 +16,7 @@
 import { api }        from '../../../shared/api.js'
 import { priceVisit } from '../../../shared/pricing.mjs'
 import { keepPhoto, uploadPendingPhotos } from '../lib/photo-upload.mjs'
-import { getActiveTechnicianId, getCatalog, getLocalVisitDraft, saveLocalVisitDraft } from '../lib/db.js'
+import { deleteLocalPhotos, getActiveTechnicianId, getCatalog, getLocalVisitDraft, saveLocalVisitDraft } from '../lib/db.js'
 import { createCompletionSnapshot, createPendingCompletionSubmission, deliverCompletionSubmission } from '../lib/completion-submission.mjs'
 import { isCancelJustificationMissing } from '../lib/cancel-justification.mjs'
 import { cancelConfirmationStyles, showCancelConfirmation } from '../lib/cancel-confirmation.mjs'
@@ -51,6 +51,10 @@ import {
   updateLocalVisitDraftNotes,
   REFRESH_CALL_DATA_KEY,
   refreshCallData,
+  addTechSystem,
+  canRemoveSystem,
+  removeTechSystem,
+  setSystemEquipment,
 } from '../lib/workspace-visit.mjs'
 
 const CHECKLIST_ITEMS = [
@@ -329,7 +333,12 @@ function buildActiveJobBanner () {
   const switcher = buildSystemSwitcher()
   if (switcher && selectedSystem != null) {
     const system = (visit.systems ?? []).find(s => Number(s.systemNumber) === selectedSystem)
-    meta.textContent = `System ${selectedSystem} · ${system?.outdoorModel ?? '—'}`
+    meta.textContent = `System ${selectedSystem} · ${system?.outdoorModel ?? '—'} ✎`
+    meta.classList.add('ws-active-job-meta--edit')
+    meta.setAttribute('role', 'button')
+    meta.tabIndex = 0
+    meta.setAttribute('aria-label', `Edit System ${selectedSystem} equipment`)
+    meta.addEventListener('click', () => openSystemEquipmentSheet(selectedSystem))
   } else {
     meta.textContent = metaParts.join(' · ')
   }
@@ -355,17 +364,17 @@ function buildActiveJobBanner () {
   return el
 }
 
-// System switcher (Service step, multi-system calls): All edits the default
-// for every system; a number edits that system. A dot marks systems with
-// their own (custom) service.
+// System switcher (Service step): All edits the default for every system; a
+// number edits that system; + adds a system to the call (W1b). A dot marks
+// systems with their own (custom) service. Single-system calls show 1 · +.
 function buildSystemSwitcher () {
   const numbers = systemNumbersOf(visit)
-  if (activeStep !== 'service' || numbers.length < 2 || isCancelMode() || isDriveRunMode()) return null
+  if (activeStep !== 'service' || isCancelMode() || isDriveRunMode()) return null
   const el = document.createElement('div')
   el.className = 'ws-sys-switch'
   el.setAttribute('role', 'group')
   el.setAttribute('aria-label', 'Systems')
-  ;[null, ...numbers].forEach((number) => {
+  ;[...(numbers.length > 1 ? [null] : []), ...numbers].forEach((number) => {
     const btn = document.createElement('button')
     btn.type = 'button'
     const on = selectedSystem === number
@@ -381,7 +390,93 @@ function buildSystemSwitcher () {
     })
     el.appendChild(btn)
   })
+  const add = document.createElement('button')
+  add.type = 'button'
+  add.className = 'ws-sys-btn'
+  add.textContent = '+'
+  add.setAttribute('aria-label', 'Add a system')
+  add.addEventListener('click', () => openSystemEquipmentSheet(null))
+  el.appendChild(add)
   return el
+}
+
+// W1b: outdoor equipment for a new system (systemNumber null) or a correction
+// of an existing one. Catalog condensers and heat pumps, or free text.
+function openSystemEquipmentSheet (systemNumber) {
+  const overlay = makeOverlay()
+  const adding = systemNumber == null
+  const nextNumber = Math.max(0, ...systemNumbersOf(visit)) + 1
+  const modal = makeModal(adding ? `Add System ${nextNumber}` : `System ${systemNumber} equipment`)
+  const note = document.createElement('p'); note.className = 'ws-modal-note'
+  note.textContent = 'Outdoor unit model. Dispatch sees this change.'
+  const input = document.createElement('input')
+  input.type = 'search'; input.className = 'ws-price-input'; input.placeholder = 'Search or type model'
+  input.setAttribute('aria-label', 'Outdoor unit model')
+  const list = document.createElement('div'); list.className = 'ws-equip-list'
+  const outdoor = equipmentCatalog.filter(row => row.unit_type === 'condenser' || row.unit_type === 'heat_pump')
+
+  const choose = (outdoorModel, refrigerant) => {
+    if (adding) selectedSystem = addTechSystem(visit, { outdoorModel, refrigerant })
+    else setSystemEquipment(visit, systemNumber, { outdoorModel, refrigerant })
+    overlay.remove()
+    afterSystemChange()
+  }
+  const renderList = () => {
+    const query = input.value.trim().toLowerCase()
+    list.innerHTML = ''
+    const matches = outdoor
+      .filter(row => !query || `${row.brand} ${row.model}`.toLowerCase().includes(query))
+      .slice(0, 30)
+    for (const row of matches) {
+      const btn = document.createElement('button'); btn.type = 'button'; btn.className = 'ws-equip-row'
+      btn.textContent = `${row.brand} · ${row.model}${row.refrigerant ? ` · ${row.refrigerant}` : ''}`
+      btn.addEventListener('click', () => choose(row.model, row.refrigerant ?? null))
+      list.appendChild(btn)
+    }
+    const typed = input.value.trim()
+    if (typed && !outdoor.some(row => row.model.toLowerCase() === typed.toLowerCase())) {
+      const btn = document.createElement('button'); btn.type = 'button'; btn.className = 'ws-equip-row ws-equip-row--free'
+      btn.textContent = `Use "${typed}" (not in catalog)`
+      btn.addEventListener('click', () => choose(typed, null))
+      list.prepend(btn)
+    }
+  }
+  input.addEventListener('input', renderList)
+  renderList()
+  const buttons = [{ label: 'Cancel', cls: 'secondary', fn: () => overlay.remove() }]
+  if (!adding && canRemoveSystem(visit, systemNumber)) {
+    buttons.push({ label: `Remove System ${systemNumber}`, cls: 'secondary', fn: () => { overlay.remove(); confirmRemoveSystem(systemNumber) } })
+  }
+  modal.appendChild(note); modal.appendChild(input); modal.appendChild(list); modal.appendChild(makeActions(buttons))
+  overlay.appendChild(modal)
+  document.getElementById('ws-screen')?.appendChild(overlay)
+  setTimeout(() => input.focus(), 50)
+}
+
+function confirmRemoveSystem (systemNumber) {
+  const overlay = makeOverlay()
+  const modal = makeModal(`Remove System ${systemNumber}?`)
+  const note = document.createElement('p'); note.className = 'ws-modal-note'
+  note.textContent = 'Its service, Weigh-In and photos are discarded.'
+  modal.appendChild(note)
+  modal.appendChild(makeActions([
+    { label: 'Keep', cls: 'secondary', fn: () => overlay.remove() },
+    { label: 'Remove', cls: 'primary', fn: async () => {
+      const removed = removeTechSystem(visit, systemNumber) ?? []
+      overlay.remove()
+      selectedSystem = null
+      afterSystemChange()
+      await deleteLocalPhotos(removed.map(ref => ref.id)).catch(err => console.error('Could not discard photos:', err))
+    } },
+  ]))
+  overlay.appendChild(modal)
+  document.getElementById('ws-screen')?.appendChild(overlay)
+}
+
+function afterSystemChange () {
+  repriceVisit()
+  persistCurrentDraft()
+  renderBody()
 }
 
 // ── Step rail + linear navigation ───────────────────────────
@@ -1701,6 +1796,10 @@ function injectStyles () {
   .ws-modal-summary{background:var(--fo-well);box-shadow:var(--fo-shadow-well);border-radius:var(--fo-radius-sm);padding:var(--space-3);display:flex;flex-direction:column;gap:var(--space-2);}
   .ws-sys-switch{display:flex;gap:2px;padding:3px;border-radius:999px;box-shadow:var(--fo-shadow-inset);}
   .ws-sys-btn{position:relative;min-width:36px;height:36px;border:none;border-radius:999px;background:none;color:var(--fo-ink-soft);font-family:var(--fo-font-mono);font-size:var(--text-sm);font-weight:700;cursor:pointer;-webkit-tap-highlight-color:transparent;}
+  .ws-equip-list{display:flex;flex-direction:column;gap:6px;max-height:40dvh;overflow-y:auto;padding:2px;}
+  .ws-equip-row{text-align:left;border:none;border-radius:var(--fo-radius-sm);background:var(--fo-tile);box-shadow:var(--fo-shadow-raised);padding:10px 12px;font-family:var(--fo-font-mono);font-size:var(--text-sm);color:var(--fo-ink);cursor:pointer;}
+  .ws-equip-row--free{color:var(--fo-accent-deep);font-weight:700;}
+  .ws-active-job-meta--edit{cursor:pointer;color:var(--fo-accent-deep);}
   .ws-sys-btn--on{background:var(--fo-panel);box-shadow:var(--fo-shadow-raised);color:var(--fo-accent-deep);}
   .ws-sys-btn--custom::after{content:'';position:absolute;top:5px;right:5px;width:6px;height:6px;border-radius:50%;background:var(--fo-accent);}
   .ws-panel-head{display:flex;align-items:center;gap:var(--space-2);min-height:28px;}

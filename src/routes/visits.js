@@ -3,6 +3,7 @@ const { pool } = require('../db/pool');
 const { requireRole } = require('../middleware/auth');
 const { createNotification } = require('../helpers/notify');
 const { photoStorage } = require('../services/photos');
+const { systemChangesForVisit } = require('../services/visitSystems');
 
 const visitsRouter = express.Router();
 const dispatchVisitsRouter = express.Router();
@@ -269,9 +270,9 @@ visitsRouter.get('/:id', async (req, res, next) => {
       return res.status(403).json({ error: 'This visit is not assigned to you' });
     }
 
-    const [systems, services, items, photos, weighInData] = await Promise.all([
+    const [systems, services, items, photos, weighInData, systemChanges] = await Promise.all([
       pool.query(
-        'SELECT system_number, indoor_model, outdoor_model, coil_model, refrigerant FROM visit_systems WHERE visit_id = $1 ORDER BY system_number',
+        'SELECT system_number, indoor_model, outdoor_model, coil_model, refrigerant, added_by_technician FROM visit_systems WHERE visit_id = $1 ORDER BY system_number',
         [id]
       ),
       pool.query(
@@ -294,6 +295,7 @@ visitsRouter.get('/:id', async (req, res, next) => {
          FROM weigh_in_data WHERE address_id = $1 ORDER BY system_number`,
         [v.address_id]
       ),
+      systemChangesForVisit(pool, id),
     ]);
 
     res.json({
@@ -318,7 +320,9 @@ visitsRouter.get('/:id', async (req, res, next) => {
       contactPhone: v.contact_phone,
       contactChannel: v.contact_channel,
       address: { street: v.street, city: v.city, state: v.state, zip: v.zip, subdivision: v.subdivision, builder: v.builder },
-      systems: systems.rows.map((s) => ({ systemNumber: s.system_number, indoorModel: s.indoor_model, outdoorModel: s.outdoor_model, coilModel: s.coil_model, refrigerant: s.refrigerant })),
+      systems: systems.rows.map((s) => ({ systemNumber: s.system_number, indoorModel: s.indoor_model, outdoorModel: s.outdoor_model, coilModel: s.coil_model, refrigerant: s.refrigerant, addedByTechnician: s.added_by_technician })),
+      // W1b: "changed by tech" for the Dispatch report view.
+      systemChanges,
       services: services.rows.map((s) => ({ serviceName: s.service_name, isFinish: s.is_finish, isTemporarily: s.is_temporarily, price: s.price, systemNumber: s.system_number })),
       items: items.rows.map((i) => ({ id: i.id, category: i.category, itemName: i.item_name, description: i.description, quantity: i.quantity, price: i.price, techSupplied: i.tech_supplied })),
       // Scale/Fan evidence belongs to Weigh-In work. Keep the historical rows

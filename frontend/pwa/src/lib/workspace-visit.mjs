@@ -358,6 +358,50 @@ export function isLocalVisitDraft (record) {
 // Call data comes from the office. Correct report (after a rejection) takes
 // it from the server so a Report rejected for changed call details can be
 // resent; the technician's work in the draft is kept.
+// ── W1b: systems the technician adds or corrects ─────────────
+// Local-first: the draft holds the call's systems as the technician leaves
+// them; the Report carries them and the server logs each change for Dispatch.
+
+export function addTechSystem (draft, { outdoorModel, refrigerant = null }) {
+  const systemNumber = Math.max(0, ...(draft.systems ?? []).map(system => Number(system.systemNumber))) + 1
+  draft.systems = [...(draft.systems ?? []), {
+    systemNumber, indoorModel: null, outdoorModel, coilModel: null, refrigerant, addedByTechnician: true,
+  }]
+  draft.hasMultipleSystems = draft.systems.length > 1
+  return systemNumber
+}
+
+export function setSystemEquipment (draft, systemNumber, { outdoorModel, refrigerant = null }) {
+  draft.systems = (draft.systems ?? []).map(system => (Number(system.systemNumber) === systemNumber
+    ? { ...system, outdoorModel, refrigerant }
+    : system))
+}
+
+// Only a system the technician added, and only the last one (numbers stay
+// contiguous for services, Weigh-In and photo names).
+export function canRemoveSystem (draft, systemNumber) {
+  const systems = draft.systems ?? []
+  const last = systems[systems.length - 1]
+  return Boolean(last && last.addedByTechnician === true && Number(last.systemNumber) === systemNumber)
+}
+
+// Drops the system with its service, Weigh-In and photo references. Returns
+// the removed photo references (their local copies are discarded by the caller).
+export function removeTechSystem (draft, systemNumber) {
+  if (!canRemoveSystem(draft, systemNumber)) return null
+  draft.systems = draft.systems.filter(system => Number(system.systemNumber) !== systemNumber)
+  draft.hasMultipleSystems = draft.systems.length > 1
+  if (draft._service?.overrides) delete draft._service.overrides[systemNumber]
+  draft._weighInData = (draft._weighInData ?? []).filter(row => Number(row.systemNumber) !== systemNumber)
+  const removed = (draft.evidenceRefs ?? []).filter(ref => ref.systemNumber === systemNumber)
+  draft.evidenceRefs = (draft.evidenceRefs ?? []).filter(ref => ref.systemNumber !== systemNumber)
+  draft._photoCount = draft.evidenceRefs.length
+  for (const key of Object.keys(draft._weighInPhotos ?? {})) {
+    if (key.startsWith(`${systemNumber}-`)) delete draft._weighInPhotos[key]
+  }
+  return removed
+}
+
 export const REFRESH_CALL_DATA_KEY = 'workspace:refreshCallData'
 export const CALL_DATA_FIELDS = ['address', 'orderNumber', 'scheduledDate', 'scheduledTime', 'workType', 'propertyId']
 

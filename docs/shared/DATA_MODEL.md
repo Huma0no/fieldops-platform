@@ -342,9 +342,25 @@ Equipment per system per visit. One row per system (system_number = 1, 2, 3...).
 | indoor_model | text | Furnace or air handler model number |
 | outdoor_model | text | Condenser or heat pump model number |
 | refrigerant | text | Stored explicitly from catalog at visit time |
+| added_by_technician | boolean | True for a system the technician added in the Workspace (W1b) |
 
 **Rules:**
 - `refrigerant` is read from the equipment catalog at visit creation and stored explicitly. If the catalog changes later, historical records are unaffected.
+- W1b (2026-11-17): an accepted Report applies the technician's systems — new systems are inserted with `added_by_technician`, corrected equipment updates the row — and logs each change in `visit_system_changes`. Office systems are never removed by a Report.
+
+### visit_system_changes
+Technician changes to a call's systems (W1b), kept for Dispatch's "changed by tech".
+
+| Column | Type | Notes |
+|---|---|---|
+| id | text PK | UUID |
+| visit_id | text FK | References visits.id |
+| system_number | integer | The system changed |
+| change | text | `added` or `equipment_modified` |
+| before | jsonb | Equipment before (indoorModel, outdoorModel, coilModel, refrigerant); null when added — the original order data |
+| after | jsonb | Equipment after |
+| technician_id | text FK | Who |
+| changed_at | text | When (Report acceptance) |
 - `system_number` increments sequentially per visit starting at 1.
 - Corrections may update equipment fields on an existing system through catalog-backed selection; they do not add, remove, or renumber systems because system topology remains outside the current correction contract.
 

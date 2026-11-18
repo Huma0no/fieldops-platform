@@ -21,6 +21,7 @@ async function truncateTables() {
     DELETE FROM weigh_in_data;
     DELETE FROM visit_items;
     DELETE FROM visit_services;
+    DELETE FROM visit_system_changes;
     DELETE FROM visit_systems;
     DELETE FROM transfers;
     DELETE FROM pay_period_lines;

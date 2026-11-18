@@ -17,6 +17,8 @@ Two related views in Dispatch: the permanent record of completed visits (History
 
 **Detail view:** opens read-only by default and shows the useful final service record when data exists: Order #, address, Builder, Subdivision, scheduled/completed context, technician, terminal status, system number with indoor/outdoor equipment and derived refrigerant, services/items, Weigh-In context, Checklist answers (Yes / No / unanswered), Notes, permitted evidence summary, total, property history, and human-readable edit log. Cancelled History keeps Notes and Checklist while normal work and work-specific evidence remain suppressed. Structured visit data is the source of truth; canonical report text remains derived from it.
 
+**Changed by tech (W1b, 2026-11-17 — the one Dispatch entry Kristo authorized):** when the technician added a system or corrected a system's equipment, the detail header shows a hatched CHANGED BY TECH tag, the system carries ADDED BY TECH, and a "Changed by tech" table lists each change: system, what (System added / Equipment modified), before → after (the original order data is the "before"), who and when.
+
 History does not expose general report/source editing. Administrative correction remains a separate Dispatch concern; it does not reopen technician Workspace or make a terminal visit technician-editable.
 
 ## Properties

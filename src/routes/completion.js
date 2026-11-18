@@ -17,6 +17,7 @@ const {
   writeServiceRows,
 } = require('../services/visitServices');
 const { recordEvidenceRefs } = require('../services/photos');
+const { applySystemChanges } = require('../services/visitSystems');
 
 const router = express.Router();
 
@@ -129,7 +130,7 @@ async function applySnapshotWork(client, visit, snapshot) {
   // turned off stay off (no server-side companion cascade on submission).
 
   // Weigh-In remains address/system structured data. Snapshot delivery may
-  // update an existing measurement but never changes visit system topology.
+  // update an existing measurement; systems were applied before (W1b).
   for (const data of snapshot.weighInData ?? []) {
     const systemNumber = Number(data.systemNumber ?? data.system_number);
     if (!Number.isInteger(systemNumber) || systemNumber < 1) continue;
@@ -324,6 +325,11 @@ router.post('/:id/complete', requireRole('technician'), async (req, res, next) =
       } else {
         finalStatus = 'completed';
       }
+
+      // W1b: systems the technician added or whose equipment changed, before
+      // services (per-system validation) and the canonical Report. Version 1
+      // snapshots (before per-system work) never change the call's systems.
+      if (snapshot?.version >= 2) await applySystemChanges(client, id, snapshot.systems, req.technician.id, now);
 
       let resolvedTotal = null;
       if (snapshot && !isCancel) {

@@ -206,6 +206,8 @@ POST /api/visits/:id/start
 GET /api/visits/:id
   auth: technician (must be assigned) or dispatcher
   returns: full visit object — context fields, systems, pre-selected accessories/thermostat
+           systems[].addedByTechnician and systemChanges[] ({ systemNumber,
+           change, before, after, technicianName, changedAt }) — W1b
 
 PATCH /api/dispatch/visits/:id/reassign
   auth: dispatcher/owner only
@@ -503,6 +505,11 @@ POST /api/visits/:id/complete
                accepted identity and returns the same ACK for a retry; a retry
                cannot create duplicate completion effects.
   requires: at least one visit_service exists (unless service = Cancel)
+  systems (W1b, snapshot version 2+): the snapshot's systems are applied first —
+          a new system (next number, outdoor model required) is inserted as
+          added by the technician; changed equipment updates the row; each
+          change is logged (visit_system_changes). Omitting an office system or
+          skipping a number is 409 REPORT_CONTENT_MISMATCH with fields ["systems"].
   effect: status set to final outcome per selected service (see visits.status in DATA_MODEL.md)
           completed_at timestamp set
           inventory_assignments consumption reflects tech_supplied items (skipped if cancelled)

@@ -116,6 +116,14 @@ input[type="checkbox"], input[type="radio"] { accent-color: var(--vd-ink); }
 .vd-table tr:last-child td { border-bottom: none; }
 .vd-table td.num { font-family: var(--vd-font-data); font-weight: 700; }
 
+/* ── Badge: stencil tag (solid or hatched) ───────────── */
+.vd-badge {
+  display: inline-block; border: 1.5px solid var(--vd-ink); padding: 2px 6px; color: var(--vd-ink);
+  font-family: var(--vd-font-stencil); text-transform: uppercase; letter-spacing: 1.4px; font-size: 10px; font-weight: 700;
+}
+.vd-badge.solid { background: var(--vd-ink); color: var(--vd-plate); }
+.vd-badge.hatch { background-color: var(--vd-plate); background-image: repeating-linear-gradient(45deg, rgba(16, 16, 16, 0.16) 0 2px, transparent 2px 5px); }
+
 /* ── Alert / toast: hatched plate ─────────────────────── */
 .vd-alert {
   display: flex; align-items: flex-start; gap: 12px; padding: 10px 14px;

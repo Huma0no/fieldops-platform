@@ -472,6 +472,15 @@ export async function markPhotoUploaded (id, uploadedAt = Date.now()) {
   return promisify(store.put({ ...record, pendingUpload: false, uploadedAt }))
 }
 
+// Discards local photos by their photo id (a system the technician removed).
+export async function deleteLocalPhotos (photoIds) {
+  const ids = new Set(photoIds)
+  if (!ids.size) return
+  const store = await tx('photos', 'readwrite')
+  const records = await promisify(store.getAll())
+  await Promise.all(records.filter(record => ids.has(record?.photoId)).map(record => promisify(store.delete(record.id))))
+}
+
 export async function deleteUploadedPhotosBefore (cutoff) {
   const store = await tx('photos', 'readwrite')
   const records = await promisify(store.getAll())

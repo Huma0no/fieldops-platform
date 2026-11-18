@@ -226,6 +226,21 @@ const DISCREPANCY_FIELDS = {
   'items.techSupplied': 'Tech supplied',
 }
 
+function equipmentText (equipment) {
+  const parts = [
+    equipment?.outdoorModel ?? '—',
+    equipment?.indoorModel && `indoor ${equipment.indoorModel}`,
+    equipment?.coilModel && `coil ${equipment.coilModel}`,
+    equipment?.refrigerant,
+  ].filter(Boolean)
+  return parts.join(' · ')
+}
+
+function formatChangeTime (iso) {
+  const date = new Date(iso)
+  return Number.isNaN(date.getTime()) ? '—' : date.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
+}
+
 function discrepancyLabel (d) {
   const field = DISCREPANCY_FIELDS[d.field] ?? d.field
   return d.row ? `${d.row} · ${field}` : field
@@ -264,6 +279,9 @@ function VisitDetail ({ visit, editLog, propertyHistory, onBack, onCorrectReport
         {(visit.priceDiscrepancies ?? []).length > 0 && (
           <span style={styles.anomalyBanner}>⚠ Device prices differ from catalog</span>
         )}
+        {(visit.systemChanges ?? []).length > 0 && (
+          <span className="vd-badge hatch">Changed by tech</span>
+        )}
       </div>
 
       <div style={styles.detailBody}>
@@ -285,10 +303,31 @@ function VisitDetail ({ visit, editLog, propertyHistory, onBack, onCorrectReport
             <div style={styles.sectionTitle}>Systems and equipment</div>
             {visit.systems.map(system => <div key={system.systemNumber} style={{ fontSize:'12px', padding:'6px 0', borderBottom:'0.5px solid var(--border-subtle)', color:'var(--text-secondary)' }}>
               <strong>System {system.systemNumber}</strong>
+              {system.addedByTechnician && <span className="vd-badge" style={{ marginLeft: '8px' }}>Added by tech</span>}
               <div>Indoor: {system.indoorModel ?? '—'} · Outdoor: {system.outdoorModel ?? '—'}</div>
               {system.coilModel && <div>Coil: {system.coilModel}</div>}
               {system.refrigerant && <div>Refrigerant: {system.refrigerant}</div>}
             </div>)}
+          </>}
+
+          {/* W1b: systems the technician added or whose equipment changed.
+              The original order data is kept as "before". */}
+          {(visit.systemChanges ?? []).length > 0 && <>
+            <div style={styles.sectionTitle}>Changed by tech</div>
+            <table className="vd-table">
+              <thead><tr><th>System</th><th>Change</th><th>Before → After</th><th>Who</th><th>When</th></tr></thead>
+              <tbody>
+                {visit.systemChanges.map((c, i) => (
+                  <tr key={i}>
+                    <td className="num">{c.systemNumber}</td>
+                    <td>{c.change === 'added' ? 'System added' : 'Equipment modified'}</td>
+                    <td>{c.before ? `${equipmentText(c.before)} → ` : ''}{equipmentText(c.after)}</td>
+                    <td>{c.technicianName}</td>
+                    <td className="num">{formatChangeTime(c.changedAt)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </>}
 
           <ChecklistSection answers={visit.checklistAnswers} />

@@ -237,7 +237,20 @@ CREATE TABLE visit_systems (
   indoor_model   text,
   outdoor_model  text,
   coil_model     text,
-  refrigerant    text
+  refrigerant    text,
+  added_by_technician boolean NOT NULL DEFAULT false   -- W1b: added from the Workspace
+);
+
+-- Technician changes to a call's systems (W1b), kept for Dispatch.
+CREATE TABLE visit_system_changes (
+  id            text PRIMARY KEY DEFAULT gen_random_uuid()::text,
+  visit_id      text NOT NULL REFERENCES visits(id),
+  system_number integer NOT NULL,
+  change        text NOT NULL CHECK (change IN ('added', 'equipment_modified')),
+  before        jsonb,
+  after         jsonb NOT NULL,
+  technician_id text NOT NULL REFERENCES technicians(id),
+  changed_at    text NOT NULL
 );
 
 -- 14. visit_services
@@ -467,6 +480,7 @@ CREATE INDEX visits_address_id_idx ON visits (address_id);
 CREATE INDEX visits_batch_id_idx ON visits (batch_id);
 
 CREATE INDEX visit_systems_visit_id_idx ON visit_systems (visit_id);
+CREATE INDEX visit_system_changes_visit_id_idx ON visit_system_changes (visit_id);
 CREATE INDEX visit_services_visit_id_idx ON visit_services (visit_id);
 CREATE INDEX visit_items_visit_id_idx ON visit_items (visit_id);
 CREATE INDEX weigh_in_data_address_id_idx ON weigh_in_data (address_id);
