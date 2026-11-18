@@ -3,8 +3,23 @@ const crypto = require('crypto');
 const app = require('../src/index');
 const { pool, truncateTables } = require('./helpers/db');
 const { seedDispatcherWithToken, seedTechnicianWithToken } = require('./helpers/seeds');
+const routeIntake = require('../src/services/routeIntake');
+
+// Batch flow tests use two fixed test calls instead of OCR (OCR itself is
+// covered by tests/route-intake.test.js with a synthetic route PDF).
+const TEST_CALLS = [
+  { orderNumber: 'ORD-001', address: '123 MAPLE ST', city: 'HOUSTON', state: 'TX', zip: '77001', subdivision: 'MAPLE GROVE',
+    builder: 'DR HORTON', scheduledTime: '2026-06-24T09:30:00', workType: 'AC', systemCount: 1, systems: [], flags: {} },
+  { orderNumber: 'ORD-002', address: '456 OAK AVE', city: 'HOUSTON', state: 'TX', zip: '77002', subdivision: 'OAK HILLS',
+    builder: 'LENNAR', scheduledTime: '2026-06-24T11:00:00', workType: 'Heat', systemCount: 2, systems: [], flags: {} },
+];
+let extractSpy;
 
 beforeEach(truncateTables);
+beforeEach(() => {
+  extractSpy = jest.spyOn(routeIntake, 'extractCalls').mockResolvedValue({ route: {}, calls: TEST_CALLS });
+});
+afterEach(() => extractSpy.mockRestore());
 afterAll(() => pool.end());
 
 function uniqueCatalogName(prefix) {
@@ -57,6 +72,19 @@ describe('POST /api/dispatch/parse-pdf', () => {
     const batch = await pool.query('SELECT * FROM pdf_batches WHERE id = $1', [res.body.batchId]);
     expect(batch.rows[0].status).toBe('in_review');
     expect(batch.rows[0].total_calls).toBe(2);
+  });
+
+  it("says it couldn't read the PDF instead of inventing calls", async () => {
+    extractSpy.mockRestore();
+    const { token } = await seedDispatcherWithToken();
+    const res = await request(app)
+      .post('/api/dispatch/parse-pdf')
+      .set('Authorization', `Bearer ${token}`)
+      .attach('pdf', Buffer.from('not a pdf'), 'upload.pdf');
+    expect(res.status).toBe(422);
+    expect(res.body).toEqual({ error: "Couldn't read this PDF", code: 'PDF_UNREADABLE' });
+    const batches = await pool.query('SELECT id FROM pdf_batches');
+    expect(batches.rows).toHaveLength(0);
   });
 
   it('deletes released batches before creating a new one', async () => {

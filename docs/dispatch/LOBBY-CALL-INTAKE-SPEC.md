@@ -99,6 +99,17 @@ Dirección + subdivisión, builder, tags, tipo de trabajo. **Hora descartada** d
 - **Sin estado optimista** — la tarjeta no cambia visualmente al click. Desaparece recién en el próximo poll, consistente con el patrón ya usado en el resto de Dispatch.
 - Si el `PATCH` falla, la tarjeta sigue sin cambios — manejo de error genérico, sin mensaje especial.
 
+### PDF route sheets: OCR + CP3000 parser (2026-11-18)
+
+The office's CP3000 route PDFs ("Microsoft Print to PDF") have no text layer: every line is an image strip. Intake reads them on the server, offline: each page rendered at 300 dpi and OCR'd (pdf.js + tesseract.js with the English model bundled from npm), then parsed deterministically, without AI (`src/services/routeParser.js`).
+- **Nothing is invented.** If no call can be read the screen says "Couldn't read this PDF" and offers Manual Entry. A field that was not read stays empty and is flagged.
+- **Calls:** a block starts at its time + builder line, or at its `# job` line when the time line was not read (flagged "time line not read"). Blocks may continue across a page break. Page furniture (company line, ROUTE header, EMPLOYEE SCHEDULE, HVAC SERVICE, footer) is skipped.
+- **Fields → Intake:** time (with the route date) → Scheduled time; builder → Builder; `# job` → Order #; street and subdivision; `CITY ST [ZIP]` → City/State/ZIP; contact name and phone (flagged if not 10 digits); PROBLEM → Work type; IMPORTANT NOTES → Company notes; each equipment line (`HEATER|FURN #`, `COIL|EVAP #`, `UNIT #`) → one system. No Intake target, kept in Company notes under "From route sheet": route technician, job type ("RESIDENTIAL AC STARTUP"), payment type, Called In By, extra-equipment line, ROUGH/TRIM/SET.
+- **Models:** indoor and outdoor are matched to the equipment catalog with OCR-aware rules (O/0, I/L/1, S/5, B/8; one extra or missing leading character; catalog base model as prefix, e.g. 5TTR5024 for 5TTR5024A1). One confident match is used and its OCR text shown; otherwise the raw text stays, flagged. Coils have no catalog and are always flagged for checking.
+- **Accessories:** suggested only from a line that starts with `M#` (e.g. FIN180P, Dehum), flagged as suggestions. Accessories mentioned inside the notes are not added.
+- **Review:** flagged fields are highlighted (amber, dashed) with "Check: reason" so Dispatch checks them before Confirm.
+- An AI fallback for other PDF formats is out of scope (QA-TRACKER FF-07).
+
 ### Origen mixto (PDF vs. manual)
 
 **Irrelevante** una vez que la visita está en Lobby — sin distinción visual entre orígenes.

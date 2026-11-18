@@ -237,10 +237,21 @@ POST /api/dispatch/parse-pdf
   effect: deletes any existing pdf_batches row with status = "released"
           that no visit references (displacement cleanup — see pdf_batches
           rules; a referenced batch is kept, CC-12)
-          AI extracts fields per call found in PDF
+          reads the CP3000 route sheet: each page rendered at 300 dpi and OCR'd
+            on the server, offline (pdf.js + tesseract.js, bundled English
+            model), then parsed deterministically (no AI) — 2026-11-18
           creates a pdf_batches row: total_calls = N, skipped_count = 0,
             status = "in_review"
-  returns: { batchId, totalCalls, calls: [] of draft visits with index (1 of N, 2 of N...) }
+  returns: { batchId, totalCalls, route: { technician, date },
+             calls: [] of draft visits with index (1 of N, 2 of N...) }
+           each call: Intake fields (scheduledTime, address, city, state, zip,
+             subdivision, orderNumber, builder, builderContactName,
+             builderContactPhone, workType, companyNotes,
+             preIdentifiedAccessories, systems[{indoorModel, coilModel,
+             outdoorModel}]), flags { field: reason } to check before Confirm,
+             ocr { field: raw OCR text } behind a confident catalog match
+  422: { code: "PDF_UNREADABLE", error: "Couldn't read this PDF" } when no call
+       can be read — nothing is invented; Intake offers Manual Entry
 
 GET /api/dispatch/batch/:batchId/call/:index
   auth: dispatcher
@@ -249,7 +260,9 @@ GET /api/dispatch/batch/:batchId/call/:index
 
 POST /api/dispatch/batch/:batchId/call/:index/confirm
   auth: dispatcher
-  body: edited draft visit fields
+  body: edited draft visit fields (systems with models, companyNotes,
+        builderContactName/Phone are stored: company_notes, contact_name,
+        contact_phone — 2026-11-18)
   effect: creates address (or triggers comparison modal if near-match found)
           creates visit with status "pending_review", batch_id = batchId —
             NOT visible to technicians yet

@@ -16,6 +16,7 @@
 - `TRUST_PROXY`: number of reverse proxies in front of the server (for example `1` on a PaaS). Leave it empty when the server is exposed directly.
 - `COMPANY_TIME_ZONE`: time zone for sessions that end at 03:00 (default `America/Chicago`). The server refuses to start with an invalid zone.
 - `NODE_ENV=production` so the session cookie is `Secure` (requires HTTPS).
+- Node 22.13 or later (`engines` in `package.json`; pdf.js needs it). PDF Intake OCR runs in-process and offline: `pdfjs-dist`, `@napi-rs/canvas` (prebuilt binaries, no system libraries) and `tesseract.js` with the English model from `@tesseract.js-data/eng`. No OCR service or download at runtime. A route page takes about 5–10 s.
 - `PHOTO_STORAGE_DIR`: folder where photos are stored (default `data/photos/` in the app folder). It must persist across deploys (a mounted disk on a PaaS).
 
 **Backup:** with each database backup, take a dated copy of the photos folder, for example `tar -czf photos-$(date +%F).tar.gz -C "$PHOTO_STORAGE_DIR" .` next to `fieldops-$(date +%F).sql.gz`. Restore both from the same date.

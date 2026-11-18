@@ -9,6 +9,8 @@ const PDF_FIELD_LABELS = {
   scheduledTime:           'Scheduled time',
   address:                 'Address',
   city:                    'City',
+  state:                   'State',
+  zip:                     'ZIP',
   subdivision:             'Subdivision',
   orderNumber:             'Order #',
   builder:                 'Builder',
@@ -210,14 +212,14 @@ export default function CallIntake() {
           </button>
         </div>
       </div>
-      {mode === 'pdf' ? <PdfFlow /> : <ManualFlow />}
+      {mode === 'pdf' ? <PdfFlow onManualEntry={() => setMode('manual')} /> : <ManualFlow />}
     </div>
   )
 }
 
 // ── PDF flow (existing logic, unchanged) ───────────────────
 
-function PdfFlow() {
+function PdfFlow({ onManualEntry }) {
   const [stage, setStage]             = useState(STAGE.UPLOAD)
   const [uploading, setUploading]     = useState(false)
   const [uploadError, setUploadError] = useState('')
@@ -233,6 +235,7 @@ function PdfFlow() {
   const [fields, setFields]           = useState({})
   const [editedSystems, setEditedSystems] = useState([])
   const [pdfUrl, setPdfUrl]           = useState(null)
+  const [unreadable, setUnreadable]   = useState(false)
   const fileInputRef = useRef(null)
   const dropRef      = useRef(null)
   const catalog = useCatalogLists()
@@ -252,6 +255,7 @@ function PdfFlow() {
     }
     setUploading(true)
     setUploadError('')
+    setUnreadable(false)
     const objectUrl = URL.createObjectURL(file)
     setPdfUrl(objectUrl)
     const form = new FormData()
@@ -263,7 +267,10 @@ function PdfFlow() {
       setStage(STAGE.REVIEW)
       loadCall(data.batchId, 1)
     } catch (err) {
-      setUploadError('Extraction failed. Check your connection and try again.')
+      setUploadError(err.status === 422
+        ? "Couldn't read this PDF. Enter the calls by hand instead."
+        : 'Extraction failed. Check your connection and try again.')
+      setUnreadable(err.status === 422)
       console.error('parse-pdf failed:', err)
     } finally {
       setUploading(false)
@@ -302,6 +309,8 @@ function PdfFlow() {
       scheduledTime:            extracted.scheduledTime            ?? '',
       address:                  extracted.address                  ?? '',
       city:                     extracted.city                     ?? '',
+      state:                    extracted.state                    ?? '',
+      zip:                      extracted.zip                      ?? '',
       subdivision:              extracted.subdivision              ?? '',
       orderNumber:              extracted.orderNumber              ?? '',
       builder:                  extracted.builder                  ?? '',
@@ -388,7 +397,7 @@ function PdfFlow() {
     <>
       {stage === STAGE.UPLOAD && (
         <PdfUploadStage
-          uploading={uploading} error={uploadError}
+          uploading={uploading} error={uploadError} unreadable={unreadable} onManualEntry={onManualEntry}
           dropRef={dropRef} fileInputRef={fileInputRef}
           onDrop={onDrop} onDragOver={onDragOver} onFile={handleFile}
         />
@@ -397,7 +406,7 @@ function PdfFlow() {
         <PdfReviewStage
           batch={batch} callIndex={callIndex} call={call} loading={loadingCall}
           fields={fields} onFieldChange={(k, v) => setFields(f => ({ ...f, [k]: v }))}
-          editedSystems={editedSystems} onSystemChange={updateEditedSystem}
+          editedSystems={editedSystems} onSystemChange={updateEditedSystem} flags={call?.flags ?? {}} ocr={call?.ocr ?? {}}
           thermostatOptions={thermostatOptions} accessoryOptions={accessoryOptions}
           indoorOptions={indoorOptions} outdoorOptions={outdoorOptions}
           onConfirm={handleConfirm} onSkip={handleSkip}
@@ -417,7 +426,7 @@ function PdfFlow() {
   )
 }
 
-function PdfUploadStage({ uploading, error, dropRef, fileInputRef, onDrop, onDragOver, onFile }) {
+function PdfUploadStage({ uploading, error, unreadable, onManualEntry, dropRef, fileInputRef, onDrop, onDragOver, onFile }) {
   return (
     <div style={s.center}>
       <div className="vd-unit" style={s.uploadCard}>
@@ -434,8 +443,8 @@ function PdfUploadStage({ uploading, error, dropRef, fileInputRef, onDrop, onDra
             {uploading ? (
               <div style={s.uploadProgress}>
                 <div style={s.spinner} />
-                <p className="vd-stencil" style={s.flush}>Extracting calls…</p>
-                <p className="vd-hint" style={s.flush}>This usually takes 3–8 seconds.</p>
+                <p className="vd-stencil" style={s.flush}>Reading the route sheet…</p>
+                <p className="vd-hint" style={s.flush}>About 5–10 seconds per page.</p>
               </div>
             ) : (
               <>
@@ -445,6 +454,7 @@ function PdfUploadStage({ uploading, error, dropRef, fileInputRef, onDrop, onDra
             )}
           </div>
           {error && <p className="vd-error">{error}</p>}
+          {unreadable && <button type="button" className="vd-key" style={{ alignSelf: 'flex-start' }} onClick={onManualEntry}>Manual Entry</button>}
           <input ref={fileInputRef} type="file" accept="application/pdf" style={{ display: 'none' }} onChange={e => onFile(e.target.files[0])} />
         </div>
       </div>
@@ -452,7 +462,7 @@ function PdfUploadStage({ uploading, error, dropRef, fileInputRef, onDrop, onDra
   )
 }
 
-function PdfReviewStage({ batch, callIndex, call, loading, fields, onFieldChange, editedSystems, onSystemChange, thermostatOptions, accessoryOptions, indoorOptions, outdoorOptions, onConfirm, onSkip, confirming, skipping, pdfUrl }) {
+function PdfReviewStage({ batch, callIndex, call, loading, fields, flags, ocr, onFieldChange, editedSystems, onSystemChange, thermostatOptions, accessoryOptions, indoorOptions, outdoorOptions, onConfirm, onSkip, confirming, skipping, pdfUrl }) {
   const pct = Math.round(((callIndex - 1) / batch.totalCalls) * 100)
   return (
     <div style={s.reviewLayout}>
@@ -480,28 +490,34 @@ function PdfReviewStage({ batch, callIndex, call, loading, fields, onFieldChange
                 {editedSystems.map((sys, i) => (
                   <div key={i} style={s.sysRow}>
                     {editedSystems.length > 1 && <h4 className="vd-sub">System {i + 1}</h4>}
+                    <FlagNote flag={flags[`systems.${i}`]} />
                     <SearchableSelect
                       value={sys.indoorModel ?? ''} onChange={v => onSystemChange(i, 'indoorModel', v)}
-                      options={indoorOptions} placeholder="Indoor model" classes={s.selectClasses}
+                      options={indoorOptions} placeholder="Indoor model" classes={flagged(s.selectClasses, flags[`systems.${i}.indoorModel`])}
                     />
+                    <FlagNote flag={flags[`systems.${i}.indoorModel`]} raw={ocr[`systems.${i}.indoorModel`]} />
                     <SearchableSelect
                       value={sys.outdoorModel ?? ''} onChange={v => onSystemChange(i, 'outdoorModel', v)}
-                      options={outdoorOptions} placeholder="Outdoor model" classes={s.selectClasses}
+                      options={outdoorOptions} placeholder="Outdoor model" classes={flagged(s.selectClasses, flags[`systems.${i}.outdoorModel`])}
                     />
-                    <input className="vd-input" value={sys.coilModel ?? ''} onChange={e => onSystemChange(i, 'coilModel', e.target.value)} placeholder="Coil model" />
+                    <FlagNote flag={flags[`systems.${i}.outdoorModel`]} raw={ocr[`systems.${i}.outdoorModel`]} />
+                    <input className={`vd-input${flags[`systems.${i}.coilModel`] ? ' flag' : ''}`} value={sys.coilModel ?? ''} onChange={e => onSystemChange(i, 'coilModel', e.target.value)} placeholder="Coil model" />
+                    <FlagNote flag={flags[`systems.${i}.coilModel`]} />
                   </div>
                 ))}
               </div>
             )}
+            <FlagNote flag={flags.systems} />
             <div style={s.fieldsGrid}>
               {Object.entries(PDF_FIELD_LABELS).filter(([key]) => key !== 'preSpecifiedThermostat').map(([key, label]) => (
                 <div key={key} style={s.fieldRow}>
                   <label className="vd-label">{label}</label>
                   {key === 'companyNotes' ? (
-                    <textarea className="vd-input" value={fields[key] ?? ''} onChange={e => onFieldChange(key, e.target.value)} rows={4} />
+                    <textarea className={`vd-input${flags[key] ? ' flag' : ''}`} value={fields[key] ?? ''} onChange={e => onFieldChange(key, e.target.value)} rows={6} />
                   ) : (
-                    <input className="vd-input" value={fields[key] ?? ''} onChange={e => onFieldChange(key, e.target.value)} />
+                    <input className={`vd-input${flags[key] ? ' flag' : ''}`} value={fields[key] ?? ''} onChange={e => onFieldChange(key, e.target.value)} />
                   )}
+                  <FlagNote flag={flags[key]} />
                 </div>
               ))}
               <div style={s.fieldRow}>
@@ -517,6 +533,7 @@ function PdfReviewStage({ batch, callIndex, call, loading, fields, onFieldChange
                   value={fields.preIdentifiedAccessories ?? ''} onChange={v => onFieldChange('preIdentifiedAccessories', v)}
                   options={accessoryOptions} placeholder="Search accessories…" classes={s.selectClasses} allowFreeText={false}
                 />
+                <FlagNote flag={flags.preIdentifiedAccessories} />
               </div>
             </div>
             <div style={s.reviewActions}>
@@ -529,6 +546,16 @@ function PdfReviewStage({ batch, callIndex, call, loading, fields, onFieldChange
       </div>
     </div>
   )
+}
+
+// Route sheet OCR: fields Dispatch must check before Confirm.
+function FlagNote({ flag, raw }) {
+  if (flag) return <p className="vd-flag-note">Check: {flag}</p>
+  return raw ? <p className="vd-hint" style={{ margin: '4px 0 0' }}>Catalog match · OCR read "{raw}"</p> : null
+}
+
+function flagged(classes, flag) {
+  return flag ? { ...classes, input: `${classes.input} flag` } : classes
 }
 
 function PdfDoneStage({ batch, onRelease, releasing, result }) {

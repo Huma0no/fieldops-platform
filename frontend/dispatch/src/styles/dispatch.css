@@ -223,6 +223,9 @@ input[type="checkbox"], input[type="radio"] { accent-color: var(--vd-ink); }
 .vd-label.rec { color: var(--vd-rec-ink); }
 .vd-input.rec { border-color: var(--vd-rec-line); background: var(--vd-rec-bg); }
 textarea.vd-input { resize: vertical; line-height: 1.5; }
+/* Route sheet OCR: a value to check before Confirm (attention, not an error). */
+.vd-input.flag { border-color: var(--vd-rec-line); border-style: dashed; background: var(--vd-rec-bg); }
+.vd-flag-note { margin: 4px 0 0; font-size: 11px; color: var(--vd-rec-ink); }
 .vd-input::placeholder { color: var(--vd-dim); }
 
 /* ── Table ────────────────────────────────────────────── */

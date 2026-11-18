@@ -103,6 +103,10 @@ router.post('/:id/resolve-comparison', requireRole('owner', 'dispatcher'), async
       notes: pendingVisitData.notes || null,
       systems: pendingVisitData.systems || null,
       isPriority: pendingVisitData.isPriority || false,
+      // PDF review sends builderContact*; manual entry sends contact*.
+      companyNotes: pendingVisitData.companyNotes || null,
+      contactName: pendingVisitData.builderContactName || pendingVisitData.contactName || null,
+      contactPhone: pendingVisitData.builderContactPhone || pendingVisitData.contactPhone || null,
       thermostat,
       thermostatQty,
       accessories,

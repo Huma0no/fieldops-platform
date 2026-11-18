@@ -1,37 +1,9 @@
 const { pool, truncateTables } = require('./helpers/db');
-const { extractCallsFromPDF } = require('../src/services/ai');
 const { normalizeStreet, findNearMatch, findOrCreateAddress } = require('../src/helpers/address');
 const { createVisitWithSystems } = require('../src/helpers/visit');
 
 beforeEach(truncateTables);
 afterAll(() => pool.end());
-
-// ── ai.js ────────────────────────────────────────────────────────────────────
-describe('extractCallsFromPDF', () => {
-  it('returns 2 calls regardless of buffer content', async () => {
-    const calls = await extractCallsFromPDF(Buffer.from('anything'));
-    expect(calls).toHaveLength(2);
-    expect(calls[0].orderNumber).toBe('ORD-001');
-    expect(calls[1].orderNumber).toBe('ORD-002');
-  });
-
-  it('each call has all required fields', async () => {
-    const calls = await extractCallsFromPDF(Buffer.from(''));
-    for (const call of calls) {
-      expect(call).toHaveProperty('orderNumber');
-      expect(call).toHaveProperty('address');
-      expect(call).toHaveProperty('city');
-      expect(call).toHaveProperty('state');
-      expect(call).toHaveProperty('zip');
-      expect(call).toHaveProperty('subdivision');
-      expect(call).toHaveProperty('builder');
-      expect(call).toHaveProperty('scheduledTime');
-      expect(call).toHaveProperty('workType');
-      expect(call).toHaveProperty('systemCount');
-      expect(call).toHaveProperty('notes');
-    }
-  });
-});
 
 // ── address.js ───────────────────────────────────────────────────────────────
 describe('normalizeStreet', () => {

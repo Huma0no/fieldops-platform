@@ -2,14 +2,14 @@ const express = require('express');
 const multer = require('multer');
 const { pool } = require('../db/pool');
 const { requireRole } = require('../middleware/auth');
-const { extractCallsFromPDF } = require('../services/ai');
+const routeIntake = require('../services/routeIntake');
 const { findOrCreateAddress } = require('../helpers/address');
 const { createVisitWithSystems, validateCatalogSelections } = require('../helpers/visit');
 
 const router = express.Router();
 const upload = multer({ storage: multer.memoryStorage() });
 
-// In-memory cache: batchId → calls array (from AI extraction)
+// In-memory cache: batchId → calls array (from route sheet OCR)
 const batchCallsCache = new Map();
 
 // POST /api/dispatch/parse-pdf
@@ -26,7 +26,11 @@ router.post('/parse-pdf', requireRole('owner', 'dispatcher'), upload.single('pdf
       return res.status(400).json({ error: 'pdf file is required' });
     }
 
-    const calls = await extractCallsFromPDF(req.file.buffer);
+    // OCR + CP3000 parser. Nothing is invented: an unreadable sheet has no calls.
+    const { calls, route } = await routeIntake.extractCalls(req.file.buffer, pool);
+    if (!calls.length) {
+      return res.status(422).json({ error: "Couldn't read this PDF", code: 'PDF_UNREADABLE' });
+    }
     const now = new Date().toISOString();
 
     const batchResult = await pool.query(
@@ -42,6 +46,7 @@ router.post('/parse-pdf', requireRole('owner', 'dispatcher'), upload.single('pdf
     res.json({
       batchId,
       totalCalls: calls.length,
+      route: route ?? {},
       calls: calls.map((call, i) => ({ index: i + 1, ...call })),
     });
   } catch (err) {
@@ -95,6 +100,7 @@ router.post('/batch/:batchId/call/:index/confirm', requireRole('owner', 'dispatc
     }
 
     const { orderNumber, address, city, state, zip, subdivision, builder, scheduledTime, workType, systemCount, notes,
+            systems, companyNotes, builderContactName, builderContactPhone,
             preSpecifiedThermostat, preSpecifiedThermostatQty, preIdentifiedAccessories } = req.body;
     const thermostat = preSpecifiedThermostat || null;
     const accessories = Array.isArray(preIdentifiedAccessories) ? preIdentifiedAccessories : [];
@@ -126,6 +132,10 @@ router.post('/batch/:batchId/call/:index/confirm', requireRole('owner', 'dispatc
       workType,
       systemCount,
       notes,
+      systems: Array.isArray(systems) ? systems : undefined,
+      companyNotes,
+      contactName: builderContactName,
+      contactPhone: builderContactPhone,
       thermostat,
       thermostatQty: parseInt(preSpecifiedThermostatQty, 10) || 1,
       accessories,
@@ -230,7 +240,7 @@ router.post('/visits/create-manual', requireRole('owner', 'dispatcher'), async (
     const {
       batchId: existingBatchId,
       orderNumber, address, city, state, zip, subdivision, builder,
-      scheduledTime, workType, notes, systems, isPriority,
+      scheduledTime, workType, notes, systems, isPriority, contactName, contactPhone,
       thermostat, thermostatQty: thermostatQtyRaw, accessories: accessoriesRaw,
     } = req.body;
     const accessories = typeof accessoriesRaw === 'string'
@@ -281,6 +291,8 @@ router.post('/visits/create-manual', requireRole('owner', 'dispatcher'), async (
       notes,
       systems,
       isPriority,
+      contactName,
+      contactPhone,
       thermostat: thermostat || null,
       thermostatQty: parseInt(thermostatQtyRaw, 10) || 1,
       accessories,

@@ -6,3 +6,6 @@ nano .env
 # Server photo storage (PHOTO_STORAGE_DIR default)
 data/
 frontend/dispatch/dist/
+
+# Real CP3000 route PDFs (customer data) — never commit
+tests/fixtures/private/
