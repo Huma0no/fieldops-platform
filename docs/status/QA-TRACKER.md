@@ -142,6 +142,7 @@ Must be implemented after the WIP merge and before launch.
 | FF-03 | Company-level setting "contractors may set their own prices" (2026-11-17). On: a contractor edits a price catalog inside FieldOps (their overrides). Off: company catalog prices only. | `MASTER-FUNCTION-INDEX.md` R-10 (related: FF-01) |
 | FF-04 | Dispatch navigation from the mockups (2026-11-17, future UX decision): Home overview, a Dispatch Transfer screen, Properties as its own screen, and Inventory merged with Restock. Not adopted in the restyle; the real navigation stays. | `mockups/fieldops-dispatch-mockups.html` (00, 03, 06), `history-properties-mockup.html` (09) |
 | FF-05 | Ledger Money In/Out, Ledger compensation report, and Technicians compensation history (2026-11-17). Shown in the mockups; not built and out of the restyle scope. The mockup's Technicians invite code is dropped: accounts use username and password. | `mockups/ledger-mockup.html` (11a, 11b), `technicians-mockup.html` (10b) |
+| FF-06 | Dispatch mockup extras left out of D2 (Kristo, 2026-11-18), for a later round: CATALOG / FREE TEXT tags on Intake fields, Lobby waiting time per call, "Return a visit to lobby" action, and priority calls ordered first within their subdivision. | `docs/mockups/fieldops-dispatch-mockups.html` (01 Intake, 02 Lobby) |
 
 ## Backlog / pendiente de decisión
 
