@@ -2,11 +2,12 @@
 
 **Version:** 0.1 — STUB, needs content
 **Date:** 2026-07-30
-**Status:** One of the 4 top-nav tabs (`/docs/fieldops/NAVIGATION.md`), and the entry point for Request Corrections (`/docs/shared/CORRECTIONS.md`), but no full screen spec exists yet.
+**Status:** One of the 6 bottom-bar items (`/docs/fieldops/NAVIGATION.md`), and the entry point for Request Corrections (`/docs/shared/CORRECTIONS.md`), but no full screen spec exists yet.
 
 ## Known
 
 - Shows the day's completions.
+- View and download completed visit reports.
 - Share/export capability.
 - Hosts the "Request Corrections" action per visit — see `/docs/shared/CORRECTIONS.md`.
 - Does not provide direct editing of generated Completion Report text or completed source visit data. After Generate Report, Request Corrections is the technician's correction entry point.

@@ -88,7 +88,7 @@ Main views:
 - **Lobby** — unassigned visits available to claim
 - **My Calls** — visits assigned to the technician → `/docs/fieldops/MY-CALLS-SPEC.md`
 - **Workspace** — execution of the active job → `/docs/fieldops/workspace/WORKSPACE-SHELL.md` (see §5 below)
-- **Reports** — day's completions, share/export, and the entry point to request a correction
+- **Reports** — day's completions, share/export, and the entry point to request a correction → `/docs/fieldops/REPORTS-SPEC.md`
 
 Standalone tools: Quick Charge Calc (`/docs/fieldops/CALC-SPEC.md`), LV/Blower reference (contextual, scoped to the active job's equipment — no general/job-less mode), Chat, Transfers (technician view), Settings (`/docs/fieldops/SETTINGS-SPEC.md`).
 

@@ -1,18 +1,35 @@
-# Reports (FieldOps)
+# Reports (Dispatch)
 
 **Version:** 1.0
-**Date:** 2026-07-30
-**Status:** Built further than earlier drafts of this doc admitted — full working screen exists
+**Date:** 2026-11-18
+**Status:** Describes the running screen (`frontend/dispatch/src/screens/Reports.jsx`, endpoints in `src/routes/reports.js`). The technician's Reports screen is a different surface: `/docs/fieldops/REPORTS-SPEC.md`.
 
 ## Purpose
 
-One of the 6 bottom-bar items (`/docs/fieldops/NAVIGATION.md`). Shows the day's completions and is the entry point for Request Corrections.
+Usage reports for The Company: which equipment, accessories and refrigerant were used, where, and by whom, over a date range. Owner and dispatcher only.
 
-## Contents
+## Filters
 
-- View and download completed visit reports.
-- Request Corrections workflow per visit — see `/docs/shared/CORRECTIONS.md`.
+- **From / To** (required): completion date range, inclusive.
+- **Technician**: one technician or all.
+- **Generate** loads both reports. Visits count when their status is `completed` or `temporarily`.
 
-## Open Items
+## Equipment & Accessory usage (05A)
 
-- Full screen layout detail (list structure, exact fields shown per completed visit, download format) not yet fully documented — the workflow-level description above is confirmed, the pixel-level spec isn't written yet.
+- Grouped by address. Each group lists items with category and quantity.
+- **Include / exclude:** a checkbox per address and per item. Unchecking an address excludes all its items. Excluded rows are struck through on screen and left out of the printout.
+- **Totals register:** totals of the included items only, also shown as a table with the total quantity and a per-technician breakdown.
+
+## Refrigerant usage (05B)
+
+- Grouped by address, one row per system: System, Service, Adj. Oz, Factory Charge, Lineset Config, Date, Tech (technician name).
+- Values are the latest Weigh-In stored for each address and system.
+- Include / exclude per address, as above.
+
+## Print / Export
+
+**Print / Export** prints the page through the browser, so it can be saved as a PDF. The printout adds a letterhead (report title, date range, technician) and hides the controls and the excluded rows. Exclusions are not saved; they reset on each Generate.
+
+## Not included
+
+The mockup's printable document layout (summary page first, document number, "generated", operator, page footers) is a future item: FF-08 in `docs/status/QA-TRACKER.md`.
