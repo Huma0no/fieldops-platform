@@ -235,7 +235,8 @@ POST /api/dispatch/parse-pdf
   auth: dispatcher
   body: PDF file (multipart)
   effect: deletes any existing pdf_batches row with status = "released"
-          (displacement cleanup — see pdf_batches rules)
+          that no visit references (displacement cleanup — see pdf_batches
+          rules; a referenced batch is kept, CC-12)
           AI extracts fields per call found in PDF
           creates a pdf_batches row: total_calls = N, skipped_count = 0,
             status = "in_review"

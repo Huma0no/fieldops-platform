@@ -76,6 +76,34 @@ describe('POST /api/dispatch/parse-pdf', () => {
     const batches = await pool.query("SELECT * FROM pdf_batches WHERE status = 'released'");
     expect(batches.rows).toHaveLength(0);
   });
+
+  it('keeps a released batch that visits still reference, and still parses (CC-12)', async () => {
+    const { token } = await seedDispatcherWithToken();
+    const batch = await pool.query(
+      `INSERT INTO pdf_batches (id, total_calls, skipped_count, status, created_at)
+       VALUES (gen_random_uuid()::text, 1, 0, 'released', $1) RETURNING id`,
+      [new Date().toISOString()]
+    );
+    const address = await pool.query(
+      `INSERT INTO addresses (id, street) VALUES (gen_random_uuid()::text, $1) RETURNING id`,
+      [`${crypto.randomBytes(4).toString('hex')} BATCH ST`]
+    );
+    await pool.query(
+      `INSERT INTO visits (id, address_id, batch_id, status, has_multiple_systems, is_deferred, date, created_at, updated_at)
+       VALUES (gen_random_uuid()::text, $1, $2, 'in_lobby', false, false, '2026-11-18', $3, $3)`,
+      [address.rows[0].id, batch.rows[0].id, new Date().toISOString()]
+    );
+
+    const res = await request(app)
+      .post('/api/dispatch/parse-pdf')
+      .set('Authorization', `Bearer ${token}`)
+      .attach('pdf', Buffer.from('pdf'), 'upload.pdf');
+
+    expect(res.status).toBe(200);
+    expect(res.body.totalCalls).toBe(2);
+    const kept = await pool.query('SELECT status FROM pdf_batches WHERE id = $1', [batch.rows[0].id]);
+    expect(kept.rows).toEqual([{ status: 'released' }]);
+  });
 });
 
 // ── GET /api/dispatch/batch/:batchId/call/:index ─────────────────────────────

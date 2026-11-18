@@ -151,7 +151,7 @@ Tracks a PDF intake batch from parse through Lobby release. Not historical — e
 - `release-to-lobby` verifies delivery with a simple count check: the number of `visits` rows with this `batch_id` and `status = "pending_review"` must equal `total_calls − skipped_count`. This confirms nothing was lost in transit — it does not re-validate each visit's content, since that was already validated individually at each call's `confirm` step.
 - If the count matches: all matching visits move to `status = "in_lobby"`, and this batch's `status → "released"`.
 - If the count does not match: nothing is released, the batch stays visible with an alert for manual dispatcher intervention — it is never silently discarded on a mismatch.
-- A released batch is not deleted immediately. The next call to `parse-pdf` deletes any existing batch with `status = "released"` before creating the new one — there is no time-based expiry, just displacement by the next batch. This keeps a released batch inspectable for a short while without growing into permanent history.
+- A released batch is not deleted immediately. The next call to `parse-pdf` deletes any existing batch with `status = "released"` that no visit references (a referenced batch stays; CC-12, 2026-11-18) before creating the new one — there is no time-based expiry, just displacement by the next batch. This keeps a released batch inspectable for a short while without growing into permanent history.
 
 ---
 

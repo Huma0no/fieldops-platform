@@ -15,8 +15,12 @@ const batchCallsCache = new Map();
 // POST /api/dispatch/parse-pdf
 router.post('/parse-pdf', requireRole('owner', 'dispatcher'), upload.single('pdf'), async (req, res, next) => {
   try {
-    // Displacement cleanup: delete previously released batches
-    await pool.query("DELETE FROM pdf_batches WHERE status = 'released'");
+    // Displacement cleanup: delete previously released batches that no visit
+    // references (visits keep their batch; CC-12).
+    await pool.query(
+      `DELETE FROM pdf_batches b WHERE b.status = 'released'
+         AND NOT EXISTS (SELECT 1 FROM visits v WHERE v.batch_id = b.id)`
+    );
 
     if (!req.file) {
       return res.status(400).json({ error: 'pdf file is required' });
