@@ -154,7 +154,7 @@ function CorrectionDetail ({ correction, onBack }) {
   const [note, setNote] = useState(correction.note ?? '')
   const [answers, setAnswers] = useState(() => Object.fromEntries((snapshot.checklistAnswers ?? []).map(a => [a.item, a.answer])))
   const [catalog, setCatalog] = useState({ items: [], services: [], linesets: [], equipment: [] })
-  const [service, setService] = useState(() => normalizeService(snapshot.services))
+  const [service, setService] = useState(() => normalizeService(snapshot.services, snapshot.systems))
   const [items, setItems] = useState(() => normalizeItems(snapshot.items))
   const [weighIn, setWeighIn] = useState(() => normalizeWeighIn(snapshot.weighIn))
   const [systems, setSystems] = useState(() => normalizeSystems(snapshot.systems))
@@ -209,7 +209,7 @@ function CorrectionDetail ({ correction, onBack }) {
       if (dirty.propertyContext) changes.propertyContext = propertyContext
       if (dirty.notes) changes.notes = notes
       if (dirty.checklist) changes.checklistAnswers = checklistAnswers
-      if (dirty.service) changes.services = [service]
+      if (dirty.service) changes.services = service.driveRun ? [{ serviceName: 'Drive Run' }] : service.rows
       if (dirty.items) changes.items = items
       if (dirty.systems) changes.systems = systems
       if (dirty.weighIn) {
@@ -295,16 +295,30 @@ function CorrectionDetail ({ correction, onBack }) {
 
         {isOpen && <div style={styles.section}>
           <p style={styles.sectionTitle}>Service</p>
-          <div style={styles.editorGrid}>
-            <label>Service
-              <select style={styles.input} value={service.serviceName} onChange={e => { setService(current => ({ ...current, serviceName: e.target.value, isFinish: e.target.value === 'Finish' ? true : current.isFinish })); setDirty(current => ({ ...current, service: true })) }}>
-                {catalog.services.filter(s => s.service_name !== 'Cancel').map(s => <option key={s.service_name} value={s.service_name}>{s.service_name}</option>)}
-              </select>
-            </label>
-            {service.serviceName !== 'Finish' && <label style={styles.checkRow}>Finish modifier
-              <input type="checkbox" checked={service.isFinish} onChange={e => { setService(current => ({ ...current, isFinish: e.target.checked })); setDirty(current => ({ ...current, service: true })) }} />
-            </label>}
-          </div>
+          {/* W1c: one service per system, or a call-wide Drive Run. */}
+          <label style={styles.checkRow}>Drive Run (whole call)
+            <input type="checkbox" checked={service.driveRun} onChange={e => { setService(current => ({ ...current, driveRun: e.target.checked })); setDirty(current => ({ ...current, service: true })) }} />
+          </label>
+          {!service.driveRun && service.rows.map(row => {
+            const update = patch => { setService(current => ({ ...current, rows: current.rows.map(r => r.systemNumber === row.systemNumber ? { ...r, ...patch } : r) })); setDirty(current => ({ ...current, service: true })) }
+            const acHeat = AC_HEAT_SERVICES.has(row.serviceName)
+            return <div key={row.systemNumber} style={styles.editorGrid}>
+              <label>System {row.systemNumber}
+                <select style={styles.input} value={row.serviceName} onChange={e => {
+                  const name = e.target.value
+                  update({ serviceName: name, isFinish: name === 'Finish' ? true : name === 'Prestart' ? false : row.isFinish, isTemporarily: AC_HEAT_SERVICES.has(name) ? row.isTemporarily : false })
+                }}>
+                  {SYSTEM_SERVICE_NAMES.map(name => <option key={name} value={name}>{name}</option>)}
+                </select>
+              </label>
+              {row.serviceName !== 'Finish' && row.serviceName !== 'Prestart' && <label style={styles.checkRow}>Finish
+                <input type="checkbox" checked={row.isFinish} onChange={e => update({ isFinish: e.target.checked })} />
+              </label>}
+              {acHeat && <label style={styles.checkRow}>Temporarily
+                <input type="checkbox" checked={row.isTemporarily} onChange={e => update({ isTemporarily: e.target.checked })} />
+              </label>}
+            </div>
+          })}
           {snapshot.terminalStatus === 'temporarily' && <p style={styles.hintText}>This report remains Temporarily; terminal status is not editable in Corrections.</p>}
           <p style={styles.hintText}>Current resolved total: ${Number(snapshot.totalPrice ?? 0).toFixed(2)}. The server recalculates it only when Apply is used.</p>
         </div>}
@@ -465,13 +479,24 @@ function Finder ({ onBack, onStarted, initialVisitId }) {
     {error && <p style={styles.errorText}>{error}</p>}</div></div>
 }
 
-function normalizeService (services) {
-  const service = services?.[0]
-  return {
-    serviceName: service?.service_name ?? 'AC',
-    isFinish: Boolean(service?.is_finish),
-    isTemporarily: Boolean(service?.is_temporarily),
-  }
+const SYSTEM_SERVICE_NAMES = ['AC', 'Heat', 'AC & Heat', 'Prestart', 'Finish']
+const AC_HEAT_SERVICES = new Set(['AC', 'Heat', 'AC & Heat'])
+
+// One editable row per system. A legacy call-wide row applies to every system.
+function normalizeService (services = [], systems = []) {
+  const driveRun = services.some(s => s.service_name === 'Drive Run')
+  const numbers = systems.length ? systems.map(s => s.system_number) : [1]
+  const callWide = services.find(s => s.system_number == null && s.service_name !== 'Drive Run')
+  const rows = numbers.map(systemNumber => {
+    const s = services.find(row => row.system_number === systemNumber) ?? callWide
+    return {
+      systemNumber,
+      serviceName: s && SYSTEM_SERVICE_NAMES.includes(s.service_name) ? s.service_name : 'AC',
+      isFinish: Boolean(s?.is_finish),
+      isTemporarily: Boolean(s?.is_temporarily),
+    }
+  })
+  return { driveRun, rows }
 }
 
 function normalizeJobContext (job = {}) {

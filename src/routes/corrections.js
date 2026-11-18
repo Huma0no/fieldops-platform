@@ -3,8 +3,9 @@ const express = require('express');
 const { pool } = require('../db/pool');
 const { requireRole } = require('../middleware/auth');
 const { createNotification } = require('../helpers/notify');
-const { calculateVisitPrice, resolveServicePrice, resolveWeightInDataPrice, syncWeightInDataPrice } = require('../services/pricing');
+const { calculateVisitPrice, resolveWeightInDataPrice } = require('../services/pricing');
 const { computeCommission } = require('../helpers/commission');
+const { missingServiceSystems, normalizeServiceRows, visitSystemNumbers, writeServiceRows } = require('../services/visitServices');
 
 const router = express.Router();
 const TERMINAL_STATUSES = ['completed', 'temporarily', 'cancelled'];
@@ -154,13 +155,18 @@ async function validateChanges(db, changes) {
     domains.push('checklist');
   }
   if (changes.services !== undefined) {
-    if (!Array.isArray(changes.services) || changes.services.length !== 1 || !changes.services.every(s => s && WORK_SERVICE_NAMES.has(s.serviceName))) {
-      return { error: 'services must contain one valid Service selection' };
+    if (!Array.isArray(changes.services) || !changes.services.length || !changes.services.every(s => s && WORK_SERVICE_NAMES.has(s.serviceName))) {
+      return { error: 'services must contain valid Service selections' };
     }
     const names = [...new Set(changes.services.map(s => s.serviceName))];
     const catalog = await db.query('SELECT service_name, default_price FROM catalog_services WHERE service_name = ANY($1)', [names]);
     if (catalog.rows.length !== names.length) return { error: 'A Service selection is not in the catalog' };
-    updates.services = changes.services.map(s => ({ serviceName: s.serviceName, isFinish: s.serviceName === 'Finish' || Boolean(s.isFinish) }));
+    updates.services = changes.services.map(s => ({
+      systemNumber: s.systemNumber ?? null,
+      serviceName: s.serviceName,
+      isFinish: s.serviceName === 'Finish' || Boolean(s.isFinish),
+      isTemporarily: s.isTemporarily === true,
+    }));
     domains.push('service');
   }
   if (changes.items !== undefined) {
@@ -248,11 +254,15 @@ function nullableNumber(value) {
 }
 
 function serviceLabel(services = []) {
-  const service = services[0];
-  if (!service) return 'no Service';
-  const name = service.service_name ?? service.serviceName;
-  const finish = service.is_finish ?? service.isFinish;
-  return finish && name !== 'Finish' ? `${name} with Finish` : name;
+  if (!services.length) return 'no Service';
+  return services.map((service) => {
+    const name = service.service_name ?? service.serviceName;
+    const finish = service.is_finish ?? service.isFinish;
+    const temporarily = service.is_temporarily ?? service.isTemporarily;
+    const systemNumber = service.system_number ?? service.systemNumber;
+    const label = `${finish && name !== 'Finish' ? `${name} with Finish` : name}${temporarily ? ' (Temporarily)' : ''}`;
+    return systemNumber == null ? label : `System ${systemNumber} ${label}`;
+  }).join(', ');
 }
 
 function itemMap(items = []) {
@@ -300,7 +310,7 @@ async function correctionState(db, visit) {
   // This can run inside the Apply transaction, so do not issue concurrent
   // queries on the checked-out PoolClient.
   const systems = await db.query('SELECT system_number, indoor_model, outdoor_model, coil_model, refrigerant FROM visit_systems WHERE visit_id = $1 ORDER BY system_number', [visit.id]);
-  const services = await db.query('SELECT service_name, is_finish, is_temporarily, price FROM visit_services WHERE visit_id = $1 ORDER BY id', [visit.id]);
+  const services = await db.query('SELECT service_name, is_finish, is_temporarily, price, system_number FROM visit_services WHERE visit_id = $1 ORDER BY system_number NULLS FIRST, id', [visit.id]);
   const items = await db.query('SELECT id, item_name, category, description, quantity, price, tech_supplied FROM visit_items WHERE visit_id = $1 ORDER BY id', [visit.id]);
   const weighIn = await db.query(`SELECT * FROM weigh_in_data WHERE address_id = (SELECT address_id FROM visits WHERE id = $1) ORDER BY system_number`, [visit.id]);
   const photos = await db.query('SELECT id, tag, label, category, system_number, stored_at FROM visit_photos WHERE visit_id = $1 ORDER BY stored_at', [visit.id]);
@@ -467,17 +477,26 @@ router.patch('/dispatch/corrections/:id/apply', requireRole('owner', 'dispatcher
       await client.query(`UPDATE addresses SET ${propertyColumns.join(', ')} WHERE id = $${propertyValues.length}`, propertyValues);
     }
     if (updates.services) {
-      await client.query('DELETE FROM visit_services WHERE visit_id = $1', [visit.id]);
-      for (const service of updates.services) {
-        const catalog = await client.query('SELECT default_price FROM catalog_services WHERE service_name = $1', [service.serviceName]);
-        const price = resolveServicePrice(service.serviceName, service.isFinish, catalog.rows[0].default_price);
-        await client.query(
-          `INSERT INTO visit_services (id, visit_id, service_name, is_finish, is_temporarily, price)
-           VALUES ($1, $2, $3, $4, $5, $6)`,
-          [crypto.randomUUID(), visit.id, service.serviceName, service.isFinish, visit.status === 'temporarily', price]
-        );
+      // W1c: per-system rows, validated like a Report (one service per system,
+      // or a call-wide Drive Run). A single row without a system number is the
+      // legacy call-wide selection.
+      const legacy = updates.services.length === 1 && updates.services[0].systemNumber == null && updates.services[0].serviceName !== 'Drive Run';
+      const rows = legacy
+        ? [{ ...updates.services[0], isTemporarily: visit.status === 'temporarily' }]
+        : normalizeServiceRows(updates.services, await visitSystemNumbers(client, visit.id));
+      const missing = legacy ? [] : missingServiceSystems(rows, await visitSystemNumbers(client, visit.id));
+      if (missing.length) {
+        await client.query('ROLLBACK');
+        return res.status(400).json({ error: `System ${missing.join(', ')}: no service selected` });
       }
-      await syncWeightInDataPrice(client, visit.id, updates.services.some(service => service.isFinish || service.serviceName === 'Finish'));
+      // Corrections never change the terminal status: Temporarily follows it.
+      if ((visit.status === 'temporarily') !== rows.some(row => row.isTemporarily)) {
+        await client.query('ROLLBACK');
+        return res.status(400).json({ error: visit.status === 'temporarily'
+          ? 'This report is Temporarily: keep at least one system Temporarily'
+          : 'Temporarily changes the report status and cannot be added in Corrections' });
+      }
+      await writeServiceRows(client, visit.id, rows);
     }
     if (updates.items) {
       await client.query('DELETE FROM visit_items WHERE visit_id = $1', [visit.id]);
