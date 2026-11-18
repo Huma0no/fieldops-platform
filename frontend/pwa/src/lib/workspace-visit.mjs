@@ -402,6 +402,40 @@ export function removeTechSystem (draft, systemNumber) {
   return removed
 }
 
+// ── Weigh-In warnings (never block the Report) ───────────────
+// Weigh-In is expected for a system when the call bills Weight-In-Data or the
+// system has any Weigh-In entry (a reading or a SCALE/FAN photo). Missing
+// readings or photos, and SCALE/FAN photos without a location, become
+// warnings the Report carries; the technician decides whether to send.
+const WEIGH_IN_ESSENTIALS = [
+  ['linesetLength', 'Lineset ft'],
+  ['adjustedOz', 'Adjusted oz'],
+  ['liquidLineTemp', 'Liquid temp'],
+  ['condenserSatTemp', 'Condenser sat'],
+]
+const WEIGH_IN_ENTRY_FIELDS = [...WEIGH_IN_ESSENTIALS.map(([field]) => field), 'fanSpeedCfm', 'suctionLineTemp']
+const filled = value => value != null && value !== ''
+
+export function weighInWarnings (draft) {
+  if (draft?._cancelMode?.confirmed || draft?._service?.cancel || draft?._service?.driveRun) return []
+  const billed = (draft._items ?? []).some(item => (item.item_name ?? item.itemName) === 'Weight-In-Data')
+  const warnings = []
+  for (const systemNumber of systemNumbersOf(draft)) {
+    const row = (draft._weighInData ?? []).find(data => Number(data.systemNumber) === systemNumber) ?? {}
+    const photos = (draft.evidenceRefs ?? []).filter(ref => ref.systemNumber === systemNumber && (ref.tag === 'SCALE' || ref.tag === 'FAN'))
+    const hasEntry = WEIGH_IN_ENTRY_FIELDS.some(field => filled(row[field])) || photos.length > 0
+    if (!billed && !hasEntry) continue
+    const missing = WEIGH_IN_ESSENTIALS.filter(([field]) => !filled(row[field])).map(([, label]) => label)
+    for (const tag of ['SCALE', 'FAN']) {
+      const tagged = photos.filter(ref => ref.tag === tag)
+      if (!tagged.length) missing.push(`${tag} photo`)
+      else if (tagged.every(ref => ref.noLocation === true)) missing.push(`${tag} photo without location`)
+    }
+    if (missing.length) warnings.push(`System ${systemNumber}: ${missing.join(', ')}`)
+  }
+  return warnings
+}
+
 export const REFRESH_CALL_DATA_KEY = 'workspace:refreshCallData'
 export const CALL_DATA_FIELDS = ['address', 'orderNumber', 'scheduledDate', 'scheduledTime', 'workType', 'propertyId']
 

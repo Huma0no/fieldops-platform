@@ -78,6 +78,7 @@ export function receiptModel (snapshot, { catalog = { services: [], items: [] },
     date: snapshot.createdAt ?? snapshot.generatedAt ?? snapshot.completedAt ?? null,
     technicianName: technicianName ?? snapshot.technicianName ?? null,
     groups,
+    warnings: snapshot.weighInWarnings ?? [],
     weighIn: (snapshot.weighInData ?? []).map(weighInLine),
     checklist: (snapshot.checklistAnswers ?? [])
       .filter(answer => answer.answer === 'no')

@@ -51,6 +51,7 @@ import {
   updateLocalVisitDraftNotes,
   REFRESH_CALL_DATA_KEY,
   refreshCallData,
+  weighInWarnings,
   addTechSystem,
   canRemoveSystem,
   removeTechSystem,
@@ -104,7 +105,6 @@ let activeStep       = 'service'
 let completedSections = new Set()
 const GPS_STORAGE_KEY = 'fo_gps_state'
 let gps = { lat: null, lon: null, source: null, denied: false }
-let _gpsPhotosMissing = 0
 let notesDraftTimer = null
 // Cached catalog data for local pricing (docs/OFFLINE-FIRST-CONTRACT.md).
 let catalogServices = []
@@ -230,7 +230,6 @@ export default async function mount (appEl) {
 
   appEl.innerHTML = ''
   gps = loadGpsState() ?? { lat: null, lon: null, source: null, denied: false }
-  _gpsPhotosMissing = 0
   renderScreen(appEl)
   if (!(gps.lat && gps.lon)) requestGps()
 }
@@ -499,9 +498,13 @@ function renderBody () {
   body.appendChild(buildStepFooter(stepIndex))
 }
 
-function goToStep (stepId) {
+function goToStep (stepId, { weighInAcknowledged = false } = {}) {
   if (isCancelMode() && stepId !== 'notes') return
   if (stepId === activeStep) return
+  if (activeStep === 'weighin' && !weighInAcknowledged) {
+    const warnings = weighInWarnings(visit)
+    if (warnings.length) { showWeighInLeaveDialog(warnings, stepId); return }
+  }
   activeStep = stepId
   visit._activeStep = stepId
   persistCurrentDraft()
@@ -1256,7 +1259,7 @@ async function captureWeighInPhoto (tag, systemNum, btn) {
         blob: compressed, fileName: file.name, tag, category, systemNumber: Number(systemNum),
         street: visit.address?.street, lat: coords?.lat ?? null, lon: coords?.lon ?? null,
       })
-      visit.evidenceRefs = [...(visit.evidenceRefs ?? []), ref]
+      visit.evidenceRefs = [...(visit.evidenceRefs ?? []), coords ? ref : { ...ref, noLocation: true }]
       visit._photoCount = (visit._photoCount ?? 0) + 1
       visit._weighInPhotos = visit._weighInPhotos ?? {}
       visit._weighInPhotos[`${systemNum}-${tag}`] = true
@@ -1468,13 +1471,13 @@ async function getGpsFromPhoto (file) {
   return null
 }
 
-// SCALE and FAN photos need GPS (embedded by the server on upload).
+// SCALE and FAN photos carry GPS (embedded by the server on upload): the
+// photo's own EXIF, else the phone's location. Without either the photo is
+// kept and the Report warns "without location" — it never blocks.
 async function photoGps (tag, file) {
   if (tag !== 'SCALE' && tag !== 'FAN') return null
   const fromPhoto = await getGpsFromPhoto(file)
-  const coords = fromPhoto ?? (gps.lat ? { lat: gps.lat, lon: gps.lon } : null)
-  if (!coords) _gpsPhotosMissing++
-  return coords
+  return fromPhoto ?? (gps.lat ? { lat: gps.lat, lon: gps.lon } : null)
 }
 
 function loadGpsState () {
@@ -1548,6 +1551,21 @@ async function openGenerateModal () {
   openGenerateModalDirect().catch(err => console.error('Could not open the report review:', err))
 }
 
+// Leaving Weigh-In with missing data: informational, never blocking.
+function showWeighInLeaveDialog (warnings, stepId) {
+  const overlay = makeOverlay()
+  const modal = makeModal('Weigh-In incomplete')
+  const note = document.createElement('p'); note.className = 'ws-modal-note'
+  note.textContent = `Missing: ${warnings.join('; ')}. The report will be sent incomplete.`
+  modal.appendChild(note)
+  modal.appendChild(makeActions([
+    { label: 'Back', cls: 'secondary', fn: () => overlay.remove() },
+    { label: 'Continue anyway', cls: 'primary', fn: () => { overlay.remove(); goToStep(stepId, { weighInAcknowledged: true }) } },
+  ]))
+  overlay.appendChild(modal)
+  document.getElementById('ws-screen')?.appendChild(overlay)
+}
+
 function showServiceMissingBlock (message) {
   const overlay = makeOverlay()
   const modal = makeModal('Service missing')
@@ -1590,11 +1608,6 @@ async function openGenerateModalDirect () {
     catalog: { services: catalogServices, items: catalogItems },
     technicianName: technicianName(),
   }), { draft: true }))
-  if (_gpsPhotosMissing > 0) {
-    const gpsWarn = document.createElement('p'); gpsWarn.className='ws-modal-note ws-modal-note--warn'
-    gpsWarn.textContent = 'GPS required for SCALE and FAN photos. Retake or enable location access.'
-    overlay.appendChild(gpsWarn)
-  }
   const actions = makeActions([
     { label: 'Edit', cls: 'secondary', fn: () => overlay.remove() },
     { label: 'Confirm & send', cls: 'primary', fn: async (btn) => {
@@ -1617,10 +1630,6 @@ async function openGenerateModalDirect () {
       }
     }},
   ])
-  if (_gpsPhotosMissing > 0) {
-    const submitBtn = actions.querySelector('.ws-modal-btn--primary')
-    if (submitBtn) submitBtn.disabled = true
-  }
   overlay.appendChild(actions)
   const note = document.createElement('p'); note.className='ws-modal-note ws-review-note'
   note.textContent = 'Corrections require a request after sending.'
@@ -1821,7 +1830,6 @@ function injectStyles () {
   .ws-modal-row-label{font-size:var(--text-sm);color:var(--fo-ink-soft);}
   .ws-modal-row-value{font-size:var(--text-sm);font-weight:600;color:var(--fo-ink);}
   .ws-modal-note{font-size:var(--text-sm);color:var(--fo-ink-soft);line-height:1.5;}
-  .ws-modal-note--warn{color:var(--fo-no);font-weight:500;}
   .ws-modal-actions{display:flex;gap:var(--space-2);}
   .ws-modal-btn{flex:1;background:var(--fo-panel);box-shadow:var(--fo-shadow-raised);border-radius:var(--fo-radius-sm);font-size:var(--text-base);font-weight:600;padding:var(--space-3);cursor:pointer;border:none;-webkit-tap-highlight-color:transparent;}
   .ws-modal-btn--primary{color:var(--fo-accent-deep);}

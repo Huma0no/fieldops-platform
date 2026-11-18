@@ -49,6 +49,14 @@ export function Receipt (model, { draft = false } = {}) {
   head.appendChild(sub)
   receipt.appendChild(head)
 
+  // Informational: the Report is sent with what is missing.
+  if (model.warnings?.length) {
+    const box = el('div', 'rcpt-warn')
+    box.appendChild(el('div', 'rcpt-sec', 'WEIGH-IN INCOMPLETE'))
+    treeLines(box, model.warnings.map(label => ({ label })))
+    receipt.appendChild(box)
+  }
+
   for (const group of model.groups) {
     receipt.appendChild(el('div', 'rcpt-sec', group.title))
     treeLines(receipt, group.lines)
@@ -90,6 +98,8 @@ export const receiptStyles = `
   .rcpt-t{flex:1;min-width:0;overflow-wrap:anywhere;}
   .rcpt-tree{color:var(--fo-ink-soft);}
   .rcpt-p{min-width:64px;text-align:right;}
+  .rcpt-warn{border:1.5px dashed var(--fo-accent);border-radius:8px;padding:2px 10px 8px;margin-bottom:10px;color:var(--fo-accent-deep);}
+  .rcpt-warn .rcpt-sec{color:var(--fo-accent-deep);}
   .rcpt-adj{padding-left:14px;font-size:11px;font-style:italic;color:var(--fo-accent-deep);}
   .rcpt-note{color:var(--fo-ink-soft);font-size:12px;white-space:pre-wrap;overflow-wrap:anywhere;}
   .rcpt-tot{display:flex;border-top:1px dashed var(--fo-panel-lo);margin-top:12px;padding-top:10px;font-weight:700;font-size:15px;}

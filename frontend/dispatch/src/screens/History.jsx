@@ -59,7 +59,7 @@ export default function History ({ onCorrectReport }) {
         api.get(`/visits/${visit.id}/download`),
         visit.addressId ? api.get(`/dispatch/history/address/${visit.addressId}`) : Promise.resolve([]),
       ])
-      const merged = { ...detail, weighInData: report?.weighInData ?? [], priceDiscrepancies: report?.priceDiscrepancies ?? [] }
+      const merged = { ...detail, weighInData: report?.weighInData ?? [], priceDiscrepancies: report?.priceDiscrepancies ?? [], weighInWarnings: report?.weighInWarnings ?? [] }
       setSelected(merged)
       setEditLog(log ?? [])
       setPropertyHistory((propHist ?? []).filter(v => v.id !== visit.id))
@@ -282,6 +282,9 @@ function VisitDetail ({ visit, editLog, propertyHistory, onBack, onCorrectReport
         {(visit.systemChanges ?? []).length > 0 && (
           <span className="vd-badge hatch">Changed by tech</span>
         )}
+        {(visit.weighInWarnings ?? []).length > 0 && (
+          <span className="vd-badge solid">Incomplete</span>
+        )}
       </div>
 
       <div style={styles.detailBody}>
@@ -308,6 +311,14 @@ function VisitDetail ({ visit, editLog, propertyHistory, onBack, onCorrectReport
               {system.coilModel && <div>Coil: {system.coilModel}</div>}
               {system.refrigerant && <div>Refrigerant: {system.refrigerant}</div>}
             </div>)}
+          </>}
+
+          {/* Weigh-In sent incomplete: the technician's device listed what was missing. */}
+          {(visit.weighInWarnings ?? []).length > 0 && <>
+            <div style={styles.sectionTitle}>Incomplete Weigh-In</div>
+            {visit.weighInWarnings.map((text, i) => (
+              <div key={i} style={{ fontSize: '12px', padding: '5px 0', borderBottom: '0.5px solid var(--border-subtle)' }}>{text}</div>
+            ))}
           </>}
 
           {/* W1b: systems the technician added or whose equipment changed.

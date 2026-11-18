@@ -26,9 +26,17 @@ Per-system data-entry form with a System 1/2 (etc.) switcher. Header shows syste
 10. Subcooling °F (computed: Condenser Sat − Liquid Temp). Tooltip: "Auto-calculated: Condenser Sat − Liquid Temp. Take both readings first."
 11. OEM SC Goal °F (numeric field, defaults to 10°F for each system, editable independently by the technician)
 12. SC Deviation °F (computed: measured Subcooling − saved OEM SC Goal)
-13. Scale photo — GPS/EXIF required, see `/docs/shared/PHOTOS-GPS-INTEGRATIONS.md`
-14. Fan Speed photo — GPS/EXIF required
+13. Scale photo — carries GPS (EXIF, else the phone's location), see `/docs/shared/PHOTOS-GPS-INTEGRATIONS.md`; without one it is a warning, never a block
+14. Fan Speed photo — same as Scale
 15. New Total Charge — computed, read-only output for the technician to write on the outdoor unit
+
+## Never blocks the Report (Kristo, 2026-11-17)
+
+Missing or inconsistent Weigh-In data, including SCALE/FAN photos without a location, never blocks Generate Report, submission or server acceptance; the technician is responsible for the Report.
+- Weigh-In is expected for a system when the call bills Weight-In-Data or the system has any Weigh-In entry (Lineset ft, Adjusted oz, Liquid temp, Condenser sat, Fan CFM, Suction temp, or a SCALE/FAN photo). Drive Run and Cancel expect none.
+- For an expected system the warnings list the missing essentials (Lineset ft, Adjusted oz, Liquid temp, Condenser sat), a missing SCALE or FAN photo, and a SCALE/FAN photo without location.
+- Leaving the Weigh-In step with warnings shows "Missing: … The report will be sent incomplete." [Back] [Continue anyway].
+- The DRAFT receipt shows a WEIGH-IN INCOMPLETE block at the top; the Report carries the list (`weighInWarnings`); Dispatch's report view shows an INCOMPLETE tag with it.
 
 ## OEM subcooling goal
 

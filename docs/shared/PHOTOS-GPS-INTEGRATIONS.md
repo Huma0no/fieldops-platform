@@ -21,7 +21,8 @@ Cross-app infrastructure: photo capture and storage, GPS/EXIF requirements, and 
 ## GPS / EXIF requirement
 
 - Required (hard requirement) on exactly two photos per system: **Scale** (jug-after-charge) and **Fan Speed** (fan-speed-setting) — because The Company's Google Form only accepts photo uploads and needs the location embedded in-file (EXIF), not as separate metadata.
-- All other photos: GPS captured if available, not required.
+- **Never blocks (Kristo, 2026-11-17):** the GPS comes from the photo's EXIF, else the phone's location; with neither, the photo is kept and the Report carries a "photo without location" warning (`/docs/fieldops/workspace/WEIGHIN-SPEC.md`). Before this, a SCALE/FAN photo taken with no EXIF GPS and no stored phone location disabled Confirm & send until the Workspace was reopened.
+- All other photos: no GPS needed.
 - Source of the coordinates: the photo's own EXIF GPS, read on the phone by the EXIF library bundled with the PWA (`frontend/pwa/src/vendor/exifr-lite.mjs`, exifr 7.1.3, no remote code at runtime, works offline); when the photo has none, the phone's last known location.
 - Multi-system visits: N systems = N Scale/Fan Speed submissions, each disambiguated with a "– System N" suffix.
 - Permission flow: requested on first load with a pre-prompt explaining why; on denial, retryable. The requirement applies to capture, but whether missing required evidence blocks terminal submission ACK is **CONTRACT OPEN** under `/docs/OFFLINE-FIRST-CONTRACT.md`; it must not prevent durable local draft/snapshot creation.

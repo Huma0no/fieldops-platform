@@ -341,10 +341,18 @@ async function createCanonicalReportSnapshot(db, visitId, {
     notes: context.notes ?? '',
     checklistAnswers: context.checklist_answers ?? [],
     evidenceRefs: sourceSubmission?.evidenceRefs ?? [],
+    weighInWarnings: weighInWarningsFrom(sourceSubmission),
     photoEvidence: evidenceResult.rows,
     sourceSubmission,
     ...report,
   };
+}
+
+// Informational Weigh-In warnings from the device (never a rejection reason).
+function weighInWarningsFrom(sourceSubmission) {
+  const warnings = sourceSubmission?.weighInWarnings;
+  if (!Array.isArray(warnings)) return [];
+  return warnings.filter(text => typeof text === 'string' && text.trim()).slice(0, 50).map(text => text.trim().slice(0, 300));
 }
 
 function reportJSONFromSnapshot(snapshot, submission) {
@@ -370,6 +378,7 @@ function reportJSONFromSnapshot(snapshot, submission) {
     priceDiscrepancies: snapshot.priceDiscrepancies ?? [],
     notes: snapshot.notes ?? '',
     checklistAnswers: snapshot.checklistAnswers ?? [],
+    weighInWarnings: snapshot.weighInWarnings ?? [],
     workType: snapshot.workType,
     generatedAt: snapshot.generatedAt ?? snapshot.createdAt,
     acceptedAt: submission.accepted_at,

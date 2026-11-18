@@ -11,6 +11,7 @@ import {
   normalizeServiceState,
   serviceRowsFromState,
   systemNumbersOf,
+  weighInWarnings,
 } from './workspace-visit.mjs'
 
 // Version 2: per-system `services` rows replace the single `service` object.
@@ -143,6 +144,8 @@ export function createCompletionSnapshot (draft, { now = new Date().toISOString(
     notes: draft.notes ?? '',
     checklistAnswers: immutableCopy(checklistAnswers ?? checklistAnswersFromDraft(draft)),
     evidenceRefs: immutableCopy(draft.evidenceRefs ?? []),
+    // Informational: missing Weigh-In data never blocks the Report.
+    weighInWarnings: cancel ? [] : weighInWarnings(draft),
     totalPrice: cancel ? 0 : Number(draft.totalPrice ?? 0),
   }
   return Object.freeze(immutableCopy(snapshot))
