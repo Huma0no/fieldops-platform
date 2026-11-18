@@ -3,4 +3,6 @@ module.exports = {
   testMatch: ['**/tests/**/*.test.js'],
   testTimeout: 15000,
   setupFiles: ['<rootDir>/jest.setup.js'],
+  globalSetup: '<rootDir>/tests/global/setup.js',
+  globalTeardown: '<rootDir>/tests/global/teardown.js',
 };
