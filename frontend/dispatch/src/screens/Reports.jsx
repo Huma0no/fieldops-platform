@@ -11,7 +11,7 @@ import { api } from '@shared/api.js'
   const s = document.createElement('style')
   s.id = 'reports-print-style'
   s.textContent = `
-    .report-excluded { opacity: 0.28; text-decoration: line-through; }
+    .report-excluded { opacity: 0.45; text-decoration: line-through; }
     @media print {
       .no-print { display: none !important; }
       .report-excluded { display: none !important; }
@@ -36,6 +36,11 @@ function fmtDate (iso) {
   catch { return '—' }
 }
 
+// A YYYY-MM-DD picker value is a local calendar day (not UTC midnight).
+function fmtDay (day) {
+  return day ? fmtDate(`${day}T00:00:00`) : '—'
+}
+
 // ── Equipment section ──────────────────────────────────────────────────────────
 
 function EquipmentSection ({ data, exclAddr, exclItem, onToggleAddr, onToggleItem }) {
@@ -56,51 +61,63 @@ function EquipmentSection ({ data, exclAddr, exclItem, onToggleAddr, onToggleIte
   })
 
   return (
-    <section className="report-section" style={S.section}>
-      <h3 style={S.sectionTitle}>Equipment &amp; Accessory Usage</h3>
-
+    <section className="report-section vd-unit">
+      <div className="vd-unit-head"><span className="vd-unit-id">05A</span><span className="vd-unit-name">Equipment &amp; Accessory Usage</span></div>
+      <div className="vd-unit-body">
       {data.length === 0 ? (
-        <p style={S.empty}>No items found for the selected range.</p>
+        <p className="vd-hint" style={S.flush}>No items found for the selected range.</p>
       ) : (
         <>
+          {effectiveTotals.length > 0 && (
+            <div className="vd-register" aria-label="Included totals">
+              {effectiveTotals.map(item => (
+                <div key={item.itemName} className="vd-reg-item">
+                  <div className="vd-reg-win">{item.effectiveQty}</div>
+                  <div className="vd-reg-label">{item.itemName}</div>
+                </div>
+              ))}
+            </div>
+          )}
+
           {addrGroups.map(([addressId, { address, items }]) => {
             const addrExcl = exclAddr.has(addressId)
             return (
               <div key={addressId} className={addrExcl ? 'report-excluded' : ''} style={S.addrGroup}>
-                <label style={S.addrLabel}>
+                <label className={`vd-group-bar${addrExcl ? ' out' : ''}`} style={S.addrLabel}>
                   <input
                     type="checkbox"
+                    className="no-print"
                     checked={!addrExcl}
                     onChange={() => onToggleAddr(addressId, items)}
-                    style={{ marginRight: '6px' }}
                   />
-                  <strong style={{ fontSize: '13px' }}>{address}</strong>
+                  <span className="name" style={S.addrName}>{address}</span>
                 </label>
-                <table style={{ ...S.table, marginLeft: '20px', width: 'calc(100% - 20px)' }}>
+                <table className="vd-table" style={S.groupTable}>
                   <thead>
                     <tr>
-                      <th style={S.th} className="no-print" />
-                      <th style={S.th}>Item</th>
-                      <th style={S.th}>Category</th>
-                      <th style={S.th}>Qty</th>
+                      <th className="no-print" style={S.checkCol} />
+                      <th>Item</th>
+                      <th>Category</th>
+                      <th style={S.right}>Qty</th>
                     </tr>
                   </thead>
                   <tbody>
                     {items.map(({ itemName, category, qty }) => {
                       const itemExcl = addrExcl || exclItem.has(`${addressId}::${itemName}`)
                       return (
-                        <tr key={itemName} className={itemExcl ? 'report-excluded' : ''} style={S.tr}>
-                          <td style={S.td} className="no-print">
+                        <tr key={itemName} className={itemExcl ? 'report-excluded' : ''}>
+                          <td className="no-print" style={S.checkCol}>
                             <input
                               type="checkbox"
+                              aria-label={`Include ${itemName}`}
                               checked={!itemExcl}
                               disabled={addrExcl}
                               onChange={() => !addrExcl && onToggleItem(addressId, itemName)}
                             />
                           </td>
-                          <td style={S.td}>{itemName}</td>
-                          <td style={S.td}>{category}</td>
-                          <td style={S.td}>{qty}</td>
+                          <td>{itemName}</td>
+                          <td>{category}</td>
+                          <td className="num" style={S.right}>{qty}</td>
                         </tr>
                       )
                     })}
@@ -112,24 +129,20 @@ function EquipmentSection ({ data, exclAddr, exclItem, onToggleAddr, onToggleIte
 
           {effectiveTotals.length > 0 && (
             <div style={S.summaryWrap}>
-              <div style={S.summaryLabel}>Totals — included items</div>
-              <table style={S.table}>
+              <h4 className="vd-sub">Totals — included items</h4>
+              <table className="vd-table">
                 <thead>
                   <tr>
-                    {['Item', 'Category', 'Total Qty', 'By Technician'].map(h => (
-                      <th key={h} style={S.th}>{h}</th>
-                    ))}
+                    <th>Item</th><th>Category</th><th style={S.right}>Total Qty</th><th>By Technician</th>
                   </tr>
                 </thead>
                 <tbody>
                   {effectiveTotals.map(item => (
-                    <tr key={item.itemName} style={S.tr}>
-                      <td style={S.td}>{item.itemName}</td>
-                      <td style={S.td}>{item.category}</td>
-                      <td style={S.td}>{item.effectiveQty}</td>
-                      <td style={S.td}>
-                        {item.byTechnician.map(t => `${t.technicianName}: ${t.qty}`).join(', ')}
-                      </td>
+                    <tr key={item.itemName}>
+                      <td>{item.itemName}</td>
+                      <td>{item.category}</td>
+                      <td className="num" style={S.right}>{item.effectiveQty}</td>
+                      <td>{item.byTechnician.map(t => `${t.technicianName}: ${t.qty}`).join(', ')}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -138,13 +151,15 @@ function EquipmentSection ({ data, exclAddr, exclItem, onToggleAddr, onToggleIte
           )}
         </>
       )}
+      </div>
     </section>
   )
 }
 
 // ── Refrigerant section ────────────────────────────────────────────────────────
 
-function RefrigerantSection ({ data, exclAddr, onToggleAddr }) {
+function RefrigerantSection ({ data, exclAddr, onToggleAddr, technicians }) {
+  const techName = id => technicians.find(t => t.id === id)?.name ?? id ?? '—'
   const addrMap = {}
   data.forEach(row => {
     if (!addrMap[row.addressId]) addrMap[row.addressId] = { address: row.address, rows: [] }
@@ -153,51 +168,52 @@ function RefrigerantSection ({ data, exclAddr, onToggleAddr }) {
   const addrGroups = Object.entries(addrMap).sort(([, a], [, b]) => a.address.localeCompare(b.address))
 
   return (
-    <section className="report-section" style={S.section}>
-      <h3 style={S.sectionTitle}>Refrigerant Usage</h3>
-
+    <section className="report-section vd-unit">
+      <div className="vd-unit-head"><span className="vd-unit-id">05B</span><span className="vd-unit-name">Refrigerant Usage</span></div>
+      <div className="vd-unit-body">
       {data.length === 0 ? (
-        <p style={S.empty}>No refrigerant data found for the selected range.</p>
+        <p className="vd-hint" style={S.flush}>No refrigerant data found for the selected range.</p>
       ) : (
         addrGroups.map(([addressId, { address, rows }]) => {
           const addrExcl = exclAddr.has(addressId)
           return (
             <div key={addressId} className={addrExcl ? 'report-excluded' : ''} style={S.addrGroup}>
-              <label style={S.addrLabel}>
+              <label className={`vd-group-bar${addrExcl ? ' out' : ''}`} style={S.addrLabel}>
                 <input
                   type="checkbox"
+                  className="no-print"
                   checked={!addrExcl}
                   onChange={() => onToggleAddr(addressId)}
-                  style={{ marginRight: '6px' }}
                 />
-                <strong style={{ fontSize: '13px' }}>{address}</strong>
+                <span className="name" style={S.addrName}>{address}</span>
               </label>
-              <table style={{ ...S.table, marginLeft: '20px', width: 'calc(100% - 20px)' }}>
+              <div style={S.scrollX}>
+              <table className="vd-table" style={S.groupTable}>
                 <thead>
                   <tr>
-                    {['System', 'Service', 'Adj. Oz', 'Factory Charge', 'Lineset Config', 'Date', 'Tech'].map(h => (
-                      <th key={h} style={S.th}>{h}</th>
-                    ))}
+                    {['System', 'Service', 'Adj. Oz', 'Factory Charge', 'Lineset Config', 'Date', 'Tech'].map(h => <th key={h}>{h}</th>)}
                   </tr>
                 </thead>
                 <tbody>
                   {rows.map((row, i) => (
-                    <tr key={i} style={S.tr}>
-                      <td style={S.td}>{row.systemNumber ?? '—'}</td>
-                      <td style={S.td}>{row.serviceName ?? '—'}</td>
-                      <td style={S.td}>{row.adjustedOz != null ? `${row.adjustedOz} oz` : '—'}</td>
-                      <td style={S.td}>{row.factoryChargeUsed != null ? `${row.factoryChargeUsed} oz` : '—'}</td>
-                      <td style={S.td}>{row.factoryLineConfig ?? '—'}</td>
-                      <td style={S.td}>{fmtDate(row.completedAt)}</td>
-                      <td style={S.td}>{row.technicianId ?? '—'}</td>
+                    <tr key={i}>
+                      <td className="num">{row.systemNumber ?? '—'}</td>
+                      <td>{row.serviceName ?? '—'}</td>
+                      <td className="num">{row.adjustedOz != null ? `${row.adjustedOz} oz` : '—'}</td>
+                      <td className="num">{row.factoryChargeUsed != null ? `${row.factoryChargeUsed} oz` : '—'}</td>
+                      <td>{row.factoryLineConfig ?? '—'}</td>
+                      <td className="num" style={S.nowrap}>{fmtDate(row.completedAt)}</td>
+                      <td>{techName(row.technicianId)}</td>
                     </tr>
                   ))}
                 </tbody>
               </table>
+              </div>
             </div>
           )
         })
       )}
+      </div>
     </section>
   )
 }
@@ -270,87 +286,94 @@ export default function Reports () {
 
   const hasData = equipment !== null || refrigerant !== null
 
+  const techName = technicians.find(t => t.id === technicianId)?.name ?? 'All technicians'
+
   return (
     <div style={S.page}>
-      <div style={S.header} className="no-print">
-        <h2 style={S.title}>Reports</h2>
-        <div style={S.controls}>
-          <input
-            type="date"
-            style={S.input}
-            value={dateFrom}
-            onChange={e => setDateFrom(e.target.value)}
-          />
-          <span style={S.sep}>–</span>
-          <input
-            type="date"
-            style={S.input}
-            value={dateTo}
-            onChange={e => setDateTo(e.target.value)}
-          />
-          <select style={S.input} value={technicianId} onChange={e => setTechnicianId(e.target.value)}>
-            <option value="">All technicians</option>
-            {technicians.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
-          </select>
-          <button style={S.btn} onClick={generate} disabled={loading}>
+      <div className="vd-unit no-print">
+        <div className="vd-unit-head"><span className="vd-unit-id">RPT</span><span className="vd-unit-name">Reports</span><span className="vd-unit-note">Equipment, accessories and refrigerant</span></div>
+        <div className="vd-knurl" />
+        <div className="vd-unit-body" style={S.controls}>
+          <label style={S.field}><span className="vd-label">From</span>
+            <input type="date" className="vd-input data" value={dateFrom} onChange={e => setDateFrom(e.target.value)} />
+          </label>
+          <label style={S.field}><span className="vd-label">To</span>
+            <input type="date" className="vd-input data" value={dateTo} onChange={e => setDateTo(e.target.value)} />
+          </label>
+          <label style={S.fieldWide}><span className="vd-label">Technician</span>
+            <select className="vd-input" value={technicianId} onChange={e => setTechnicianId(e.target.value)}>
+              <option value="">All technicians</option>
+              {technicians.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+            </select>
+          </label>
+          <button type="button" className="vd-key dark" onClick={generate} disabled={loading}>
             {loading ? 'Loading…' : 'Generate'}
           </button>
           {hasData && (
-            <button style={{ ...S.btn, ...S.printBtn }} onClick={() => window.print()}>
+            <button type="button" className="vd-key" onClick={() => window.print()}>
               Print / Export
             </button>
           )}
         </div>
       </div>
 
-      <div style={S.body}>
-        {!hasData && !loading && (
-          <p style={S.empty} className="no-print">Select a date range and click Generate.</p>
-        )}
+      {/* Printed document letterhead (hidden on screen). */}
+      {hasData && (
+        <div className="vd-print-only vd-letterhead">
+          <div>
+            <div className="vd-brand">FieldOps · Dispatch</div>
+            <div className="vd-stencil">Usage report</div>
+          </div>
+          <div className="vd-data" style={S.stub}>
+            <div>{fmtDay(dateFrom)} – {fmtDay(dateTo)}</div>
+            <div>{techName}</div>
+          </div>
+        </div>
+      )}
 
-        {equipment !== null && (
-          <EquipmentSection
-            data={equipment}
-            exclAddr={exclEqAddr}
-            exclItem={exclEqItem}
-            onToggleAddr={toggleEqAddr}
-            onToggleItem={toggleEqItem}
-          />
-        )}
+      {!hasData && !loading && (
+        <p className="vd-hint no-print" style={S.flush}>Select a date range and click Generate.</p>
+      )}
 
-        {refrigerant !== null && (
-          <RefrigerantSection
-            data={refrigerant}
-            exclAddr={exclRefAddr}
-            onToggleAddr={toggleRefAddr}
-          />
-        )}
-      </div>
+      {equipment !== null && (
+        <EquipmentSection
+          data={equipment}
+          exclAddr={exclEqAddr}
+          exclItem={exclEqItem}
+          onToggleAddr={toggleEqAddr}
+          onToggleItem={toggleEqItem}
+        />
+      )}
+
+      {refrigerant !== null && (
+        <RefrigerantSection
+          data={refrigerant}
+          exclAddr={exclRefAddr}
+          onToggleAddr={toggleRefAddr}
+          technicians={technicians}
+        />
+      )}
     </div>
   )
 }
 
 // ── Styles ─────────────────────────────────────────────────────────────────────
 
+// Layout only; the look comes from dispatch.css (vd-*).
 const S = {
-  page:        { flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', background: 'var(--surface-base)' },
-  header:      { padding: '16px 24px', borderBottom: '0.5px solid var(--border-subtle)', display: 'flex', alignItems: 'center', gap: '16px', flexWrap: 'wrap', flexShrink: 0, background: 'var(--surface-1)' },
-  title:       { fontSize: '16px', fontWeight: 500, color: 'var(--text-primary)', flexShrink: 0 },
-  controls:    { display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center', flex: 1 },
-  sep:         { color: 'var(--text-disabled)', fontSize: '13px' },
-  input:       { background: 'var(--surface-2)', border: '0.5px solid var(--border-default)', borderRadius: '6px', color: 'var(--text-primary)', fontSize: '13px', padding: '6px 10px', outline: 'none', fontFamily: 'var(--font-sans)' },
-  btn:         { background: 'var(--color-signal)', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '13px', fontWeight: 500, padding: '6px 14px', cursor: 'pointer' },
-  printBtn:    { background: 'var(--surface-3)', color: 'var(--text-secondary)', border: '0.5px solid var(--border-default)' },
-  body:        { flex: 1, overflowY: 'auto', padding: '24px', display: 'flex', flexDirection: 'column', gap: '32px' },
-  empty:       { color: 'var(--text-muted)', fontSize: '14px' },
-  section:     { display: 'flex', flexDirection: 'column', gap: '12px' },
-  sectionTitle:{ fontSize: '15px', fontWeight: 600, color: 'var(--text-primary)', borderBottom: '0.5px solid var(--border-subtle)', paddingBottom: '8px', marginBottom: '4px' },
-  addrGroup:   { display: 'flex', flexDirection: 'column', gap: '4px', marginBottom: '16px' },
-  addrLabel:   { display: 'flex', alignItems: 'center', fontSize: '13px', color: 'var(--text-secondary)', cursor: 'pointer', marginBottom: '4px' },
-  table:       { width: '100%', borderCollapse: 'collapse', fontSize: '13px' },
-  th:          { textAlign: 'left', padding: '6px 10px', color: 'var(--text-muted)', fontWeight: 500, fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.04em', borderBottom: '0.5px solid var(--border-subtle)' },
-  tr:          { borderBottom: '0.5px solid var(--border-subtle)' },
-  td:          { padding: '8px 10px', color: 'var(--text-secondary)', verticalAlign: 'middle' },
-  summaryWrap: { borderTop: '1px solid var(--border-default)', paddingTop: '12px', marginTop: '4px' },
-  summaryLabel:{ fontSize: '11px', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '8px', fontWeight: 500 },
+  page:       { flex: 1, overflowY: 'auto', padding: '16px 18px 18px', display: 'flex', flexDirection: 'column', gap: '18px' },
+  controls:   { display: 'flex', gap: '12px', flexWrap: 'wrap', alignItems: 'flex-end' },
+  field:      { display: 'flex', flexDirection: 'column', minWidth: '150px' },
+  fieldWide:  { display: 'flex', flexDirection: 'column', minWidth: '200px', flex: '0 1 260px' },
+  flush:      { margin: 0 },
+  addrGroup:  { marginTop: '14px' },
+  addrLabel:  { cursor: 'pointer', marginBottom: 0 },
+  addrName:   { textTransform: 'none', letterSpacing: '0.4px', fontSize: '13px' },
+  groupTable: { border: '2px solid var(--vd-ink)', borderTop: 'none', background: 'var(--vd-plate)' },
+  checkCol:   { width: '34px' },
+  right:      { textAlign: 'right' },
+  nowrap:     { whiteSpace: 'nowrap' },
+  scrollX:    { overflowX: 'auto' },
+  summaryWrap:{ marginTop: '22px', borderTop: '3px solid var(--vd-ink)', paddingTop: '14px' },
+  stub:       { textAlign: 'right', fontSize: '11px', lineHeight: 1.7 },
 }

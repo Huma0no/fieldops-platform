@@ -112,6 +112,38 @@ input[type="checkbox"], input[type="radio"] { accent-color: var(--vd-ink); }
 .vd-card .tags { display: flex; gap: 5px; flex-wrap: wrap; margin-top: 9px; }
 .vd-card .foot { display: flex; justify-content: flex-end; align-items: center; margin-top: 11px; }
 
+/* Group bar for a left-out group (Reports): hatched, dimmed. */
+.vd-group-bar.out {
+  background-color: var(--vd-plate); color: var(--vd-dim); border: 2px solid var(--vd-dim);
+  background-image: repeating-linear-gradient(45deg, rgba(16, 16, 16, 0.07) 0 3px, transparent 3px 7px);
+}
+.vd-group-bar input[type="checkbox"] { accent-color: var(--vd-plate); margin: 0; }
+
+/* ── Register: counter windows (Reports totals) ───────── */
+.vd-register {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 10px;
+  border: 2px solid var(--vd-ink); background: var(--vd-panel); padding: 14px; box-shadow: inset 2px 2px 0 rgba(16, 16, 16, 0.14);
+}
+.vd-reg-item { border: 2px solid var(--vd-ink); background: var(--vd-plate); }
+.vd-reg-win {
+  background-color: var(--vd-ink); color: var(--vd-plate); text-align: center; padding: 8px 4px; line-height: 1;
+  font-family: var(--vd-font-data); font-weight: 700; font-size: 24px;
+  background-image: repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.07) 0 1px, transparent 1px 3px);
+}
+.vd-reg-label { padding: 6px 4px; text-align: center; color: var(--vd-dim); font-family: var(--vd-font-stencil); text-transform: uppercase; letter-spacing: 1.2px; font-size: 9px; overflow-wrap: anywhere; }
+
+/* ── Printed documents (Reports) ──────────────────────── */
+.vd-print-only { display: none; }
+.vd-letterhead { justify-content: space-between; align-items: flex-start; padding-bottom: 14px; border-bottom: 4px solid var(--vd-ink); }
+@media print {
+  body { background: #fff; }
+  .vd-masthead, .vd-shell-nav, .vd-toasts, .vd-screw, .vd-knurl { display: none !important; }
+  .vd-shell { height: auto; padding: 0; }
+  .vd-shell > .vd-rack, .vd-well { border: none; box-shadow: none; padding: 0; background: #fff; overflow: visible; }
+  .vd-print-only { display: flex; }
+  .vd-unit { border-width: 1px; }
+}
+
 /* ── Menu (dropdown of keys) ──────────────────────────── */
 .vd-menu {
   position: absolute; right: 0; top: calc(100% + 6px); min-width: 180px; z-index: 10;
