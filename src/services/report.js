@@ -308,6 +308,12 @@ async function createCanonicalReportSnapshot(db, visitId, {
   sourceSubmission,
 }) {
   const report = await generateLiveReportJSON(db, visitId);
+  // Weigh-In rows are kept per address; the Report carries the systems the
+  // phone reported (other rows belong to other visits at the address).
+  if (Array.isArray(sourceSubmission?.weighInData)) {
+    const reported = new Set(sourceSubmission.weighInData.map(row => Number(row.systemNumber ?? row.system_number)));
+    report.weighInData = report.weighInData.filter(row => reported.has(Number(row.systemNumber)));
+  }
   const [contextResult, technicianResult, evidenceResult] = await Promise.all([
     db.query(
       `SELECT v.address_id, v.work_type, v.notes, v.checklist_answers
@@ -379,6 +385,7 @@ function reportJSONFromSnapshot(snapshot, submission) {
     notes: snapshot.notes ?? '',
     checklistAnswers: snapshot.checklistAnswers ?? [],
     weighInWarnings: snapshot.weighInWarnings ?? [],
+    weighInDiscrepancies: snapshot.weighInDiscrepancies ?? [],
     workType: snapshot.workType,
     generatedAt: snapshot.generatedAt ?? snapshot.createdAt,
     acceptedAt: submission.accepted_at,
@@ -495,17 +502,8 @@ function compareSubmission(submitted, accepted) {
       },
     });
 
-  const weighInFields = [
-    'systemNumber', 'linesetLength', 'factoryChargeOz', 'factoryLineConfig',
-    'approxAdjustOz', 'adjustedOz', 'fanSpeedCfm', 'liquidLineTemp',
-    'suctionLineTemp', 'condenserSatTemp', 'subcoolingValue',
-    'oemSubcoolingGoal', 'subcoolingDeviation',
-  ];
-  compareRows('weighInData', submitted.weighInData, accepted.weighInData ?? [], weighInFields, {
-    aliases: Object.fromEntries(weighInFields.map(field => [
-      field, [field, field.replace(/[A-Z]/g, letter => `_${letter.toLowerCase()}`)],
-    ])),
-  });
+  // Weigh-In is never a rejection reason: the phone's readings are stored as
+  // sent and earlier values are kept as weighInDiscrepancies (completion route).
 
   if (typeof submitted.notes !== 'string'
       || submitted.notes.trim() !== String(accepted.notes ?? '').trim()) mismatches.push('notes');

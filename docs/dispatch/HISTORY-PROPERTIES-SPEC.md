@@ -21,6 +21,8 @@ Two related views in Dispatch: the permanent record of completed visits (History
 
 **Changed by tech (W1b, 2026-11-17 — the one Dispatch entry Kristo authorized):** when the technician added a system or corrected a system's equipment, the detail header shows a hatched CHANGED BY TECH tag, the system carries ADDED BY TECH, and a "Changed by tech" table lists each change: system, what (System added / Equipment modified), before → after (the original order data is the "before"), who and when.
 
+**Weigh-In changed (2026-11-18):** when the Report replaced earlier readings at the address, the header shows a hatched WEIGH-IN CHANGED tag and a table lists system, reading, previous and reported values (same pattern as the PP-01 price check).
+
 **Incomplete Weigh-In (2026-11-17):** when the technician sent the Report with missing Weigh-In data, the header shows a solid INCOMPLETE tag and an "Incomplete Weigh-In" section lists what was missing per system.
 
 History does not expose general report/source editing. Administrative correction remains a separate Dispatch concern; it does not reopen technician Workspace or make a terminal visit technician-editable.

@@ -30,6 +30,10 @@ Per-system data-entry form with a System 1/2 (etc.) switcher. Header shows syste
 14. Fan Speed photo — same as Scale
 15. New Total Charge — computed, read-only output for the technician to write on the outdoor unit
 
+## Never rejected (Kristo, 2026-11-18)
+
+The phone's Weigh-In is the source of truth: the server stores it as sent; a different earlier reading at the same address is kept in the Report and shown to Dispatch as "Weigh-In changed" (previous → reported). Differences never reject the Report (`/docs/architecture/REPORT-SNAPSHOT-CONTRACT.md`).
+
 ## Never blocks the Report (Kristo, 2026-11-17)
 
 Missing or inconsistent Weigh-In data, including SCALE/FAN photos without a location, never blocks Generate Report, submission or server acceptance; the technician is responsible for the Report.

@@ -416,7 +416,7 @@ Accessories, fixes, and thermostats installed during a visit. Unified into one t
 ---
 
 ### weigh_in_data
-Refrigerant charge data per system per address. Captured during a visit but belongs to the address permanently.
+Refrigerant charge data per system per address. Captured during a visit but belongs to the address permanently. A Report overwrites its systems' rows with the phone's values exactly; earlier values it replaced are kept in that Report (`weighInDiscrepancies`, 2026-11-18).
 
 | Column | Type | Notes |
 |---|---|---|

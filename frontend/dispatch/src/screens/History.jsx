@@ -59,7 +59,7 @@ export default function History ({ onCorrectReport }) {
         api.get(`/visits/${visit.id}/download`),
         visit.addressId ? api.get(`/dispatch/history/address/${visit.addressId}`) : Promise.resolve([]),
       ])
-      const merged = { ...detail, weighInData: report?.weighInData ?? [], priceDiscrepancies: report?.priceDiscrepancies ?? [], weighInWarnings: report?.weighInWarnings ?? [] }
+      const merged = { ...detail, weighInData: report?.weighInData ?? [], priceDiscrepancies: report?.priceDiscrepancies ?? [], weighInWarnings: report?.weighInWarnings ?? [], weighInDiscrepancies: report?.weighInDiscrepancies ?? [] }
       setSelected(merged)
       setEditLog(log ?? [])
       setPropertyHistory((propHist ?? []).filter(v => v.id !== visit.id))
@@ -140,17 +140,18 @@ export default function History ({ onCorrectReport }) {
   )
 }
 
+const WEIGH_IN_LABELS = {
+  linesetLength: 'Lineset length', factoryChargeOz: 'Factory charge oz',
+  factoryLineConfig: 'Factory line config', approxAdjustOz: 'Approx adjust oz', adjustedOz: 'Adjusted oz',
+  fanSpeedCfm: 'Fan speed CFM', liquidLineTemp: 'Liquid line temp',
+  suctionLineTemp: 'Suction line temp', condenserSatTemp: 'Condenser sat temp',
+  subcoolingValue: 'Subcooling', oemSubcoolingGoal: 'OEM subcooling goal',
+  subcoolingDeviation: 'Subcooling deviation',
+}
+
 function WeighInSection ({ data }) {
   const [open, setOpen] = useState(false)
-  const LABELS = {
-    linesetLength: 'Lineset length', factoryChargeOz: 'Factory charge oz',
-    factoryLineConfig: 'Factory line config', adjustedOz: 'Adjusted oz',
-    fanSpeedCfm: 'Fan speed CFM', liquidLineTemp: 'Liquid line temp',
-    suctionLineTemp: 'Suction line temp', condenserSatTemp: 'Condenser sat temp',
-    subcoolingValue: 'Subcooling', oemSubcoolingGoal: 'OEM subcooling goal',
-    subcoolingDeviation: 'Subcooling deviation',
-  }
-  const entries = Object.entries(LABELS).filter(([k]) => data[k] != null)
+  const entries = Object.entries(WEIGH_IN_LABELS).filter(([k]) => data[k] != null)
   if (entries.length === 0) return null
   return (
     <div>
@@ -256,6 +257,7 @@ function VisitDetail ({ visit, editLog, propertyHistory, onBack, onCorrectReport
         {(visit.priceDiscrepancies ?? []).length > 0 && <span className="vd-badge hatch">⚠ Device prices differ from catalog</span>}
         {(visit.systemChanges ?? []).length > 0 && <span className="vd-badge hatch">Changed by tech</span>}
         {(visit.weighInWarnings ?? []).length > 0 && <span className="vd-badge solid">Incomplete</span>}
+        {(visit.weighInDiscrepancies ?? []).length > 0 && <span className="vd-badge hatch">Weigh-In changed</span>}
       </div>
 
       <div className="vd-detail-cols">
@@ -297,6 +299,25 @@ function VisitDetail ({ visit, editLog, propertyHistory, onBack, onCorrectReport
             <table className="vd-table"><tbody>
               {visit.weighInWarnings.map((text, i) => <tr key={i}><td>{text}</td></tr>)}
             </tbody></table>
+          </section>}
+
+          {/* The phone's Weigh-In is stored as sent; earlier readings at this
+              address that it replaced are listed here (never a rejection). */}
+          {(visit.weighInDiscrepancies ?? []).length > 0 && <section className="vd-section">
+            <h4 className="vd-sub">Weigh-In changed</h4>
+            <table className="vd-table">
+              <thead><tr><th>System</th><th>Reading</th><th style={styles.right}>Previous</th><th style={styles.right}>Reported</th></tr></thead>
+              <tbody>
+                {visit.weighInDiscrepancies.map((d, i) => (
+                  <tr key={i}>
+                    <td className="num">{d.systemNumber}</td>
+                    <td>{WEIGH_IN_LABELS[d.field] ?? d.field}</td>
+                    <td className="num" style={styles.right}>{d.previous ?? '—'}</td>
+                    <td className="num" style={styles.right}>{d.reported ?? '—'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </section>}
 
           {/* W1b: systems the technician added or whose equipment changed.

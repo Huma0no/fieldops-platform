@@ -59,10 +59,6 @@ describe('reportContentMatchesSubmission', () => {
       [`system ${field} omission`, s => { delete s.systems[0][field] }, null],
       [`system ${field} mismatch`, null, s => { s.systems[0][field] = 'changed' }],
     ]),
-    ...Object.keys(accepted.weighInData[0]).flatMap(field => [
-      [`Weigh-In ${field} omission`, s => { delete s.weighInData[0][field] }, null],
-      [`Weigh-In ${field} mismatch`, null, s => { s.weighInData[0][field] = typeof accepted.weighInData[0][field] === 'number' ? 999 : 'changed' }],
-    ]),
     ['notes omission', s => { delete s.notes }, null],
     ['notes mismatch', null, s => { s.notes = 'different note' }],
     ['checklist finding omission', s => { delete s.checklistAnswers[0].reportText }, null],
@@ -84,6 +80,17 @@ describe('reportContentMatchesSubmission', () => {
       change(candidate);
       expect(reportContentMatchesSubmission(candidate, accepted)).toBe(false);
     }
+  });
+
+  // Weigh-In never rejects: the phone's readings are stored as sent and the
+  // earlier values become discrepancies (completion route).
+  it('accepts a Report whose Weigh-In differs from the server or is missing', () => {
+    const changed = submission();
+    changed.weighInData[0].adjustedOz = 999;
+    expect(reportContentMatchesSubmission(changed, accepted)).toBe(true);
+    const missing = submission();
+    missing.weighInData = [];
+    expect(reportContentMatchesSubmission(missing, accepted)).toBe(true);
   });
 
   it('accepts a photo the server has not stored yet (it arrives after the Report)', () => {

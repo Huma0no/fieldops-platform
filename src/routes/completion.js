@@ -22,6 +22,20 @@ const { applySystemChanges } = require('../services/visitSystems');
 const router = express.Router();
 
 const TERMINAL_STATUSES = ['completed', 'temporarily', 'cancelled'];
+// Report field ↔ weigh_in_data column, in INSERT order.
+const WEIGH_IN_FIELDS = [
+  ['linesetLength', 'lineset_length'], ['factoryChargeOz', 'factory_charge_oz'], ['factoryLineConfig', 'factory_line_config'],
+  ['approxAdjustOz', 'approx_adjust_oz'], ['adjustedOz', 'adjusted_oz'], ['fanSpeedCfm', 'fan_speed_cfm'],
+  ['liquidLineTemp', 'liquid_line_temp'], ['suctionLineTemp', 'suction_line_temp'], ['condenserSatTemp', 'condenser_sat_temp'],
+  ['subcoolingValue', 'subcooling_value'], ['oemSubcoolingGoal', 'oem_subcooling_goal'], ['subcoolingDeviation', 'subcooling_deviation'],
+];
+
+function sameWeighInValue(stored, reported) {
+  if (reported == null) return false;
+  const a = Number(stored); const b = Number(reported);
+  if (Number.isFinite(a) && Number.isFinite(b)) return Math.abs(a - b) < 0.005;
+  return String(stored) === String(reported);
+}
 const MAX_SUBMISSION_ID_LENGTH = 120;
 
 async function priceSnapshotItems(client, visit, services, validItems) {
@@ -55,7 +69,7 @@ async function priceSnapshotItems(client, visit, services, validItems) {
   }).items;
 }
 
-async function applySnapshotWork(client, visit, snapshot) {
+async function applySnapshotWork(client, visit, snapshot, work = {}) {
   let isFinish;
   let pricingServices;
   if (Array.isArray(snapshot.services)) {
@@ -129,11 +143,26 @@ async function applySnapshotWork(client, visit, snapshot) {
   // The snapshot is the Workspace's own item list: companions the technician
   // turned off stay off (no server-side companion cascade on submission).
 
-  // Weigh-In remains address/system structured data. Snapshot delivery may
-  // update an existing measurement; systems were applied before (W1b).
+  // Weigh-In: the phone is the source of truth. Its readings are stored as
+  // sent (address/system rows); a different earlier reading is kept in the
+  // accepted Report as a discrepancy for Dispatch, never a rejection.
+  work.weighInDiscrepancies = [];
+  const previous = new Map((await client.query(
+    'SELECT * FROM weigh_in_data WHERE address_id = $1', [visit.address_id]
+  )).rows.map(row => [row.system_number, row]));
   for (const data of snapshot.weighInData ?? []) {
     const systemNumber = Number(data.systemNumber ?? data.system_number);
     if (!Number.isInteger(systemNumber) || systemNumber < 1) continue;
+    const reported = Object.fromEntries(WEIGH_IN_FIELDS.map(([field, column]) => [field, data[field] ?? data[column] ?? null]));
+    const before = previous.get(systemNumber);
+    if (before) {
+      for (const [field, column] of WEIGH_IN_FIELDS) {
+        const was = before[column] ?? null;
+        if (was != null && !sameWeighInValue(was, reported[field])) {
+          work.weighInDiscrepancies.push({ systemNumber, field, previous: was, reported: reported[field] });
+        }
+      }
+    }
     await client.query(
       `INSERT INTO weigh_in_data
         (id, address_id, system_number, lineset_length, factory_charge_oz, factory_line_config,
@@ -142,9 +171,9 @@ async function applySnapshotWork(client, visit, snapshot) {
        VALUES (gen_random_uuid()::text, $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
        ON CONFLICT (address_id, system_number) DO UPDATE SET
          lineset_length = EXCLUDED.lineset_length,
-         factory_charge_oz = COALESCE(EXCLUDED.factory_charge_oz, weigh_in_data.factory_charge_oz),
+         factory_charge_oz = EXCLUDED.factory_charge_oz,
          factory_line_config = EXCLUDED.factory_line_config,
-         approx_adjust_oz = COALESCE(EXCLUDED.approx_adjust_oz, weigh_in_data.approx_adjust_oz),
+         approx_adjust_oz = EXCLUDED.approx_adjust_oz,
          adjusted_oz = EXCLUDED.adjusted_oz,
          fan_speed_cfm = EXCLUDED.fan_speed_cfm,
          liquid_line_temp = EXCLUDED.liquid_line_temp,
@@ -152,20 +181,8 @@ async function applySnapshotWork(client, visit, snapshot) {
          condenser_sat_temp = EXCLUDED.condenser_sat_temp,
          subcooling_value = EXCLUDED.subcooling_value,
          oem_subcooling_goal = EXCLUDED.oem_subcooling_goal,
-         subcooling_deviation = COALESCE(EXCLUDED.subcooling_deviation, weigh_in_data.subcooling_deviation)`,
-      [visit.address_id, systemNumber,
-        data.linesetLength ?? data.lineset_length ?? null,
-        data.factoryChargeOz ?? data.factory_charge_oz ?? null,
-        data.factoryLineConfig ?? data.factory_line_config ?? null,
-        data.approxAdjustOz ?? data.approx_adjust_oz ?? null,
-        data.adjustedOz ?? data.adjusted_oz ?? null,
-        data.fanSpeedCfm ?? data.fan_speed_cfm ?? null,
-        data.liquidLineTemp ?? data.liquid_line_temp ?? null,
-        data.suctionLineTemp ?? data.suction_line_temp ?? null,
-        data.condenserSatTemp ?? data.condenser_sat_temp ?? null,
-        data.subcoolingValue ?? data.subcooling_value ?? null,
-        data.oemSubcoolingGoal ?? data.oem_subcooling_goal ?? null,
-        data.subcoolingDeviation ?? data.subcooling_deviation ?? null]
+         subcooling_deviation = EXCLUDED.subcooling_deviation`,
+      [visit.address_id, systemNumber, ...WEIGH_IN_FIELDS.map(([field]) => reported[field])]
     );
   }
   return calculateVisitPrice(client, visit.id);
@@ -332,8 +349,9 @@ router.post('/:id/complete', requireRole('technician'), async (req, res, next) =
       if (snapshot?.version >= 2) await applySystemChanges(client, id, snapshot.systems, req.technician.id, now);
 
       let resolvedTotal = null;
+      const work = {};
       if (snapshot && !isCancel) {
-        resolvedTotal = await applySnapshotWork(client, lockedVisit, snapshot);
+        resolvedTotal = await applySnapshotWork(client, lockedVisit, snapshot, work);
       }
       if (isCancel) {
         await client.query('DELETE FROM visit_items WHERE visit_id = $1', [id]);
@@ -402,6 +420,7 @@ router.post('/:id/complete', requireRole('technician'), async (req, res, next) =
       // PP-01: catalog-derived differences are accepted; the canonical Report
       // keeps the server values, the source submission keeps the device values.
       if (comparison.discrepancies.length) canonicalSnapshot.priceDiscrepancies = comparison.discrepancies;
+      if (work.weighInDiscrepancies?.length) canonicalSnapshot.weighInDiscrepancies = work.weighInDiscrepancies;
       await client.query(
         'UPDATE completion_submissions SET snapshot = $1 WHERE submission_id = $2',
         [JSON.stringify(canonicalSnapshot), acceptedSubmissionId]
