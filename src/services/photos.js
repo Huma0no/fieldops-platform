@@ -51,7 +51,20 @@ async function recordEvidenceRefs(db, visitId, refs) {
   }
 }
 
+// W1c: system photos the accepted Report does not list belong to a system the
+// technician removed. They are detached (hidden, left out of the Report); the
+// file stays on disk.
+async function detachRemovedSystemPhotos(db, visitId, refs) {
+  const listed = (Array.isArray(refs) ? refs : []).map(ref => ref?.id).filter(id => typeof id === 'string');
+  await db.query(
+    `UPDATE visit_photos SET detached_reason = 'removed_system'
+     WHERE visit_id = $1 AND system_number IS NOT NULL AND detached_reason IS NULL AND NOT (id = ANY($2::text[]))`,
+    [visitId, listed]
+  );
+}
+
 module.exports = {
+  detachRemovedSystemPhotos,
   PHOTO_CATEGORIES,
   PHOTO_ID_PATTERN,
   photoKey,

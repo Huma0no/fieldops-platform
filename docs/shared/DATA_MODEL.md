@@ -461,6 +461,7 @@ Photos taken during a visit. **Google Drive upload (below) is designed but not y
 | label | text | Not used in the current design — reserved, may be removed. |
 | category | text | "weigh_in_scale", "fan_speed", "site_evidence" |
 | stored_at | text | Storage key of the stored file (`{visitId}/{photoId}.jpg` under `PHOTO_STORAGE_DIR`); null while the photo is still on the phone |
+| detached_reason | text | `removed_system` (W1c): a photo of a system the technician removed — hidden in Dispatch and left out of the Report; the file stays on disk. Set when a version 2 Report does not list a system photo, or when such a photo arrives after that Report |
 
 **Rules:**
 - Photos are compressed client-side before upload (already done today in the current PWA, typically 1.3-1.5MB down to 500KB-1MB) — this behavior carries over unchanged.

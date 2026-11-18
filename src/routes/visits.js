@@ -284,7 +284,7 @@ visitsRouter.get('/:id', async (req, res, next) => {
         [id]
       ),
       pool.query(
-        'SELECT id, slug, tag, label, category, system_number, stored_at FROM visit_photos WHERE visit_id = $1',
+        'SELECT id, slug, tag, label, category, system_number, stored_at FROM visit_photos WHERE visit_id = $1 AND detached_reason IS NULL',
         [id]
       ),
       pool.query(

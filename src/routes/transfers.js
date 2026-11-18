@@ -184,7 +184,7 @@ router.post('/transfers/:id/accept', requireRole('technician'), async (req, res,
         [transfer.visit_id]
       ),
       pool.query(
-        'SELECT id, tag, label, category, system_number, stored_at FROM visit_photos WHERE visit_id = $1',
+        'SELECT id, tag, label, category, system_number, stored_at FROM visit_photos WHERE visit_id = $1 AND detached_reason IS NULL',
         [transfer.visit_id]
       ),
     ]);

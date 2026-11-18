@@ -307,7 +307,8 @@ CREATE TABLE visit_photos (
   tag           text NOT NULL,
   label         text,
   category      text NOT NULL CHECK (category IN ('weigh_in_scale', 'fan_speed', 'site_evidence')),
-  stored_at     text
+  stored_at     text,
+  detached_reason text CHECK (detached_reason IN ('removed_system'))   -- W1c: hidden, file kept
 );
 
 -- 18. transfers

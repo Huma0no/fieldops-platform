@@ -313,7 +313,7 @@ async function correctionState(db, visit) {
   const services = await db.query('SELECT service_name, is_finish, is_temporarily, price, system_number FROM visit_services WHERE visit_id = $1 ORDER BY system_number NULLS FIRST, id', [visit.id]);
   const items = await db.query('SELECT id, item_name, category, description, quantity, price, tech_supplied FROM visit_items WHERE visit_id = $1 ORDER BY id', [visit.id]);
   const weighIn = await db.query(`SELECT * FROM weigh_in_data WHERE address_id = (SELECT address_id FROM visits WHERE id = $1) ORDER BY system_number`, [visit.id]);
-  const photos = await db.query('SELECT id, tag, label, category, system_number, stored_at FROM visit_photos WHERE visit_id = $1 ORDER BY stored_at', [visit.id]);
+  const photos = await db.query('SELECT id, tag, label, category, system_number, stored_at FROM visit_photos WHERE visit_id = $1 AND detached_reason IS NULL ORDER BY stored_at', [visit.id]);
   return {
     jobContext: {
       orderNumber: visit.order_number, scheduledDate: visit.date, scheduledTime: visit.scheduled_time,

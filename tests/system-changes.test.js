@@ -137,3 +137,31 @@ it('lets the technician remove only the last system they added, with its service
   expect(draft._weighInPhotos).toEqual({ '1-FAN': true });
   expect(drafts.canRemoveSystem(draft, 3)).toBe(true);
 });
+
+it('detaches photos of a removed system (file kept) before and after the Report', async () => {
+  const visit = await seedAssignedVisit();
+  const upload = (photoId, systemNumber) => request(app)
+    .post(`/api/visits/${visit.visitId}/photos`).set('Authorization', `Bearer ${visit.token}`)
+    .field('photoId', photoId).field('category', 'weigh_in_scale').field('tag', 'SCALE')
+    .field('slug', `X_SCALE_SYS${systemNumber}`).field('systemNumber', String(systemNumber))
+    .attach('photo', Buffer.from('jpeg'), 'scale.jpg');
+  // System 2 was added, photographed (uploaded at once), then removed before the Report.
+  const early = require('crypto').randomUUID();
+  expect((await upload(early, 2)).status).toBe(200);
+  // Removing the system dropped its photo references from the draft.
+  const res = await submit(visit, draft => { draft.evidenceRefs = draft.evidenceRefs.filter(ref => ref.systemNumber !== 2); });
+  expect(res.status).toBe(200);
+
+  // Its second photo was still on the phone and arrives after the Report.
+  const late = require('crypto').randomUUID();
+  expect((await upload(late, 2)).status).toBe(200);
+
+  const rows = await pool.query('SELECT id, detached_reason, stored_at FROM visit_photos WHERE visit_id = $1', [visit.visitId]);
+  const state = Object.fromEntries(rows.rows.map(row => [row.id === early ? 'early' : 'late', [row.detached_reason, row.stored_at != null]]));
+  expect(state).toEqual({ early: ['removed_system', true], late: ['removed_system', true] });
+  const { token } = await seedDispatcherWithToken();
+  const detail = await request(app).get(`/api/visits/${visit.visitId}`).set('Authorization', `Bearer ${token}`);
+  expect(detail.body.photos).toEqual([]);
+  const file = await request(app).get(`/api/visits/${visit.visitId}/photos/${early}`).set('Authorization', `Bearer ${token}`);
+  expect(file.status).toBe(200);
+});

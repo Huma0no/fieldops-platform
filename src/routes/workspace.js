@@ -662,6 +662,16 @@ router.post(
            ON CONFLICT (id) DO UPDATE SET stored_at = EXCLUDED.stored_at`,
           [photoId, id, systemNumber ? parseInt(systemNumber, 10) : null, slug, tag, label ?? null, category, storedAt]
         );
+        // W1c: a system photo arriving after a Report that does not list it
+        // belongs to a removed system: stored, but detached from the visit.
+        await client.query(
+          `UPDATE visit_photos SET detached_reason = 'removed_system'
+           WHERE id = $1 AND system_number IS NOT NULL AND detached_reason IS NULL
+             AND EXISTS (SELECT 1 FROM completion_submissions cs WHERE cs.visit_id = $2
+                         AND (cs.snapshot->'sourceSubmission'->>'version')::int >= 2
+                         AND NOT (cs.snapshot->'evidenceRefs' @> jsonb_build_array(jsonb_build_object('id', $1::text))))`,
+          [photoId, id]
+        );
         await client.query(
           `UPDATE visits SET updated_at = $1 WHERE id = $2`,
           [new Date().toISOString(), id]

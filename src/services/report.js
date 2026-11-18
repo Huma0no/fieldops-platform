@@ -219,7 +219,7 @@ async function generateLiveReportJSON(db, visitId) {
       [visitId]
     ),
     db.query(
-      'SELECT slug, category FROM visit_photos WHERE visit_id = $1',
+      'SELECT slug, category FROM visit_photos WHERE visit_id = $1 AND detached_reason IS NULL',
       [visitId]
     ),
     db.query(
@@ -317,7 +317,7 @@ async function createCanonicalReportSnapshot(db, visitId, {
     db.query('SELECT name FROM technicians WHERE id = $1', [technicianId]),
     db.query(
       `SELECT id, visit_id, system_number, slug, tag, label, category, stored_at
-       FROM visit_photos WHERE visit_id = $1 ORDER BY id`,
+       FROM visit_photos WHERE visit_id = $1 AND detached_reason IS NULL ORDER BY id`,
       [visitId]
     ),
   ]);
