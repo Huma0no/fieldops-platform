@@ -149,6 +149,30 @@ input[type="checkbox"], input[type="radio"] { accent-color: var(--vd-ink); }
 .vd-option .line { font-size: 12px; color: var(--vd-dim); }
 .vd-option.off { border-style: dotted; box-shadow: 0 3px 0 var(--vd-dim); }
 
+/* ── Record detail (History) ──────────────────────────── */
+.vd-kv { display: grid; grid-template-columns: 140px 1fr; gap: 0 14px; font-size: 13px; }
+.vd-kv dt, .vd-kv dd { margin: 0; padding: 7px 0; border-bottom: 1px solid var(--vd-line); }
+.vd-kv dt { color: var(--vd-dim); font-family: var(--vd-font-stencil); text-transform: uppercase; letter-spacing: 1.3px; font-size: 10px; padding-top: 9px; }
+.vd-kv dd { white-space: pre-wrap; overflow-wrap: anywhere; }
+.vd-detail-cols { display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); gap: 18px; align-items: start; }
+.vd-section { margin-top: 20px; }
+.vd-section:first-child { margin-top: 0; }
+.vd-fold {
+  display: flex; align-items: center; gap: 10px; width: 100%; text-align: left; cursor: pointer;
+  border: 2px solid var(--vd-ink); border-radius: 0; background: var(--vd-plate); color: var(--vd-ink); padding: 8px 12px; margin-top: 10px;
+  box-shadow: var(--vd-key-shadow-sm);
+  font-family: var(--vd-font-stencil); text-transform: uppercase; letter-spacing: 2px; font-size: 11px; font-weight: 700;
+}
+.vd-fold .mark { font-family: var(--vd-font-data); font-size: 13px; }
+.vd-fold.open { background: var(--vd-ink); color: var(--vd-plate); box-shadow: none; }
+.vd-fold-body { border: 2px solid var(--vd-ink); border-top: none; background: var(--vd-plate); padding: 12px 14px; }
+.vd-wi-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px 18px; }
+.vd-wi-grid > div { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; border-bottom: 1px solid var(--vd-line); padding-bottom: 5px; font-size: 13px; }
+.vd-photo { margin: 0; width: 160px; }
+.vd-photo img, .vd-photo .pending { display: block; width: 160px; height: 120px; object-fit: cover; border: 2px solid var(--vd-ink); }
+.vd-photo .pending { display: flex; align-items: center; justify-content: center; border-style: dashed; border-color: var(--vd-line); background: var(--vd-plate); color: var(--vd-dim); font-size: 11px; }
+.vd-photo figcaption { margin-top: 4px; font-size: 11px; color: var(--vd-dim); }
+
 /* ── Modal sheet ──────────────────────────────────────── */
 .vd-scrim { position: fixed; inset: 0; z-index: 100; display: flex; align-items: center; justify-content: center; padding: 24px; background: var(--vd-scrim); }
 
@@ -246,6 +270,9 @@ textarea.vd-input { resize: vertical; line-height: 1.5; }
 
 @media (max-width: 820px) {
   .vd-cols, .vd-cols-2, .vd-cols-3 { grid-template-columns: 1fr; }
+  .vd-wi-grid { grid-template-columns: 1fr 1fr; }
+  .vd-detail-cols { grid-template-columns: 1fr; }
+  .vd-kv { grid-template-columns: 110px 1fr; }
   .vd-shell { padding: 8px; }
   .vd-shell > .vd-rack { padding: 14px 14px 16px; }
 }

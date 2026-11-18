@@ -82,79 +82,59 @@ export default function History ({ onCorrectReport }) {
 
   return (
     <div style={styles.page}>
-      <div style={styles.header}>
-        <h2 style={styles.title}>History</h2>
-        <div style={styles.filters}>
-          <input
-            style={styles.filterInput}
-            placeholder="From date"
-            type="date"
-            value={filters.dateFrom}
-            onChange={e => setFilters(f => ({ ...f, dateFrom: e.target.value }))}
-          />
-          <input
-            style={styles.filterInput}
-            placeholder="To date"
-            type="date"
-            value={filters.dateTo}
-            onChange={e => setFilters(f => ({ ...f, dateTo: e.target.value }))}
-          />
-          <input
-            style={styles.filterInput}
-            placeholder="Technician"
-            value={filters.technician}
-            onChange={e => setFilters(f => ({ ...f, technician: e.target.value }))}
-          />
-          <input
-            style={styles.filterInput}
-            placeholder="Builder"
-            value={filters.builder}
-            onChange={e => setFilters(f => ({ ...f, builder: e.target.value }))}
-          />
-          <button style={styles.filterBtn} onClick={loadHistory}>Search</button>
-        </div>
-      </div>
+      <div className="vd-unit">
+        <div className="vd-unit-head"><span className="vd-unit-id">HST</span><span className="vd-unit-name">History</span><span className="vd-unit-note">All technicians · one feed</span></div>
+        <div className="vd-knurl" />
+        <div className="vd-unit-body">
+          <div style={styles.filters}>
+            <input className="vd-input sm" style={styles.filterInput} aria-label="From date" placeholder="From date" type="date" value={filters.dateFrom} onChange={e => setFilters(f => ({ ...f, dateFrom: e.target.value }))} />
+            <input className="vd-input sm" style={styles.filterInput} aria-label="To date" placeholder="To date" type="date" value={filters.dateTo} onChange={e => setFilters(f => ({ ...f, dateTo: e.target.value }))} />
+            <input className="vd-input sm" style={styles.filterInput} placeholder="Technician" value={filters.technician} onChange={e => setFilters(f => ({ ...f, technician: e.target.value }))} />
+            <input className="vd-input sm" style={styles.filterInput} placeholder="Builder" value={filters.builder} onChange={e => setFilters(f => ({ ...f, builder: e.target.value }))} />
+            <button type="button" className="vd-key sm dark" onClick={loadHistory}>Search</button>
+            {!loading && (
+              <div className="vd-readout inline" style={styles.count}>
+                <span className="num">{String(visits.length).padStart(2, '0')}</span><span className="cap">loaded</span>
+              </div>
+            )}
+          </div>
 
-      <div style={styles.tableWrap}>
-        {loading ? (
-          <div style={styles.loading}>Loading…</div>
-        ) : visits.length === 0 ? (
-          <div style={styles.empty}>No visits found for the selected filters.</div>
-        ) : (
-          <table style={styles.table}>
-            <thead>
-              <tr>
-                {['Order #','Address','Date','Technician','Service','Total','Status',''].map(h => (
-                  <th key={h} style={styles.th}>{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {visits.map(v => (
-                <tr key={v.id} style={styles.tr}>
-                  <td style={styles.td}>{v.orderNumber ?? '—'}</td>
-                  <td style={styles.td}>{v.address?.street ?? '—'}</td>
-                  <td style={styles.td}>{formatDate(v.completedAt)}</td>
-                  <td style={styles.td}>{v.technicianName ?? '—'}</td>
-                  <td style={styles.td}>{v.workType ?? '—'}</td>
-                  <td style={styles.td}>
-                    {formatPrice(v.totalPrice)}
-                    {v.has_price_anomaly && <span style={styles.anomalyIcon} title="Price outside catalog range">⚠</span>}
-                  </td>
-                  <td style={styles.td}>
-                    <span style={styles.statusBadge}>{v.status}</span>
-                  </td>
-                  <td style={styles.td}>
-                    <div style={{ display:'flex', gap:'6px' }}>
-                      <button style={styles.openBtn} onClick={() => openVisit(v)}>Details</button>
-                      <button style={styles.openBtn} onClick={() => onCorrectReport?.(v.id)}>Correct</button>
-                    </div>
-                  </td>
+          {loading ? (
+            <p className="vd-hint">Loading…</p>
+          ) : visits.length === 0 ? (
+            <p className="vd-hint">No visits found for the selected filters.</p>
+          ) : (
+            <div style={styles.tableScroll}>
+            <table className="vd-table">
+              <thead>
+                <tr>
+                  {['Order #','Address','Date','Technician','Service','Total','Status',''].map(h => <th key={h}>{h}</th>)}
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
+              </thead>
+              <tbody>
+                {visits.map(v => (
+                  <tr key={v.id}>
+                    <td className="num">{v.orderNumber ?? '—'}</td>
+                    <td style={styles.addr}>{v.address?.street ?? '—'}</td>
+                    <td className="num" style={styles.nowrap}>{formatDate(v.completedAt)}</td>
+                    <td>{v.technicianName ?? '—'}</td>
+                    <td>{v.workType ?? '—'}</td>
+                    <td className="num" style={styles.nowrap}>
+                      {formatPrice(v.totalPrice)}
+                      {v.has_price_anomaly && <span style={styles.anomalyIcon} title="Price outside catalog range">⚠</span>}
+                    </td>
+                    <td><span className="vd-badge">{v.status}</span></td>
+                    <td style={styles.acts}>
+                      <button type="button" className="vd-key sm" onClick={() => openVisit(v)}>Details</button>
+                      <button type="button" className="vd-key sm off" style={styles.gap} onClick={() => onCorrectReport?.(v.id)}>Correct</button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   )
@@ -173,22 +153,18 @@ function WeighInSection ({ data }) {
   const entries = Object.entries(LABELS).filter(([k]) => data[k] != null)
   if (entries.length === 0) return null
   return (
-    <div style={{ borderBottom: '0.5px solid var(--border-subtle)' }}>
-      <button
-        onClick={() => setOpen(v => !v)}
-        style={{ width: '100%', display: 'flex', justifyContent: 'space-between', background: 'none', border: 'none', cursor: 'pointer', padding: '6px 0', fontSize: '12px', color: 'var(--text-muted)', fontFamily: 'var(--font-sans)' }}
-      >
+    <div>
+      <button type="button" className={`vd-fold${open ? ' open' : ''}`} aria-expanded={open} onClick={() => setOpen(v => !v)}>
+        <span className="mark">{open ? '−' : '+'}</span>
         <span>System {data.systemNumber}</span>
-        <span style={{ fontSize: '10px' }}>{open ? '▲' : '▼'}</span>
       </button>
       {open && (
-        <div style={{ paddingBottom: '8px', display: 'flex', flexDirection: 'column', gap: '3px' }}>
-          {entries.map(([k, label]) => (
-            <div key={k} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', padding: '2px 0' }}>
-              <span style={{ color: 'var(--text-muted)' }}>{label}</span>
-              <span style={{ color: 'var(--text-secondary)' }}>{data[k]}</span>
-            </div>
-          ))}
+        <div className="vd-fold-body">
+          <div className="vd-wi-grid">
+            {entries.map(([k, label]) => (
+              <div key={k}><span className="vd-stencil">{label}</span><span className="vd-data">{data[k]}</span></div>
+            ))}
+          </div>
         </div>
       )}
     </div>
@@ -198,23 +174,26 @@ function WeighInSection ({ data }) {
 function ChecklistSection ({ answers }) {
   const byItem = new Map((answers ?? []).map(answer => [answer.item, answer.answer]))
   return (
-    <>
-      <div style={styles.sectionTitle}>Checklist</div>
-      <div style={styles.checklist}>
-        {CHECKLIST_ITEMS.map(([key, label]) => {
-          const answer = byItem.get(key)
-          const answerLabel = answer === 'yes' ? 'Yes' : answer === 'no' ? 'No' : 'Unanswered'
-          return (
-            <div key={key} style={styles.checklistRow}>
-              <span>{label}</span>
-              <span style={{ ...styles.checklistAnswer, ...(answer === 'yes' ? styles.checklistYes : answer === 'no' ? styles.checklistNo : {}) }}>
-                {answerLabel}
-              </span>
-            </div>
-          )
-        })}
-      </div>
-    </>
+    <section className="vd-section">
+      <h4 className="vd-sub">Checklist</h4>
+      <table className="vd-table">
+        <tbody>
+          {CHECKLIST_ITEMS.map(([key, label]) => {
+            const answer = byItem.get(key)
+            return (
+              <tr key={key}>
+                <td>{label}</td>
+                <td style={styles.right}>
+                  {answer === 'yes' ? <span className="vd-badge">Yes</span>
+                    : answer === 'no' ? <span className="vd-badge solid">No</span>
+                    : <span className="vd-hint">Unanswered</span>}
+                </td>
+              </tr>
+            )
+          })}
+        </tbody>
+      </table>
+    </section>
   )
 }
 
@@ -264,67 +243,67 @@ function VisitDetail ({ visit, editLog, propertyHistory, onBack, onCorrectReport
     { label: 'Scheduled time', value: visit.scheduledTime },
     { label: 'Completed',      value: formatDate(visit.completedAt) },
     { label: 'Status',         value: visit.status },
-    { label: 'Notes',          value: visit.notes, multiline: true },
+    { label: 'Notes',          value: visit.notes },
   ]
 
   return (
     <div style={styles.page}>
       <div style={styles.detailHeader}>
-        <button style={styles.backBtn} onClick={onBack}>← History</button>
-        <h2 style={styles.title}>{visit.address?.street ?? 'Visit'}</h2>
-        <button style={styles.openBtn} onClick={() => onCorrectReport?.(visit.id)}>Correct Report</button>
-        {visit.has_price_anomaly && (
-          <span style={styles.anomalyBanner}>⚠ Price outside catalog range</span>
-        )}
-        {(visit.priceDiscrepancies ?? []).length > 0 && (
-          <span style={styles.anomalyBanner}>⚠ Device prices differ from catalog</span>
-        )}
-        {(visit.systemChanges ?? []).length > 0 && (
-          <span className="vd-badge hatch">Changed by tech</span>
-        )}
-        {(visit.weighInWarnings ?? []).length > 0 && (
-          <span className="vd-badge solid">Incomplete</span>
-        )}
+        <button type="button" className="vd-key sm" onClick={onBack}>← History</button>
+        <h2 className="vd-unit-name" style={styles.detailTitle}>{visit.address?.street ?? 'Visit'}</h2>
+        <button type="button" className="vd-key sm dark" onClick={() => onCorrectReport?.(visit.id)}>Correct Report</button>
+        {visit.has_price_anomaly && <span className="vd-badge hatch">⚠ Price outside catalog range</span>}
+        {(visit.priceDiscrepancies ?? []).length > 0 && <span className="vd-badge hatch">⚠ Device prices differ from catalog</span>}
+        {(visit.systemChanges ?? []).length > 0 && <span className="vd-badge hatch">Changed by tech</span>}
+        {(visit.weighInWarnings ?? []).length > 0 && <span className="vd-badge solid">Incomplete</span>}
       </div>
 
-      <div style={styles.detailBody}>
+      <div className="vd-detail-cols">
         {/* Left — finalized source visit data. */}
-        <div style={styles.detailLeft}>
-          <div style={styles.sectionTitle}>Visit details</div>
-          <div style={styles.fieldsCol}>
-            {FIELDS.map(({ label, value, multiline }) => (
-              <div key={label} style={styles.fieldRow}>
-                <label style={styles.fieldLabel}>{label}</label>
-                <div style={multiline ? styles.fieldReadOnlyMultiline : styles.fieldReadOnly}>
-                  {value || '—'}
+        <div className="vd-unit" style={styles.detailCol}>
+          <div className="vd-unit-head"><span className="vd-unit-id">RPT</span><span className="vd-unit-name">Visit record</span><span className="vd-unit-note">{visit.technician?.name ?? ''}</span></div>
+          <div className="vd-knurl" />
+          <div className="vd-unit-body" style={styles.scroll}>
+          <section className="vd-section">
+            <h4 className="vd-sub">Visit details</h4>
+            <dl className="vd-kv">
+              {FIELDS.map(({ label, value }) => (
+                <div key={label} style={{ display: 'contents' }}>
+                  <dt>{label}</dt>
+                  <dd>{value || '—'}</dd>
                 </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </dl>
+          </section>
 
-          {(visit.systems ?? []).length > 0 && <>
-            <div style={styles.sectionTitle}>Systems and equipment</div>
-            {visit.systems.map(system => <div key={system.systemNumber} style={{ fontSize:'12px', padding:'6px 0', borderBottom:'0.5px solid var(--border-subtle)', color:'var(--text-secondary)' }}>
-              <strong>System {system.systemNumber}</strong>
-              {system.addedByTechnician && <span className="vd-badge" style={{ marginLeft: '8px' }}>Added by tech</span>}
-              <div>Indoor: {system.indoorModel ?? '—'} · Outdoor: {system.outdoorModel ?? '—'}</div>
-              {system.coilModel && <div>Coil: {system.coilModel}</div>}
-              {system.refrigerant && <div>Refrigerant: {system.refrigerant}</div>}
-            </div>)}
-          </>}
+          {(visit.systems ?? []).length > 0 && <section className="vd-section">
+            <h4 className="vd-sub">Systems and equipment</h4>
+            <div className="vd-cols-2">
+              {visit.systems.map(system => (
+                <div key={system.systemNumber} className="vd-readout">
+                  <div className="vd-stencil">System {system.systemNumber}{system.addedByTechnician && <span className="vd-badge" style={{ marginLeft: '8px' }}>Added by tech</span>}</div>
+                  <div className="vd-data" style={styles.model}>{system.indoorModel ?? '—'}</div>
+                  <div className="vd-data" style={styles.model}>{system.outdoorModel ?? '—'}</div>
+                  {system.coilModel && <div className="vd-data" style={styles.model}>{system.coilModel}</div>}
+                  <div className="cap">indoor · outdoor{system.coilModel ? ' · coil' : ''}{system.refrigerant ? ` · ${system.refrigerant}` : ''}</div>
+                </div>
+              ))}
+            </div>
+          </section>}
 
           {/* Weigh-In sent incomplete: the technician's device listed what was missing. */}
-          {(visit.weighInWarnings ?? []).length > 0 && <>
-            <div style={styles.sectionTitle}>Incomplete Weigh-In</div>
-            {visit.weighInWarnings.map((text, i) => (
-              <div key={i} style={{ fontSize: '12px', padding: '5px 0', borderBottom: '0.5px solid var(--border-subtle)' }}>{text}</div>
-            ))}
-          </>}
+          {(visit.weighInWarnings ?? []).length > 0 && <section className="vd-section">
+            <h4 className="vd-sub">Incomplete Weigh-In</h4>
+            <table className="vd-table"><tbody>
+              {visit.weighInWarnings.map((text, i) => <tr key={i}><td>{text}</td></tr>)}
+            </tbody></table>
+          </section>}
 
           {/* W1b: systems the technician added or whose equipment changed.
               The original order data is kept as "before". */}
-          {(visit.systemChanges ?? []).length > 0 && <>
-            <div style={styles.sectionTitle}>Changed by tech</div>
+          {(visit.systemChanges ?? []).length > 0 && <section className="vd-section">
+            <h4 className="vd-sub">Changed by tech</h4>
+            <div style={styles.tableScroll}>
             <table className="vd-table">
               <thead><tr><th>System</th><th>Change</th><th>Before → After</th><th>Who</th><th>When</th></tr></thead>
               <tbody>
@@ -339,113 +318,124 @@ function VisitDetail ({ visit, editLog, propertyHistory, onBack, onCorrectReport
                 ))}
               </tbody>
             </table>
-          </>}
+            </div>
+          </section>}
 
           <ChecklistSection answers={visit.checklistAnswers} />
 
           {/* PP-01: values the technician's device sent that differ from the catalog.
               The Report uses the catalog (server) value. */}
-          {(visit.priceDiscrepancies ?? []).length > 0 && <>
-            <div style={styles.sectionTitle}>Price check</div>
-            {visit.priceDiscrepancies.map((d, i) => (
-              <div key={i} style={{ display: 'flex', justifyContent: 'space-between', gap: '12px', fontSize: '12px', color: 'var(--text-secondary)', padding: '5px 0', borderBottom: '0.5px solid var(--border-subtle)' }}>
-                <span>{discrepancyLabel(d)}</span>
-                <span style={{ whiteSpace: 'nowrap' }}>device {discrepancyValue(d.submitted)} · catalog {discrepancyValue(d.accepted)}</span>
-              </div>
-            ))}
-          </>}
-
-          {/* Services (B3) */}
-          {(visit.services ?? []).length > 0 && <>
-            <div style={styles.sectionTitle}>Services</div>
-            <div style={{ display: 'flex', flexDirection: 'column' }}>
-              {visit.services.map((s, i) => (
-                <div key={i} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', color: 'var(--text-secondary)', padding: '5px 0', borderBottom: '0.5px solid var(--border-subtle)' }}>
-                  <span>{s.serviceName}{s.isFinish ? ' · Finish' : ''}{s.isTemporarily ? ' · Temporarily' : ''}</span>
-                  {s.price != null && <span>${Number(s.price).toFixed(2)}</span>}
-                </div>
-              ))}
-            </div>
-          </>}
-
-          {/* Items (B3) */}
-          {(visit.items ?? []).length > 0 && <>
-            <div style={styles.sectionTitle}>Items</div>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
+          {(visit.priceDiscrepancies ?? []).length > 0 && <section className="vd-section">
+            <h4 className="vd-sub">Price check</h4>
+            <table className="vd-table">
+              <thead><tr><th>Line</th><th style={styles.right}>Device</th><th style={styles.right}>Catalog</th></tr></thead>
               <tbody>
-                {visit.items.map((item, i) => (
-                  <tr key={i} style={{ borderBottom: '0.5px solid var(--border-subtle)' }}>
-                  <td style={{ padding: '4px 0', color: 'var(--text-secondary)' }}>{item.itemName}{item.description ? ` — ${item.description}` : ''}</td>
-                    <td style={{ padding: '4px 0', color: 'var(--text-muted)', textAlign: 'right', whiteSpace: 'nowrap' }}>
-                      {item.quantity} × ${Number(item.price ?? 0).toFixed(2)}
-                    </td>
+                {visit.priceDiscrepancies.map((d, i) => (
+                  <tr key={i}>
+                    <td>{discrepancyLabel(d)}</td>
+                    <td className="num" style={styles.right}>{discrepancyValue(d.submitted)}</td>
+                    <td className="num" style={styles.right}>{discrepancyValue(d.accepted)}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
-          </>}
+          </section>}
+
+          {/* Services (B3) */}
+          {(visit.services ?? []).length > 0 && <section className="vd-section">
+            <h4 className="vd-sub">Services</h4>
+            <table className="vd-table"><tbody>
+              {visit.services.map((s, i) => (
+                <tr key={i}>
+                  <td>{s.systemNumber != null ? `System ${s.systemNumber} · ` : ''}{s.serviceName}{s.isFinish ? ' · Finish' : ''}{s.isTemporarily ? ' · Temporarily' : ''}</td>
+                  <td className="num" style={styles.right}>{s.price != null ? `$${Number(s.price).toFixed(2)}` : ''}</td>
+                </tr>
+              ))}
+            </tbody></table>
+          </section>}
+
+          {/* Items (B3) */}
+          {(visit.items ?? []).length > 0 && <section className="vd-section">
+            <h4 className="vd-sub">Items</h4>
+            <table className="vd-table"><tbody>
+              {visit.items.map((item, i) => (
+                <tr key={i}>
+                  <td>{item.itemName}{item.description ? ` — ${item.description}` : ''}</td>
+                  <td className="num" style={styles.right}>{item.quantity} × ${Number(item.price ?? 0).toFixed(2)}</td>
+                </tr>
+              ))}
+            </tbody></table>
+          </section>}
 
           {/* Weigh-in (B3) */}
-          {(visit.weighInData ?? []).length > 0 && <>
-            <div style={styles.sectionTitle}>Weigh-in</div>
+          {(visit.weighInData ?? []).length > 0 && <section className="vd-section">
+            <h4 className="vd-sub">Weigh-in</h4>
             {visit.weighInData.map(w => <WeighInSection key={w.systemNumber} data={w} />)}
-          </>}
+          </section>}
 
           {/* Photos (B3). A photo can reach the server after its Report; until
               then it shows as pending. */}
-          {(visit.photos ?? []).length > 0 && <>
-            <div style={styles.sectionTitle}>Photos</div>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px' }}>
+          {(visit.photos ?? []).length > 0 && <section className="vd-section">
+            <h4 className="vd-sub">Photos</h4>
+            <div style={styles.photos}>
               {visit.photos.map(p => (
-                <figure key={p.id} style={{ margin: 0, width: '160px' }}>
+                <figure key={p.id} className="vd-photo">
                   {p.storedAt
                     ? <a href={`/api/visits/${visit.id}/photos/${p.id}`} target="_blank" rel="noreferrer">
-                        <img src={`/api/visits/${visit.id}/photos/${p.id}`} alt={p.slug} style={{ width: '160px', height: '120px', objectFit: 'cover', display: 'block', border: '0.5px solid var(--border-subtle)' }} />
+                        <img src={`/api/visits/${visit.id}/photos/${p.id}`} alt={p.slug} />
                       </a>
-                    : <div style={{ width: '160px', height: '120px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px', color: 'var(--text-muted)', border: '0.5px dashed var(--border-default)' }}>Upload pending</div>}
-                  <figcaption style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px' }}>
+                    : <div className="pending">Upload pending</div>}
+                  <figcaption>
                     {p.label || p.tag || p.category || 'Evidence'}{p.systemNumber ? ` · System ${p.systemNumber}` : ''}
                   </figcaption>
                 </figure>
               ))}
             </div>
-          </>}
+          </section>}
+          </div>
         </div>
 
         {/* Right — property history + edit log */}
-        <div style={styles.detailRight}>
+        <div className="vd-unit" style={styles.detailCol}>
+          <div className="vd-unit-head"><span className="vd-unit-id">LOG</span><span className="vd-unit-name">Property · Edit log</span></div>
+          <div className="vd-unit-body" style={styles.scroll}>
           {/* Property history (B2) */}
-          {propertyHistory.length > 0 && <>
-            <div style={styles.sectionTitle}>Property history</div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '20px' }}>
-              {propertyHistory.map(v => (
-                <div key={v.id} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', color: 'var(--text-muted)', borderBottom: '0.5px solid var(--border-subtle)', paddingBottom: '6px' }}>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                    <span style={{ color: 'var(--text-secondary)' }}>{formatDate(v.completedAt ?? v.createdAt)}</span>
-                    <span>{v.technicianName ?? '—'}</span>
-                  </div>
-                  <div style={{ textAlign: 'right' }}>
-                    <span style={{ display: 'block', color: 'var(--text-secondary)' }}>{v.status}</span>
-                    <span>{v.totalPrice != null ? `$${Number(v.totalPrice).toFixed(2)}` : '—'}</span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </>}
+          {propertyHistory.length > 0 && <section className="vd-section">
+            <h4 className="vd-sub">Property history</h4>
+            <table className="vd-table">
+              <tbody>
+                {propertyHistory.map(v => (
+                  <tr key={v.id}>
+                    <td className="num" style={styles.nowrap}>{formatDate(v.completedAt ?? v.createdAt)}</td>
+                    <td>{v.technicianName ?? '—'}</td>
+                    <td><span className="vd-badge">{v.status}</span></td>
+                    <td className="num" style={styles.right}>{v.totalPrice != null ? `$${Number(v.totalPrice).toFixed(2)}` : '—'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </section>}
 
-          <div style={styles.sectionTitle}>Edit log</div>
-          {editLog.length === 0 ? (
-            <p style={styles.logEmpty}>No edits recorded.</p>
-          ) : (
-            <div style={styles.logList}>
-              {editLog.map((entry, i) => (
-                <div key={i} style={styles.logEntry}>
-                  <p style={styles.logMeta}>{formatDate(entry.changedAt)} · {entry.source}</p>
-                  <p style={styles.logSummary}>{entry.summary}</p>
-                </div>
-              ))}
-            </div>
-          )}
+          <section className="vd-section">
+            <h4 className="vd-sub">Edit log</h4>
+            {editLog.length === 0 ? (
+              <p className="vd-hint">No edits recorded.</p>
+            ) : (
+              <table className="vd-table">
+                <tbody>
+                  {editLog.map((entry, i) => (
+                    <tr key={i}>
+                      <td>
+                        <div className="vd-data" style={styles.logMeta}>{formatDate(entry.changedAt)} · {entry.source}</div>
+                        <div>{entry.summary}</div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </section>
+          </div>
         </div>
       </div>
     </div>
@@ -463,44 +453,24 @@ function formatPrice (val) {
   return `$${Number(val).toFixed(2)}`
 }
 
+// Layout only; the look comes from dispatch.css (vd-*).
 const styles = {
-  page:     { flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', background: 'var(--surface-base)' },
-  header:   { padding: '16px 24px', borderBottom: '0.5px solid var(--border-subtle)', display: 'flex', alignItems: 'center', gap: '16px', flexWrap: 'wrap', flexShrink: 0, background: 'var(--surface-1)' },
-  title:    { fontSize: '16px', fontWeight: 500, color: 'var(--text-primary)', flexShrink: 0 },
-  filters:  { display: 'flex', gap: '8px', flexWrap: 'wrap', flex: 1 },
-  filterInput: { background: 'var(--surface-2)', border: '0.5px solid var(--border-default)', borderRadius: '6px', color: 'var(--text-primary)', fontSize: '13px', padding: '6px 10px', outline: 'none' },
-  filterBtn:   { background: 'var(--color-signal)', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '13px', fontWeight: 500, padding: '6px 14px', cursor: 'pointer' },
-  tableWrap:   { flex: 1, overflowY: 'auto', padding: '16px 24px' },
-  loading:     { color: 'var(--text-muted)', fontSize: '14px', padding: '24px 0' },
-  empty:       { color: 'var(--text-muted)', fontSize: '14px', padding: '24px 0' },
-  table:       { width: '100%', borderCollapse: 'collapse', fontSize: '13px' },
-  th:          { text: 'left', padding: '8px 12px', color: 'var(--text-muted)', fontWeight: 500, fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.04em', borderBottom: '0.5px solid var(--border-subtle)' },
-  tr:          { borderBottom: '0.5px solid var(--border-subtle)' },
-  td:          { padding: '10px 12px', color: 'var(--text-secondary)', verticalAlign: 'middle' },
-  anomalyIcon: { marginLeft: '6px', color: 'var(--color-plasma)', fontSize: '13px' },
-  anomalyBanner: { fontSize: '12px', color: 'var(--color-plasma)', background: 'var(--plasma-tint)', padding: '4px 10px', borderRadius: '99px', border: '0.5px solid var(--plasma-border)' },
-  statusBadge: { fontSize: '11px', color: 'var(--text-muted)', background: 'var(--surface-3)', padding: '2px 8px', borderRadius: '99px' },
-  openBtn:     { background: 'none', border: '0.5px solid var(--border-default)', borderRadius: '6px', color: 'var(--text-muted)', fontSize: '12px', padding: '4px 10px', cursor: 'pointer' },
-
-  detailHeader: { padding: '14px 24px', borderBottom: '0.5px solid var(--border-subtle)', display: 'flex', alignItems: 'center', gap: '16px', flexShrink: 0, background: 'var(--surface-1)' },
-  backBtn:      { background: 'none', border: 'none', color: 'var(--text-muted)', fontSize: '13px', cursor: 'pointer', padding: 0 },
-  detailBody:   { flex: 1, display: 'flex', overflow: 'hidden' },
-  detailLeft:   { flex: '0 0 50%', padding: '20px 24px', overflowY: 'auto', borderRight: '0.5px solid var(--border-subtle)', display: 'flex', flexDirection: 'column', gap: '12px' },
-  detailRight:  { flex: '0 0 50%', padding: '20px 24px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '12px' },
-  sectionTitle: { fontSize: '11px', color: 'var(--text-disabled)', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 500 },
-  fieldsCol:    { display: 'flex', flexDirection: 'column', gap: '10px' },
-  fieldRow:     { display: 'flex', flexDirection: 'column', gap: '3px' },
-  fieldLabel:   { fontSize: '11px', color: 'var(--text-muted)', fontWeight: 500 },
-  fieldReadOnly: { color: 'var(--text-secondary)', fontSize: '13px', padding: '6px 0', minHeight: '18px' },
-  fieldReadOnlyMultiline: { color: 'var(--text-secondary)', fontSize: '13px', padding: '6px 0', whiteSpace: 'pre-wrap', minHeight: '18px', lineHeight: 1.5 },
-  checklist:    { display: 'flex', flexDirection: 'column', borderTop: '0.5px solid var(--border-subtle)' },
-  checklistRow: { display: 'flex', justifyContent: 'space-between', gap: '12px', padding: '5px 0', borderBottom: '0.5px solid var(--border-subtle)', color: 'var(--text-secondary)', fontSize: '12px' },
-  checklistAnswer: { color: 'var(--text-disabled)', fontSize: '11px', fontWeight: 500, whiteSpace: 'nowrap' },
-  checklistYes: { color: 'var(--color-signal)' },
-  checklistNo:  { color: 'var(--color-heat)' },
-  logEmpty:     { fontSize: '13px', color: 'var(--text-disabled)' },
-  logList:      { display: 'flex', flexDirection: 'column', gap: '12px' },
-  logEntry:     { display: 'flex', flexDirection: 'column', gap: '2px' },
-  logMeta:      { fontSize: '11px', color: 'var(--text-disabled)' },
-  logSummary:   { fontSize: '13px', color: 'var(--text-secondary)' },
+  page:        { flex: 1, display: 'flex', flexDirection: 'column', overflowY: 'auto', padding: '16px 18px 18px', gap: '14px' },
+  filters:     { display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'center', marginBottom: '16px' },
+  filterInput: { width: 'auto', minWidth: '140px' },
+  count:       { marginLeft: 'auto' },
+  tableScroll: { overflowX: 'auto' },
+  addr:        { fontWeight: 600 },
+  nowrap:      { whiteSpace: 'nowrap' },
+  right:       { textAlign: 'right', whiteSpace: 'nowrap' },
+  acts:        { textAlign: 'right', whiteSpace: 'nowrap' },
+  gap:         { marginLeft: '8px' },
+  anomalyIcon: { marginLeft: '6px' },
+  detailHeader: { display: 'flex', alignItems: 'center', gap: '14px', flexWrap: 'wrap', flexShrink: 0 },
+  detailTitle:  { margin: 0, fontSize: '15px' },
+  detailCol:    { minWidth: 0 },
+  scroll:       { overflowX: 'auto' },
+  model:        { fontSize: '14px', marginTop: '6px' },
+  photos:       { display: 'flex', flexWrap: 'wrap', gap: '12px' },
+  logMeta:      { fontSize: '11px', marginBottom: '2px' },
 }
