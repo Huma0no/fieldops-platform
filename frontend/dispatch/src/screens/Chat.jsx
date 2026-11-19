@@ -78,97 +78,99 @@ export default function Chat () {
 
   return (
     <div style={styles.page}>
-      {/* Sidebar */}
-      <div style={styles.sidebar}>
-        <button
-          style={{ ...styles.contactRow, ...(activeId === 'broadcast' ? styles.contactRowActive : {}) }}
-          onClick={() => openThread('broadcast')}
-        >
-          <div style={styles.avatar}>📢</div>
-          <div style={styles.contactInfo}>
-            <p style={styles.contactName}>Broadcast</p>
-            <p style={styles.contactSub}>All technicians</p>
-          </div>
-        </button>
-
-        <div style={styles.divider} />
-
-        {contacts.map(c => (
+      {/* Contacts */}
+      <div className="vd-unit" style={styles.sidebar}>
+        <div className="vd-unit-head"><span className="vd-unit-id">CH</span><span className="vd-unit-name">Channels</span></div>
+        <div style={styles.list}>
           <button
-            key={c.id}
-            style={{ ...styles.contactRow, ...(activeId === c.id ? styles.contactRowActive : {}) }}
-            onClick={() => openThread(c.id)}
+            type="button"
+            className={`vd-row${activeId === 'broadcast' ? ' on' : ''}`}
+            onClick={() => openThread('broadcast')}
           >
-            <div style={styles.avatar}>{c.name?.charAt(0)?.toUpperCase() ?? '?'}</div>
-            <div style={styles.contactInfo}>
-              <p style={styles.contactName}>{c.name}</p>
-              <p style={styles.contactSub}>{c.role ?? 'Technician'}</p>
-            </div>
+            <span className="vd-unit-id" style={styles.mark}>ALL</span>
+            <span style={styles.contactInfo}>
+              <span className="title">Broadcast</span>
+              <span className="line">All technicians</span>
+            </span>
           </button>
-        ))}
+          {contacts.map(c => (
+            <button
+              key={c.id}
+              type="button"
+              className={`vd-row${activeId === c.id ? ' on' : ''}`}
+              onClick={() => openThread(c.id)}
+            >
+              <span className="vd-unit-id" style={styles.mark}>{c.name?.charAt(0)?.toUpperCase() ?? '?'}</span>
+              <span style={styles.contactInfo}>
+                <span className="title">{c.name}</span>
+                <span className="line">{c.role ?? 'Technician'}</span>
+              </span>
+            </button>
+          ))}
+        </div>
       </div>
 
-      {/* Thread pane */}
-      {!activeId ? (
-        <div style={styles.emptyThread}>Select a contact to start messaging.</div>
-      ) : (
-        <div style={styles.threadPane}>
-          <div style={styles.threadHeader}>
-            <p style={styles.threadName}>
-              {activeId === 'broadcast' ? 'Broadcast' : activeContact?.name ?? '—'}
-            </p>
-            {activeId === 'broadcast' && (
-              <p style={styles.threadSub}>Sends to all active technicians</p>
-            )}
-          </div>
-
-          <div style={styles.messages}>
-            {loading ? (
-              <p style={styles.msgLoading}>Loading…</p>
-            ) : messages.length === 0 ? (
-              <p style={styles.msgLoading}>No messages yet.</p>
-            ) : (
-              messages.map(msg => (
-                <div key={msg.id} style={styles.bubbleWrap}>
-                  <div style={{
-                    ...styles.bubble,
-                    ...(msg.sentByMe ? styles.bubbleMine : styles.bubbleTheirs),
-                  }}>
-                    {msg.body}
-                    <span style={styles.bubbleTime}>{formatTime(msg.createdAt)}</span>
-                  </div>
-                  {activeId === 'broadcast' && msg.sentByMe && (
-                    <button style={styles.receiptBtn} onClick={() => loadReceipts(msg.id)}>
-                      receipts
-                    </button>
-                  )}
-                  {receipts?.messageId === msg.id && (
-                    <p style={styles.receiptText}>
-                      Read by {receipts.read}/{receipts.total} technicians
-                    </p>
-                  )}
-                </div>
-              ))
-            )}
-            <div ref={messagesEndRef} />
-          </div>
-
-          {sendError && <p style={styles.sendError}>{sendError}</p>}
-          <div style={styles.composer}>
-            <textarea
-              style={styles.composerInput}
-              value={text}
-              onChange={e => setText(e.target.value)}
-              onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend() } }}
-              placeholder={activeId === 'broadcast' ? 'Broadcast message…' : 'Message…'}
-              rows={1}
-            />
-            <button style={styles.sendBtn} onClick={handleSend} disabled={sending || !text.trim()}>
-              {sending ? '…' : '↑'}
-            </button>
-          </div>
+      {/* Thread */}
+      <div className="vd-unit" style={styles.threadPane}>
+        <div className="vd-unit-head">
+          <span className="vd-unit-id">MSG</span>
+          <span className="vd-unit-name">
+            {!activeId ? 'Messages' : activeId === 'broadcast' ? 'Broadcast' : activeContact?.name ?? '—'}
+          </span>
+          {activeId === 'broadcast' && <span className="vd-unit-note">Sends to all active technicians</span>}
         </div>
-      )}
+
+        {!activeId ? (
+          <p className="vd-hint" style={styles.emptyThread}>Select a contact to start messaging.</p>
+        ) : (
+          <>
+            <div style={styles.messages}>
+              {loading ? (
+                <p className="vd-hint" style={styles.msgLoading}>Loading…</p>
+              ) : messages.length === 0 ? (
+                <p className="vd-hint" style={styles.msgLoading}>No messages yet.</p>
+              ) : (
+                messages.map(msg => (
+                  <div key={msg.id} style={{ ...styles.bubbleWrap, alignItems: msg.sentByMe ? 'flex-end' : 'flex-start' }}>
+                    <div className={`vd-msg${msg.sentByMe ? ' mine' : ''}`}>
+                      {msg.body}
+                      <span className="time">{formatTime(msg.createdAt)}</span>
+                    </div>
+                    {activeId === 'broadcast' && msg.sentByMe && (
+                      <button type="button" className="vd-key sm" style={styles.receiptBtn} onClick={() => loadReceipts(msg.id)}>
+                        Receipts
+                      </button>
+                    )}
+                    {receipts?.messageId === msg.id && (
+                      <p className="vd-hint" style={styles.flush}>
+                        Read by <span className="vd-data">{receipts.read}/{receipts.total}</span> technicians
+                      </p>
+                    )}
+                  </div>
+                ))
+              )}
+              <div ref={messagesEndRef} />
+            </div>
+
+            {sendError && <p className="vd-error" style={styles.sendError}>{sendError}</p>}
+            <div style={styles.composer}>
+              <textarea
+                className="vd-input"
+                style={styles.composerInput}
+                aria-label="Message"
+                value={text}
+                onChange={e => setText(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend() } }}
+                placeholder={activeId === 'broadcast' ? 'Broadcast message…' : 'Message…'}
+                rows={1}
+              />
+              <button type="button" className="vd-key dark" onClick={handleSend} disabled={sending || !text.trim()}>
+                {sending ? 'Sending…' : 'Send'}
+              </button>
+            </div>
+          </>
+        )}
+      </div>
     </div>
   )
 }
@@ -179,32 +181,21 @@ function formatTime (iso) {
   catch (_) { return '' }
 }
 
+// Layout only; the look comes from dispatch.css (vd-*).
 const styles = {
-  page:         { flex:1, display:'flex', overflow:'hidden', background:'var(--surface-base)' },
-  sidebar:      { width:'220px', flexShrink:0, borderRight:'0.5px solid var(--border-subtle)', overflowY:'auto', background:'var(--surface-1)', display:'flex', flexDirection:'column' },
-  contactRow:   { display:'flex', alignItems:'center', gap:'12px', padding:'10px 16px', background:'none', border:'none', cursor:'pointer', width:'100%', textAlign:'left' },
-  contactRowActive: { background:'var(--signal-tint)' },
-  avatar:       { width:'34px', height:'34px', borderRadius:'50%', background:'var(--surface-3)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:'13px', fontWeight:600, color:'var(--text-primary)', flexShrink:0 },
-  contactInfo:  { minWidth:0 },
-  contactName:  { fontSize:'13px', fontWeight:500, color:'var(--text-primary)', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' },
-  contactSub:   { fontSize:'11px', color:'var(--text-muted)' },
-  divider:      { height:'0.5px', background:'var(--border-subtle)' },
-  emptyThread:  { flex:1, display:'flex', alignItems:'center', justifyContent:'center', fontSize:'13px', color:'var(--text-disabled)' },
-  threadPane:   { flex:1, display:'flex', flexDirection:'column', overflow:'hidden' },
-  threadHeader: { padding:'12px 16px', borderBottom:'0.5px solid var(--border-subtle)', background:'var(--surface-1)', flexShrink:0 },
-  threadName:   { fontSize:'14px', fontWeight:500, color:'var(--text-primary)' },
-  threadSub:    { fontSize:'12px', color:'var(--text-muted)' },
-  messages:     { flex:1, overflowY:'auto', padding:'16px', display:'flex', flexDirection:'column', gap:'8px' },
-  msgLoading:   { fontSize:'13px', color:'var(--text-disabled)', textAlign:'center', margin:'auto' },
-  bubbleWrap:   { display:'flex', flexDirection:'column', gap:'2px' },
-  bubble:       { maxWidth:'70%', padding:'8px 12px', borderRadius:'12px', fontSize:'13px', lineHeight:1.4 },
-  bubbleMine:   { background:'var(--color-signal)', color:'#fff', alignSelf:'flex-end', borderBottomRightRadius:'4px' },
-  bubbleTheirs: { background:'var(--surface-2)', color:'var(--text-primary)', alignSelf:'flex-start', borderBottomLeftRadius:'4px' },
-  bubbleTime:   { display:'block', fontSize:'9px', opacity:0.6, marginTop:'3px', textAlign:'right' },
-  receiptBtn:   { background:'none', border:'none', color:'var(--text-disabled)', fontSize:'11px', cursor:'pointer', padding:'0 4px', alignSelf:'flex-end' },
-  receiptText:  { fontSize:'11px', color:'var(--text-muted)', alignSelf:'flex-end', paddingRight:'4px' },
-  sendError:    { fontSize:'11px', color:'var(--color-heat)', padding:'4px 16px 0', flexShrink:0 },
-  composer:     { display:'flex', alignItems:'flex-end', gap:'8px', padding:'12px 16px', borderTop:'0.5px solid var(--border-subtle)', background:'var(--surface-1)', flexShrink:0 },
-  composerInput:{ flex:1, background:'var(--surface-2)', border:'0.5px solid var(--border-default)', borderRadius:'12px', color:'var(--text-primary)', fontSize:'13px', fontFamily:'var(--font-sans)', padding:'8px 12px', outline:'none', resize:'none', lineHeight:1.4 },
-  sendBtn:      { width:'36px', height:'36px', borderRadius:'50%', background:'var(--color-signal)', border:'none', color:'#fff', fontSize:'18px', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 },
+  page:         { flex: 1, minHeight: 0, display: 'flex', gap: '18px', padding: '16px 18px 18px', overflow: 'hidden' },
+  sidebar:      { width: '250px', flexShrink: 0, display: 'flex', flexDirection: 'column', minHeight: 0 },
+  list:         { overflowY: 'auto', flex: 1 },
+  mark:         { width: '30px', textAlign: 'center', flexShrink: 0 },
+  contactInfo:  { display: 'flex', flexDirection: 'column', minWidth: 0 },
+  threadPane:   { flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', minHeight: 0 },
+  emptyThread:  { margin: 'auto', fontSize: '12px' },
+  messages:     { flex: 1, overflowY: 'auto', padding: '16px 18px', display: 'flex', flexDirection: 'column', gap: '10px' },
+  msgLoading:   { margin: 'auto' },
+  bubbleWrap:   { display: 'flex', flexDirection: 'column', gap: '4px' },
+  receiptBtn:   { alignSelf: 'flex-end' },
+  flush:        { margin: 0 },
+  sendError:    { padding: '0 18px 6px' },
+  composer:     { display: 'flex', alignItems: 'flex-end', gap: '10px', padding: '12px 18px', borderTop: '2px solid var(--vd-ink)', background: 'var(--vd-panel)' },
+  composerInput:{ flex: 1, resize: 'none', lineHeight: 1.4 },
 }

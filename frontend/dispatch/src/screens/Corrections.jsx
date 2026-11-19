@@ -8,9 +8,9 @@ import { useState, useEffect, useRef } from 'react'
 import { api } from '@shared/api.js'
 
 const STATUS_LABEL = {
-  open:    { text: 'Open',    color: 'var(--color-plasma)', bg: 'var(--plasma-tint)'   },
-  applied: { text: 'Applied', color: '#22C55E',              bg: 'rgba(34,197,94,0.12)' },
-  expired: { text: 'Expired', color: 'var(--text-disabled)', bg: 'var(--surface-3)'     },
+  open:    { text: 'Open',    variant: ' solid' },
+  applied: { text: 'Applied', variant: ''       },
+  expired: { text: 'Expired', variant: ' hatch' },
 }
 
 const CHECKLIST_ITEMS = [
@@ -83,27 +83,27 @@ export default function Corrections ({ initialVisitId }) {
 
   return (
     <div style={styles.page}>
-      <div style={styles.header}>
-        <h2 style={styles.title}>Corrections</h2>
+      <div className="vd-unit-head" style={styles.header}>
+        <h2 className="vd-unit-name" style={styles.title}>Corrections</h2>
         <div style={{ display: 'flex', gap: '6px' }}>
           {openCount > 0 && (
-            <span style={styles.count}>{openCount} open</span>
+            <span className="vd-badge solid">{openCount} open</span>
           )}
-          <button style={styles.openBtn} onClick={() => setFinding(true)}>Find Report</button>
+          <button className="vd-key sm" onClick={() => setFinding(true)}>Find Report</button>
         </div>
       </div>
 
       <div style={styles.tableWrap}>
         {loading ? (
-          <p style={styles.muted}>Loading…</p>
+          <p className="vd-hint" style={styles.flush}>Loading…</p>
         ) : corrections.length === 0 ? (
-          <p style={styles.muted}>No correction requests. Use Find Report to start a dispatcher correction.</p>
+          <p className="vd-hint" style={styles.flush}>No correction requests. Use Find Report to start a dispatcher correction.</p>
         ) : (
-          <table style={styles.table}>
+          <table className="vd-table">
             <thead>
               <tr>
                 {['Technician','Address','Date','Message','Status',''].map(h => (
-                  <th key={h} style={styles.th}>{h}</th>
+                  <th key={h}>{h}</th>
                 ))}
               </tr>
             </thead>
@@ -111,20 +111,18 @@ export default function Corrections ({ initialVisitId }) {
               {corrections.map(c => {
                 const s = STATUS_LABEL[c.status] ?? STATUS_LABEL.open
                 return (
-                  <tr key={c.id} style={styles.tr}>
-                    <td style={styles.td}>{c.requestedBy?.name ?? '—'}</td>
-                    <td style={styles.td}>{c.address?.street ?? '—'}</td>
-                    <td style={styles.td}>{formatDate(c.requestedAt)}</td>
-                    <td style={{ ...styles.td, maxWidth: '260px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  <tr key={c.id}>
+                    <td>{c.requestedBy?.name ?? '—'}</td>
+                    <td>{c.address?.street ?? '—'}</td>
+                    <td>{formatDate(c.requestedAt)}</td>
+                    <td style={styles.message}>
                       {c.message ?? '—'}
                     </td>
-                    <td style={styles.td}>
-                      <span style={{ fontSize: '11px', fontWeight: 500, color: s.color, background: s.bg, padding: '2px 10px', borderRadius: '99px' }}>
-                        {s.text}
-                      </span>
+                    <td>
+                      <span className={`vd-badge${s.variant}`}>{s.text}</span>
                     </td>
-                    <td style={styles.td}>
-                      <button style={styles.openBtn} onClick={() => openCorrection(c)}>Open</button>
+                    <td>
+                      <button className="vd-key sm" onClick={() => openCorrection(c)}>Open</button>
                     </td>
                   </tr>
                 )
@@ -230,16 +228,16 @@ function CorrectionDetail ({ correction, onBack }) {
   if (applied) {
     return (
       <div style={styles.page}>
-        <div style={styles.header}>
-          <button style={styles.backBtn} onClick={onBack}>← Corrections</button>
+        <div className="vd-unit-head" style={styles.header}>
+          <button className="vd-key sm" onClick={onBack}>← Corrections</button>
         </div>
         <div style={styles.doneWrap}>
-          <p style={{ fontSize: '32px' }}>✓</p>
-          <p style={{ fontSize: '16px', fontWeight: 500, color: 'var(--text-primary)' }}>Correction applied</p>
-          <p style={{ fontSize: '13px', color: 'var(--text-muted)', maxWidth: '320px', textAlign: 'center' }}>
+          <span className="vd-badge solid">✓ Applied</span>
+          <p className="vd-stencil" style={styles.flush}>Correction applied</p>
+          <p className="vd-hint" style={styles.doneText}>
             The structured source data was corrected and the report will regenerate from it. Resolved total: ${Number(appliedTotal ?? snapshot.totalPrice ?? 0).toFixed(2)}. History remains read-only.
           </p>
-          <button style={styles.openBtn} onClick={onBack}>Back to list</button>
+          <button className="vd-key sm" onClick={onBack}>Back to list</button>
         </div>
       </div>
     )
@@ -247,25 +245,25 @@ function CorrectionDetail ({ correction, onBack }) {
 
   return (
     <div style={styles.page}>
-      <div style={styles.header}>
-        <button style={styles.backBtn} onClick={onBack}>← Corrections</button>
-        <h2 style={styles.title}>{correction.address?.street ?? 'Correction request'}</h2>
+      <div className="vd-unit-head" style={styles.header}>
+        <button className="vd-key sm" onClick={onBack}>← Corrections</button>
+        <h2 className="vd-unit-name" style={styles.title}>{correction.address?.street ?? 'Correction request'}</h2>
       </div>
 
       <div style={styles.detailBody}>
 
         {/* Request info */}
         <div style={styles.section}>
-          <p style={styles.sectionTitle}>Request</p>
-          <div style={styles.infoGrid}>
+          <h4 className="vd-sub">Request</h4>
+          <dl className="vd-kv">
             <InfoRow label="Initiator" value={correction.initiator?.name} />
             <InfoRow label="Origin" value={correction.origin === 'dispatcher_initiated' ? 'Dispatcher initiated' : 'Technician requested'} />
             <InfoRow label="Date"       value={formatDate(correction.requestedAt)} />
-          </div>
+          </dl>
         </div>
 
         {correction.requestMessage && <div style={styles.section}>
-          <p style={styles.sectionTitle}>Technician request</p>
+          <h4 className="vd-sub">Technician request</h4>
           <div style={styles.messageBox}>
             <p style={styles.messageText}>{correction.requestMessage}</p>
           </div>
@@ -273,28 +271,28 @@ function CorrectionDetail ({ correction, onBack }) {
 
         {isOpen && (
           <div style={styles.section}>
-            <p style={styles.sectionTitle}>Job and property</p>
-            <div style={styles.editorGrid}>
-              <label>Order #<input style={styles.input} value={jobContext.orderNumber} onChange={e => updateJob('orderNumber', e.target.value)} /></label>
-              <label>Scheduled date<input type="date" style={styles.input} value={jobContext.scheduledDate} onChange={e => updateJob('scheduledDate', e.target.value)} /></label>
-              <label>Scheduled time<input style={styles.input} value={jobContext.scheduledTime} onChange={e => updateJob('scheduledTime', e.target.value)} /></label>
-              <label>Work type<input style={styles.input} value={jobContext.workType} onChange={e => updateJob('workType', e.target.value)} /></label>
-              <label>Builder<input style={styles.input} value={propertyContext.builder} onChange={e => updateProperty('builder', e.target.value)} /></label>
-              <label style={{ gridColumn:'1 / -1' }}>Street<input style={styles.input} value={propertyContext.street} onChange={e => updateProperty('street', e.target.value)} /></label>
-              <label>City<input style={styles.input} value={propertyContext.city} onChange={e => updateProperty('city', e.target.value)} /></label>
-              <label>State<input style={styles.input} value={propertyContext.state} onChange={e => updateProperty('state', e.target.value)} /></label>
-              <label>ZIP<input style={styles.input} value={propertyContext.zip} onChange={e => updateProperty('zip', e.target.value)} /></label>
-              <label>Subdivision<input style={styles.input} value={propertyContext.subdivision} onChange={e => updateProperty('subdivision', e.target.value)} /></label>
-              <label>Contact name<input style={styles.input} value={jobContext.contactName} onChange={e => updateJob('contactName', e.target.value)} /></label>
-              <label>Contact phone<input style={styles.input} value={jobContext.contactPhone} onChange={e => updateJob('contactPhone', e.target.value)} /></label>
-              <label>Contact channel<input style={styles.input} value={jobContext.contactChannel} onChange={e => updateJob('contactChannel', e.target.value)} /></label>
-              <label style={{ gridColumn:'1 / -1' }}>Company notes<textarea style={styles.textarea} value={jobContext.companyNotes} onChange={e => updateJob('companyNotes', e.target.value)} rows={2} /></label>
+            <h4 className="vd-sub">Job and property</h4>
+            <div className="vd-form-grid">
+              <label>Order #<input className="vd-input sm" value={jobContext.orderNumber} onChange={e => updateJob('orderNumber', e.target.value)} /></label>
+              <label>Scheduled date<input type="date" className="vd-input sm" value={jobContext.scheduledDate} onChange={e => updateJob('scheduledDate', e.target.value)} /></label>
+              <label>Scheduled time<input className="vd-input sm" value={jobContext.scheduledTime} onChange={e => updateJob('scheduledTime', e.target.value)} /></label>
+              <label>Work type<input className="vd-input sm" value={jobContext.workType} onChange={e => updateJob('workType', e.target.value)} /></label>
+              <label>Builder<input className="vd-input sm" value={propertyContext.builder} onChange={e => updateProperty('builder', e.target.value)} /></label>
+              <label style={{ gridColumn:'1 / -1' }}>Street<input className="vd-input sm" value={propertyContext.street} onChange={e => updateProperty('street', e.target.value)} /></label>
+              <label>City<input className="vd-input sm" value={propertyContext.city} onChange={e => updateProperty('city', e.target.value)} /></label>
+              <label>State<input className="vd-input sm" value={propertyContext.state} onChange={e => updateProperty('state', e.target.value)} /></label>
+              <label>ZIP<input className="vd-input sm" value={propertyContext.zip} onChange={e => updateProperty('zip', e.target.value)} /></label>
+              <label>Subdivision<input className="vd-input sm" value={propertyContext.subdivision} onChange={e => updateProperty('subdivision', e.target.value)} /></label>
+              <label>Contact name<input className="vd-input sm" value={jobContext.contactName} onChange={e => updateJob('contactName', e.target.value)} /></label>
+              <label>Contact phone<input className="vd-input sm" value={jobContext.contactPhone} onChange={e => updateJob('contactPhone', e.target.value)} /></label>
+              <label>Contact channel<input className="vd-input sm" value={jobContext.contactChannel} onChange={e => updateJob('contactChannel', e.target.value)} /></label>
+              <label style={{ gridColumn:'1 / -1' }}>Company notes<textarea className="vd-input sm" value={jobContext.companyNotes} onChange={e => updateJob('companyNotes', e.target.value)} rows={2} /></label>
             </div>
           </div>
         )}
 
         {isOpen && <div style={styles.section}>
-          <p style={styles.sectionTitle}>Service</p>
+          <h4 className="vd-sub">Service</h4>
           {/* W1c: one service per system, or a call-wide Drive Run. */}
           <label style={styles.checkRow}>Drive Run (whole call)
             <input type="checkbox" checked={service.driveRun} onChange={e => { setService(current => ({ ...current, driveRun: e.target.checked })); setDirty(current => ({ ...current, service: true })) }} />
@@ -302,9 +300,9 @@ function CorrectionDetail ({ correction, onBack }) {
           {!service.driveRun && service.rows.map(row => {
             const update = patch => { setService(current => ({ ...current, rows: current.rows.map(r => r.systemNumber === row.systemNumber ? { ...r, ...patch } : r) })); setDirty(current => ({ ...current, service: true })) }
             const acHeat = AC_HEAT_SERVICES.has(row.serviceName)
-            return <div key={row.systemNumber} style={styles.editorGrid}>
+            return <div key={row.systemNumber} className="vd-form-grid">
               <label>System {row.systemNumber}
-                <select style={styles.input} value={row.serviceName} onChange={e => {
+                <select className="vd-input sm" value={row.serviceName} onChange={e => {
                   const name = e.target.value
                   update({ serviceName: name, isFinish: name === 'Finish' ? true : name === 'Prestart' ? false : row.isFinish, isTemporarily: AC_HEAT_SERVICES.has(name) ? row.isTemporarily : false })
                 }}>
@@ -319,13 +317,13 @@ function CorrectionDetail ({ correction, onBack }) {
               </label>}
             </div>
           })}
-          {snapshot.terminalStatus === 'temporarily' && <p style={styles.hintText}>This report remains Temporarily; terminal status is not editable in Corrections.</p>}
-          <p style={styles.hintText}>Current resolved total: ${Number(snapshot.totalPrice ?? 0).toFixed(2)}. The server recalculates it only when Apply is used.</p>
+          {snapshot.terminalStatus === 'temporarily' && <p className="vd-hint" style={styles.flush}>This report remains Temporarily; terminal status is not editable in Corrections.</p>}
+          <p className="vd-hint" style={styles.flush}>Current resolved total: ${Number(snapshot.totalPrice ?? 0).toFixed(2)}. The server recalculates it only when Apply is used.</p>
         </div>}
 
         {isOpen && <details style={styles.collapsible}>
           <summary style={styles.collapsibleSummary}>Systems and equipment <span>▸</span></summary>
-          <div style={styles.editorGrid}>
+          <div className="vd-form-grid">
             {systems.map(system => {
               const measurement = weighIn.find(row => row.systemNumber === system.systemNumber)
               return <div key={system.systemNumber} style={{ gridColumn:'1 / -1', ...styles.systemPanel }}>
@@ -334,22 +332,22 @@ function CorrectionDetail ({ correction, onBack }) {
                 <CatalogModelSelect label="Indoor equipment" value={system.indoorModel} onChange={value => updateSystem(system.systemNumber, 'indoorModel', value)} models={catalog.equipment.filter(item => item.unit_type === 'furnace' || item.unit_type === 'air_handler')} />
                 <CatalogModelSelect label="Outdoor equipment" value={system.outdoorModel} onChange={value => updateSystem(system.systemNumber, 'outdoorModel', value)} models={catalog.equipment.filter(item => item.unit_type === 'condenser' || item.unit_type === 'heat_pump')} />
                 <CatalogModelSelect label="Coil" value={system.coilModel} onChange={value => updateSystem(system.systemNumber, 'coilModel', value)} models={catalog.equipment.filter(item => item.unit_type === 'coil')} />
-                <label>Refrigerant (catalog-derived)<input style={styles.input} value={catalog.equipment.find(item => item.model === system.outdoorModel)?.refrigerant ?? system.refrigerant ?? ''} readOnly /></label>
+                <label>Refrigerant (catalog-derived)<input className="vd-input sm" value={catalog.equipment.find(item => item.model === system.outdoorModel)?.refrigerant ?? system.refrigerant ?? ''} readOnly /></label>
               </div>
               {measurement ? <details style={styles.weighDisclosure}>
                 <summary style={styles.systemSummary}>Weigh-In {system.systemNumber} <span>▸</span></summary>
                 <WeighInFields row={measurement} catalog={catalog} onChange={updateWeighIn} />
-              </details> : <button type="button" style={styles.openBtn} onClick={() => { setWeighIn(current => [...current, { systemNumber: system.systemNumber, linesetLength: null, factoryLineConfig: '', factoryChargeOz: null, adjustedOz: null, fanSpeedCfm: null, liquidLineTemp: null, suctionLineTemp: null, condenserSatTemp: null }]); setDirty(current => ({ ...current, weighIn: true })) }}>Add Weigh-In</button>}
+              </details> : <button type="button" className="vd-key sm" onClick={() => { setWeighIn(current => [...current, { systemNumber: system.systemNumber, linesetLength: null, factoryLineConfig: '', factoryChargeOz: null, adjustedOz: null, fanSpeedCfm: null, liquidLineTemp: null, suctionLineTemp: null, condenserSatTemp: null }]); setDirty(current => ({ ...current, weighIn: true })) }}>Add Weigh-In</button>}
             </div>})}
           </div>
-          <p style={styles.hintText}>Existing systems can be corrected; system count/topology is not changed here.</p>
+          <p className="vd-hint" style={styles.flush}>Existing systems can be corrected; system count/topology is not changed here.</p>
         </details>}
 
         {isOpen && <div style={styles.section}>
-          <p style={styles.sectionTitle}>Thermostat</p>
-          <div style={styles.editorGrid}>
+          <h4 className="vd-sub">Thermostat</h4>
+          <div className="vd-form-grid">
             <label>Catalog thermostat
-              <select style={styles.input} value={thermostat?.itemName ?? ''} onChange={e => {
+              <select className="vd-input sm" value={thermostat?.itemName ?? ''} onChange={e => {
                 const next = e.target.value
                 setItems(current => [...current.filter(item => item.category !== 'thermostat'), ...(next ? [{ itemName: next, category: 'thermostat', quantity: 1, price: 0, description: '' }] : [])]); setDirty(current => ({ ...current, items: true }))
               }}>
@@ -357,16 +355,16 @@ function CorrectionDetail ({ correction, onBack }) {
               </select>
             </label>
             {thermostat && <label>Quantity
-              <input style={styles.input} type="number" min="1" value={thermostat.quantity} onChange={e => updateItem(thermostat.itemName, { quantity: Number(e.target.value) })} />
+              <input className="vd-input sm" type="number" min="1" value={thermostat.quantity} onChange={e => updateItem(thermostat.itemName, { quantity: Number(e.target.value) })} />
             </label>}
           </div>
         </div>}
 
         {isOpen && <div style={styles.section}>
-          <p style={styles.sectionTitle}>Accessories and fixes</p>
-          <div style={styles.editorGrid}>
+          <h4 className="vd-sub">Accessories and fixes</h4>
+          <div className="vd-form-grid">
             <label style={{ gridColumn: '1 / -1' }}>Add catalog item
-              <select style={styles.input} defaultValue="" onChange={e => { addItem(e.target.value); e.target.value = '' }}>
+              <select className="vd-input sm" defaultValue="" onChange={e => { addItem(e.target.value); e.target.value = '' }}>
                 <option value="">Select…</option>{selectableItems.filter(item => !items.some(selected => selected.itemName === item.item_name)).map(item => <option key={item.item_name} value={item.item_name}>{item.category === 'fix' ? 'Fix — ' : 'Accessory — '}{item.item_name}</option>)}
               </select>
             </label>
@@ -374,12 +372,12 @@ function CorrectionDetail ({ correction, onBack }) {
               const definition = catalog.items.find(entry => entry.item_name === item.itemName)
               const custom = definition?.custom_price
               const needsDescription = item.itemName === 'Other' || item.itemName === 'Other Fix'
-              return <div key={item.itemName} style={{ gridColumn: '1 / -1', borderTop: '0.5px solid var(--border-subtle)', paddingTop: '8px' }}>
-                <strong>{item.itemName}</strong> <button type="button" style={styles.backBtn} onClick={() => { setItems(current => current.filter(selected => selected.itemName !== item.itemName)); setDirty(current => ({ ...current, items: true })) }}>Remove</button>
+              return <div key={item.itemName} style={styles.itemRow}>
+                <strong style={styles.itemName}>{item.itemName}</strong> <button type="button" className="vd-key sm" onClick={() => { setItems(current => current.filter(selected => selected.itemName !== item.itemName)); setDirty(current => ({ ...current, items: true })) }}>Remove</button>
                 <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(130px, 1fr))', gap:'8px', marginTop:'6px' }}>
-                  <label>Quantity<input style={styles.input} type="number" min="1" value={item.quantity} onChange={e => updateItem(item.itemName, { quantity: Number(e.target.value) })} /></label>
-                  {custom && <label>Price<input style={styles.input} type="number" min="0" step="0.01" value={item.price} onChange={e => updateItem(item.itemName, { price: Number(e.target.value) })} /></label>}
-                  {needsDescription && <label>Description<input style={styles.input} value={item.description ?? ''} onChange={e => updateItem(item.itemName, { description: e.target.value })} /></label>}
+                  <label>Quantity<input className="vd-input sm" type="number" min="1" value={item.quantity} onChange={e => updateItem(item.itemName, { quantity: Number(e.target.value) })} /></label>
+                  {custom && <label>Price<input className="vd-input sm" type="number" min="0" step="0.01" value={item.price} onChange={e => updateItem(item.itemName, { price: Number(e.target.value) })} /></label>}
+                  {needsDescription && <label>Description<input className="vd-input sm" value={item.description ?? ''} onChange={e => updateItem(item.itemName, { description: e.target.value })} /></label>}
                 </div>
               </div>
             })}
@@ -388,10 +386,10 @@ function CorrectionDetail ({ correction, onBack }) {
 
         {isOpen && <details style={styles.collapsible}>
           <summary style={styles.collapsibleSummary}>Checklist <span>▸</span></summary>
-          <div style={styles.editorGrid}>
+          <div className="vd-form-grid">
             <div style={{ gridColumn:'1 / -1' }}>
               {CHECKLIST_ITEMS.map(([key, label]) => <label key={key} style={styles.checkRow}>{label}
-                <select style={styles.select} value={answers[key] ?? ''} onChange={e => { setAnswers(prev => ({ ...prev, [key]: e.target.value || undefined })); setDirty(current => ({ ...current, checklist: true })) }}>
+                <select className="vd-input sm" style={styles.select} value={answers[key] ?? ''} onChange={e => { setAnswers(prev => ({ ...prev, [key]: e.target.value || undefined })); setDirty(current => ({ ...current, checklist: true })) }}>
                   <option value="">Unanswered</option><option value="yes">Yes</option><option value="no">No</option>
                 </select>
               </label>)}
@@ -400,29 +398,29 @@ function CorrectionDetail ({ correction, onBack }) {
         </details>}
 
         {isOpen && <div style={styles.section}>
-          <p style={styles.sectionTitle}>Notes</p>
-          <label>Notes<textarea style={styles.textarea} value={notes} onChange={e => { setNotes(e.target.value); setDirty(current => ({ ...current, notes: true })) }} rows={3} /></label>
-          <label>Note (optional)<textarea style={styles.textarea} value={note} onChange={e => setNote(e.target.value)} rows={2} /></label>
+          <h4 className="vd-sub">Notes</h4>
+          <label>Notes<textarea className="vd-input sm" value={notes} onChange={e => { setNotes(e.target.value); setDirty(current => ({ ...current, notes: true })) }} rows={3} /></label>
+          <label>Note (optional)<textarea className="vd-input sm" value={note} onChange={e => setNote(e.target.value)} rows={2} /></label>
         </div>}
 
         {(snapshot.photos ?? []).length > 0 && <div style={styles.section}>
-          <p style={styles.sectionTitle}>Photos / evidence</p>
+          <h4 className="vd-sub">Photos / evidence</h4>
           <div style={{ display:'flex', gap:'6px', flexWrap:'wrap' }}>
-            {snapshot.photos.map(photo => <span key={photo.id} style={styles.evidenceChip} title="Evidence is read-only after completion">
+            {snapshot.photos.map(photo => <span key={photo.id} className="vd-chip" title="Evidence is read-only after completion">
               {photo.label || photo.tag || photo.category || 'Evidence'}{photo.system_number ? ` · System ${photo.system_number}` : ''}
             </span>)}
           </div>
-          <p style={styles.hintText}>Evidence is read-only in Corrections. Image preview is unavailable until Dispatch has an authorized image-serving endpoint.</p>
+          <p className="vd-hint" style={styles.flush}>Evidence is read-only in Corrections. Image preview is unavailable until Dispatch has an authorized image-serving endpoint.</p>
         </div>}
 
         {/* Actions */}
         {isOpen && (
           <div style={styles.actionsWrap}>
-            {actionError && <p style={styles.errorText}>{actionError}</p>}
-            <p style={styles.hintText}>
+            {actionError && <p className="vd-error">{actionError}</p>}
+            <p className="vd-hint" style={styles.flush}>
               Total is recalculated by the server when this correction is applied; it cannot be edited here. Applied changes preserve the terminal status.
             </p>
-            <button style={styles.approveBtn} onClick={handleApply} disabled={applying}>
+            <button className="vd-key dark" onClick={handleApply} disabled={applying}>
               {applying ? 'Applying…' : 'Apply'}
             </button>
           </div>
@@ -430,7 +428,7 @@ function CorrectionDetail ({ correction, onBack }) {
 
         {!isOpen && (
           <div style={styles.resolvedNote}>
-            <p style={{ fontSize: '13px', color: 'var(--text-muted)' }}>
+            <p style={styles.flush}>
               This correction is <strong>{correction.status}</strong>.
             </p>
           </div>
@@ -465,18 +463,18 @@ function Finder ({ onBack, onStarted, initialVisitId }) {
       onStarted(await api.get(`/dispatch/corrections/${created.correctionId}`))
     } catch (err) { setError(err.message ?? 'Could not begin correction.') }
   }
-  return <div style={styles.page}><div style={styles.header}><button style={styles.backBtn} onClick={onBack}>Requested Corrections</button><h2 style={styles.title}>Find Report</h2></div>
-    <div style={styles.detailBody}><div style={styles.editorGrid}>
-      <label>Order #<input style={styles.input} value={filters.orderNumber} onChange={e => setFilters(f => ({ ...f, orderNumber:e.target.value }))} /></label>
-      <label>Address<input style={styles.input} value={filters.address} onChange={e => setFilters(f => ({ ...f, address:e.target.value }))} /></label>
-      <label>Technician<input style={styles.input} value={filters.technician} onChange={e => setFilters(f => ({ ...f, technician:e.target.value }))} /></label>
-      <label>Exact date<input style={styles.input} type="date" value={filters.date} onChange={e => setFilters(f => ({ ...f, date:e.target.value }))} /></label>
-      <label>From<input style={styles.input} type="date" value={filters.dateFrom} onChange={e => setFilters(f => ({ ...f, dateFrom:e.target.value }))} /></label>
-      <label>To<input style={styles.input} type="date" value={filters.dateTo} onChange={e => setFilters(f => ({ ...f, dateTo:e.target.value }))} /></label>
-    </div><button style={styles.openBtn} onClick={search}>Search</button>
-    {results.map(visit => <button key={visit.id} style={{ ...styles.messageBox, textAlign:'left', cursor:'pointer' }} onClick={() => setSelected(visit)}>{formatDate(visit.completedAt)} · {visit.orderNumber || 'No order #'} · {visit.address.street} · {visit.technician?.name || 'Unassigned'} · {visit.status} · ${Number(visit.totalPrice ?? 0).toFixed(2)}</button>)}
-    {selected && <div style={styles.messageBox}><p style={styles.messageText}>Selected: {selected.address.street} — current report data remains read-only until Apply.</p><button style={styles.approveBtn} onClick={begin}>Open Correction</button></div>}
-    {error && <p style={styles.errorText}>{error}</p>}</div></div>
+  return <div style={styles.page}><div className="vd-unit-head" style={styles.header}><button className="vd-key sm" onClick={onBack}>Requested Corrections</button><h2 className="vd-unit-name" style={styles.title}>Find Report</h2></div>
+    <div style={styles.detailBody}><div className="vd-form-grid">
+      <label>Order #<input className="vd-input sm" value={filters.orderNumber} onChange={e => setFilters(f => ({ ...f, orderNumber:e.target.value }))} /></label>
+      <label>Address<input className="vd-input sm" value={filters.address} onChange={e => setFilters(f => ({ ...f, address:e.target.value }))} /></label>
+      <label>Technician<input className="vd-input sm" value={filters.technician} onChange={e => setFilters(f => ({ ...f, technician:e.target.value }))} /></label>
+      <label>Exact date<input className="vd-input sm" type="date" value={filters.date} onChange={e => setFilters(f => ({ ...f, date:e.target.value }))} /></label>
+      <label>From<input className="vd-input sm" type="date" value={filters.dateFrom} onChange={e => setFilters(f => ({ ...f, dateFrom:e.target.value }))} /></label>
+      <label>To<input className="vd-input sm" type="date" value={filters.dateTo} onChange={e => setFilters(f => ({ ...f, dateTo:e.target.value }))} /></label>
+    </div><button type="button" className="vd-key dark" style={styles.searchBtn} onClick={search}>Search</button>
+    {results.map(visit => <button type="button" key={visit.id} style={styles.resultRow} onClick={() => setSelected(visit)}>{formatDate(visit.completedAt)} · {visit.orderNumber || 'No order #'} · {visit.address.street} · {visit.technician?.name || 'Unassigned'} · {visit.status} · ${Number(visit.totalPrice ?? 0).toFixed(2)}</button>)}
+    {selected && <div style={styles.messageBox}><p style={styles.messageText}>Selected: {selected.address.street} — current report data remains read-only until Apply.</p><button className="vd-key dark" onClick={begin}>Open Correction</button></div>}
+    {error && <p className="vd-error">{error}</p>}</div></div>
 }
 
 const SYSTEM_SERVICE_NAMES = ['AC', 'Heat', 'AC & Heat', 'Prestart', 'Finish']
@@ -552,7 +550,7 @@ function normalizeSystems (rows) {
 
 function CatalogModelSelect ({ label, value, onChange, models }) {
   const hasCurrent = value && !models.some(model => model.model === value)
-  return <label>{label}<select style={styles.input} value={value ?? ''} onChange={event => onChange(event.target.value)}>
+  return <label>{label}<select className="vd-input sm" value={value ?? ''} onChange={event => onChange(event.target.value)}>
     <option value="">Not recorded</option>
     {hasCurrent && <option value={value}>{value} (stored)</option>}
     {models.map(model => <option key={model.model} value={model.model}>{model.brand} {model.model}</option>)}
@@ -562,30 +560,25 @@ function CatalogModelSelect ({ label, value, onChange, models }) {
 function WeighInFields ({ row, catalog, onChange }) {
   return <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(130px, 1fr))', gap:'8px', marginTop:'6px' }}>
     <NumberField label="Lineset length" value={row.linesetLength} onChange={value => onChange(row.systemNumber, 'linesetLength', value)} />
-    <label>Factory line config<select style={styles.input} value={row.factoryLineConfig ?? ''} onChange={e => onChange(row.systemNumber, 'factoryLineConfig', e.target.value)}><option value="">Select…</option>{catalog.linesets.map(config => <option key={config.config_key} value={config.config_key}>{config.config_key}</option>)}</select></label>
+    <label>Factory line config<select className="vd-input sm" value={row.factoryLineConfig ?? ''} onChange={e => onChange(row.systemNumber, 'factoryLineConfig', e.target.value)}><option value="">Select…</option>{catalog.linesets.map(config => <option key={config.config_key} value={config.config_key}>{config.config_key}</option>)}</select></label>
     <NumberField label="Factory charge oz" value={row.factoryChargeOz} onChange={value => onChange(row.systemNumber, 'factoryChargeOz', value)} />
     <NumberField label="Adjusted oz" value={row.adjustedOz} onChange={value => onChange(row.systemNumber, 'adjustedOz', value)} />
     <NumberField label="Fan speed CFM" value={row.fanSpeedCfm} onChange={value => onChange(row.systemNumber, 'fanSpeedCfm', value)} />
     <NumberField label="Liquid line temp" value={row.liquidLineTemp} onChange={value => onChange(row.systemNumber, 'liquidLineTemp', value)} />
     <NumberField label="Suction line temp" value={row.suctionLineTemp} onChange={value => onChange(row.systemNumber, 'suctionLineTemp', value)} />
     <NumberField label="Condenser saturation temp" value={row.condenserSatTemp} onChange={value => onChange(row.systemNumber, 'condenserSatTemp', value)} />
-    <label>Approx. adjustment (derived)<input style={styles.input} value={row.approxAdjustOz ?? ''} readOnly /></label>
-    <label>Subcooling (derived)<input style={styles.input} value={row.subcoolingValue ?? ''} readOnly /></label>
-    <label>Subcooling deviation (derived)<input style={styles.input} value={row.subcoolingDeviation ?? ''} readOnly /></label>
+    <label>Approx. adjustment (derived)<input className="vd-input sm" value={row.approxAdjustOz ?? ''} readOnly /></label>
+    <label>Subcooling (derived)<input className="vd-input sm" value={row.subcoolingValue ?? ''} readOnly /></label>
+    <label>Subcooling deviation (derived)<input className="vd-input sm" value={row.subcoolingDeviation ?? ''} readOnly /></label>
   </div>
 }
 
 function NumberField ({ label, value, onChange }) {
-  return <label>{label}<input style={styles.input} type="number" value={value ?? ''} onChange={event => onChange(event.target.value === '' ? null : Number(event.target.value))} /></label>
+  return <label>{label}<input className="vd-input sm" type="number" value={value ?? ''} onChange={event => onChange(event.target.value === '' ? null : Number(event.target.value))} /></label>
 }
 
 function InfoRow ({ label, value }) {
-  return (
-    <div style={{ display:'flex', justifyContent:'space-between', gap:'16px', padding:'6px 0', borderBottom:'0.5px solid var(--border-subtle)' }}>
-      <span style={{ fontSize:'12px', color:'var(--text-muted)', flexShrink:0 }}>{label}</span>
-      <span style={{ fontSize:'13px', color:'var(--text-secondary)', textAlign:'right' }}>{value || '—'}</span>
-    </div>
-  )
+  return <><dt>{label}</dt><dd>{value || '—'}</dd></>
 }
 
 function formatDate (iso) {
@@ -594,45 +587,32 @@ function formatDate (iso) {
   catch (_) { return '—' }
 }
 
+// Layout only; the look comes from dispatch.css (vd-*).
 const styles = {
-  page:       { flex:1, display:'flex', flexDirection:'column', overflow:'hidden', background:'var(--surface-base)' },
-  header:     { padding:'16px 24px', borderBottom:'0.5px solid var(--border-subtle)', background:'var(--surface-1)', display:'flex', alignItems:'center', gap:'12px', flexShrink:0, flexWrap:'wrap' },
-  title:      { fontSize:'16px', fontWeight:500, color:'var(--text-primary)' },
-  backBtn:    { background:'none', border:'none', color:'var(--text-muted)', fontSize:'13px', cursor:'pointer', padding:0, flexShrink:0 },
-  count:      { fontSize:'12px', color:'var(--text-muted)', background:'var(--surface-3)', padding:'2px 10px', borderRadius:'99px' },
-  tableWrap:  { flex:1, overflowY:'auto', padding:'16px 24px' },
-  table:      { width:'100%', borderCollapse:'collapse', fontSize:'13px' },
-  th:         { textAlign:'left', padding:'8px 12px', color:'var(--text-muted)', fontWeight:500, fontSize:'11px', textTransform:'uppercase', letterSpacing:'0.04em', borderBottom:'0.5px solid var(--border-subtle)' },
-  tr:         { borderBottom:'0.5px solid var(--border-subtle)' },
-  td:         { padding:'10px 12px', color:'var(--text-secondary)', verticalAlign:'middle' },
-  openBtn:    { background:'none', border:'0.5px solid var(--border-default)', borderRadius:'6px', color:'var(--text-muted)', fontSize:'12px', padding:'4px 10px', cursor:'pointer' },
-  muted:      { color:'var(--text-muted)', fontSize:'14px' },
+  page:       { flex:1, overflowY:'auto', padding:'16px 18px 18px', display:'flex', flexDirection:'column', gap:'18px' },
+  header:     { border:'2px solid var(--vd-ink)', flexWrap:'wrap', flexShrink:0 },
+  title:      { margin:0 },
+  tableWrap:  { overflowX:'auto' },
+  message:    { maxWidth:'260px', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' },
+  flush:      { margin:0 },
 
-  detailBody:  { flex:1, overflowY:'auto', padding:'20px 24px', display:'flex', flexDirection:'column', gap:'20px' },
+  detailBody:  { display:'flex', flexDirection:'column', gap:'20px', border:'2px solid var(--vd-ink)', background:'var(--vd-plate)', padding:'18px' },
   section:     { display:'flex', flexDirection:'column', gap:'8px' },
-  collapsible: { display:'flex', flexDirection:'column', gap:'8px', border:'0.5px solid var(--border-subtle)', borderRadius:'8px', padding:'10px 12px', background:'var(--surface-1)' },
-  collapsibleSummary: { cursor:'pointer', color:'var(--text-disabled)', fontSize:'11px', textTransform:'uppercase', letterSpacing:'0.05em', fontWeight:500, display:'flex', justifyContent:'space-between' },
-  systemDisclosure: { borderTop:'0.5px solid var(--border-subtle)', paddingTop:'8px' },
-  systemPanel: { borderTop:'0.5px solid var(--border-subtle)', paddingTop:'10px', display:'flex', flexDirection:'column', gap:'8px' },
-  weighDisclosure: { borderTop:'0.5px solid var(--border-subtle)', paddingTop:'8px' },
-  systemSummary: { cursor:'pointer', color:'var(--text-secondary)', fontSize:'12px', fontWeight:600, display:'flex', justifyContent:'space-between' },
-  sectionTitle:{ fontSize:'11px', color:'var(--text-disabled)', textTransform:'uppercase', letterSpacing:'0.05em', fontWeight:500 },
-  infoGrid:    { background:'var(--surface-1)', borderRadius:'8px', padding:'8px 12px', border:'0.5px solid var(--border-subtle)' },
-  messageBox:  { background:'var(--surface-1)', borderRadius:'8px', border:'0.5px solid var(--border-subtle)', padding:'12px 14px' },
-  messageText: { fontSize:'13px', color:'var(--text-secondary)', lineHeight:1.5, whiteSpace:'pre-wrap' },
-  snapshot:    { background:'var(--surface-1)', borderRadius:'8px', border:'0.5px solid var(--border-subtle)', overflow:'hidden', maxHeight:'200px', overflowY:'auto' },
-  snapshotPre: { fontSize:'11px', color:'var(--text-muted)', padding:'12px', margin:0, fontFamily:'var(--font-mono)', lineHeight:1.5 },
-  editorGrid: { display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(180px, 1fr))', gap:'10px', background:'var(--surface-1)', border:'0.5px solid var(--border-subtle)', borderRadius:'8px', padding:'12px', color:'var(--text-muted)', fontSize:'12px' },
-  input: { display:'block', width:'100%', boxSizing:'border-box', marginTop:'4px', background:'var(--surface-2)', border:'0.5px solid var(--border-default)', borderRadius:'6px', color:'var(--text-primary)', padding:'6px 8px' },
-  textarea: { display:'block', width:'100%', boxSizing:'border-box', marginTop:'4px', background:'var(--surface-2)', border:'0.5px solid var(--border-default)', borderRadius:'6px', color:'var(--text-primary)', padding:'6px 8px', resize:'vertical' },
-  checkRow: { display:'flex', justifyContent:'space-between', gap:'12px', padding:'4px 0', borderBottom:'0.5px solid var(--border-subtle)' },
-  select: { background:'var(--surface-2)', color:'var(--text-primary)', border:'0.5px solid var(--border-default)', borderRadius:'5px' },
-
-  actionsWrap: { display:'flex', flexDirection:'column', gap:'10px' },
-  hintText:    { fontSize:'12px', color:'var(--text-muted)' },
-  approveBtn:  { background:'var(--color-signal)', color:'#fff', border:'none', borderRadius:'8px', fontSize:'13px', fontWeight:500, padding:'10px', cursor:'pointer' },
-  resolvedNote:{ background:'var(--surface-1)', borderRadius:'8px', padding:'12px 14px', border:'0.5px solid var(--border-subtle)' },
-  errorText:   { fontSize:'12px', color:'var(--color-heat)' },
-  evidenceChip:{ fontSize:'11px', color:'var(--text-muted)', background:'var(--surface-3)', padding:'3px 8px', borderRadius:'99px', border:'0.5px solid var(--border-subtle)' },
-  doneWrap:    { flex:1, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:'12px', padding:'0 24px' },
+  collapsible: { display:'flex', flexDirection:'column', gap:'10px', border:'2px solid var(--vd-ink)', padding:'10px 14px', background:'var(--vd-plate)' },
+  collapsibleSummary: { cursor:'pointer', color:'var(--vd-dim)', fontFamily:'var(--vd-font-stencil)', fontSize:'11px', textTransform:'uppercase', letterSpacing:'2px', display:'flex', justifyContent:'space-between' },
+  systemPanel: { borderTop:'1px solid var(--vd-line)', paddingTop:'10px', display:'flex', flexDirection:'column', gap:'8px' },
+  weighDisclosure: { borderTop:'1px solid var(--vd-line)', paddingTop:'8px' },
+  systemSummary: { cursor:'pointer', fontFamily:'var(--vd-font-stencil)', fontSize:'11px', textTransform:'uppercase', letterSpacing:'1.4px', fontWeight:700, display:'flex', justifyContent:'space-between' },
+  messageBox:  { border:'2px solid var(--vd-ink)', background:'var(--vd-plate)', padding:'12px 14px', display:'flex', flexDirection:'column', gap:'10px', alignItems:'flex-start' },
+  searchBtn:   { alignSelf:'flex-start' },
+  resultRow:   { border:'2px solid var(--vd-ink)', background:'var(--vd-plate)', padding:'10px 14px', textAlign:'left', cursor:'pointer', font:'inherit', color:'inherit' },
+  messageText: { margin:0, fontSize:'13px', lineHeight:1.5, whiteSpace:'pre-wrap' },
+  checkRow:    { display:'flex', justifyContent:'space-between', alignItems:'center', gap:'12px', padding:'5px 0', borderBottom:'1px solid var(--vd-line)' },
+  select:      { width:'auto' },
+  itemRow:     { gridColumn:'1 / -1', borderTop:'1px solid var(--vd-line)', paddingTop:'10px' },
+  itemName:    { color:'var(--vd-ink)', marginRight:'8px' },
+  actionsWrap: { display:'flex', flexDirection:'column', gap:'10px', alignItems:'flex-start' },
+  resolvedNote:{ border:'2px solid var(--vd-ink)', background:'var(--vd-plate)', padding:'12px 14px' },
+  doneWrap:    { flex:1, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:'12px', padding:'40px 24px' },
+  doneText:    { maxWidth:'360px', textAlign:'center', margin:0 },
 }

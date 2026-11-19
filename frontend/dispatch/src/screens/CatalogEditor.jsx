@@ -22,16 +22,18 @@ export default function CatalogEditor () {
 
   return (
     <div style={styles.page}>
-      <div style={styles.header}>
-        <h2 style={styles.title}>Catalog Editor</h2>
-        <p style={styles.notice}>Changes to the catalog do not affect historical visits.</p>
+      <div className="vd-unit-head" style={styles.header}>
+        <span className="vd-unit-id">CAT</span>
+        <h2 className="vd-unit-name" style={styles.title}>Catalog Editor</h2>
+        <span className="vd-badge hatch" style={styles.notice}>Changes to the catalog do not affect historical visits.</span>
       </div>
 
-      <div style={styles.tabBar}>
+      <div className="vd-rocker" style={styles.tabBar}>
         {TABS.map(t => (
           <button
             key={t.id}
-            style={{ ...styles.tabBtn, ...(tab === t.id ? styles.tabBtnActive : {}) }}
+            type="button"
+            className={tab === t.id ? 'on' : ''}
             onClick={() => setTab(t.id)}
           >
             {t.label}
@@ -184,19 +186,19 @@ function EquipmentTab () {
     }
   }
 
-  if (loading) return <div style={styles.loading}>Loading…</div>
+  if (loading) return <div className="vd-hint" style={styles.loading}>Loading…</div>
 
   return (
     <div style={styles.tabBody}>
-      {error && <p style={styles.errorText}>{error}</p>}
+      {error && <p className="vd-error">{error}</p>}
 
       <div style={{ overflowX: 'auto' }}>
-        <table style={styles.table}>
+        <table className="vd-table">
           <thead>
             <tr>
               {['Model', 'Type', 'Brand', 'Series', 'Refrigerant', 'A2L', 'BTU',
                 'Factory oz', 'Revised oz', 'PESP', 'OEM subcool', ''].map(h => (
-                <th key={h} style={styles.th}>{h}</th>
+                <th key={h}>{h}</th>
               ))}
             </tr>
           </thead>
@@ -204,7 +206,7 @@ function EquipmentTab () {
             {rows.map(row => {
               const isEditing = editId === row.model
               return (
-                <tr key={row.model} style={styles.tr}>
+                <tr key={row.model}>
                   <td style={styles.td}>{row.model}</td>
                   {EQUIP_EDITABLE_COLS.map(col => (
                     <td key={col.key} style={styles.td}>
@@ -212,7 +214,7 @@ function EquipmentTab () {
                         col.type === 'boolean'
                           ? <input type="checkbox" checked={editVals[col.key] ?? false}
                               onChange={e => setEditVals(v => ({ ...v, [col.key]: e.target.checked }))} />
-                          : <input style={styles.cellInput} type={col.type === 'number' ? 'number' : 'text'}
+                          : <input className="vd-input sm" style={styles.cellInput} type={col.type === 'number' ? 'number' : 'text'}
                               value={editVals[col.key] ?? ''}
                               onChange={e => setEditVals(v => ({ ...v, [col.key]: e.target.value }))} />
                       ) : (
@@ -225,13 +227,13 @@ function EquipmentTab () {
                   <td style={styles.td}>
                     {isEditing ? (
                       <span style={styles.editActions}>
-                        <button style={styles.saveBtn} onClick={() => saveEdit(row)} disabled={saving}>
+                        <button className="vd-key sm dark" onClick={() => saveEdit(row)} disabled={saving}>
                           {saving ? '…' : 'Save'}
                         </button>
-                        <button style={styles.cancelBtn} onClick={() => setEditId(null)}>Cancel</button>
+                        <button className="vd-key sm" onClick={() => setEditId(null)}>Cancel</button>
                       </span>
                     ) : (
-                      <button style={styles.editBtn} onClick={() => startEdit(row)}>Edit</button>
+                      <button className="vd-key sm" onClick={() => startEdit(row)}>Edit</button>
                     )}
                   </td>
                 </tr>
@@ -241,13 +243,13 @@ function EquipmentTab () {
         </table>
       </div>
 
-      <button style={styles.addToggleBtn} onClick={() => { setShowAdd(s => !s); setError('') }}>
+      <button className="vd-key sm" style={styles.addToggleBtn} onClick={() => { setShowAdd(s => !s); setError('') }}>
         {showAdd ? 'Cancel' : '+ Add model'}
       </button>
 
       {showAdd && (
         <div style={styles.addForm}>
-          <p style={styles.addFormTitle}>New equipment model</p>
+          <p className="vd-sub" style={styles.flush}>New equipment model</p>
           <div style={styles.addGrid}>
             {[
               { key: 'model',              label: 'Model *',              type: 'text'   },
@@ -262,9 +264,9 @@ function EquipmentTab () {
               { key: 'oem_subcooling_goal',label: 'OEM subcool goal',     type: 'number' },
             ].map(({ key, label, type }) => (
               <div key={key} style={styles.addField}>
-                <label style={styles.addLabel}>{label}</label>
+                <label className="vd-label" style={styles.flush}>{label}</label>
                 <input
-                  style={styles.addInput}
+                  className="vd-input sm"
                   type={type}
                   value={addForm[key]}
                   onChange={e => setAddForm(f => ({ ...f, [key]: e.target.value }))}
@@ -274,10 +276,10 @@ function EquipmentTab () {
             <div style={{ ...styles.addField, flexDirection: 'row', alignItems: 'center', gap: '8px' }}>
               <input type="checkbox" checked={addForm.is_a2l}
                 onChange={e => setAddForm(f => ({ ...f, is_a2l: e.target.checked }))} />
-              <label style={styles.addLabel}>A2L refrigerant</label>
+              <label className="vd-label" style={styles.flush}>A2L refrigerant</label>
             </div>
           </div>
-          <button style={styles.addSubmitBtn} onClick={handleAdd} disabled={adding}>
+          <button className="vd-key dark" style={styles.addSubmitBtn} onClick={handleAdd} disabled={adding}>
             {adding ? 'Adding…' : 'Add model'}
           </button>
         </div>
@@ -406,19 +408,19 @@ function ItemsTab () {
     }
   }
 
-  if (loading) return <div style={styles.loading}>Loading…</div>
+  if (loading) return <div className="vd-hint" style={styles.loading}>Loading…</div>
 
   return (
     <div style={styles.tabBody}>
-      {error && <p style={styles.errorText}>{error}</p>}
+      {error && <p className="vd-error">{error}</p>}
 
       <div style={{ overflowX: 'auto' }}>
-        <table style={styles.table}>
+        <table className="vd-table">
           <thead>
             <tr>
               {['Item name', 'Category', 'Price', 'Tech supplied', 'Multiplies',
                 'Custom price', 'Min price', 'Max price', 'Finish addon', ''].map(h => (
-                <th key={h} style={styles.th}>{h}</th>
+                <th key={h}>{h}</th>
               ))}
             </tr>
           </thead>
@@ -426,13 +428,13 @@ function ItemsTab () {
             {rows.map(row => {
               const isEditing = editId === row.item_name
               return (
-                <tr key={row.item_name} style={styles.tr}>
+                <tr key={row.item_name}>
                   <td style={styles.td}>{row.item_name}</td>
 
                   {/* category */}
                   <td style={styles.td}>
                     {isEditing
-                      ? <select style={{ ...styles.cellInput, width: '110px' }}
+                      ? <select className="vd-input sm" style={{ ...styles.cellInput, width: '110px' }}
                           value={editVals.category}
                           onChange={e => setEditVals(v => ({ ...v, category: e.target.value }))}>
                           <option value="accessory">accessory</option>
@@ -445,7 +447,7 @@ function ItemsTab () {
                   {/* default_price */}
                   <td style={styles.td}>
                     {isEditing
-                      ? <input style={styles.cellInput} type="number" min="0" step="0.01"
+                      ? <input className="vd-input sm" style={styles.cellInput} type="number" min="0" step="0.01"
                           value={editVals.default_price}
                           onChange={e => setEditVals(v => ({ ...v, default_price: e.target.value }))} />
                       : `$${Number(row.default_price ?? 0).toFixed(2)}`}
@@ -465,7 +467,7 @@ function ItemsTab () {
                   {['expected_price_min', 'expected_price_max', 'finish_addon_price'].map(col => (
                     <td key={col} style={styles.td}>
                       {isEditing
-                        ? <input style={styles.cellInput} type="number" min="0" step="0.01"
+                        ? <input className="vd-input sm" style={styles.cellInput} type="number" min="0" step="0.01"
                             value={editVals[col] ?? ''}
                             onChange={e => setEditVals(v => ({ ...v, [col]: e.target.value }))} />
                         : (row[col] != null ? `$${Number(row[col]).toFixed(2)}` : '—')}
@@ -475,13 +477,13 @@ function ItemsTab () {
                   <td style={styles.td}>
                     {isEditing ? (
                       <span style={styles.editActions}>
-                        <button style={styles.saveBtn} onClick={() => saveEdit(row)} disabled={saving}>
+                        <button className="vd-key sm dark" onClick={() => saveEdit(row)} disabled={saving}>
                           {saving ? '…' : 'Save'}
                         </button>
-                        <button style={styles.cancelBtn} onClick={() => setEditId(null)}>Cancel</button>
+                        <button className="vd-key sm" onClick={() => setEditId(null)}>Cancel</button>
                       </span>
                     ) : (
-                      <button style={styles.editBtn} onClick={() => startEdit(row)}>Edit</button>
+                      <button className="vd-key sm" onClick={() => startEdit(row)}>Edit</button>
                     )}
                   </td>
                 </tr>
@@ -491,22 +493,22 @@ function ItemsTab () {
         </table>
       </div>
 
-      <button style={styles.addToggleBtn} onClick={() => { setShowAdd(s => !s); setError('') }}>
+      <button className="vd-key sm" style={styles.addToggleBtn} onClick={() => { setShowAdd(s => !s); setError('') }}>
         {showAdd ? 'Cancel' : '+ Add item'}
       </button>
 
       {showAdd && (
         <div style={styles.addForm}>
-          <p style={styles.addFormTitle}>New catalog item</p>
+          <p className="vd-sub" style={styles.flush}>New catalog item</p>
           <div style={styles.addGrid}>
             <div style={styles.addField}>
-              <label style={styles.addLabel}>Item name *</label>
-              <input style={styles.addInput} type="text" value={addForm.item_name}
+              <label className="vd-label" style={styles.flush}>Item name *</label>
+              <input className="vd-input sm" type="text" value={addForm.item_name}
                 onChange={e => setAddForm(f => ({ ...f, item_name: e.target.value }))} />
             </div>
             <div style={styles.addField}>
-              <label style={styles.addLabel}>Category *</label>
-              <select style={styles.addInput} value={addForm.category}
+              <label className="vd-label" style={styles.flush}>Category *</label>
+              <select className="vd-input sm" value={addForm.category}
                 onChange={e => setAddForm(f => ({ ...f, category: e.target.value }))}>
                 <option value="">— select —</option>
                 <option value="accessory">accessory</option>
@@ -521,8 +523,8 @@ function ItemsTab () {
               { key: 'finish_addon_price', label: 'Finish addon price' },
             ].map(({ key, label }) => (
               <div key={key} style={styles.addField}>
-                <label style={styles.addLabel}>{label}</label>
-                <input style={styles.addInput} type="number" min="0" step="0.01"
+                <label className="vd-label" style={styles.flush}>{label}</label>
+                <input className="vd-input sm" type="number" min="0" step="0.01"
                   value={addForm[key]}
                   onChange={e => setAddForm(f => ({ ...f, [key]: e.target.value }))} />
               </div>
@@ -535,11 +537,11 @@ function ItemsTab () {
               <div key={key} style={{ ...styles.addField, flexDirection: 'row', alignItems: 'center', gap: '8px' }}>
                 <input type="checkbox" checked={addForm[key]}
                   onChange={e => setAddForm(f => ({ ...f, [key]: e.target.checked }))} />
-                <label style={styles.addLabel}>{label}</label>
+                <label className="vd-label" style={styles.flush}>{label}</label>
               </div>
             ))}
           </div>
-          <button style={styles.addSubmitBtn} onClick={handleAdd} disabled={adding}>
+          <button className="vd-key dark" style={styles.addSubmitBtn} onClick={handleAdd} disabled={adding}>
             {adding ? 'Adding…' : 'Add item'}
           </button>
         </div>
@@ -600,18 +602,18 @@ function ServicesTab () {
     }
   }
 
-  if (loading) return <div style={styles.loading}>Loading…</div>
+  if (loading) return <div className="vd-hint" style={styles.loading}>Loading…</div>
 
   return (
     <div style={styles.tabBody}>
-      {error && <p style={styles.errorText}>{error}</p>}
-      <p style={styles.fixedNote}>Service list is fixed — new services cannot be added here.</p>
+      {error && <p className="vd-error">{error}</p>}
+      <p className="vd-hint" style={styles.flush}>Service list is fixed — new services cannot be added here.</p>
 
-      <table style={styles.table}>
+      <table className="vd-table">
         <thead>
           <tr>
             {['Service name', 'Default price', 'Bundle', 'Multiplies by system', ''].map(h => (
-              <th key={h} style={styles.th}>{h}</th>
+              <th key={h}>{h}</th>
             ))}
           </tr>
         </thead>
@@ -619,11 +621,11 @@ function ServicesTab () {
           {rows.map(row => {
             const isEditing = editId === row.service_name
             return (
-              <tr key={row.service_name} style={styles.tr}>
+              <tr key={row.service_name}>
                 <td style={styles.td}>{row.service_name}</td>
                 <td style={styles.td}>
                   {isEditing
-                    ? <input style={styles.cellInput} type="number" min="0" step="0.01"
+                    ? <input className="vd-input sm" style={styles.cellInput} type="number" min="0" step="0.01"
                         value={editVals.default_price}
                         onChange={e => setEditVals(v => ({ ...v, default_price: e.target.value }))} />
                     : `$${Number(row.default_price ?? 0).toFixed(2)}`}
@@ -638,13 +640,13 @@ function ServicesTab () {
                 <td style={styles.td}>
                   {isEditing ? (
                     <span style={styles.editActions}>
-                      <button style={styles.saveBtn} onClick={() => saveEdit(row)} disabled={saving}>
+                      <button className="vd-key sm dark" onClick={() => saveEdit(row)} disabled={saving}>
                         {saving ? '…' : 'Save'}
                       </button>
-                      <button style={styles.cancelBtn} onClick={() => setEditId(null)}>Cancel</button>
+                      <button className="vd-key sm" onClick={() => setEditId(null)}>Cancel</button>
                     </span>
                   ) : (
-                    <button style={styles.editBtn} onClick={() => startEdit(row)}>Edit</button>
+                    <button className="vd-key sm" onClick={() => startEdit(row)}>Edit</button>
                   )}
                 </td>
               </tr>
@@ -713,18 +715,18 @@ function LinesetConfigsTab () {
     }
   }
 
-  if (loading) return <div style={styles.loading}>Loading…</div>
+  if (loading) return <div className="vd-hint" style={styles.loading}>Loading…</div>
 
   return (
     <div style={styles.tabBody}>
-      {error && <p style={styles.errorText}>{error}</p>}
-      <p style={styles.fixedNote}>Config list is fixed — new configs cannot be added here.</p>
+      {error && <p className="vd-error">{error}</p>}
+      <p className="vd-hint" style={styles.flush}>Config list is fixed — new configs cannot be added here.</p>
 
-      <table style={styles.table}>
+      <table className="vd-table">
         <thead>
           <tr>
             {['Config key', 'Reference length (ft)', 'Adjust rate (oz/ft)', ''].map(h => (
-              <th key={h} style={styles.th}>{h}</th>
+              <th key={h}>{h}</th>
             ))}
           </tr>
         </thead>
@@ -732,18 +734,18 @@ function LinesetConfigsTab () {
           {rows.map(row => {
             const isEditing = editId === row.config_key
             return (
-              <tr key={row.config_key} style={styles.tr}>
+              <tr key={row.config_key}>
                 <td style={styles.td}>{row.config_key}</td>
                 <td style={styles.td}>
                   {isEditing
-                    ? <input style={styles.cellInput} type="number" step="0.1"
+                    ? <input className="vd-input sm" style={styles.cellInput} type="number" step="0.1"
                         value={editVals.reference_length_ft}
                         onChange={e => setEditVals(v => ({ ...v, reference_length_ft: e.target.value }))} />
                     : row.reference_length_ft}
                 </td>
                 <td style={styles.td}>
                   {isEditing
-                    ? <input style={styles.cellInput} type="number" step="0.01"
+                    ? <input className="vd-input sm" style={styles.cellInput} type="number" step="0.01"
                         value={editVals.adjust_rate_oz_per_ft}
                         onChange={e => setEditVals(v => ({ ...v, adjust_rate_oz_per_ft: e.target.value }))} />
                     : row.adjust_rate_oz_per_ft}
@@ -751,13 +753,13 @@ function LinesetConfigsTab () {
                 <td style={styles.td}>
                   {isEditing ? (
                     <span style={styles.editActions}>
-                      <button style={styles.saveBtn} onClick={() => saveEdit(row)} disabled={saving}>
+                      <button className="vd-key sm dark" onClick={() => saveEdit(row)} disabled={saving}>
                         {saving ? '…' : 'Save'}
                       </button>
-                      <button style={styles.cancelBtn} onClick={() => setEditId(null)}>Cancel</button>
+                      <button className="vd-key sm" onClick={() => setEditId(null)}>Cancel</button>
                     </span>
                   ) : (
-                    <button style={styles.editBtn} onClick={() => startEdit(row)}>Edit</button>
+                    <button className="vd-key sm" onClick={() => startEdit(row)}>Edit</button>
                   )}
                 </td>
               </tr>
@@ -771,38 +773,23 @@ function LinesetConfigsTab () {
 
 // ── Shared styles ──────────────────────────────────────────
 
+// Layout only; the look comes from dispatch.css (vd-*).
 const styles = {
-  page:         { flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', background: 'var(--surface-base)' },
-  header:       { padding: '16px 24px', borderBottom: '0.5px solid var(--border-subtle)', background: 'var(--surface-1)', flexShrink: 0, display: 'flex', alignItems: 'baseline', gap: '16px', flexWrap: 'wrap' },
-  title:        { fontSize: '16px', fontWeight: 500, color: 'var(--text-primary)' },
-  notice:       { fontSize: '12px', color: 'var(--color-plasma)', background: 'var(--plasma-tint)', padding: '3px 10px', borderRadius: '99px', border: '0.5px solid var(--plasma-border)', flexShrink: 0 },
-
-  tabBar:       { display: 'flex', gap: '4px', padding: '8px 16px', borderBottom: '0.5px solid var(--border-subtle)', background: 'var(--surface-1)', flexShrink: 0 },
-  tabBtn:       { background: 'none', border: 'none', borderRadius: '6px', padding: '6px 14px', fontSize: '13px', color: 'var(--text-muted)', cursor: 'pointer' },
-  tabBtnActive: { background: 'var(--signal-tint)', color: 'var(--color-signal)' },
-
-  body:         { flex: 1, overflowY: 'auto' },
-  tabBody:      { padding: '16px 24px', display: 'flex', flexDirection: 'column', gap: '16px' },
-  loading:      { padding: '24px', color: 'var(--text-muted)', fontSize: '14px' },
-  errorText:    { fontSize: '12px', color: 'var(--color-heat)' },
-  fixedNote:    { fontSize: '12px', color: 'var(--text-disabled)' },
-
-  table:        { width: '100%', borderCollapse: 'collapse', fontSize: '13px', background: 'var(--surface-1)', borderRadius: '8px', overflow: 'hidden', border: '0.5px solid var(--border-subtle)' },
-  th:           { textAlign: 'left', padding: '8px 12px', color: 'var(--text-muted)', fontWeight: 500, fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.04em', borderBottom: '0.5px solid var(--border-subtle)', background: 'var(--surface-1)', whiteSpace: 'nowrap' },
-  tr:           { borderBottom: '0.5px solid var(--border-subtle)' },
-  td:           { padding: '8px 12px', color: 'var(--text-secondary)', verticalAlign: 'middle', whiteSpace: 'nowrap' },
-  cellInput:    { background: 'var(--surface-2)', border: '0.5px solid var(--color-signal)', borderRadius: '4px', color: 'var(--text-primary)', fontSize: '13px', padding: '3px 6px', outline: 'none', width: '90px' },
-  editActions:  { display: 'flex', gap: '4px' },
-  editBtn:      { background: 'none', border: '0.5px solid var(--border-default)', borderRadius: '4px', color: 'var(--text-muted)', fontSize: '11px', padding: '3px 8px', cursor: 'pointer' },
-  saveBtn:      { background: 'var(--color-signal)', color: '#fff', border: 'none', borderRadius: '4px', fontSize: '11px', fontWeight: 500, padding: '3px 8px', cursor: 'pointer' },
-  cancelBtn:    { background: 'none', border: '0.5px solid var(--border-default)', borderRadius: '4px', color: 'var(--text-muted)', fontSize: '11px', padding: '3px 8px', cursor: 'pointer' },
-
-  addToggleBtn: { alignSelf: 'flex-start', background: 'none', border: '0.5px solid var(--border-default)', borderRadius: '6px', color: 'var(--color-signal)', fontSize: '13px', padding: '6px 14px', cursor: 'pointer' },
-  addForm:      { background: 'var(--surface-1)', border: '0.5px solid var(--border-subtle)', borderRadius: '8px', padding: '16px', display: 'flex', flexDirection: 'column', gap: '12px' },
-  addFormTitle: { fontSize: '12px', fontWeight: 500, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em' },
-  addGrid:      { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '10px' },
+  page:         { flex: 1, overflowY: 'auto', padding: '16px 18px 18px', display: 'flex', flexDirection: 'column', gap: '14px' },
+  header:       { border: '2px solid var(--vd-ink)', flexWrap: 'wrap' },
+  title:        { margin: 0 },
+  notice:       { marginLeft: 'auto' },
+  tabBar:       { alignSelf: 'flex-start', flexWrap: 'wrap' },
+  body:         { border: '2px solid var(--vd-ink)', background: 'var(--vd-plate)' },
+  tabBody:      { padding: '18px', display: 'flex', flexDirection: 'column', gap: '16px' },
+  loading:      { padding: '18px', margin: 0 },
+  flush:        { margin: 0 },
+  td:           { whiteSpace: 'nowrap' },
+  cellInput:    { width: '90px' },
+  editActions:  { display: 'flex', gap: '6px' },
+  addToggleBtn: { alignSelf: 'flex-start' },
+  addForm:      { border: '2px solid var(--vd-ink)', background: 'var(--vd-panel)', padding: '16px', display: 'flex', flexDirection: 'column', gap: '12px' },
+  addGrid:      { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '12px' },
   addField:     { display: 'flex', flexDirection: 'column', gap: '3px' },
-  addLabel:     { fontSize: '11px', color: 'var(--text-muted)', fontWeight: 500 },
-  addInput:     { background: 'var(--surface-2)', border: '0.5px solid var(--border-default)', borderRadius: '6px', color: 'var(--text-primary)', fontSize: '13px', padding: '6px 8px', outline: 'none' },
-  addSubmitBtn: { alignSelf: 'flex-start', background: 'var(--color-signal)', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '13px', fontWeight: 500, padding: '8px 20px', cursor: 'pointer' },
+  addSubmitBtn: { alignSelf: 'flex-start' },
 }

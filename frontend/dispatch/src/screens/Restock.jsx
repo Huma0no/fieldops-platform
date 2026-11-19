@@ -55,102 +55,84 @@ export default function Restock () {
 
   return (
     <div style={styles.page}>
-      <div style={styles.header}>
-        <h2 style={styles.title}>Restock</h2>
-        <div style={styles.filters}>
-          <input
-            style={styles.input}
-            type="date"
-            value={dateFrom}
-            onChange={e => setDateFrom(e.target.value)}
-          />
-          <span style={styles.filterSep}>to</span>
-          <input
-            style={styles.input}
-            type="date"
-            value={dateTo}
-            onChange={e => setDateTo(e.target.value)}
-          />
-          <button style={styles.searchBtn} onClick={loadReport} disabled={!dateFrom || !dateTo}>
-            Load report
-          </button>
-        </div>
-      </div>
+      <div className="vd-unit">
+        <div className="vd-unit-head"><span className="vd-unit-id">RST</span><span className="vd-unit-name">Restock report</span><span className="vd-unit-note">Consumed items · mark what was restocked</span></div>
+        <div className="vd-knurl" />
+        <div className="vd-unit-body">
+          <div style={styles.controls}>
+            <label style={styles.field}><span className="vd-label">From</span>
+              <input className="vd-input data" type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} />
+            </label>
+            <label style={styles.field}><span className="vd-label">To</span>
+              <input className="vd-input data" type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} />
+            </label>
+            <button type="button" className="vd-key dark" onClick={loadReport} disabled={!dateFrom || !dateTo}>
+              Load report
+            </button>
+          </div>
 
-      <div style={styles.tableWrap}>
-        {loading ? (
-          <p style={styles.loading}>Loading…</p>
-        ) : report.length === 0 ? (
-          <p style={styles.empty}>Select a date range and load the report.</p>
-        ) : (
-          <table style={styles.table}>
-            <thead>
-              <tr>
-                {['Item','Total consumed','By technician',''].map(h => (
-                  <th key={h} style={styles.th}>{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {report.map(row => {
-                const isDone    = marked.has(row.itemName)
-                const isMarking = marking.has(row.itemName)
-                const isLow     = lowStockItems.has(row.itemName)
-                return (
-                  <tr key={row.itemName} style={{ ...styles.tr, opacity: isDone ? 0.5 : 1 }}>
-                    <td style={styles.td}>
-                      {row.itemName}
-                      {isLow && <span style={styles.lowTag}>low stock</span>}
-                    </td>
-                    <td style={styles.td}>{row.totalConsumed}</td>
-                    <td style={styles.td}>
-                      {row.byTechnician?.map(t => (
-                        <span key={t.technicianId} style={styles.techChip}>
-                          {t.technicianName}: {t.consumed}
-                        </span>
-                      ))}
-                    </td>
-                    <td style={styles.td}>
-                      {isDone ? (
-                        <span style={styles.doneTag}>Restocked</span>
-                      ) : (
-                        <button
-                          style={styles.restockBtn}
-                          onClick={() => handleRestock(row.itemName)}
-                          disabled={isMarking}
-                        >
-                          {isMarking ? '…' : 'Mark restocked'}
-                        </button>
-                      )}
-                    </td>
+          {loading ? (
+            <p className="vd-hint" style={styles.flush}>Loading…</p>
+          ) : report.length === 0 ? (
+            <p className="vd-hint" style={styles.flush}>Select a date range and load the report.</p>
+          ) : (
+            <div style={styles.scrollX}>
+              <table className="vd-table">
+                <thead>
+                  <tr>
+                    <th>Item</th><th style={styles.right}>Total consumed</th><th>By technician</th><th />
                   </tr>
-                )
-              })}
-            </tbody>
-          </table>
-        )}
+                </thead>
+                <tbody>
+                  {report.map(row => {
+                    const isDone    = marked.has(row.itemName)
+                    const isMarking = marking.has(row.itemName)
+                    const isLow     = lowStockItems.has(row.itemName)
+                    return (
+                      <tr key={row.itemName} className={isDone ? 'inact' : ''}>
+                        <td>
+                          {row.itemName}
+                          {isLow && <span className="vd-badge solid" style={styles.tag}>Low stock</span>}
+                        </td>
+                        <td className="num" style={styles.right}>{row.totalConsumed}</td>
+                        <td>
+                          <div className="vd-chips">
+                            {row.byTechnician?.map(t => (
+                              <span key={t.technicianId} className="vd-chip">
+                                {t.technicianName}: <span className="vd-data">{t.consumed}</span>
+                              </span>
+                            ))}
+                          </div>
+                        </td>
+                        <td style={styles.right}>
+                          {isDone ? (
+                            <span className="vd-badge hatch">Restocked</span>
+                          ) : (
+                            <button type="button" className="vd-key sm" onClick={() => handleRestock(row.itemName)} disabled={isMarking}>
+                              {isMarking ? '…' : 'Mark restocked'}
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   )
 }
 
+// Layout only; the look comes from dispatch.css (vd-*).
 const styles = {
-  page:      { flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', background: 'var(--surface-base)' },
-  header:    { padding: '16px 24px', borderBottom: '0.5px solid var(--border-subtle)', background: 'var(--surface-1)', display: 'flex', alignItems: 'center', gap: '16px', flexShrink: 0, flexWrap: 'wrap' },
-  title:     { fontSize: '16px', fontWeight: 500, color: 'var(--text-primary)', flexShrink: 0 },
-  filters:   { display: 'flex', alignItems: 'center', gap: '8px' },
-  filterSep: { fontSize: '12px', color: 'var(--text-muted)' },
-  input:     { background: 'var(--surface-2)', border: '0.5px solid var(--border-default)', borderRadius: '6px', color: 'var(--text-primary)', fontSize: '13px', padding: '6px 10px', outline: 'none' },
-  searchBtn: { background: 'var(--color-signal)', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '13px', fontWeight: 500, padding: '6px 14px', cursor: 'pointer' },
-  tableWrap: { flex: 1, overflowY: 'auto', padding: '16px 24px' },
-  loading:   { color: 'var(--text-muted)', fontSize: '14px' },
-  empty:     { color: 'var(--text-muted)', fontSize: '14px' },
-  table:     { width: '100%', borderCollapse: 'collapse', fontSize: '13px' },
-  th:        { textAlign: 'left', padding: '8px 12px', color: 'var(--text-muted)', fontWeight: 500, fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.04em', borderBottom: '0.5px solid var(--border-subtle)' },
-  tr:        { borderBottom: '0.5px solid var(--border-subtle)' },
-  td:        { padding: '10px 12px', color: 'var(--text-secondary)', verticalAlign: 'top' },
-  techChip:  { display: 'inline-block', fontSize: '11px', color: 'var(--text-muted)', background: 'var(--surface-3)', padding: '2px 8px', borderRadius: '99px', marginRight: '4px', marginBottom: '2px' },
-  doneTag:   { fontSize: '11px', color: '#22C55E', background: 'rgba(34,197,94,0.12)', padding: '3px 10px', borderRadius: '99px' },
-  restockBtn:{ background: 'none', border: '0.5px solid var(--border-default)', borderRadius: '6px', color: 'var(--text-muted)', fontSize: '12px', padding: '4px 10px', cursor: 'pointer' },
-  lowTag:    { marginLeft: '6px', fontSize: '10px', color: 'var(--color-plasma)', background: 'var(--plasma-tint)', padding: '1px 6px', borderRadius: '99px', border: '0.5px solid var(--plasma-border)' },
+  page:     { flex: 1, overflowY: 'auto', padding: '16px 18px 18px' },
+  controls: { display: 'flex', gap: '12px', flexWrap: 'wrap', alignItems: 'flex-end', marginBottom: '18px' },
+  field:    { display: 'flex', flexDirection: 'column', minWidth: '150px' },
+  flush:    { margin: 0 },
+  scrollX:  { overflowX: 'auto' },
+  right:    { textAlign: 'right' },
+  tag:      { marginLeft: '8px' },
 }
