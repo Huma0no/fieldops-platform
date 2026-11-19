@@ -337,17 +337,7 @@ function buildActiveJobBanner () {
     `${systemCount} system${systemCount !== 1 ? 's' : ''}`,
   ].filter(Boolean)
   const switcher = buildSystemSwitcher()
-  if (switcher && selectedSystem != null) {
-    const system = (visit.systems ?? []).find(s => Number(s.systemNumber) === selectedSystem)
-    meta.textContent = `System ${selectedSystem} · ${system?.outdoorModel ?? '—'} ✎`
-    meta.classList.add('ws-active-job-meta--edit')
-    meta.setAttribute('role', 'button')
-    meta.tabIndex = 0
-    meta.setAttribute('aria-label', `Edit System ${selectedSystem} equipment`)
-    meta.addEventListener('click', () => openSystemEquipmentSheet(selectedSystem))
-  } else {
-    meta.textContent = metaParts.join(' · ')
-  }
+  meta.textContent = metaParts.join(' · ')
   info.appendChild(address)
   info.appendChild(meta)
   el.appendChild(info)
@@ -740,7 +730,7 @@ function buildServiceSection () {
     scope.className = 'ws-panel-note'
     const customCount = numbers.filter(n => isCustomSystemService(service, n)).length
     if (target != null) {
-      scope.textContent = `System ${target} · ${isCustomSystemService(service, target) ? 'custom' : 'default'}`
+      scope.textContent = isCustomSystemService(service, target) ? 'custom' : 'default'
     } else {
       scope.textContent = customCount
         ? `${numbers.length - customCount} use default · ${customCount} custom`
@@ -761,6 +751,18 @@ function buildServiceSection () {
     }
   }
   wrap.appendChild(head)
+  // The selected system's equipment, editable (✎), sits in the Service
+  // header (W2), next to its default/custom state.
+  if (target != null) {
+    const system = (visit.systems ?? []).find(s => Number(s.systemNumber) === target)
+    const edit = document.createElement('button')
+    edit.type = 'button'
+    edit.className = 'ws-svc-system'
+    edit.textContent = `System ${target} · ${system?.outdoorModel ?? '—'} ✎`
+    edit.setAttribute('aria-label', `Edit System ${target} equipment`)
+    edit.addEventListener('click', () => openSystemEquipmentSheet(target))
+    title.after(edit)
+  }
 
   const tap = key => () => {
     tapService(service, target, key)
@@ -2126,7 +2128,7 @@ function injectStyles () {
   .ws-equip-list{display:flex;flex-direction:column;gap:6px;max-height:40dvh;overflow-y:auto;padding:2px;}
   .ws-equip-row{text-align:left;border:none;border-radius:var(--fo-radius-sm);background:var(--fo-tile);box-shadow:var(--fo-shadow-raised);padding:10px 12px;font-family:var(--fo-font-mono);font-size:var(--text-sm);color:var(--fo-ink);cursor:pointer;}
   .ws-equip-row--free{color:var(--fo-accent-deep);font-weight:700;}
-  .ws-active-job-meta--edit{cursor:pointer;color:var(--fo-accent-deep);}
+  .ws-svc-system{min-width:0;border:none;background:none;padding:4px 2px;font-family:var(--fo-font-mono);font-size:var(--text-xs);font-weight:700;color:var(--fo-accent-deep);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer;}
   .ws-sys-btn--on{background:var(--fo-panel);box-shadow:var(--fo-shadow-raised);color:var(--fo-accent-deep);}
   .ws-sys-btn--custom::after{content:'';position:absolute;top:5px;right:5px;width:6px;height:6px;border-radius:50%;background:var(--fo-accent);}
   .ws-panel-head{display:flex;align-items:center;gap:var(--space-2);min-height:28px;}
