@@ -30,7 +30,7 @@ Base services: AC · Heat · AC & Heat · Prestart · Drive Run · Cancel. Finis
 ## Accessories
 
 Governed by five combination rules:
-- **Multiplies** — price multiplies by the visit's actual system count (not a fixed "×2" — driven by the real per-visit count, see `/docs/fieldops/workspace/SERVICE-MULTISYSTEM-SPEC.md`).
+- **Multiplies** — a new line of this item starts at the visit's system count as its quantity (the real per-visit count, see `/docs/fieldops/workspace/SERVICE-MULTISYSTEM-SPEC.md`); the technician can raise or lower it. Every item is charged **unit price × quantity** (W2, 2026-11-19).
 - **Tech supplied** — the technician carries and charges the item from their own inventory.
 - **Custom price** — no fixed price; entered per visit (e.g. "Out of town fee", "Other").
 - **Companion items** — auto-activate when their parent item is selected.

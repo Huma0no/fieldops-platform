@@ -41,12 +41,12 @@ it('charges each system its own service and Weigh-In per system', () => {
       { systemNumber: 2, serviceName: 'AC & Heat', isFinish: false, isTemporarily: true },
       { systemNumber: 3, serviceName: 'Prestart', isFinish: false },
     ],
-    items: [{ itemName: 'Weight-In-Data', category: 'accessory', quantity: 1 }],
+    items: [{ itemName: 'Weight-In-Data', category: 'accessory', quantity: 3 }],
     systemCount: 3,
     catalog,
   });
   expect(result.services.map(row => row.price)).toEqual([20, 30, 20]);
-  // Services 70 + Weigh-In $10 × 3 systems + $10 Finish addon on system 1.
+  // Services 70 + Weigh-In $10 × 3 (one per system) + $10 Finish addon on system 1.
   expect(result.total).toBe(110);
 });
 
@@ -54,7 +54,7 @@ it('charges Drive Run once and resolves custom, tech-supplied and multiplied ite
   const result = shared.priceVisit({
     services: [{ systemNumber: null, serviceName: 'Drive Run', isFinish: false }],
     items: [
-      { itemName: 'RDS', category: 'accessory', quantity: 1 },
+      { itemName: 'RDS', category: 'accessory', quantity: 2 },
       { itemName: 'Other', category: 'accessory', quantity: 1, price: 12, description: 'Drain elbow' },
       { itemName: 'T-6', category: 'thermostat', quantity: 2 },
     ],
@@ -63,6 +63,23 @@ it('charges Drive Run once and resolves custom, tech-supplied and multiplied ite
   });
   expect(result.items.map(item => [item.price, item.techSupplied])).toEqual([[10, true], [12, true], [0, true]]);
   expect(result.total).toBe(10 + 20 + 12);
+});
+
+it('charges unit × quantity; the system count only seeds the quantity (W2)', () => {
+  const result = shared.priceVisit({
+    services: [{ systemNumber: 1, serviceName: 'AC', isFinish: false }, { systemNumber: 2, serviceName: 'AC', isFinish: false }],
+    items: [
+      { itemName: 'RDS', category: 'accessory', quantity: 1 },
+      { itemName: 'FIN180P', category: 'accessory', quantity: 3 },
+      { itemName: 'Other', category: 'accessory', quantity: 1, price: 7, description: 'Clamp' },
+      { itemName: 'Other', category: 'accessory', quantity: 2, price: 4, description: 'Strap' },
+    ],
+    systemCount: 2,
+    catalog,
+  });
+  // RDS multiplies by systems, but a line lowered to 1 is charged once.
+  expect(result.amounts.items).toEqual([10, 30, 7, 8]);
+  expect(result.total).toBe(60 + 10 + 30 + 7 + 8);
 });
 
 it('uses a technician override as the line price and in the total (CC-08)', () => {

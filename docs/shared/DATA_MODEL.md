@@ -66,7 +66,7 @@ Accessories, fixes, and thermostats — the single source for default pricing, r
 | category | text | "accessory", "fix", "thermostat" — fixed set, enforced via CHECK constraint, matching `visit_items.category` exactly |
 | default_price | real | Catalog base price. For ordinary items, this normally becomes the visit item's resolved price; context modifiers are applied before the resolved visit price is persisted. |
 | tech_supplied | boolean | True if the item impacts restock — see rules below |
-| multiplies_by_system_count | boolean | True if this item is charged once per system on the visit (price × visit's system count) rather than once per visit, regardless of how many systems exist. There is no fixed cap at two systems — the platform supports any number of systems via +Add Systems. |
+| multiplies_by_system_count | boolean | True if a new line of this item starts with the visit's system count as its quantity (W2); the technician can change it. Items are charged unit price × quantity. |
 | custom_price | boolean | True for free-form-price items (e.g. "Other", "Out of town fee") — no default_price applies |
 | expected_price_min | real | Lower bound for anomaly detection — null if not applicable |
 | expected_price_max | real | Upper bound for anomaly detection — null if not applicable |

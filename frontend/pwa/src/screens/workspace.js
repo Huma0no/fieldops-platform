@@ -1022,7 +1022,7 @@ function buildItemsSection (category) {
         return
       }
       if (item.custom_price) { showCustomPriceModal(item, ({ price, description }) => addItem(item, category, 1, price, description)); return }
-      addItem(item, category, 1)
+      addItem(item, category)
     })
     grid.appendChild(btn)
   })
@@ -1043,7 +1043,7 @@ function buildItemsSection (category) {
 }
 
 function addItem (item, category, quantity, customPrice, description) {
-  addLocalVisitDraftItem(visit, item, { quantity, price: customPrice, description, catalogItems, itemRelations })
+  addLocalVisitDraftItem(visit, item, { quantity, price: customPrice, description, catalogItems, itemRelations, systemCount: systemNumbersOf(visit).length })
   afterItemChange(category === 'accessory' ? 'accessories' : 'fixes')
 }
 

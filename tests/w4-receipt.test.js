@@ -51,9 +51,9 @@ const snapshot = {
   ],
   items: [
     { item_name: 'UT3000', category: 'accessory', quantity: 1, price: 35 },
-    { item_name: 'Float Switch', category: 'accessory', quantity: 1, price: 5 },
+    { item_name: 'Float Switch', category: 'accessory', quantity: 2, price: 5 },
     { item_name: 'T-6', category: 'thermostat', quantity: 2, price: 0 },
-    { item_name: 'Weight-In-Data', category: 'accessory', quantity: 1, price: 20 },
+    { item_name: 'Weight-In-Data', category: 'accessory', quantity: 2, price: 20 },
     { item_name: 'Pressure Test', category: 'fix', quantity: 1, price: 25 },
   ],
   weighInData: [{ systemNumber: 1, linesetLength: 55, factoryChargeOz: 133, adjustedOz: 15 }],
@@ -82,7 +82,7 @@ it('builds the receipt from the snapshot, with lines that add up to the total', 
     { title: 'SERVICE', lines: [{ label: 'Finish/ AC · System 1', amount: 20 }, { label: 'Prestart · System 2', amount: 20 }] },
     { title: 'T-STAT', lines: [{ label: 'T-6 × 2', amount: 0 }] },
     { title: 'ACCESSORIES', lines: [
-      { label: 'UT3000', amount: 35 }, { label: 'Float Switch', amount: 10 }, { label: 'Weigh-in', amount: 30 },
+      { label: 'UT3000', amount: 35 }, { label: 'Float Switch × 2', amount: 10 }, { label: 'Weigh-in × 2', amount: 30 },
     ] },
     { title: 'FIX', lines: [{ label: 'Pressure Test', amount: 30 }] },
   ]);
@@ -93,7 +93,7 @@ it('builds the receipt from the snapshot, with lines that add up to the total', 
 it('priceVisit amounts add up to its total', () => {
   const result = priceVisit({
     services: [{ systemNumber: null, serviceName: 'AC', isFinish: false, isTemporarily: false }],
-    items: [{ itemName: 'Float Switch', category: 'accessory' }, { itemName: 'Pressure Test', category: 'fix' }],
+    items: [{ itemName: 'Float Switch', category: 'accessory', quantity: 3 }, { itemName: 'Pressure Test', category: 'fix' }],
     systemCount: 3,
     catalog,
   });

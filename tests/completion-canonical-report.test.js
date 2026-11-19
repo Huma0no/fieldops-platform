@@ -89,7 +89,8 @@ it('accepts a normal Report built from the PWA snapshot constructor and current 
     submissionId: snapshot.submissionId,
     technicianId: tech.id,
     status: 'completed',
-    totalPrice: 160,
+    // $150 AC + 2 × $10 (unit × quantity, W2).
+    totalPrice: 170,
     items: [expect.objectContaining({ itemName, quantity: 2, price: 10 })],
   });
   expect(response.body.acceptedAt).not.toBe(snapshot.acceptedAt);

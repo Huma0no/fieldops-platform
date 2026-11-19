@@ -72,17 +72,20 @@ export function priceVisit ({ services = [], items = [], systemCount = 1, catalo
     if (row.systemNumber == null && !row.isFinish && serviceCatalog.get(row.serviceName)?.multiplies_by_system_count) price *= count
     return price
   })
+  // Every item is unit × quantity (W2). The multiply-by-system-count flag only
+  // sets the quantity a new line starts with; the technician can change it.
   const itemAmounts = pricedItems.map(item => {
     const entry = itemCatalog.get(item.itemName)
+    const quantity = Math.max(1, Math.floor(Number(item.quantity) || 1))
     if (item.itemName === WEIGHT_IN_DATA && systemRows.length) {
-      return (entry?.default_price ?? 0) * count + (entry?.finish_addon_price ?? 0) * finishSystems
+      // $10 a unit, plus the Finish addon for each system with Finish.
+      return (entry?.default_price ?? 0) * quantity + (entry?.finish_addon_price ?? 0) * Math.min(finishSystems, quantity)
     }
     let price
     if (item.itemName === WEIGHT_IN_DATA || entry?.custom_price) price = item.price ?? 0
     else if (Object.prototype.hasOwnProperty.call(overrides, item.itemName)) price = overrides[item.itemName]
     else price = entry?.default_price ?? 0
-    if (entry?.multiplies_by_system_count) price = (price ?? 0) * count
-    let amount = price ?? 0
+    let amount = (price ?? 0) * quantity
     if (anyFinish && item.itemName !== WEIGHT_IN_DATA && entry?.finish_addon_price != null) amount += entry.finish_addon_price
     return amount
   })

@@ -200,12 +200,19 @@ function localItemFromCatalog (item, { quantity = 1, price, description = null }
   }
 }
 
+// A new line starts at quantity 1, or at the call's system count for items
+// that multiply by systems (W2); the technician can change it freely.
+export function initialItemQuantity (item, systemCount = 1) {
+  return (item.multiplies_by_system_count ?? item.multipliesBySystemCount) ? Math.max(1, systemCount) : 1
+}
+
 export function addLocalVisitDraftItem (draft, item, {
-  quantity = 1,
+  quantity,
   price,
   description = null,
   catalogItems = [],
   itemRelations = [],
+  systemCount = 1,
 } = {}) {
   const itemName = item.item_name ?? item.itemName
   const existing = draft._items ?? []
@@ -228,11 +235,11 @@ export function addLocalVisitDraftItem (draft, item, {
   let retained = existing.filter(entry => !removedNames.has(entry.item_name))
   const selected = existing.find(entry => entry.item_name === itemName)
   if (selected) retained = retained.filter(entry => entry.item_name !== itemName)
-  const newItems = [localItemFromCatalog(item, { quantity, price, description })]
+  const newItems = [localItemFromCatalog(item, { quantity: quantity ?? initialItemQuantity(item, systemCount), price, description })]
   for (const companionName of companions) {
     if (retained.some(entry => entry.item_name === companionName)) continue
     const companionItem = catalogItems.find(entry => entry.item_name === companionName)
-    if (companionItem) newItems.push(localItemFromCatalog(companionItem))
+    if (companionItem) newItems.push(localItemFromCatalog(companionItem, { quantity: initialItemQuantity(companionItem, systemCount) }))
   }
   draft._items = [...retained, ...newItems]
   markSelectionChanged(draft)
