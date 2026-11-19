@@ -36,6 +36,10 @@ If the net change is positive, justify why.
 - Run the full suite with `npm test` once at the end of each phase.
 - Never run bare `npx jest`: it runs parallel workers against the one test database (only `npm test` adds `--runInBand`).
 
+## Push
+
+- Push at the end of each phase once Kristo or the planner approves it.
+
 ## Phase reports
 
 Phase reports are read by Claude (planner), not by Kristo. English, terse, this format only:
