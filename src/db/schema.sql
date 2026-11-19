@@ -84,6 +84,12 @@ CREATE TABLE catalog_items (
   expected_price_min         real,
   expected_price_max         real,
   finish_addon_price         real,
+  label                      text,
+  group_label                text,
+  option_label               text,
+  template_rank              integer,
+  tile_wide                  boolean NOT NULL DEFAULT false,
+  selectable                 boolean NOT NULL DEFAULT true,
   CONSTRAINT tech_supplied_thermostat CHECK (
     category <> 'thermostat' OR tech_supplied = true
   ),

@@ -11,7 +11,7 @@ const ITEM_REPORT_TEXT = {
   Dehum: 'Dehum Box wired',
   'Float Switch': 'Float Switch',
   'Weight-In-Data': 'weigh-in data',
-  'Ecoil Wire': 'Ecoil wire to furnace wired',
+  'Ecoil Wire': 'EEV Wire',
   AprilAir: 'AprilAire',
   'F/A': 'Fresh Air damper wired',
   'FIN6-MD': 'FIN6-MD wired',

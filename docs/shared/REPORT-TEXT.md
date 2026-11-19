@@ -68,7 +68,7 @@ Catalog item names below match `scripts/seed-catalog.sql` exactly (cross-checked
 | Dehum | "Dehum Box wired" | $10 | — |
 | Float Switch | "Float Switch" | $5 | ×2 with 2 systems |
 | Weight-In-Data | "weigh-in data" | $10 | +$10 addon when Finish is active |
-| Ecoil Wire | "Ecoil wire to furnace wired" | $10 | ×2 with 2 systems |
+| Ecoil Wire (label "EEV Wire") | "EEV Wire" | $10 | Starts at quantity 2 with 2 systems |
 | AprilAir | "AprilAire" | $10 | — |
 | F/A | "Fresh Air damper wired" | $10 | — |
 | FIN6-MD | "FIN6-MD wired" | $10 | — |
