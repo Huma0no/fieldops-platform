@@ -1,7 +1,7 @@
 # Reports (Dispatch)
 
-**Version:** 1.0
-**Date:** 2026-11-18
+**Version:** 1.1
+**Date:** 2026-11-19
 **Status:** Describes the running screen (`frontend/dispatch/src/screens/Reports.jsx`, endpoints in `src/routes/reports.js`). The technician's Reports screen is a different surface: `/docs/fieldops/REPORTS-SPEC.md`.
 
 ## Purpose
@@ -22,7 +22,8 @@ Usage reports for The Company: which equipment, accessories and refrigerant were
 
 ## Refrigerant usage (05B)
 
-- Grouped by address, one row per system: System, Service, Adj. Oz, Factory Charge, Lineset Config, Date, Tech (technician name).
+- Grouped by address, one row per system: System, Service, Adj. Oz, Factory Charge, **Manufacturer + factory length** (e.g. "Lennox 30 ft", from the reading's `manufacturer` and `factory_length_ft`, W3; readings recorded before W3 show their legacy lineset config), Date, Tech (technician name).
+  - _Implementation note (2026-11-19, A16):_ the running screen still shows the legacy "Lineset Config" column, which is empty for W3 readings; the screen change is pending authorization (Reports is a CLOSED section).
 - Values are the latest Weigh-In stored for each address and system.
 - Include / exclude per address, as above.
 
