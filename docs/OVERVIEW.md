@@ -1,7 +1,7 @@
 # FieldOps + Dispatch — Platform Overview
 
-**Version:** 1.0
-**Date:** 2026-07-30
+**Version:** 1.1
+**Date:** 2026-11-19
 **Status:** Source of truth — entry point for the entire `/docs` tree
 
 ## Purpose
@@ -163,7 +163,7 @@ Full detail: `/docs/shared/API_CONTRACT.md`, `/docs/shared/DATA_MODEL.md`.
 - **Catalogs as single source:** live on the server, consumed by both apps via API.
 - **Multi-technician by design:** every entity carries a `technicianId` — the system never assumes a single user.
 - **Financial privacy:** compensation data visible only to the Dispatcher; a technician sees only their own totals.
-- **Photos/GPS/integrations:** `/docs/shared/PHOTOS-GPS-INTEGRATIONS.md` (EXIF GPS requirements, Company Google Form prefill, Google Drive storage).
+- **Photos/GPS/integrations:** `/docs/shared/PHOTOS-GPS-INTEGRATIONS.md` (EXIF GPS requirements, Company Google Form prefill — not built yet, server photo storage; Google Drive deferred).
 
 ---
 

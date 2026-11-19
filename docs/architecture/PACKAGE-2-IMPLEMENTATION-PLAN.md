@@ -1,6 +1,6 @@
 # Package 2 — Implementation Plan: Legacy Sessions & Offline Data Isolation
 
-**Status:** Final Pre-Implementation Verified Plan — **AWAITING IMPLEMENTATION AUTHORIZATION (NOT YET IMPLEMENTED)**  
+**Status:** Implemented — superseded by the code (per-technician offline data, session-bound authorship, `auth_sessions`; see `MASTER-FUNCTION-INDEX.md` §12). Kept as the historical plan; its "not yet implemented" wording below is no longer current (audit 2026-11-19).  
 **Input Documents:**
 - [`AGENTS.md`](../../AGENTS.md)
 - [`docs/architecture/LEGACY-SESSION-OFFLINE-AUDIT.md`](./LEGACY-SESSION-OFFLINE-AUDIT.md)

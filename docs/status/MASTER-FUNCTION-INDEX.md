@@ -1,7 +1,7 @@
 # FieldOps — Master Function Index
 
-**Version:** 0.8
-**Date:** 2026-08-16
+**Version:** 0.9
+**Date:** 2026-11-19
 **Status:** Working audit index
 
 ## Purpose
@@ -132,6 +132,7 @@ A `CLOSED` section is a finished product area: its code, UX, and specifications 
 | SC deviation | SPEC CLOSED | IMPLEMENTED | Computed. |
 | Scale photo GPS/EXIF | SPEC CLOSED | IMPLEMENTED | Required for Company form compliance. |
 | Fan Speed photo GPS/EXIF | SPEC CLOSED | IMPLEMENTED | Required for Company form compliance. |
+| SCALE/FAN photo download carries GPS | SPEC CLOSED (`PHOTOS-GPS-INTEGRATIONS.md`) | IMPLEMENTED (automated verification) | Reports download takes SCALE/FAN from the server copy, the only one with GPS embedded (CC-17, 2026-11-19). |
 | New Total Charge | SPEC CLOSED | IMPLEMENTED (automated verification) | Factory + Adjusted, in lb/oz and oz. |
 | System switcher | SPEC CLOSED | IMPLEMENTED | Banner 1 · 2 · 3 · + (W3); dot = essentials filled. |
 | Refrigerant auto-restock batching | SPEC PARTIAL | OPEN | Business rule exists in project discussion; needs canonical spec and implementation audit. |
@@ -163,12 +164,13 @@ A `CLOSED` section is a finished product area: its code, UX, and specifications 
 
 ## 10. Company Google Form Integration
 
-| Function | Status | Notes |
-|---|---|---|
-| Per-system prefilled link | SPEC CLOSED | One link per system. |
-| Prefill weigh-in fields | SPEC CLOSED | 16/18 fields described as prefillable. |
-| Link disabled when data incomplete/edited | SPEC CLOSED | Must remain enforced. |
-| Scale/Fan photos | SPEC CLOSED | Technician still uploads required images to Company form. |
+| Function | Spec Status | Implementation | Notes |
+|---|---|---|---|
+| Per-system prefilled link | SPEC CLOSED | NOT IMPLEMENTED | One link per system. No code exists (pilot audit, 2026-11-19). |
+| Prefill weigh-in fields | SPEC INCOMPLETE | NOT IMPLEMENTED | 16/18 fields described as prefillable, but the repository holds neither the form URL nor the field-ID mapping; both must come from Kristo before building. |
+| Link disabled when data missing | SPEC CLOSED | NOT IMPLEMENTED | **Pilot rule (Kristo, 2026-11-19):** the link is disabled only when that system's required Weigh-In data is missing. |
+| Link disabled when record edited after capture | DEFERRED (second round) | NOT IMPLEMENTED | Needs an "edited after capture" marker the data model does not have. Deferred by Kristo (2026-11-19). |
+| Scale/Fan photos | SPEC CLOSED | IMPLEMENTED (photos) | Technician uploads the SCALE/FAN images to the Company form; downloads carry GPS (§7, CC-17). |
 
 ## 11. Dispatch Surface
 
@@ -181,7 +183,7 @@ A `CLOSED` section is a finished product area: its code, UX, and specifications 
 | Lobby | QA VERIFIED | Current tracker marks complete. |
 | History | QA VERIFIED with minor backlog | Detail exists; list still lacks some fields. |
 | Properties | SPEC CLOSED / implementation audit | Address-level rollup. |
-| Inventory | OPEN | Tracker says not started. |
+| Inventory | IMPLEMENTED / QA pending | Restyled in D6; Assign stock picks an active technician (2026-11-19). |
 | Restock | QA VERIFIED | Existing restock screen is implemented; future consumption-state model still needs audit against new requirements. |
 | Reports to Company | QA VERIFIED | Equipment and refrigerant usage reports implemented. |
 | Transfers | QA VERIFIED | Dispatcher and technician flows documented separately. |
@@ -247,7 +249,7 @@ Commit `a5461691e597b8e51ead41dd9e6af64f81a63fb9` implements the separate Active
 
 The implementation now matches `CHECKLIST-NOTES-SPEC.md`: P-drain is a static inline reminder with no submission-time popup/advisory and no Generate Report gate. Existing Yes/No and report-text behavior was preserved.
 
-### R-04 — Weigh-In OEM SC goal rule resolved; implementation pending
+### R-04 — Weigh-In OEM SC goal — resolved and implemented (W3, 2026-11-19)
 
 The canonical rule is 10°F as the default for every system, with a technician-editable goal stored independently per system. Existing saved values must survive system switching, navigation, refresh, and reopening; legacy records with a missing/null goal use 10°F. SC deviation is measured Subcooling minus the effective saved/default goal. The database already contains `oem_subcooling_goal` and `subcooling_deviation` columns; the current UI/API implementation still needs to expose and persist the editable value, and focused tests plus runtime verification remain required.
 
@@ -285,18 +287,44 @@ Decided 2026-11-15 by Kristo after WIP testing. Implement after the WIP merge an
 
 Recorded 2026-11-15; not planned. The legacy app (hvacstartup-dev.netlify.app) let the technician define prices. FieldOps needs an equivalent if it is commercialized. Options to evaluate then: preset agreed prices, zero prices filled on first use, or a price panel filled before the first job. Tracked as FF-01 in `docs/status/QA-TRACKER.md`.
 
-## 16. Next Audit Targets
+## 16. Pilot Readiness (audit 2026-11-19)
 
-The next pass should focus on the highest-value reconciliation items in this order:
+Pilot: Kristo as the only technician, real jobs, in parallel with the legacy app. Scope frozen. Statuses below are verified against the code.
 
-1. PWA QA reconciliation — revalidate P-01 visually, perform the manual/device verification required for P-02, and reconcile P-03 as obsolete under the current rail/Back-Next design.
-2. Weigh-In — implement and verify the canonical 10°F default with per-system editable OEM SC goal.
-3. Company Google Form integration — verify the end-to-end prefill and required-photo behavior.
-4. Properties — perform the implementation audit for the address-level rollup.
-5. Load Sheet Summary — perform the implementation audit for the My Calls aggregate.
-6. Accessories/restock data model — define consumption quantity and technician-controlled restock state before coding; existing Other participation does not complete this work.
-7. Refrigerant auto-restock — create the canonical implementation spec after the business rule is confirmed.
-8. Multi-system Service redesign — done in Workspace pass W1a (2026-11-17).
-9. Workspace Shell documentation cleanup — reconcile stale Active Job banner wording in `WORKSPACE-SHELL.md`; this is documentation-only and does not reopen the implemented banner.
+| # | Item | Status | Evidence | Minimum work |
+|---|---|---|---|---|
+| 1 | Server reachable from the phone (HTTPS), daily backups | MISSING | No hosting configuration; `src/index.js` serves only `/api`; the apps run on Vite dev servers; backups are a manual example in the runbook. Decision recorded in `docs/architecture/FIRST-LAUNCH-RUNBOOK.md` §5. | Build per the runbook decision: server on Kristo's PC, private access via Tailscale, nightly database + photos backup to a cloud-synced folder, one restore test. |
+| 2 | Username/password sign-in (FieldOps, Dispatch) | READY (automated) | `src/routes/auth.js`, `src/middleware/auth.js` (`auth_sessions`). | Device QA. |
+| 3 | Manual intake → Lobby → assign | READY | R-08 manual QA; Lobby assign. | — |
+| 4 | Workspace end to end, running total | READY (automated + 390 px runs) | W1–W3; phone and server totals matched. | Device QA. |
+| 5 | SCALE/FAN photos with GPS for the Company form | READY (automated) | Server embeds GPS (`src/routes/workspace.js`); downloads use the server copy (CC-17). | Device QA with a real photo. |
+| 6 | Company Google Form link | MISSING | §10: no code; form URL and field IDs not in the repository. | Kristo supplies URL + field IDs; build per-system link, disabled when required data is missing. |
+| 7 | Report text and total | READY (automated) | `src/services/report.js` matches `REPORT-TEXT.md`. | — |
+| 8 | Offline drafts, queue, photos | PARTIAL | Code ready; the offline app shell needs a service worker, which needs HTTPS (item 1). | Device test after item 1: airplane mode → full call → reconnect. |
+| 9 | Catalog: real data, current prices | PARTIAL | 144 equipment models, 21 accessories, 12 fixes, 8 thermostats (S1200 price fixed, migration 035). Gaps: Daikin DC6VSS4810/6010 and most Lennox 30 ft charges; route-sheet models missing. | Kristo reviews prices; adds models and charges in Dispatch → Catalog. |
+| 10 | Report price snapshot (R-09) | READY | PP-01 implemented; PP-01b deferred. | — |
+
+**Workday blockers found by the audit:**
+
+| ID | Blocker | Status |
+|---|---|---|
+| C1 / CC-17 | Downloaded SCALE/FAN photos had no GPS (phone copy) | Resolved 2026-11-19 |
+| C2 / CC-18 | Global per-IP request cap (100/15 min) exhausted by Lobby polling | Resolved 2026-11-19: only sign-in is rate limited |
+| C3 | No frontend serving / HTTPS | Open — part of item 1 |
+| C4 / CC-19 | Intermittent full-suite failures (completion 403 test, Dispatch PDF tests) | Open — investigated, not an authorization race; root cause undetermined (QA-TRACKER CC-19) |
+| C5 / CC-20 | `schema.sql` lacked DROPs; `db:setup` could not reset an empty DB | Resolved 2026-11-19 |
+| C6 | Most Lennox models have no 30 ft charge (Weigh-In opens empty) | Open — catalog review (item 9) |
+| C7 | `cors()` unrestricted | Open — low; private Tailscale access limits exposure |
+
+## 17. Next Targets (pilot order)
+
+1. Audit fixes — CC-17, CC-18, CC-20, S1200 done (2026-11-19); CC-19 watch.
+2. Hosting — server on Kristo's PC, Tailscale, HTTPS, served apps, nightly backups (runbook §5).
+3. Company Google Form link — after Kristo supplies the form URL and field IDs (§10 pilot rule).
+4. Catalog review — prices, route-sheet models, missing charges.
+5. Device QA — sign-in, Workspace, photos with GPS, offline, on Kristo's phone over Tailscale.
+6. Simulated workday — a full day of calls end to end before the first real job.
+
+Earlier audit targets: OEM SC goal (done W3), multi-system Service (done W1a), Google Form (now item 3); the rest (Properties, Load Sheet Summary, restock data model, refrigerant auto-restock, Workspace Shell wording) stay after the pilot.
 
 No application behavior should be changed solely because an index entry says so; the index is an audit map, not authorization to redesign a closed UX.

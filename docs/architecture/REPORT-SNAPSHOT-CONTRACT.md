@@ -1,6 +1,6 @@
 # FieldOps Report Snapshot Contract
 
-**Status:** Proposed functional and technical contract; documentation only.
+**Status:** Closed and implemented — one accepted submission per visit (migration 025), report served from the snapshot, non-blocking price discrepancy (W-LF / PP-01, 2026-11-17), Weigh-In never rejects (2026-11-18). Labels below such as "Proposed Design" are historical (audit 2026-11-19).
 **Date:** 2026-11-11
 
 **Proposed Design:** Each substantive statement below is labeled **Established Requirement**, **Existing Implementation**, **Proposed Design**, or **Unresolved Decision**. Established requirements are authoritative for this contract. Existing implementation describes inspected code/schema, not a claim of compliance.

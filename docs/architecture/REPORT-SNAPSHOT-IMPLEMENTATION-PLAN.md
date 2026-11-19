@@ -1,6 +1,6 @@
 # FieldOps — Report Snapshot Implementation Plan
 
-**Status:** Planning only — not implemented
+**Status:** Implemented (see `REPORT-SNAPSHOT-CONTRACT.md`); kept as the historical plan (audit 2026-11-19)
 **Date:** 2026-11-11
 
 ## 1. Executive Summary

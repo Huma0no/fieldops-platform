@@ -34,3 +34,11 @@ Start the server. On first start it creates the `Dispatcher` owner account (`doc
 1. Open FieldOps on the technician's phone and sign in with the temporary password.
 2. Set a new password when prompted.
 3. Confirm My Calls loads, then sign out and sign in again with the new password.
+
+## 5. Pilot hosting (decided 2026-11-19 — not built yet)
+
+Decision by Kristo for the pilot (QA-TRACKER PP-02). Today the server serves only `/api`; FieldOps and Dispatch run on Vite dev servers, and nothing below exists yet. The next task builds it and replaces this section with the exact steps.
+
+- **Server:** on Kristo's PC (API, PostgreSQL, the photos folder, and both apps served).
+- **Access:** private, through Tailscale; no public exposure. The phone and the Dispatch computer join the same tailnet. FieldOps needs HTTPS on the phone (service worker for offline, camera, location).
+- **Backup:** every night, a database dump plus a dated copy of the photos folder (see the Backup note in §2) into a cloud-synced folder. One restore test before the first real job.

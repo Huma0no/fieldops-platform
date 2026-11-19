@@ -1,7 +1,7 @@
 # Report Text
 
-**Version:** 1.0
-**Date:** 2026-07-30
+**Version:** 1.1
+**Date:** 2026-11-19
 **Status:** Approved design (originally approved April 2026 for the legacy ACstartup app; carried forward and cross-checked against fieldops-platform's current catalog seed). Implemented by the canonical report generator. This document remains the target behavior for report-text composition.
 
 ## Purpose
@@ -77,8 +77,6 @@ Catalog item names below match `scripts/seed-catalog.sql` exactly (cross-checked
 | LP Kit Lennox 1stg | "Lennox LP Kit 1 Stage" | $20 | Sub-option of LP Kit |
 | LP Kit Lennox 2stg | "Lennox LP Kit 2 Stage" | $20 | Sub-option of LP Kit |
 | LP Kit Goodman | "Goodman LP Kit" | $20 | Sub-option of LP Kit |
-| Extended Wire(Furnace) | "extended wire to furnace" | $5 | Sub-option of Extended Wire |
-| Extended Wire(Cunit) | "extended wire to cunit" | $5 | Sub-option of Extended Wire |
 | Out of town fee | "Out of town fee" | custom | Free-entry price |
 | Other | [technician's own text] | custom | Free-entry price |
 
@@ -87,7 +85,6 @@ Catalog item names below match `scripts/seed-catalog.sql` exactly (cross-checked
 | Grouping tile | Sub-options |
 |---|---|
 | LP Kit | Lennox 1Stg, Lennox 2Stg, Goodman |
-| Extended Wire | Furnace, Cunit |
 
 ## Fixes
 
@@ -101,13 +98,16 @@ Catalog item names below match `scripts/seed-catalog.sql` exactly (cross-checked
 | Wires Jammed | "Compressor wires jammed, fixed them to prevent electrical short" | $5 | — |
 | Stuck Blower | "Fixed Stuck/Out of balance Blower" | $20 | — |
 | Cut Sheetrock | "I had to cut sheetrock to locate tstat wire" | $15 | — |
+| Extended Wire(Furnace) | "extended wire to furnace" | $5 | Sub-option of Ext. Wire (catalog category `fix`) |
+| Extended Wire(Cunit) | "extended wire to cunit" | $5 | Sub-option of Ext. Wire (catalog category `fix`) |
 | Other Fix | [technician's own text] | custom | Named "Other Fix" (not "Other") to avoid colliding with the Accessories "Other" item |
 
-**Grouping tile** — same pattern as Accessories:
+**Grouping tiles** — same pattern as Accessories (tile labels per `/docs/fieldops/workspace/FIX-SPEC.md`; report text unchanged):
 
 | Grouping tile | Sub-options |
 |---|---|
-| Leaks | Ecoil, Cunit, Inside Wall |
+| Leaks | eCoil, Cunit, Wall |
+| Ext. Wire | Furnace, Cunit (a location is required; the location-less `Extended Wire` item is retired from selection) |
 
 ## The one price-modifier exception
 

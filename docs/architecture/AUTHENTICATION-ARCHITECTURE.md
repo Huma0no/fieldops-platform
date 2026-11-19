@@ -1,6 +1,6 @@
 # FieldOps Authentication Architecture
 
-**Status:** Approved model; implementation in progress  
+**Status:** Approved model; implemented (automated verification), device QA pending  
 **Date:** 2026-11-12
 
 This document supersedes the prior device invitation and device authorization model. Dispatch and FieldOps use one username/password identity system, as authorized in the Authentication Redesign request. Accounts are not paired to devices.

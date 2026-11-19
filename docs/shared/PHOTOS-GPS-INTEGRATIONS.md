@@ -25,12 +25,14 @@ Cross-app infrastructure: photo capture and storage, GPS/EXIF requirements, and 
 - All other photos: no GPS needed.
 - Source of the coordinates: the photo's own EXIF GPS, read on the phone by the EXIF library bundled with the PWA (`frontend/pwa/src/vendor/exifr-lite.mjs`, exifr 7.1.3, no remote code at runtime, works offline); when the photo has none, the phone's last known location.
 - Multi-system visits: N systems = N Scale/Fan Speed submissions, each disambiguated with a "– System N" suffix.
-- Permission flow: requested on first load with a pre-prompt explaining why; on denial, retryable. The requirement applies to capture, but whether missing required evidence blocks terminal submission ACK is **CONTRACT OPEN** under `/docs/OFFLINE-FIRST-CONTRACT.md`; it must not prevent durable local draft/snapshot creation.
+- Permission flow: requested on first load with a pre-prompt explaining why; on denial, retryable. Missing required evidence never blocks submission or its ACK (Kristo, 2026-11-17; see "Never blocks" above).
 
 ## The Company's Google Form
 
+**Status: not implemented (audit 2026-11-19); spec incomplete.** The form URL and the field-ID mapping are not in the repository and must come from Kristo before building (QA-TRACKER PP-03).
+
 - 16 of 18 fields are prefillable via URL parameters (confirmed against the form's real HTML source).
-- The "Company Form" button in FieldOps is dimmed/disabled when that system's weigh-in data is incomplete, or when the record was manually edited after being captured. One link per system.
+- One link per system. **Pilot rule (Kristo, 2026-11-19):** the "Company Form" button is disabled only when that system's required Weigh-In data is missing. Disabling it when the record was edited after capture is **deferred to the second round**.
 
 ## Server storage (current)
 

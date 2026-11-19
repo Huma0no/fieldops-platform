@@ -43,7 +43,8 @@ POST /api/auth/login
            role: DISPATCH_OWNER | DISPATCHER | TECHNICIAN
   effect: sets cookie fieldops_session (HttpOnly, SameSite=Strict, Path=/api, Expires=expiresAt; Secure in production)
   fails: 401 with the same body for an unknown username, a wrong password, or an inactive account
-  rate limit: 10 attempts per 15 minutes per client IP
+  rate limit: 10 attempts per 15 minutes per client IP — the only rate-limited
+              route; authenticated routes have no per-IP cap (CC-18, 2026-11-19)
 
 GET /api/auth/me
   auth: any session
