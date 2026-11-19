@@ -145,17 +145,17 @@ async function preloadCatalog () {
 
     // The query string keys a fresh copy past the service worker's catalog cache.
     const query = `?v=${encodeURIComponent(version)}`
-    const [items, equipment, linesetConfigs, itemRelations, services] = await Promise.all([
+    const [items, equipment, manufacturers, itemRelations, services] = await Promise.all([
       api.get(`/catalog/items${query}`),
       api.get(`/catalog/equipment${query}`),
-      api.get(`/catalog/lineset-configs${query}`),
+      api.get(`/catalog/manufacturers${query}`),
       api.get(`/catalog/item-relations${query}`),
       api.get(`/catalog/services${query}`),
     ])
     await Promise.all([
       setCatalog('items', items),
       setCatalog('equipment', equipment),
-      setCatalog('lineset-configs', linesetConfigs),
+      setCatalog('manufacturers', manufacturers),
       setCatalog('item-relations', itemRelations),
       setCatalog('services', services),
     ])

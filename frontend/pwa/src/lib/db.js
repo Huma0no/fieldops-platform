@@ -3,7 +3,7 @@
  * IndexedDB wrapper for Field Ops PWA.
  *
  * Stores:
- *   catalog   — items, equipment, lineset-configs (keyed by type)
+ *   catalog   — items, equipment, manufacturers (keyed by type)
  *   visits    — cached visit data (scoped by technicianId)
  *   queue     — offline completion queue entries (scoped by technicianId)
  *   photos    — local photo blobs per visit (scoped by technicianId)

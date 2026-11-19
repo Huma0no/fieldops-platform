@@ -426,6 +426,13 @@ const WEIGH_IN_ESSENTIALS = [
 const WEIGH_IN_ENTRY_FIELDS = [...WEIGH_IN_ESSENTIALS.map(([field]) => field), 'fanSpeedCfm', 'suctionLineTemp']
 const filled = value => value != null && value !== ''
 
+// The Weigh-In switcher's dot: Lineset ft, Adjusted oz, Liquid temp and
+// Condenser sat are filled for the system (W3).
+export function weighInEssentialsFilled (draft, systemNumber) {
+  const row = (draft?._weighInData ?? []).find(data => Number(data.systemNumber) === systemNumber) ?? {}
+  return WEIGH_IN_ESSENTIALS.every(([field]) => filled(row[field]))
+}
+
 export function weighInWarnings (draft) {
   if (draft?._cancelMode?.confirmed || draft?._service?.cancel || draft?._service?.driveRun) return []
   const billed = (draft._items ?? []).some(item => (item.item_name ?? item.itemName) === 'Weight-In-Data')

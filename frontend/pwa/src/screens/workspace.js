@@ -53,11 +53,25 @@ import {
   REFRESH_CALL_DATA_KEY,
   refreshCallData,
   weighInWarnings,
+  weighInEssentialsFilled,
   addTechSystem,
   canRemoveSystem,
   removeTechSystem,
   setSystemEquipment,
 } from '../lib/workspace-visit.mjs'
+import {
+  approxAdjust,
+  catalogCharge,
+  findManufacturer,
+  formatLbOz,
+  lengthOptions,
+  linesetDefaults,
+  newTotalOz,
+  scDeviation,
+  minus,
+  signed,
+  subcooling,
+} from '../lib/lineset.mjs'
 
 const CHECKLIST_ITEMS = [
   { key: 'pdrain_ecoil',   label: 'P-drain [eCoil]',            reportText: 'No/Incomplete pdrain at ecoil', reminder: 'Reviewing the P-drain is recommended before completing.' },
@@ -76,9 +90,8 @@ const CHECKLIST_ITEMS = [
   { key: 'gas_valve',      label: 'Gas Valve',                    reportText: null },
 ]
 
-// 5-step linear rail. 'calc' is intentionally not included — buildCalcSection()
-// stays intact as a standalone utility panel, to be wired to the bottom strip
-// in a later pass.
+// 5-step linear rail. Quick Charge Calc is the bottom bar's floating panel
+// (components/calc-panel.js), not a step.
 const STEPS = [
   { id: 'service',     label: 'Srv+T', icon: '⚡' },
   { id: 'accessories', label: 'Acc',   icon: '🔧' },
@@ -100,7 +113,7 @@ const SECTION_TO_STEP = {
 
 let visit           = null
 let catalogItems    = []
-let linesetConfigs  = []
+let manufacturers   = []
 let equipmentCatalog = []
 let activeStep       = 'service'
 let completedSections = new Set()
@@ -137,10 +150,10 @@ export default async function mount (appEl) {
   appEl.appendChild(loading)
 
   try {
-    const [localDraft, cachedItems, cachedLinesetConfigs, cachedEquipment, catalogVersion, cachedServices, cachedRelations, cachedOverrides] = await Promise.all([
+    const [localDraft, cachedItems, cachedManufacturers, cachedEquipment, catalogVersion, cachedServices, cachedRelations, cachedOverrides] = await Promise.all([
       getLocalVisitDraft(visitId, activeTechnicianId),
       getCatalog('items').then(d => d ?? []),
-      getCatalog('lineset-configs').then(d => d ?? []),
+      getCatalog('manufacturers').then(d => d ?? []),
       getCatalog('equipment').then(d => d ?? []),
       getCatalog('version'),
       getCatalog('services').then(d => d ?? []),
@@ -149,7 +162,7 @@ export default async function mount (appEl) {
     ])
 
     catalogItems = cachedItems
-    linesetConfigs = cachedLinesetConfigs
+    manufacturers = cachedManufacturers
     equipmentCatalog = cachedEquipment
     catalogServices = cachedServices
     itemRelations = cachedRelations
@@ -199,7 +212,7 @@ export default async function mount (appEl) {
     }
 
     if (!catalogItems.length) catalogItems = await api.get('/catalog/items').catch(() => [])
-    if (!linesetConfigs.length) linesetConfigs = await api.get('/catalog/lineset-configs').catch(() => [])
+    if (!manufacturers.length) manufacturers = await api.get('/catalog/manufacturers').catch(() => [])
     if (!equipmentCatalog.length) equipmentCatalog = await api.get('/catalog/equipment').catch(() => [])
     if (!catalogServices.length) catalogServices = await api.get('/catalog/services').catch(() => [])
     if (!itemRelations.length) itemRelations = await api.get('/catalog/item-relations').catch(() => [])
@@ -360,25 +373,30 @@ function buildActiveJobBanner () {
   return el
 }
 
-// System switcher (Service step): All edits the default for every system; a
-// number edits that system; + adds a system to the call (W1b). A dot marks
-// systems with their own (custom) service. Single-system calls show 1 · +.
+// System switcher (Service and Weigh-In): All edits the Service default for
+// every system; a number edits that system; + adds a system to the call
+// (W1b). A dot marks systems with their own (custom) service, or in Weigh-In
+// the systems with the essentials filled (W3; Weigh-In has no All).
+// Single-system calls show 1 · +.
 function buildSystemSwitcher () {
   const numbers = systemNumbersOf(visit)
-  if (activeStep !== 'service' || isCancelMode() || isDriveRunMode()) return null
+  const weighIn = activeStep === 'weighin'
+  if ((activeStep !== 'service' && !weighIn) || isCancelMode() || isDriveRunMode()) return null
   const el = document.createElement('div')
   el.className = 'ws-sys-switch'
   el.setAttribute('role', 'group')
   el.setAttribute('aria-label', 'Systems')
-  ;[...(numbers.length > 1 ? [null] : []), ...numbers].forEach((number) => {
+  const current = weighIn ? weighInTarget() : selectedSystem
+  ;[...(numbers.length > 1 && !weighIn ? [null] : []), ...numbers].forEach((number) => {
     const btn = document.createElement('button')
     btn.type = 'button'
-    const on = selectedSystem === number
-    const custom = number != null && isCustomSystemService(visit._service, number)
-    btn.className = `ws-sys-btn${on ? ' ws-sys-btn--on' : ''}${custom ? ' ws-sys-btn--custom' : ''}`
+    const on = current === number
+    const marked = number != null && (weighIn ? weighInEssentialsFilled(visit, number) : isCustomSystemService(visit._service, number))
+    const mark = weighIn ? 'essentials filled' : 'custom'
+    btn.className = `ws-sys-btn${on ? ' ws-sys-btn--on' : ''}${marked ? ' ws-sys-btn--custom' : ''}`
     btn.textContent = number == null ? 'All' : String(number)
     btn.setAttribute('aria-pressed', String(on))
-    btn.setAttribute('aria-label', number == null ? 'All systems' : `System ${number}${custom ? ', custom' : ''}`)
+    btn.setAttribute('aria-label', number == null ? 'All systems' : `System ${number}${marked ? `, ${mark}` : ''}`)
     btn.addEventListener('click', () => {
       if (on) return
       selectedSystem = number
@@ -1375,11 +1393,19 @@ function showCustomPriceModal (item, onConfirm) {
   setTimeout(() => (descriptionInput ?? input).focus(), 50)
 }
 
+// Weigh-In (W3): one system at a time, picked with the banner switcher.
+// Lineset (ft · manufacturer · factory length), Charge and Readings panels.
+// Spec: docs/fieldops/workspace/WEIGHIN-SPEC.md.
+function weighInTarget () {
+  const numbers = systemNumbersOf(visit)
+  return numbers.includes(selectedSystem) ? selectedSystem : numbers[0]
+}
+
 function buildWeighInSection () {
   const wrap = document.createElement('div')
   wrap.className = 'ws-section-content'
-  const count = systemNumbersOf(visit).length
-  for (let i = 1; i <= count; i++) wrap.appendChild(buildWeighInPanel(i, count > 1))
+  const target = weighInTarget()
+  if (target != null) wrap.appendChild(buildWeighInPanel(target))
   const doneBtn = document.createElement('button')
   doneBtn.className = 'ws-done-btn'; doneBtn.textContent = 'Done'
   doneBtn.addEventListener('click', () => { visit._weighinDone = true; markSectionComplete('weighin') })
@@ -1387,148 +1413,234 @@ function buildWeighInSection () {
   return wrap
 }
 
-function buildWeighInPanel (systemNum, showLabel) {
+// "+ New" manufacturer and "+ Custom" length while their value is still empty.
+const weighInTyping = { maker: new Set(), length: new Set() }
+
+function buildWeighInPanel (systemNum) {
   const panel = document.createElement('div')
   panel.className = 'ws-weighin-panel'
-  if (showLabel) {
-    const lbl = document.createElement('p'); lbl.className='ws-weighin-label'; lbl.textContent=`System ${systemNum}`
-    panel.appendChild(lbl)
+  const system = (visit.systems ?? []).find(s => Number(s.systemNumber) === systemNum)
+  const outdoorModel = system?.outdoorModel ?? null
+  const defaults = linesetDefaults({ manufacturers, equipment: equipmentCatalog, outdoorModel, refrigerant: system?.refrigerant })
+  const saved = (visit._weighInData ?? []).find(data => Number(data.systemNumber ?? data.system_number) === systemNum) ?? {}
+  // Defaults show until the technician enters something; only then is the
+  // row saved (an untouched system must not overwrite the address's reading).
+  const state = {
+    ...saved,
+    manufacturer: saved.manufacturer !== undefined ? saved.manufacturer : defaults.manufacturer,
+    factoryLengthFt: saved.factoryLengthFt ?? defaults.factoryLengthFt,
+    ozPerFt: saved.ozPerFt ?? defaults.ozPerFt,
+    refrigerant: saved.refrigerant ?? defaults.refrigerant,
+    oemSubcoolingGoal: saved.oemSubcoolingGoal ?? 10,
+  }
+  const maker = findManufacturer(manufacturers, state.manufacturer)
+  const newMaker = weighInTyping.maker.has(systemNum) || (state.manufacturer != null && !maker)
+  const customLength = weighInTyping.length.has(systemNum)
+  const askRefrigerant = newMaker || defaults.refrigerant == null
+
+  const refs = {}
+  const cell = (label, control, cls = '') => {
+    const el = document.createElement('label'); el.className = `ws-wi-cell${cls ? ` ${cls}` : ''}`
+    const caption = document.createElement('span'); caption.className = 'ws-wi-cap'; caption.textContent = label
+    el.appendChild(caption); el.appendChild(control)
+    return el
+  }
+  const numberInput = (key, { placeholder = '—', readOnly = false } = {}) => {
+    const input = document.createElement('input')
+    input.type = readOnly ? 'text' : 'number'; input.inputMode = 'decimal'
+    input.className = `ws-wi-input${readOnly ? ' ws-wi-input--calc' : ''}`
+    input.id = `wi-${systemNum}-${key}`; input.placeholder = placeholder
+    if (readOnly) { input.readOnly = true; input.tabIndex = -1 } else if (state[key] != null) input.value = state[key]
+    refs[key] = input
+    return input
+  }
+  const grid = (...cells) => {
+    const el = document.createElement('div'); el.className = 'ws-wi-grid'
+    cells.forEach(c => el.appendChild(c))
+    return el
+  }
+  const head = (title, note) => {
+    const el = document.createElement('div'); el.className = 'ws-panel-head'
+    const t = document.createElement('span'); t.className = 'ws-panel-title'; t.textContent = title
+    el.appendChild(t)
+    if (note) { const n = document.createElement('span'); n.className = 'ws-panel-note'; n.textContent = note; el.appendChild(n) }
+    return el
   }
 
-  const NUMERIC_FIELDS = [
-    ['linesetLength','Lineset length (ft)'],['adjustedOz','Adjusted oz'],['fanSpeedCfm','Fan speed CFM'],
-    ['liquidLineTemp','Liquid line temp (°F)'],['suctionLineTemp','Suction line temp (°F)'],
-    ['condenserSatTemp','Condenser sat temp'],['subcoolingValue','Subcooling'],['oemSubcoolingGoal','OEM subcooling goal (°F)'],
-  ]
-  const numericKeys = NUMERIC_FIELDS.map(f => f[0])
-  const savedWeighIn = (visit._weighInData ?? []).find(data => data.systemNumber === systemNum)
-
-  // Detect brand from equipment catalog using the outdoor unit model for this system
-  const outdoorModel = visit.systems?.find(s => s.systemNumber === systemNum)?.outdoorModel
-  const brand = (equipmentCatalog.find(e => e.model === outdoorModel)?.brand ?? '').toLowerCase()
-
-  function getPreselect () {
-    if (brand.includes('trane')) {
-      const d = visit.scheduledTime ? new Date(visit.scheduledTime) : null
-      if (!d || isNaN(d)) return null
-      if (d < new Date('2025-05-01')) return 'TRANE-PRE-2025'
-      if (d < new Date('2026-01-01')) return 'TRANE-MID-2025'
-      return 'TRANE-2026'
-    }
-    if (brand.includes('lennox'))  return 'LENNOX-30'
-    if (brand.includes('goodman')) return 'GOODMAN'
-    if (brand.includes('daikin'))  return 'DAIKIN'
-    return null
-  }
-  const preselect = getPreselect()
-
-  async function syncWeighIn () {
-    const body = {}
-    numericKeys.forEach(k => {
-      const v = parseFloat(document.getElementById(`wi-${systemNum}-${k}`)?.value)
-      if (!isNaN(v)) body[k] = v
+  // ── Lineset ──
+  panel.appendChild(head('Lineset', `System ${systemNum} · ${outdoorModel ?? '—'}`))
+  let makerControl
+  if (newMaker) {
+    makerControl = document.createElement('div'); makerControl.className = 'ws-wi-maker'
+    const text = document.createElement('input')
+    text.type = 'text'; text.className = 'ws-wi-input'; text.placeholder = 'Type brand…'
+    text.id = `wi-${systemNum}-manufacturer`; text.value = state.manufacturer ?? ''
+    text.addEventListener('input', () => { state.manufacturer = text.value.trim() || null; refresh() })
+    text.addEventListener('change', save)
+    const back = document.createElement('button')
+    back.type = 'button'; back.className = 'ws-wi-back'; back.textContent = '▾'
+    back.setAttribute('aria-label', 'Back to the manufacturer list')
+    back.addEventListener('click', () => {
+      weighInTyping.maker.delete(systemNum)
+      chooseMaker(defaults.manufacturer)
     })
-    const configEl = document.getElementById(`wi-${systemNum}-config`)
-    if (configEl?.value) body.factoryLineConfig = configEl.value
-    const cfg = linesetConfigs.find(c => c.config_key === configEl?.value)
-    body.factoryChargeUsed = cfg?.revised_available
-      ? (document.getElementById(`wi-${systemNum}-charge`)?.value || 'factory')
-      : 'factory'
+    makerControl.appendChild(text); makerControl.appendChild(back)
+  } else {
+    makerControl = document.createElement('select')
+    makerControl.className = 'ws-wi-input'; makerControl.id = `wi-${systemNum}-manufacturer`
+    const options = [...(maker ? [] : [['', '—']]), ...manufacturers.map(row => [row.name, row.name]), ['__new', '+ New']]
+    options.forEach(([value, text]) => {
+      const opt = document.createElement('option'); opt.value = value; opt.textContent = text
+      makerControl.appendChild(opt)
+    })
+    makerControl.value = maker?.name ?? ''
+    makerControl.addEventListener('change', () => {
+      if (makerControl.value === '__new') {
+        weighInTyping.maker.add(systemNum)
+        Object.assign(state, { manufacturer: null, ozPerFt: null })
+        save(); renderBody()
+        document.getElementById(`wi-${systemNum}-manufacturer`)?.focus()
+        return
+      }
+      chooseMaker(makerControl.value || null)
+    })
+  }
+  function chooseMaker (name) {
+    const row = findManufacturer(manufacturers, name)
+    weighInTyping.length.delete(systemNum)
+    Object.assign(state, {
+      manufacturer: row?.name ?? null,
+      ozPerFt: row ? Number(row.oz_per_ft) : null,
+      factoryLengthFt: row ? Number(row.default_length_ft) : state.factoryLengthFt,
+    })
+    save(); renderBody()
+  }
 
-    // Computed on the device from the cached catalog (local-first); the
-    // measurements travel in the Report snapshot.
-    if (cfg && body.linesetLength != null) {
-      body.approxAdjustOz = (body.linesetLength - cfg.reference_length_ft) * cfg.adjust_rate_oz_per_ft
+  const lengthSel = document.createElement('select')
+  lengthSel.className = 'ws-wi-input'; lengthSel.id = `wi-${systemNum}-factoryLength`
+  lengthOptions(maker?.default_length_ft, state.factoryLengthFt).forEach(ft => {
+    const opt = document.createElement('option'); opt.value = String(ft); opt.textContent = `${ft} ft`
+    lengthSel.appendChild(opt)
+  })
+  const customOpt = document.createElement('option'); customOpt.value = '__custom'; customOpt.textContent = '+ Custom'
+  lengthSel.appendChild(customOpt)
+  lengthSel.value = customLength ? '__custom' : state.factoryLengthFt != null ? String(state.factoryLengthFt) : '__custom'
+  lengthSel.addEventListener('change', () => {
+    if (lengthSel.value === '__custom') {
+      weighInTyping.length.add(systemNum)
+      state.factoryLengthFt = null
+    } else {
+      weighInTyping.length.delete(systemNum)
+      state.factoryLengthFt = Number(lengthSel.value)
     }
-    const equipment = equipmentCatalog.find(e => e.model === outdoorModel)
-    if (equipment) {
-      body.factoryChargeOz = (body.factoryChargeUsed === 'revised' ? equipment.revised_charge_oz : equipment.factory_charge_oz) ?? null
-    }
-    body.oemSubcoolingGoal = body.oemSubcoolingGoal ?? 10
-    if (body.subcoolingValue != null) body.subcoolingDeviation = body.subcoolingValue - body.oemSubcoolingGoal
+    save(); renderBody()
+    if (lengthSel.value === '__custom') document.getElementById(`wi-${systemNum}-factoryLengthFt`)?.focus()
+  })
 
-    const currentWeighIn = (visit._weighInData ?? []).find(
-      data => (data.systemNumber ?? data.system_number) === systemNum
-    )
+  const linesetRow = grid(
+    cell('Lineset ft', numberInput('linesetLength')),
+    cell('Manufacturer', makerControl),
+    cell('Factory len', lengthSel),
+  )
+  linesetRow.classList.add('ws-wi-grid--line')
+  panel.appendChild(linesetRow)
+  const extra = []
+  if (newMaker) extra.push(cell('oz / ft', numberInput('ozPerFt', { placeholder: '0.6' })))
+  if (askRefrigerant) {
+    const ref = document.createElement('input')
+    ref.type = 'text'; ref.className = 'ws-wi-input'; ref.placeholder = 'R-…'
+    ref.id = `wi-${systemNum}-refrigerant`; ref.value = state.refrigerant ?? ''
+    ref.addEventListener('input', () => { state.refrigerant = ref.value.trim() || null; refresh() })
+    ref.addEventListener('change', save)
+    extra.push(cell('Refrigerant', ref))
+  }
+  if (customLength) extra.push(cell('Length ft', numberInput('factoryLengthFt', { placeholder: 'ft' })))
+  if (extra.length) panel.appendChild(grid(...extra))
+  const derived = document.createElement('p'); derived.className = 'ws-wi-derived'
+  panel.appendChild(derived)
+
+  // ── Charge ──
+  panel.appendChild(head('Charge', 'oz unless noted'))
+  const factoryTag = document.createElement('span'); factoryTag.className = 'ws-wi-tag'
+  const factoryInput = numberInput('factoryChargeOz')
+  const factoryCell = cell('Factory', factoryInput)
+  factoryCell.querySelector('.ws-wi-cap').appendChild(factoryTag)
+  panel.appendChild(grid(factoryCell, cell('Approx adj', numberInput('approxAdjustOz', { readOnly: true })), cell('Adjusted', numberInput('adjustedOz'))))
+  const total = document.createElement('div'); total.className = 'ws-wi-total'
+  const totalMain = document.createElement('b'); const totalSub = document.createElement('span')
+  total.appendChild(totalMain); total.appendChild(totalSub)
+  panel.appendChild(total)
+
+  // ── Readings ──
+  panel.appendChild(head('Readings', '°F'))
+  panel.appendChild(grid(cell('Liquid', numberInput('liquidLineTemp')), cell('Suction', numberInput('suctionLineTemp')), cell('Cond sat', numberInput('condenserSatTemp'))))
+  panel.appendChild(grid(cell('Subcooling', numberInput('subcoolingValue', { readOnly: true })), cell('OEM SC goal', numberInput('oemSubcoolingGoal')), cell('SC deviation', numberInput('subcoolingDeviation', { readOnly: true }))))
+  panel.appendChild(grid(cell('Fan CFM', numberInput('fanSpeedCfm'))))
+
+  // Typed numbers update the state and the derived values as they change;
+  // the row is saved when a field is left.
+  ;['linesetLength', 'ozPerFt', 'factoryLengthFt', 'adjustedOz', 'liquidLineTemp', 'suctionLineTemp', 'condenserSatTemp', 'oemSubcoolingGoal', 'fanSpeedCfm'].forEach(key => {
+    const input = refs[key]
+    if (!input) return
+    input.addEventListener('input', () => { state[key] = input.value === '' ? null : Number(input.value); refresh() })
+    input.addEventListener('change', save)
+  })
+  // Typing a factory charge marks it edited; clearing it returns to the catalog value.
+  factoryInput.addEventListener('input', () => {
+    if (factoryInput.value === '') { state.factoryChargeSource = null; state.factoryChargeOz = null }
+    else { state.factoryChargeSource = 'edited'; state.factoryChargeOz = Number(factoryInput.value) }
+    refresh({ keepFactory: true })
+  })
+  factoryInput.addEventListener('change', () => { refresh(); save() })
+
+  function refresh ({ keepFactory = false } = {}) {
+    if (state.factoryChargeSource !== 'edited') {
+      state.factoryChargeOz = catalogCharge(equipmentCatalog, outdoorModel, state.manufacturer, state.factoryLengthFt)
+      state.factoryChargeSource = state.factoryChargeOz != null ? 'catalog' : null
+      if (!keepFactory) factoryInput.value = state.factoryChargeOz ?? ''
+    }
+    factoryTag.textContent = state.factoryChargeSource ? ` · ${state.factoryChargeSource}` : ''
+    state.approxAdjustOz = approxAdjust(state.linesetLength, state.factoryLengthFt, state.ozPerFt)
+    state.subcoolingValue = subcooling(state.condenserSatTemp, state.liquidLineTemp)
+    state.subcoolingDeviation = scDeviation(state.subcoolingValue, state.oemSubcoolingGoal ?? 10)
+    refs.approxAdjustOz.value = state.approxAdjustOz == null ? '—' : signed(state.approxAdjustOz)
+    refs.subcoolingValue.value = state.subcoolingValue == null ? '—' : minus(state.subcoolingValue)
+    refs.subcoolingDeviation.value = state.subcoolingDeviation == null ? '—' : signed(state.subcoolingDeviation)
+
+    const parts = [`${state.ozPerFt ?? '—'} oz/ft`, `baseline ${state.factoryLengthFt ?? '—'} ft`]
+    derived.textContent = parts.join(' · ')
+    if (state.refrigerant) {
+      const badge = document.createElement('span'); badge.className = 'ws-wi-ref'; badge.textContent = state.refrigerant
+      derived.appendChild(badge)
+    }
+    if (state.linesetLength != null && state.factoryLengthFt != null) {
+      const extraFt = Math.round((state.linesetLength - state.factoryLengthFt) * 10) / 10
+      const line = document.createElement('span'); line.className = 'ws-wi-derived-line'
+      line.textContent = `${state.linesetLength} ft − ${state.factoryLengthFt} ft = ${minus(extraFt)} ft ${extraFt >= 0 ? 'extra' : 'short'}` +
+        (state.approxAdjustOz != null ? ` · ${minus(extraFt)} × ${state.ozPerFt} = ${minus(state.approxAdjustOz)} oz` : '')
+      derived.appendChild(line)
+    }
+
+    const totalOz = newTotalOz(state.factoryChargeOz, state.adjustedOz)
+    totalMain.textContent = totalOz == null ? '—' : formatLbOz(totalOz)
+    totalSub.textContent = totalOz != null ? `${totalOz} oz · new total charge`
+      : state.factoryChargeOz == null ? 'Enter factory charge' : 'New total charge (enter Adjusted)'
+  }
+
+  async function save () {
+    const row = { ...state, factoryLineConfig: null, systemNumber: systemNum }
+    delete row.system_number
     visit._weighInData = [
-      ...(visit._weighInData ?? []).filter(
-        data => (data.systemNumber ?? data.system_number) !== systemNum
-      ),
-      { ...(currentWeighIn ?? {}), ...body, systemNumber: systemNum },
+      ...(visit._weighInData ?? []).filter(data => Number(data.systemNumber ?? data.system_number) !== systemNum),
+      row,
     ]
+    document.getElementById('ws-active-job-banner')?.replaceWith(buildActiveJobBanner())
     await persistCurrentDraft()
   }
 
-  // Numeric fields
-  NUMERIC_FIELDS.forEach(([key, label]) => {
-    const row = document.createElement('div'); row.className='ws-field-row'
-    const lbl = document.createElement('label'); lbl.className='ws-field-label'; lbl.textContent=label; lbl.setAttribute('for',`wi-${systemNum}-${key}`)
-    const input = document.createElement('input')
-    input.type='number'; input.id=`wi-${systemNum}-${key}`; input.className='ws-field-input'; input.inputMode='decimal'
-    if (savedWeighIn?.[key] != null) input.value = savedWeighIn[key]
-    else if (key === 'oemSubcoolingGoal') input.value = '10'
-    input.addEventListener('blur', syncWeighIn)
-    row.appendChild(lbl); row.appendChild(input); panel.appendChild(row)
-  })
+  refresh()
 
-  // Read-only deviation is derived from measured subcooling and the editable OEM goal.
-  const deviationRow = document.createElement('div'); deviationRow.className='ws-field-row'
-  const deviationLbl = document.createElement('label'); deviationLbl.className='ws-field-label'
-  deviationLbl.textContent = 'SC deviation (°F)'; deviationLbl.setAttribute('for', `wi-${systemNum}-subcoolingDeviation`)
-  const deviationOutput = document.createElement('output')
-  deviationOutput.id = `wi-${systemNum}-subcoolingDeviation`
-  deviationOutput.className = 'ws-field-input'
-  deviationOutput.setAttribute('aria-live', 'polite')
-  function updateSubcoolingDeviation () {
-    const measured = parseFloat(document.getElementById(`wi-${systemNum}-subcoolingValue`)?.value)
-    const goal = parseFloat(document.getElementById(`wi-${systemNum}-oemSubcoolingGoal`)?.value)
-    deviationOutput.textContent = Number.isFinite(measured) && Number.isFinite(goal)
-      ? (measured - goal).toFixed(1)
-      : '—'
-  }
-  ;['subcoolingValue', 'oemSubcoolingGoal'].forEach(key => {
-    document.getElementById(`wi-${systemNum}-${key}`)?.addEventListener('input', updateSubcoolingDeviation)
-  })
-  updateSubcoolingDeviation()
-  deviationRow.appendChild(deviationLbl); deviationRow.appendChild(deviationOutput); panel.appendChild(deviationRow)
-
-  // Lineset config dropdown
-  const configRow = document.createElement('div'); configRow.className='ws-field-row'
-  const configLbl = document.createElement('label'); configLbl.className='ws-field-label'; configLbl.textContent='Lineset config'; configLbl.setAttribute('for',`wi-${systemNum}-config`)
-  const configSel = document.createElement('select'); configSel.id=`wi-${systemNum}-config`; configSel.className='ws-field-input'
-  const emptyOpt = document.createElement('option'); emptyOpt.value=''; emptyOpt.textContent='— select —'
-  configSel.appendChild(emptyOpt)
-  linesetConfigs.forEach(cfg => {
-    const opt = document.createElement('option'); opt.value=cfg.config_key; opt.textContent=cfg.config_key
-    configSel.appendChild(opt)
-  })
-  const selectedConfig = savedWeighIn?.factoryLineConfig ?? preselect
-  if (selectedConfig) configSel.value = selectedConfig
-  configRow.appendChild(configLbl); configRow.appendChild(configSel); panel.appendChild(configRow)
-
-  // Factory/revised row — only visible when selected config has revised_available=true
-  const chargeRow = document.createElement('div'); chargeRow.className='ws-field-row'
-  const chargeLbl = document.createElement('label'); chargeLbl.className='ws-field-label'; chargeLbl.textContent='Charge'; chargeLbl.setAttribute('for',`wi-${systemNum}-charge`)
-  const chargeSel = document.createElement('select'); chargeSel.id=`wi-${systemNum}-charge`; chargeSel.className='ws-field-input'
-  ;[['factory','Factory'],['revised','Revised']].forEach(([val, txt]) => {
-    const opt = document.createElement('option'); opt.value=val; opt.textContent=txt; chargeSel.appendChild(opt)
-  })
-  const equipment = equipmentCatalog.find(e => e.model === outdoorModel)
-  if (savedWeighIn?.factoryChargeOz != null && equipment?.revised_charge_oz != null &&
-      savedWeighIn.factoryChargeOz === equipment.revised_charge_oz) {
-    chargeSel.value = 'revised'
-  }
-  chargeSel.addEventListener('change', syncWeighIn)
-  chargeRow.appendChild(chargeLbl); chargeRow.appendChild(chargeSel); panel.appendChild(chargeRow)
-
-  function updateChargeVisibility (configKey) {
-    const cfg = linesetConfigs.find(c => c.config_key === configKey)
-    chargeRow.classList.toggle('hidden', !cfg?.revised_available)
-  }
-  updateChargeVisibility(selectedConfig ?? '')
-  configSel.addEventListener('change', () => { updateChargeVisibility(configSel.value); syncWeighIn() })
-
-  // Scale/Fan photos — per-system, per WEIGHIN-SPEC.md items 13-14
+  // Scale/Fan photos — per-system, per WEIGHIN-SPEC.md
   const photoSep = document.createElement('p'); photoSep.className='ws-weighin-label'; photoSep.textContent='Compliance Photos'
   panel.appendChild(photoSep)
   const photoGrid = document.createElement('div'); photoGrid.className='ws-btn-grid'
@@ -1567,83 +1679,6 @@ async function captureWeighInPhoto (tag, systemNum, btn) {
     } catch (err) { console.error('Weigh-in photo could not be saved:', err); btn.classList.remove('ws-item-btn--active') }
   })
   input.click()
-}
-
-function buildCalcSection () {
-  const wrap = document.createElement('div')
-  wrap.className = 'ws-section-content'
-  const count = systemNumbersOf(visit).length
-  for (let i = 1; i <= count; i++) wrap.appendChild(buildCalcPanel(i, count > 1))
-  const doneBtn = document.createElement('button')
-  doneBtn.className = 'ws-done-btn'; doneBtn.textContent = 'Done'
-  doneBtn.addEventListener('click', () => markSectionComplete('calc'))
-  wrap.appendChild(doneBtn)
-  return wrap
-}
-
-function buildCalcPanel (systemNum, showLabel) {
-  const panel = document.createElement('div')
-  panel.className = 'ws-weighin-panel'
-  if (showLabel) {
-    const lbl = document.createElement('p'); lbl.className='ws-weighin-label'; lbl.textContent=`System ${systemNum}`
-    panel.appendChild(lbl)
-  }
-
-  const outdoorModel = visit.systems?.find(s => s.systemNumber === systemNum)?.outdoorModel
-  const brand = (equipmentCatalog.find(e => e.model === outdoorModel)?.brand ?? '').toLowerCase()
-
-  function getPreselect () {
-    if (brand.includes('trane')) {
-      const d = visit.scheduledTime ? new Date(visit.scheduledTime) : null
-      if (!d || isNaN(d)) return null
-      if (d < new Date('2025-05-01')) return 'TRANE-PRE-2025'
-      if (d < new Date('2026-01-01')) return 'TRANE-MID-2025'
-      return 'TRANE-2026'
-    }
-    if (brand.includes('lennox'))  return 'LENNOX-30'
-    if (brand.includes('goodman')) return 'GOODMAN'
-    if (brand.includes('daikin'))  return 'DAIKIN'
-    return null
-  }
-  const preselect = getPreselect()
-
-  // Config dropdown
-  const configRow = document.createElement('div'); configRow.className='ws-field-row'
-  const configLbl = document.createElement('label'); configLbl.className='ws-field-label'; configLbl.textContent='Lineset config'; configLbl.setAttribute('for',`calc-${systemNum}-config`)
-  const configSel = document.createElement('select'); configSel.id=`calc-${systemNum}-config`; configSel.className='ws-field-input'
-  const emptyOpt = document.createElement('option'); emptyOpt.value=''; emptyOpt.textContent='— select —'; configSel.appendChild(emptyOpt)
-  linesetConfigs.forEach(cfg => {
-    const opt = document.createElement('option'); opt.value=cfg.config_key; opt.textContent=cfg.config_key
-    if (cfg.config_key === preselect) opt.selected = true
-    configSel.appendChild(opt)
-  })
-  configRow.appendChild(configLbl); configRow.appendChild(configSel); panel.appendChild(configRow)
-
-  // Actual lineset input
-  const ftRow = document.createElement('div'); ftRow.className='ws-field-row'
-  const ftLbl = document.createElement('label'); ftLbl.className='ws-field-label'; ftLbl.textContent='Actual lineset (ft)'; ftLbl.setAttribute('for',`calc-${systemNum}-ft`)
-  const ftInput = document.createElement('input')
-  ftInput.type='number'; ftInput.id=`calc-${systemNum}-ft`; ftInput.className='ws-field-input'; ftInput.inputMode='decimal'; ftInput.placeholder='ft'
-  ftRow.appendChild(ftLbl); ftRow.appendChild(ftInput); panel.appendChild(ftRow)
-
-  // Result display
-  const resultEl = document.createElement('p'); resultEl.className='ws-calc-result'; resultEl.textContent='—'
-  panel.appendChild(resultEl)
-
-  function updateResult () {
-    const cfg = linesetConfigs.find(c => c.config_key === configSel.value)
-    const actual = parseFloat(ftInput.value)
-    if (!cfg || isNaN(actual)) { resultEl.textContent = '—'; return }
-    const adj = Math.round((actual - cfg.reference_length_ft) * cfg.adjust_rate_oz_per_ft * 10) / 10
-    if (adj === 0)      resultEl.textContent = 'No adjustment needed'
-    else if (adj > 0)   resultEl.textContent = `Add ${adj.toFixed(1)} oz`
-    else                resultEl.textContent = `Remove ${Math.abs(adj).toFixed(1)} oz`
-  }
-
-  configSel.addEventListener('change', updateResult)
-  ftInput.addEventListener('input', updateResult)
-  updateResult()
-  return panel
 }
 
 function buildStartupChecklistSection () {
@@ -2105,6 +2140,22 @@ function injectStyles () {
   .ws-done-btn{flex:1;background:var(--fo-panel);box-shadow:var(--fo-shadow-raised);color:var(--fo-accent-deep);border:none;border-radius:var(--fo-radius-sm);font-family:var(--fo-font-body);font-size:var(--text-base);font-weight:800;padding:var(--space-3);cursor:pointer;-webkit-tap-highlight-color:transparent;}
   .ws-done-btn--generate{color:var(--fo-ok);}
   .ws-weighin-panel{display:flex;flex-direction:column;gap:var(--space-2);}
+  .ws-wi-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:var(--space-2);align-items:end;}
+  .ws-wi-grid--line{grid-template-columns:72px minmax(0,1fr) 92px;}
+  .ws-wi-cell{display:flex;flex-direction:column;gap:5px;min-width:0;}
+  .ws-wi-cap{font-family:var(--fo-font-mono);font-size:10px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--fo-ink-soft);}
+  .ws-wi-input{width:100%;min-width:0;height:42px;border:none;border-radius:var(--fo-radius-sm);background:var(--fo-well);box-shadow:var(--fo-shadow-well);padding:0 10px;font-family:var(--fo-font-mono);font-size:var(--text-base);font-weight:600;color:var(--fo-ink);outline:none;-webkit-appearance:none;appearance:none;}
+  .ws-wi-input--calc{background:transparent;box-shadow:none;color:var(--fo-accent-deep);font-weight:800;padding-left:2px;}
+  .ws-wi-maker{position:relative;}
+  .ws-wi-maker .ws-wi-input{padding-right:34px;}
+  .ws-wi-back{position:absolute;right:4px;top:4px;width:30px;height:34px;border:none;border-radius:9px;background:var(--fo-panel);box-shadow:var(--fo-shadow-raised);color:var(--fo-accent-deep);font-weight:800;cursor:pointer;}
+  .ws-wi-tag{display:block;font-size:8px;text-transform:none;}
+  .ws-wi-derived{display:flex;flex-wrap:wrap;align-items:center;gap:4px 6px;padding:10px 12px;border-radius:var(--fo-radius-sm);background:var(--fo-well);box-shadow:var(--fo-shadow-well);font-family:var(--fo-font-mono);font-size:var(--text-xs);line-height:1.6;color:var(--fo-ink);}
+  .ws-wi-derived-line{flex-basis:100%;}
+  .ws-wi-ref{display:inline-block;font-family:var(--fo-font-mono);font-size:10px;font-weight:700;padding:2px 7px;border-radius:7px;background:var(--fo-panel);box-shadow:var(--fo-shadow-raised);}
+  .ws-wi-total{display:flex;align-items:baseline;flex-wrap:wrap;gap:4px 10px;}
+  .ws-wi-total b{font-family:var(--fo-font-body);font-size:26px;font-weight:800;color:var(--fo-accent-deep);}
+  .ws-wi-total span{font-family:var(--fo-font-mono);font-size:var(--text-xs);color:var(--fo-ink-soft);}
   .ws-weighin-label{font-size:var(--text-xs);color:var(--fo-ink-soft);font-family:var(--fo-font-mono);text-transform:uppercase;letter-spacing:.06em;font-weight:500;margin-bottom:var(--space-1);}
   .ws-field-row{display:flex;justify-content:space-between;align-items:center;gap:var(--space-3);}
   .ws-field-label{font-size:var(--text-sm);color:var(--fo-ink-soft);flex:1;}
