@@ -37,13 +37,19 @@ export async function collectReportPhotos (visit, {
   const photos = []
   const missing = []
   for (const [i, ref] of refs.entries()) {
-    let blob = local.get(ref.id) ?? null
+    // SCALE and FAN go to the Company form with their GPS, which only the
+    // server copy carries (the phone's compressed copy has no EXIF; CC-17).
+    const needsServerCopy = GPS_TAGS.has(ref.tag)
+    let blob = needsServerCopy ? null : local.get(ref.id) ?? null
     if (!blob && online) blob = await fetchPhoto(visit.id, ref.id).catch(() => null)
     if (blob) photos.push({ name: names[i], data: blob })
+    else if (needsServerCopy && online) missing.push({ name: names[i], needsConnection: false, waitingUpload: true })
     else missing.push({ name: names[i], needsConnection: !online })
   }
   return { photos, missing }
 }
+
+const GPS_TAGS = new Set(['SCALE', 'FAN'])
 
 export const LOCAL_SOURCE = 'local, unconfirmed by server'
 

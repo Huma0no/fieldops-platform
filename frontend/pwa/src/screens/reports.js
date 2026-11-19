@@ -579,7 +579,7 @@ async function downloadReport (visit, kind, { delivered }) {
       renderList()
     }
     if (missing.length) {
-      const lines = missing.map(m => `${m.name} — ${m.needsConnection ? 'needs connection' : 'not available'}`)
+      const lines = missing.map(m => `${m.name} — ${m.waitingUpload ? 'still uploading (GPS is added on the server)' : m.needsConnection ? 'needs connection' : 'not available'}`)
       alert(`${blob ? 'Downloaded without' : 'Nothing to download'}:\n${lines.join('\n')}`)
     } else if (!blob) {
       alert('This report has no photos.')

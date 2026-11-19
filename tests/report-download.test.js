@@ -42,7 +42,7 @@ const visit = {
   id: 'visit-1',
   snapshot: {
     evidenceRefs: [
-      { id: 'p-1', slug: '7746_TRIBUTE_CIR_SCALE_SYS2' },
+      { id: 'p-1', slug: '7746_TRIBUTE_CIR_SCALE_SYS2', tag: 'SCALE' },
       { id: 'p-2', slug: '5523_SILK_PETAL_ELECTRIC_METER' },
       { id: 'p-3', slug: '5523_SILK_PETAL_ELECTRIC_METER' },
     ],
@@ -64,10 +64,13 @@ it('offline: exports the phone snapshot, marked unconfirmed, with the photos sti
   const result = await download.buildReportDownload(visit, 'all', offline);
   expect(result.fileName).toBe('report-visit-1.zip');
   const files = await unzip(result.blob);
-  expect(Object.keys(files)).toEqual(['report-visit-1.json', '7746_TRIBUTE_CIR_SCALE_SYS2.jpg', '5523_SILK_PETAL_ELECTRIC_METER.jpg']);
+  // SCALE/FAN never come from the phone copy (no GPS in it; CC-17).
+  expect(Object.keys(files)).toEqual(['report-visit-1.json', '5523_SILK_PETAL_ELECTRIC_METER.jpg']);
   expect(JSON.parse(files['report-visit-1.json'])).toEqual({ source: 'local, unconfirmed by server', report: visit.snapshot });
-  expect(files['7746_TRIBUTE_CIR_SCALE_SYS2.jpg']).toBe('scale');
-  expect(result.missing).toEqual([{ name: '5523_SILK_PETAL_ELECTRIC_METER_2.jpg', needsConnection: true }]);
+  expect(result.missing).toEqual([
+    { name: '7746_TRIBUTE_CIR_SCALE_SYS2.jpg', needsConnection: true },
+    { name: '5523_SILK_PETAL_ELECTRIC_METER_2.jpg', needsConnection: true },
+  ]);
 
   const json = await download.buildReportDownload(visit, 'json', offline);
   expect(json.fileName).toBe('report-visit-1.json');
@@ -82,8 +85,8 @@ it('online: fetches older photos from the server and adds the Report JSON', asyn
   const result = await download.buildReportDownload(visit, 'all', {
     online: true,
     loadLocal: onPhone,
-    loadServerList: async () => [{ id: 'p-4', slug: '5523_SILK_PETAL_FAN_SYS1' }],
-    fetchPhoto: async (_visitId, id) => (id === 'p-4' ? new Blob(['fan']) : id === 'p-3' ? new Blob(['meter2']) : null),
+    loadServerList: async () => [{ id: 'p-4', slug: '5523_SILK_PETAL_FAN_SYS1', tag: 'FAN' }],
+    fetchPhoto: async (_visitId, id) => ({ 'p-1': new Blob(['scale-with-gps']), 'p-4': new Blob(['fan']), 'p-3': new Blob(['meter2']) })[id] ?? null,
     loadServerReport: async () => ({ reportText: 'AC started $30', report: { totalPrice: 30, priceDiscrepancies: [] } }),
   });
   const files = await unzip(result.blob);
@@ -94,9 +97,23 @@ it('online: fetches older photos from the server and adds the Report JSON', asyn
   expect(JSON.parse(files['report-visit-1.json'])).toEqual({
     source: 'server', reportText: 'AC started $30', report: { totalPrice: 30, priceDiscrepancies: [] },
   });
+  // The SCALE photo is the server copy even though the phone still has one.
+  expect(files['7746_TRIBUTE_CIR_SCALE_SYS2.jpg']).toBe('scale-with-gps');
+  expect(files['5523_SILK_PETAL_ELECTRIC_METER.jpg']).toBe('meter');
   expect(result.missing).toEqual([]);
 
   const photosOnly = await download.buildReportDownload(visit, 'zip', { online: false, loadLocal: onPhone });
   expect(photosOnly.fileName).toBe('report-visit-1-photos.zip');
-  expect(Object.keys(await unzip(photosOnly.blob))).toHaveLength(2);
+  expect(Object.keys(await unzip(photosOnly.blob))).toHaveLength(1);
+});
+
+it('online: a SCALE/FAN photo not uploaded yet is listed as still uploading, not taken from the phone', async () => {
+  const result = await download.buildReportDownload(visit, 'zip', {
+    online: true,
+    loadLocal: onPhone,
+    loadServerList: async () => [],
+    fetchPhoto: async (_visitId, id) => (id === 'p-3' ? new Blob(['meter2']) : null),
+  });
+  expect(Object.keys(await unzip(result.blob))).toEqual(['5523_SILK_PETAL_ELECTRIC_METER.jpg', '5523_SILK_PETAL_ELECTRIC_METER_2.jpg']);
+  expect(result.missing).toEqual([{ name: '7746_TRIBUTE_CIR_SCALE_SYS2.jpg', needsConnection: false, waitingUpload: true }]);
 });

@@ -924,6 +924,30 @@ describe('POST /api/visits/:id/photos', () => {
     expect(res.body.slug).not.toMatch(/ /); // no spaces in slug
   });
 
+  it('stores SCALE/FAN photos with the GPS embedded in the file (CC-17)', async () => {
+    const piexif = require('piexifjs');
+    const { createCanvas } = require('@napi-rs/canvas');
+    const jpeg = await createCanvas(16, 16).encode('jpeg');
+    const { visitId, token } = await seedAssignedVisit();
+    const res = await request(app)
+      .post(`/api/visits/${visitId}/photos`)
+      .set('Authorization', `Bearer ${token}`)
+      .field('category', 'weigh_in_scale')
+      .field('tag', 'SCALE')
+      .field('systemNumber', '1')
+      .field('lat', '29.7604')
+      .field('lon', '-95.3698')
+      .attach('photo', jpeg, 'scale.jpg');
+    expect(res.status).toBe(200);
+    const image = await request(app)
+      .get(`/api/visits/${visitId}/photos/${res.body.photoId}`)
+      .set('Authorization', `Bearer ${token}`);
+    const gps = piexif.load(`data:image/jpeg;base64,${Buffer.from(image.body).toString('base64')}`).GPS;
+    expect(gps[piexif.GPSIFD.GPSLatitudeRef]).toBe('N');
+    expect(gps[piexif.GPSIFD.GPSLongitudeRef]).toBe('W');
+    expect(gps[piexif.GPSIFD.GPSLatitude][0]).toEqual([29, 1]);
+  });
+
   it('includes SYS{N} suffix in slug when systemNumber is provided', async () => {
     const { visitId, token } = await seedAssignedVisit();
     const res = await request(app)
