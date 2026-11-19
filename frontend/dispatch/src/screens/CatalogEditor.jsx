@@ -1,7 +1,9 @@
 /**
  * src/screens/CatalogEditor.jsx
- * F10 — Catalog editor for Dispatch. Full schema coverage for all four editable tables.
- * Inline edit covers every non-PK column. Create forms for equipment and items.
+ * F10 — Catalog editor for Dispatch: Equipment (with its factory charges per
+ * manufacturer + length), Items, Services and Manufacturers (W3).
+ * Inline edit covers every non-PK column. Create forms for equipment, items
+ * and manufacturers.
  * Note: catalog changes do not affect historical visits.
  */
 
@@ -12,7 +14,7 @@ const TABS = [
   { id: 'equipment', label: 'Equipment' },
   { id: 'items',     label: 'Items' },
   { id: 'services',  label: 'Services' },
-  { id: 'lineset',   label: 'Lineset Configs' },
+  { id: 'makers',    label: 'Manufacturers' },
 ]
 
 // ── Root component ─────────────────────────────────────────
@@ -45,20 +47,20 @@ export default function CatalogEditor () {
         {tab === 'equipment' && <EquipmentTab />}
         {tab === 'items'     && <ItemsTab />}
         {tab === 'services'  && <ServicesTab />}
-        {tab === 'lineset'   && <LinesetConfigsTab />}
+        {tab === 'makers'    && <ManufacturersTab />}
       </div>
     </div>
   )
 }
 
 // ── Equipment tab ──────────────────────────────────────────
-// Covers all catalog_equipment columns.
+// Covers all catalog_equipment columns plus the model's factory charges
+// (catalog_equipment_charges: one row per manufacturer + length, W3).
 // PK (model) is display-only. All other columns are editable inline.
 
 const EMPTY_EQUIPMENT = {
   model: '', unit_type: '', brand: '', series: '', refrigerant: '',
-  is_a2l: false, btu: '', factory_charge_oz: '', revised_charge_oz: '',
-  pesp: '', oem_subcooling_goal: '',
+  is_a2l: false, btu: '', pesp: '', oem_subcooling_goal: '', charges: [],
 }
 
 const EQUIP_EDITABLE_COLS = [
@@ -68,8 +70,6 @@ const EQUIP_EDITABLE_COLS = [
   { key: 'refrigerant',        label: 'Refrigerant',  type: 'text'     },
   { key: 'is_a2l',             label: 'A2L',          type: 'boolean'  },
   { key: 'btu',                label: 'BTU',          type: 'number'   },
-  { key: 'factory_charge_oz',  label: 'Factory oz',   type: 'number'   },
-  { key: 'revised_charge_oz',  label: 'Revised oz',   type: 'number'   },
   { key: 'pesp',               label: 'PESP',         type: 'number'   },
   { key: 'oem_subcooling_goal',label: 'OEM subcool goal', type: 'number' },
 ]
@@ -82,8 +82,6 @@ function equipEditValsFromRow (row) {
     refrigerant:         row.refrigerant         ?? '',
     is_a2l:              row.is_a2l              ?? false,
     btu:                 row.btu                 ?? '',
-    factory_charge_oz:   row.factory_charge_oz   ?? '',
-    revised_charge_oz:   row.revised_charge_oz   ?? '',
     pesp:                row.pesp                ?? '',
     oem_subcooling_goal: row.oem_subcooling_goal ?? '',
   }
@@ -97,8 +95,6 @@ function equipBodyFromVals (vals) {
     refrigerant:         vals.refrigerant.trim() || null,
     is_a2l:              vals.is_a2l,
     btu:                 vals.btu !== '' ? Number(vals.btu)                 : null,
-    factory_charge_oz:   vals.factory_charge_oz  !== '' ? Number(vals.factory_charge_oz)  : null,
-    revised_charge_oz:   vals.revised_charge_oz  !== '' ? Number(vals.revised_charge_oz)  : null,
     pesp:                vals.pesp               !== '' ? Number(vals.pesp)                : null,
     oem_subcooling_goal: vals.oem_subcooling_goal !== '' ? Number(vals.oem_subcooling_goal) : null,
   }
@@ -114,13 +110,16 @@ function EquipmentTab () {
   const [addForm, setAddForm]   = useState(EMPTY_EQUIPMENT)
   const [adding, setAdding]     = useState(false)
   const [error, setError]       = useState('')
+  const [makers, setMakers]     = useState([])
 
   useEffect(() => { loadData() }, [])
 
   async function loadData () {
     setLoading(true)
     try {
-      setRows((await api.get('/catalog/equipment')) ?? [])
+      const [equipment, manufacturers] = await Promise.all([api.get('/catalog/equipment'), api.get('/catalog/manufacturers')])
+      setRows(equipment ?? [])
+      setMakers(manufacturers ?? [])
     } catch (err) {
       console.error('Equipment load failed:', err)
     } finally {
@@ -130,7 +129,7 @@ function EquipmentTab () {
 
   function startEdit (row) {
     setEditId(row.model)
-    setEditVals(equipEditValsFromRow(row))
+    setEditVals({ ...equipEditValsFromRow(row), charges: chargeRowsFrom(row.charges) })
     setError('')
   }
 
@@ -138,13 +137,18 @@ function EquipmentTab () {
     const body = equipBodyFromVals(editVals)
     if (!body.unit_type) { setError('unit_type is required'); return }
     if (!body.brand)     { setError('brand is required'); return }
+    const chargeError = chargesError(editVals.charges)
+    if (chargeError) { setError(chargeError); return }
     setSaving(true)
     setError('')
     try {
       const updated = await api.patch(
         `/dispatch/catalog/catalog_equipment/${encodeURIComponent(row.model)}`, body
       )
-      setRows(prev => prev.map(r => r.model === row.model ? updated : r))
+      const { charges } = await api.put(
+        `/dispatch/catalog/equipment/${encodeURIComponent(row.model)}/charges`, { charges: chargesBody(editVals.charges) }
+      )
+      setRows(prev => prev.map(r => r.model === row.model ? { ...updated, charges } : r))
       setEditId(null)
     } catch (err) {
       setError('Save failed.')
@@ -158,6 +162,8 @@ function EquipmentTab () {
     if (!addForm.model.trim())     { setError('Model is required.'); return }
     if (!addForm.unit_type.trim()) { setError('Type is required.'); return }
     if (!addForm.brand.trim())     { setError('Brand is required.'); return }
+    const chargeError = chargesError(addForm.charges)
+    if (chargeError) { setError(chargeError); return }
     setAdding(true)
     setError('')
     try {
@@ -169,8 +175,7 @@ function EquipmentTab () {
         refrigerant:         addForm.refrigerant.trim() || null,
         is_a2l:              addForm.is_a2l,
         btu:                 addForm.btu !== '' ? Number(addForm.btu) : null,
-        factory_charge_oz:   addForm.factory_charge_oz  !== '' ? Number(addForm.factory_charge_oz)  : null,
-        revised_charge_oz:   addForm.revised_charge_oz  !== '' ? Number(addForm.revised_charge_oz)  : null,
+        charges:             chargesBody(addForm.charges),
         pesp:                addForm.pesp !== '' ? Number(addForm.pesp) : null,
         oem_subcooling_goal: addForm.oem_subcooling_goal !== '' ? Number(addForm.oem_subcooling_goal) : null,
       }
@@ -197,7 +202,7 @@ function EquipmentTab () {
           <thead>
             <tr>
               {['Model', 'Type', 'Brand', 'Series', 'Refrigerant', 'A2L', 'BTU',
-                'Factory oz', 'Revised oz', 'PESP', 'OEM subcool', ''].map(h => (
+                'PESP', 'OEM subcool', 'Charges', ''].map(h => (
                 <th key={h}>{h}</th>
               ))}
             </tr>
@@ -224,6 +229,12 @@ function EquipmentTab () {
                       )}
                     </td>
                   ))}
+                  <td style={styles.td}>
+                    {isEditing
+                      ? <ChargeRows rows={editVals.charges} makers={makers} brand={editVals.brand}
+                          onChange={charges => setEditVals(v => ({ ...v, charges }))} />
+                      : chargesSummary(row)}
+                  </td>
                   <td style={styles.td}>
                     {isEditing ? (
                       <span style={styles.editActions}>
@@ -258,8 +269,6 @@ function EquipmentTab () {
               { key: 'series',             label: 'Series',               type: 'text'   },
               { key: 'refrigerant',        label: 'Refrigerant',          type: 'text'   },
               { key: 'btu',               label: 'BTU',                  type: 'number' },
-              { key: 'factory_charge_oz',  label: 'Factory charge (oz)',  type: 'number' },
-              { key: 'revised_charge_oz',  label: 'Revised charge (oz)',  type: 'number' },
               { key: 'pesp',               label: 'PESP',                 type: 'number' },
               { key: 'oem_subcooling_goal',label: 'OEM subcool goal',     type: 'number' },
             ].map(({ key, label, type }) => (
@@ -279,11 +288,76 @@ function EquipmentTab () {
               <label className="vd-label" style={styles.flush}>A2L refrigerant</label>
             </div>
           </div>
+          <div style={styles.addField}>
+            <label className="vd-label" style={styles.flush}>Factory charges (manufacturer · length · oz)</label>
+            <ChargeRows rows={addForm.charges} makers={makers} brand={addForm.brand}
+              onChange={charges => setAddForm(f => ({ ...f, charges }))} />
+          </div>
           <button className="vd-key dark" style={styles.addSubmitBtn} onClick={handleAdd} disabled={adding}>
             {adding ? 'Adding…' : 'Add model'}
           </button>
         </div>
       )}
+    </div>
+  )
+}
+
+// ── Factory charges per manufacturer + length (W3) ─────────
+
+function chargeRowsFrom (charges) {
+  return (charges ?? []).map(c => ({ manufacturer: c.manufacturer, length_ft: String(c.length_ft), charge_oz: String(c.charge_oz) }))
+}
+
+function chargesBody (rows) {
+  return rows.map(r => ({ manufacturer: r.manufacturer, length_ft: Number(r.length_ft), charge_oz: Number(r.charge_oz) }))
+}
+
+function chargesError (rows) {
+  const seen = new Set()
+  for (const r of rows) {
+    if (!r.manufacturer) return 'Each charge needs a manufacturer.'
+    if (!(Number(r.length_ft) > 0)) return 'Each charge needs a length in ft.'
+    if (r.charge_oz === '' || !(Number(r.charge_oz) >= 0)) return 'Each charge needs a charge in oz.'
+    const key = r.manufacturer + '|' + Number(r.length_ft)
+    if (seen.has(key)) return 'Duplicate charge for ' + r.manufacturer + ' ' + Number(r.length_ft) + ' ft.'
+    seen.add(key)
+  }
+  return ''
+}
+
+// "15 ft 78 · 30 ft 92 oz"; another manufacturer than the brand is named.
+function chargesSummary (row) {
+  const charges = row.charges ?? []
+  if (!charges.length) return '—'
+  return charges.map(c => (c.manufacturer === row.brand ? '' : c.manufacturer + ' ') + c.length_ft + ' ft ' + c.charge_oz).join(' · ') + ' oz'
+}
+
+// Add, edit or remove a length row. A new row starts with the model's brand
+// when it is a manufacturer.
+function ChargeRows ({ rows, makers, brand, onChange }) {
+  const set = (i, key, value) => onChange(rows.map((r, j) => j === i ? { ...r, [key]: value } : r))
+  const add = () => {
+    const maker = makers.find(m => m.name.toLowerCase() === (brand ?? '').trim().toLowerCase())
+    onChange([...rows, { manufacturer: maker?.name ?? '', length_ft: maker ? String(maker.default_length_ft) : '', charge_oz: '' }])
+  }
+  return (
+    <div style={styles.chargeList}>
+      {rows.map((r, i) => (
+        <div key={i} style={styles.chargeRow}>
+          <select className="vd-input sm" style={styles.chargeMaker} value={r.manufacturer} aria-label="Manufacturer"
+            onChange={e => set(i, 'manufacturer', e.target.value)}>
+            <option value="">Manufacturer…</option>
+            {makers.map(m => <option key={m.name} value={m.name}>{m.name}</option>)}
+          </select>
+          <input className="vd-input sm" style={styles.chargeNum} type="number" min="1" placeholder="ft" aria-label="Length ft"
+            value={r.length_ft} onChange={e => set(i, 'length_ft', e.target.value)} />
+          <input className="vd-input sm" style={styles.chargeNum} type="number" min="0" placeholder="oz" aria-label="Charge oz"
+            value={r.charge_oz} onChange={e => set(i, 'charge_oz', e.target.value)} />
+          <button type="button" className="vd-key sm" aria-label="Remove length row"
+            onClick={() => onChange(rows.filter((_, j) => j !== i))}>✕</button>
+        </div>
+      ))}
+      <button type="button" className="vd-key sm" style={styles.addToggleBtn} onClick={add}>+ Length</button>
     </div>
   )
 }
@@ -658,16 +732,28 @@ function ServicesTab () {
   )
 }
 
-// ── Lineset Configs tab ────────────────────────────────────
-// catalog_lineset_configs: both numeric columns editable inline.
-// No create form (config list is fixed).
+// ── Manufacturers tab ──────────────────────────────────────
+// catalog_manufacturers (W3): name, oz/ft and default factory length, used by
+// Weigh-In and Quick Charge Calc. Inline edit and an add form.
 
-function LinesetConfigsTab () {
+const EMPTY_MAKER = { name: '', oz_per_ft: '', default_length_ft: '' }
+
+function makerError (vals) {
+  if (!vals.name.trim()) return 'Name is required.'
+  if (!(Number(vals.oz_per_ft) > 0)) return 'oz/ft must be above 0.'
+  if (!(Number(vals.default_length_ft) > 0)) return 'Default length must be above 0.'
+  return ''
+}
+
+const makerBody = vals => ({ name: vals.name.trim(), oz_per_ft: Number(vals.oz_per_ft), default_length_ft: Number(vals.default_length_ft) })
+
+function ManufacturersTab () {
   const [rows, setRows]         = useState([])
   const [loading, setLoading]   = useState(true)
   const [editId, setEditId]     = useState(null)
-  const [editVals, setEditVals] = useState({})
+  const [editVals, setEditVals] = useState(EMPTY_MAKER)
   const [saving, setSaving]     = useState(false)
+  const [addForm, setAddForm]   = useState(EMPTY_MAKER)
   const [error, setError]       = useState('')
 
   useEffect(() => { loadData() }, [])
@@ -675,40 +761,48 @@ function LinesetConfigsTab () {
   async function loadData () {
     setLoading(true)
     try {
-      setRows((await api.get('/catalog/lineset-configs')) ?? [])
+      setRows((await api.get('/catalog/manufacturers')) ?? [])
     } catch (err) {
-      console.error('Lineset configs load failed:', err)
+      console.error('Manufacturers load failed:', err)
     } finally {
       setLoading(false)
     }
   }
 
   function startEdit (row) {
-    setEditId(row.config_key)
-    setEditVals({
-      reference_length_ft:   row.reference_length_ft   ?? '',
-      adjust_rate_oz_per_ft: row.adjust_rate_oz_per_ft ?? '',
-    })
+    setEditId(row.name)
+    setEditVals({ name: row.name, oz_per_ft: String(row.oz_per_ft), default_length_ft: String(row.default_length_ft) })
     setError('')
   }
 
   async function saveEdit (row) {
-    if (editVals.reference_length_ft === '')   { setError('Reference length is required.'); return }
-    if (editVals.adjust_rate_oz_per_ft === '') { setError('Adjust rate is required.'); return }
+    const problem = makerError(editVals)
+    if (problem) { setError(problem); return }
     setSaving(true)
     setError('')
     try {
-      const body = {
-        reference_length_ft:   Number(editVals.reference_length_ft),
-        adjust_rate_oz_per_ft: Number(editVals.adjust_rate_oz_per_ft),
-      }
-      const updated = await api.patch(
-        `/dispatch/catalog/catalog_lineset_configs/${encodeURIComponent(row.config_key)}`, body
-      )
-      setRows(prev => prev.map(r => r.config_key === row.config_key ? updated : r))
+      const updated = await api.patch(`/dispatch/catalog/catalog_manufacturers/${encodeURIComponent(row.name)}`, makerBody(editVals))
+      setRows(prev => prev.map(r => r.name === row.name ? updated : r))
       setEditId(null)
     } catch (err) {
-      setError('Save failed.')
+      setError(err.status === 409 ? 'That name already exists.' : 'Save failed.')
+      console.error(err)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function handleAdd () {
+    const problem = makerError(addForm)
+    if (problem) { setError(problem); return }
+    setSaving(true)
+    setError('')
+    try {
+      const created = await api.post('/dispatch/catalog/manufacturers', makerBody(addForm))
+      setRows(prev => [...prev, created].sort((a, b) => a.name.localeCompare(b.name)))
+      setAddForm(EMPTY_MAKER)
+    } catch (err) {
+      setError(err.status === 409 ? 'That manufacturer already exists.' : 'Add failed.')
       console.error(err)
     } finally {
       setSaving(false)
@@ -717,39 +811,30 @@ function LinesetConfigsTab () {
 
   if (loading) return <div className="vd-hint" style={styles.loading}>Loading…</div>
 
+  const field = (vals, setVals, key, type, label) => (
+    <input className="vd-input sm" style={key === 'name' ? undefined : styles.cellInput} type={type} step="any" aria-label={label}
+      value={vals[key]} onChange={e => setVals(v => ({ ...v, [key]: e.target.value }))} />
+  )
+
   return (
     <div style={styles.tabBody}>
       {error && <p className="vd-error">{error}</p>}
-      <p className="vd-hint" style={styles.flush}>Config list is fixed — new configs cannot be added here.</p>
+      <p className="vd-hint" style={styles.flush}>Weigh-In and Calc use oz/ft and the default factory length of the selected manufacturer.</p>
 
       <table className="vd-table">
         <thead>
           <tr>
-            {['Config key', 'Reference length (ft)', 'Adjust rate (oz/ft)', ''].map(h => (
-              <th key={h}>{h}</th>
-            ))}
+            {['Manufacturer', 'oz / ft', 'Default length (ft)', ''].map(h => <th key={h}>{h}</th>)}
           </tr>
         </thead>
         <tbody>
           {rows.map(row => {
-            const isEditing = editId === row.config_key
+            const isEditing = editId === row.name
             return (
-              <tr key={row.config_key}>
-                <td style={styles.td}>{row.config_key}</td>
-                <td style={styles.td}>
-                  {isEditing
-                    ? <input className="vd-input sm" style={styles.cellInput} type="number" step="0.1"
-                        value={editVals.reference_length_ft}
-                        onChange={e => setEditVals(v => ({ ...v, reference_length_ft: e.target.value }))} />
-                    : row.reference_length_ft}
-                </td>
-                <td style={styles.td}>
-                  {isEditing
-                    ? <input className="vd-input sm" style={styles.cellInput} type="number" step="0.01"
-                        value={editVals.adjust_rate_oz_per_ft}
-                        onChange={e => setEditVals(v => ({ ...v, adjust_rate_oz_per_ft: e.target.value }))} />
-                    : row.adjust_rate_oz_per_ft}
-                </td>
+              <tr key={row.name}>
+                <td style={styles.td}>{isEditing ? field(editVals, setEditVals, 'name', 'text', 'Manufacturer') : row.name}</td>
+                <td style={styles.td}>{isEditing ? field(editVals, setEditVals, 'oz_per_ft', 'number', 'oz per ft') : row.oz_per_ft}</td>
+                <td style={styles.td}>{isEditing ? field(editVals, setEditVals, 'default_length_ft', 'number', 'Default length ft') : row.default_length_ft}</td>
                 <td style={styles.td}>
                   {isEditing ? (
                     <span style={styles.editActions}>
@@ -765,6 +850,14 @@ function LinesetConfigsTab () {
               </tr>
             )
           })}
+          <tr>
+            <td style={styles.td}>{field(addForm, setAddForm, 'name', 'text', 'New manufacturer')}</td>
+            <td style={styles.td}>{field(addForm, setAddForm, 'oz_per_ft', 'number', 'New oz per ft')}</td>
+            <td style={styles.td}>{field(addForm, setAddForm, 'default_length_ft', 'number', 'New default length ft')}</td>
+            <td style={styles.td}>
+              <button className="vd-key sm dark" onClick={handleAdd} disabled={saving}>+ Add</button>
+            </td>
+          </tr>
         </tbody>
       </table>
     </div>
@@ -792,4 +885,8 @@ const styles = {
   addGrid:      { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '12px' },
   addField:     { display: 'flex', flexDirection: 'column', gap: '3px' },
   addSubmitBtn: { alignSelf: 'flex-start' },
+  chargeList:   { display: 'flex', flexDirection: 'column', gap: '6px', alignItems: 'flex-start' },
+  chargeRow:    { display: 'flex', gap: '6px', alignItems: 'center' },
+  chargeNum:    { width: '72px' },
+  chargeMaker:  { width: '130px', flex: 'none' },
 }
