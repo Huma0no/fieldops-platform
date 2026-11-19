@@ -6,6 +6,7 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { api } from '@shared/api.js'
+import { openCorrectionFor } from '../lib/corrections.mjs'
 
 const STATUS_LABEL = {
   open:    { text: 'Open',    variant: ' solid' },
@@ -37,10 +38,7 @@ export default function Corrections ({ initialVisitId }) {
     openedVisitRef.current = initialVisitId
     ;(async () => {
       try {
-        const existing = await api.get(`/dispatch/corrections?visitId=${encodeURIComponent(initialVisitId)}&status=open`)
-        const correction = existing?.[0] ?? await api.post('/dispatch/corrections', { visitId: initialVisitId })
-        const id = correction.correctionId ?? correction.id
-        setSelected(await api.get(`/dispatch/corrections/${id}`))
+        setSelected(await openCorrectionFor(api, initialVisitId))
         setFinding(false)
       } catch (err) { console.error('direct correction open failed:', err) }
     })()
@@ -459,8 +457,7 @@ function Finder ({ onBack, onStarted, initialVisitId }) {
   async function begin () {
     if (!selected) return setError('Select a report first.')
     try {
-      const created = await api.post('/dispatch/corrections', { visitId: selected.id })
-      onStarted(await api.get(`/dispatch/corrections/${created.correctionId}`))
+      onStarted(await openCorrectionFor(api, selected.id))
     } catch (err) { setError(err.message ?? 'Could not begin correction.') }
   }
   return <div style={styles.page}><div className="vd-unit-head" style={styles.header}><button className="vd-key sm" onClick={onBack}>Requested Corrections</button><h2 className="vd-unit-name" style={styles.title}>Find Report</h2></div>
