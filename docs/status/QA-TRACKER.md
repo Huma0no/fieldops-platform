@@ -150,6 +150,8 @@ Must be implemented after the WIP merge and before launch.
 | FF-07 | PDF Intake AI fallback for route PDFs that are not CP3000 (other formats). Out of scope (2026-11-18); Intake reads CP3000 sheets with OCR + a deterministic parser and offers Manual Entry otherwise. | `dispatch/LOBBY-CALL-INTAKE-SPEC.md` (PDF route sheets) |
 | FF-08 | Dispatch Reports printable document from the mockup (2026-11-18, later round): summary page first, document number, "generated" timestamp, operator, and page footers. Today Print / Export prints the screen with a letterhead. | `dispatch/REPORTS-SPEC.md` |
 | FF-09 | Commission label (2026-11-19, later round). The stored rate is what the office keeps (e.g. 20%); the Technicians mockup shows the technician's share (80%). Meaning stays as stored; a clearer label showing both share and kept is for a later round. | `dispatch/TECHNICIANS-SPEC.md`, `mockups/technicians-mockup.html` (10a, 10b) |
+| FF-10 | Inventory mockup extras (2026-11-19, later round): restock alert banner (items at or below the line, negatives), refrigerant stock by type (remaining and used), and the "what came back" received sheet that updates stock. Not built in D6. | `mockups/fieldops-dispatch-mockups.html` (06) |
+| FF-11 | Technicians roster at 768 px scrolls sideways by a few pixels (2026-11-19, later round): eight columns slightly exceed the width. | `dispatch/TECHNICIANS-SPEC.md` |
 
 ## Backlog / pendiente de decisión
 
