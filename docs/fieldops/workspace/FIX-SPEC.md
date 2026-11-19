@@ -1,33 +1,40 @@
 # Fixes
 
-**Version:** 1.2
-**Date:** 2026-07-30
-**Status:** Closed design — built, neomorphic style applied
+**Version:** 2.0
+**Date:** 2026-11-19
+**Status:** Closed design — template layout built in W2 (authorized by `docs/plans/CC-PROMPT-workspace-pass.md` §2 and `docs/plans/CC-REPLY-W0-workspace.md`).
 
 ## Purpose
 
 Third step of Workspace: fixes performed during the visit, feeding the running price total.
 
-## Layout
+## Template layout
 
-Multi-select tile grid, tile labels matching catalog `item_name` exactly (tiles render dynamically from the catalog, not hardcoded): **Pressure Test · Open Ecoil · Wires Jammed · Stuck Blower · Cut Sheetrock · Other Fix**, plus flat catalog items for the two fix families that were originally designed as expanding wide tiles but are built as plain direct-add tiles instead — there is no sub-options modal for either:
-- **Leaks:** Leaks Ecoil · Leaks Cunit · Leaks Wall (three separate tiles)
-- **Extended Wire:** Extended Wire (unspecified location) · Extended Wire(Cunit) · Extended Wire(Furnace) (three separate tiles)
+Same layout and rules as Accessories (`/docs/fieldops/workspace/ACC-SPEC.md`): the template replaces the full grid; 3 columns, wide group tiles span 2; ordered by price high → low; tiles selected on this call always show; **+ Add** last.
 
-## Custom entry
+- **Template content:** pinned ("yours"), else the 4 most-used tiles from the technician's last 30 completed Reports ("suggested", topped up from the default), else the **default**: Pressure Test · Open eCoil · Leaks, then + Add.
+- **+Add sheet:** search, the full catalog with price and usage, **Add** (this call only), **★** (pin), **+ Other** (description + $ + ✓). Fix Others are added to this report only, are not tech supplied, and several can be added per visit.
 
-`Other Fix` is a normal custom-price Fix requiring a short technician-entered description and a price, entered as its own line item. Its description is persisted for Completion Report text. It remains `tech_supplied = false` and does not participate in restock.
+## Sub-options
 
-Fix selection, description, and resolved price are durable Local Visit Draft state before Generate Report. They must remain available offline and are delivered in the complete submission snapshot rather than requiring an immediate backend write. See `/docs/OFFLINE-FIRST-CONTRACT.md`.
+Group tiles reveal their options when turned on; options are multi-select; each chosen option is its own line at its own catalog price:
+- **Leaks:** eCoil · Cunit · Wall (catalog Leaks Ecoil · Leaks Cunit · Leaks Wall).
+- **Ext. Wire:** Furnace · Cunit. At least one location is required: an open Ext. Wire tile with none chosen shows "choose location" and charges nothing. The location-less `Extended Wire` item is retired from selection (`selectable = false`) and kept for history.
+
+## Quantities
+
+Selected lines show **×N with − / +**; every line is charged unit price × quantity (see ACC-SPEC).
+
+## Labels
+
+Labels only; keys and report text unchanged: "Open Ecoil" shows as **Open eCoil**; the Leaks group tile reads **Leaks**.
+
+Fix selection, description and price are durable Local Visit Draft state, delivered in the Generate Report snapshot. See `/docs/OFFLINE-FIRST-CONTRACT.md`.
 
 ## Report text
 
 What each fix prints in the Completion Report: `/docs/shared/REPORT-TEXT.md`.
 
-## Pending changes (QA 2026-11-15, not implemented)
+## Resolved
 
-Recorded in `docs/status/QA-TRACKER.md` (WS-05, WS-06, WS-11). Scheduled for the Workspace pass after Guided Phase 4; until then this spec's current text remains the closed behavior.
-
-- WS-05: Fixed Leaks hidden sub-options eCoil · Cunit · Wall, revealed on tap. Exact casing "eCoil", as in the checklist "P-drain [eCoil]".
-- WS-06: tile label "Ext. Wire"; hidden sub-options Furnace · Cunit, revealed on tap; one location is required, so it cannot be charged without one. The location-less `Extended Wire` catalog item is retired from selection.
-- WS-11: Fixed Leaks and Extended Wire become parent tiles whose sub-options stay hidden until the parent is selected.
+- WS-05 (Leaks options eCoil · Cunit · Wall), WS-06 (Ext. Wire with a required location), WS-11 (options hidden until the tile is on): resolved in W2 (2026-11-19).

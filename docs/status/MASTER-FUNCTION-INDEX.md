@@ -101,7 +101,7 @@ A `CLOSED` section is a finished product area: its code, UX, and specifications 
 |---|---|---|---|
 | Accessory catalog tiles | SPEC CLOSED | IMPLEMENTED | Catalog-driven. |
 | Zone-board companion activation | SPEC CLOSED | IMPLEMENTED / AUDIT | HZ322 / UT3000 / Harmony rules. |
-| LP Kit sub-options | SPEC CLOSED | DEFERRED | Existing inline behavior retained. |
+| LP Kit sub-options | SPEC CLOSED | IMPLEMENTED | W2 (2026-11-19): group tile, options hidden until on, multi-select (`ACC-SPEC.md`). |
 | Other custom accessory | SPEC CLOSED | IMPLEMENTED (automated verification) | Persists technician description + custom price; `tech_supplied=true`; Completion Report uses the description and the existing restock mechanism consumes the item. This does not implement the separate future consumption-level restock workflow. |
 | Running price contribution | SPEC CLOSED | IMPLEMENTED | Feeds job total. |
 | Weigh-In Data billable accessory | SPEC CLOSED | IMPLEMENTED (automated verification) | Separate from Weigh-In charge-data capture. Persists $10 normally and the resolved $20 price with Finish; toggling Finish synchronizes the persisted price without double-counting. |
@@ -114,7 +114,7 @@ A `CLOSED` section is a finished product area: its code, UX, and specifications 
 |---|---|---|---|
 | Standard fix tiles | SPEC CLOSED | IMPLEMENTED | Catalog-driven. |
 | Leak variants | SPEC CLOSED | IMPLEMENTED | Ecoil / Cunit / Wall. |
-| Extended Wire variants | SPEC CLOSED | IMPLEMENTED | Furnace / Cunit. |
+| Extended Wire variants | SPEC CLOSED | IMPLEMENTED | W2: "Ext. Wire" group tile, Furnace / Cunit, location required; location-less item retired (`FIX-SPEC.md`). |
 | Custom fix | SPEC CLOSED | IMPLEMENTED (automated verification) | `Other Fix` persists technician description + custom price, reports the description, and remains `tech_supplied=false` / not restockable. |
 
 ## 7. Workspace — Weigh-In

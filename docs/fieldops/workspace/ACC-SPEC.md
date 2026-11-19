@@ -1,44 +1,57 @@
 # Accessories
 
-**Version:** 1.0
-**Date:** 2026-07-30
-**Status:** Closed design — built, neomorphic style applied (some interactions deferred, see end)
+**Version:** 2.0
+**Date:** 2026-11-19
+**Status:** Closed design — template layout built in W2 (authorized by `docs/plans/CC-PROMPT-workspace-pass.md` §2 and `docs/plans/CC-REPLY-W0-workspace.md`).
 
 ## Purpose
 
 Second step of Workspace: accessory selection, feeding the visit's running price total.
 
-## Layout
+## Template layout
 
-Irregular grid of accessory tiles — order matters, since some tiles auto-activate others. Layout: UT3000 (wide) + HZ322 (tall, right) / DAPC · Ecoil Wire · eBypass / Harmony (wide) · Bypass / FIN180P · Float Switch · Dehum / Trane Harness · AprilAire · F/A · FIN6-MD / RDS · LP Kit (wide) · Other.
+The template replaces the full grid (the full grid is dropped).
 
-"Weigh-In Data" is still seeded as a catalog item and still appears in this grid — an earlier version of this doc said it had been removed as legacy; that was wrong. Its relationship to the per-system toggle in `/docs/fieldops/workspace/WEIGHIN-SPEC.md` needs to be clarified (see Open Items).
+- **Template content**, in this order of precedence:
+  1. **Yours** — tiles the technician pinned with ★ in the +Add sheet. **reset** returns to suggested.
+  2. **Suggested** — the technician's 6 most-used tiles in their last 30 completed Reports (`GET /api/workspace/acc-fix`). Zone-board companions never count; they appear with their board. With fewer than 6 used tiles, the default template tops it up.
+  3. **Default** (no history) — catalog `template_rank`: UT3000 · HZ322 · FIN180P · Float Switch · Weigh-in, then + Add.
+- **Always visible regardless of template:** tiles pre-specified at Intake, tiles added from the sheet on this call, and anything selected on this call.
+- **Order:** by price, high → low, regardless of selection order. A selected zone board's companions sit right after it (dashed outline).
+- **Grid:** 3 columns; wide tiles (UT3000, Harmony, every group tile) span 2; dense packing. The last tile is **+ Add**.
+- A bar above the grid names the source: `Template: yours` (with **reset**), `suggested · from your last 30 reports`, or `default`.
+- Usage and pins are cached on the phone; a pin made offline is sent when the API answers again.
 
-## Companion / auto-activation rules
+## +Add sheet
 
-- **UT3000 group** — selecting UT3000 auto-activates DAPC + Ecoil Wire + eBypass, and vice versa (any one activates the whole group). All 4 remain individually toggleable.
+Search, then the full catalog (companions ride with their board) with price and usage count ("used N×"):
+- **Add** — shows the tile on this call only (and selects it; a group tile opens).
+- **★** — keeps the tile in the template permanently ("suggested" → "yours").
+- **+ Other** — description + $ + ✓. Every ✓ adds a new line: several Others per visit, each with its own description and price. Accessory Others are **TECH SUPPLIED** and never enter the catalog.
+
+## Sub-options
+
+**LP Kit** is a group tile: its options **Lennox 1Stg · Lennox 2Stg · Goodman** stay hidden until the tile is on. Options are multi-select; each chosen option is its own line at its own catalog price. Turning the tile off clears its options. (Catalog: `group_label` / `option_label`.)
+
+## Quantities
+
+Selected lines show **×N with − / +** (no upper limit; 1 is the lowest, tap the tile to remove). A new line starts at the call's system count when the catalog item multiplies by systems, otherwise at 1. Every line is charged **unit price × quantity**.
+
+## Companion / auto-activation rules (unchanged)
+
+- **UT3000 group** — selecting UT3000 auto-activates DAPC + EEV Wire + eBypass. All 4 remain individually toggleable.
 - **HZ322 group** — selecting HZ322 auto-activates Bypass only.
-- **Harmony** — no companions of its own, but is part of the same mutual-exclusion group as the two zone boards (see below).
-- **Zone boards** (HZ322, UT3000) are the "master" tiles — their companions are hidden by default, shown only when the zone board is active or individually needed.
-- **Mutual exclusivity:** HZ322, UT3000, and Harmony are a 3-way mutual exclusion, not just HZ322-vs-UT3000 — selecting any one of the three deselects the other two and their companions.
+- **Harmony** — standalone, in the same mutual-exclusion group as the two zone boards.
+- **Mutual exclusivity:** HZ322, UT3000 and Harmony — selecting one deselects the others and their companions.
+- Companions are hidden until their board is on (or the technician selected one on its own).
 
-## LP Kit
+## Labels
 
-Hidden sub-options expand on selection: **Lennox 1Stg · Lennox 2Stg · Goodman**.
-
-## Other
-
-Custom-price accessory entry requiring a short technician-entered description and a price per visit. `Other` remains a normal accessory: its catalog `tech_supplied = true` value makes it participate in the existing restock mechanism, and its persisted description identifies it in the Completion Report. See `/docs/shared/CATALOG.md` (custom-price items).
+Labels only; catalog keys and history are unchanged (`catalog_items.label`): "Ecoil Wire" shows as **EEV Wire** (report text "EEV Wire"), "Weight-In-Data" as **Weigh-in**.
 
 ## Running total
 
-Feeds the price shown in the Active Job banner (top-right) — not tied to any single step, since Generate Report only lives on the last step (Notes).
-
-Accessory selection, quantity, description, and resolved price belong to the durable Local Visit Draft during active work. They must survive temporary offline operation and are included in the Generate Report submission snapshot; no immediate backend persistence is required for Workspace correctness. See `/docs/OFFLINE-FIRST-CONTRACT.md`.
-
-## Deferred (existing behavior kept as-is, not rebuilt in the latest style pass)
-
-LP Kit inline sub-menu behavior, custom-entry row.
+Feeds the price shown in the Active Job banner. Accessory selection, quantity, description and price belong to the durable Local Visit Draft and are delivered in the Generate Report snapshot. See `/docs/OFFLINE-FIRST-CONTRACT.md`.
 
 ## Report text
 
@@ -46,12 +59,5 @@ What each accessory prints in the Completion Report: `/docs/shared/REPORT-TEXT.m
 
 ## Resolved
 
-- "Weigh-In Data" (accessory tile, this grid) and the per-system charge toggle (`/docs/fieldops/workspace/WEIGHIN-SPEC.md`) are two different things, confirmed 2026-07-30 against the catalog seed: "Weigh-In Data" is a billable $10 accessory line (with a documented +$10 addon when Finish is active — see `/docs/shared/REPORT-TEXT.md`). The Weigh-In panel's own toggle is about whether that system has refrigerant charge data recorded at all — unrelated to this charge.
-
-## Pending changes (QA 2026-11-15, not implemented)
-
-Recorded in `docs/status/QA-TRACKER.md` (WS-04, WS-07, WS-11). Scheduled for the Workspace pass after Guided Phase 4; until then this spec's current text remains the closed behavior.
-
-- WS-04: label change only — "Ecoil Wire" becomes "EEV Wire". It stays in the UT3000 group (UT3000 · DAPC · EEV Wire · eBypass); update the Guided UT3000-group reference too.
-- WS-07: LP Kit sub-options stay Lennox 1Stg · Lennox 2Stg · Goodman.
-- WS-11: bug against this spec — LP Kit sub-options are always visible; they must stay hidden until LP Kit is selected.
+- "Weigh-In Data" (accessory tile) and the per-system charge toggle (`/docs/fieldops/workspace/WEIGHIN-SPEC.md`) are two different things (2026-07-30): the accessory is a billable line ($10, +$10 with Finish per system); the Weigh-In panel records charge data.
+- WS-04 (EEV Wire label), WS-07 (LP Kit options), WS-11 (LP Kit options hidden until selected): resolved in W2 (2026-11-19).

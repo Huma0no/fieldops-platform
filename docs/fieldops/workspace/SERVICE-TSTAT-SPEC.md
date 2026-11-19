@@ -24,8 +24,8 @@ Service and thermostat selection/quantity are durable Local Visit Draft state wh
 ### Per system
 
 - The selection is made per system. By default one selection applies to every system ("applies to all N systems").
-- The **system switcher** in the Active Job banner (multi-system calls, Service step) selects one system: the banner subtitle shows "System N · outdoor model" and the tiles edit that system only. Tapping the selected system again returns to the default.
-- A system edited on its own is **custom**: the switcher marks it with a dot, the section header shows "System N · custom" with a reset ↺ that returns it to the default, and in default mode the header shows "N use default · M custom".
+- The **system switcher** in the Active Job banner (multi-system calls, Service step) selects one system: the Service header shows "System N · outdoor model ✎" (tap to correct the outdoor unit; moved from the banner in W2, 2026-11-19) and the tiles edit that system only. Tapping the selected system again returns to the default.
+- A system edited on its own is **custom**: the switcher marks it with a dot, the Service header shows "custom" next to it with a reset ↺ that returns it to the default, and in default mode the header shows "N use default · M custom".
 - Each system is charged its own service (see Pricing).
 
 ### Pricing
