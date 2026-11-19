@@ -407,6 +407,23 @@ describe('PATCH /api/dispatch/corrections/:id/apply', () => {
     expect((await pool.query('SELECT total_price FROM visits WHERE id = $1', [unrelatedVisitId])).rows[0].total_price).toBe(150);
   });
 
+  it('corrects a W3 Weigh-In row by manufacturer + factory length, without a lineset config', async () => {
+    const { token } = await seedDispatcherWithToken();
+    const { tech } = await seedTechnicianWithToken();
+    const { visitId } = await seedCompletedVisit({ technicianId: tech.id });
+    await pool.query(`INSERT INTO catalog_manufacturers (name, oz_per_ft, default_length_ft) VALUES ('CorrMfr', 0.5, 20) ON CONFLICT (name) DO NOTHING`);
+    const corrId = await seedOpenCorrection(visitId, tech.id);
+    const res = await request(app).patch(`/api/dispatch/corrections/${corrId}/apply`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ changes: { weighIn: [{ systemNumber: 1, manufacturer: 'CorrMfr', factoryLengthFt: 20, refrigerant: 'R-454B', factoryChargeSource: 'edited', linesetLength: 30, factoryChargeOz: 88, adjustedOz: 5, liquidLineTemp: 80, condenserSatTemp: 92 }] } });
+    expect(res.status).toBe(200);
+    const stored = await pool.query('SELECT * FROM weigh_in_data WHERE address_id = (SELECT address_id FROM visits WHERE id = $1)', [visitId]);
+    expect(stored.rows[0]).toMatchObject({
+      manufacturer: 'CorrMfr', factory_length_ft: 20, oz_per_ft: 0.5, refrigerant: 'R-454B', factory_charge_source: 'edited',
+      factory_line_config: null, approx_adjust_oz: 5, subcooling_value: 12,
+    });
+  });
+
   it('rejects direct total input and does not permit duplicate catalog items', async () => {
     const { token } = await seedDispatcherWithToken();
     const { tech } = await seedTechnicianWithToken();

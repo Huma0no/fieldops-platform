@@ -226,7 +226,8 @@ async function generateLiveReportJSON(db, visitId) {
       `SELECT system_number, lineset_length, factory_charge_oz, factory_line_config,
               approx_adjust_oz, adjusted_oz, fan_speed_cfm, liquid_line_temp,
               suction_line_temp, condenser_sat_temp, subcooling_value,
-              oem_subcooling_goal, subcooling_deviation
+              oem_subcooling_goal, subcooling_deviation,
+              manufacturer, factory_length_ft, oz_per_ft, refrigerant, factory_charge_source
        FROM weigh_in_data WHERE address_id = $1`,
       [v.address_id]
     ),
@@ -296,6 +297,11 @@ async function generateLiveReportJSON(db, visitId) {
       subcoolingValue: w.subcooling_value,
       oemSubcoolingGoal: w.oem_subcooling_goal,
       subcoolingDeviation: w.subcooling_deviation,
+      manufacturer: w.manufacturer,
+      factoryLengthFt: w.factory_length_ft,
+      ozPerFt: w.oz_per_ft,
+      refrigerant: w.refrigerant,
+      factoryChargeSource: w.factory_charge_source,
     })),
   };
 }

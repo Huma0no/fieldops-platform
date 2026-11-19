@@ -229,14 +229,21 @@ async function validateChanges(db, changes) {
     const numbers = changes.weighIn.map(row => Number(row?.systemNumber));
     if (new Set(numbers).size !== numbers.length) return { error: 'weighIn requires unique systemNumber values' };
     for (const row of changes.weighIn) {
-      if (!row || !Number.isInteger(Number(row.systemNumber)) || !row.factoryLineConfig) return { error: 'weighIn rows require systemNumber and factoryLineConfig' };
-      for (const field of ['linesetLength', 'factoryChargeOz', 'adjustedOz', 'fanSpeedCfm', 'liquidLineTemp', 'suctionLineTemp', 'condenserSatTemp']) {
+      if (!row || !Number.isInteger(Number(row.systemNumber))) return { error: 'weighIn rows require systemNumber' };
+      for (const field of ['linesetLength', 'factoryLengthFt', 'ozPerFt', 'factoryChargeOz', 'adjustedOz', 'fanSpeedCfm', 'liquidLineTemp', 'suctionLineTemp', 'condenserSatTemp']) {
         if (row[field] != null && row[field] !== '' && !Number.isFinite(Number(row[field]))) return { error: `weighIn ${field} must be numeric` };
       }
     }
+    // W3: manufacturer + factory length; the lineset config is legacy (rows
+    // recorded before W3) and optional.
     updates.weighIn = changes.weighIn.map(row => ({
       systemNumber: Number(row.systemNumber),
-      factoryLineConfig: row.factoryLineConfig,
+      factoryLineConfig: row.factoryLineConfig || null,
+      manufacturer: row.manufacturer?.trim?.() || null,
+      factoryLengthFt: nullableNumber(row.factoryLengthFt),
+      ozPerFt: nullableNumber(row.ozPerFt),
+      refrigerant: row.refrigerant?.trim?.() || null,
+      factoryChargeSource: ['catalog', 'edited'].includes(row.factoryChargeSource) ? row.factoryChargeSource : null,
       linesetLength: nullableNumber(row.linesetLength),
       factoryChargeOz: nullableNumber(row.factoryChargeOz),
       adjustedOz: nullableNumber(row.adjustedOz),
@@ -535,10 +542,20 @@ router.patch('/dispatch/corrections/:id/apply', requireRole('owner', 'dispatcher
     }
     if (updates.weighIn) {
       for (const row of updates.weighIn) {
-        const config = await client.query('SELECT reference_length_ft, adjust_rate_oz_per_ft FROM catalog_lineset_configs WHERE config_key = $1', [row.factoryLineConfig]);
-        if (!config.rows[0]) { await client.query('ROLLBACK'); return res.status(400).json({ error: 'Lineset config not found' }); }
+        let baseline = row.factoryLengthFt;
+        let ozPerFt = row.ozPerFt;
+        if (ozPerFt == null && row.manufacturer) {
+          const maker = await client.query('SELECT oz_per_ft FROM catalog_manufacturers WHERE name = $1', [row.manufacturer]);
+          ozPerFt = maker.rows[0]?.oz_per_ft ?? null;
+        }
+        if (row.factoryLineConfig) {
+          const config = await client.query('SELECT reference_length_ft, adjust_rate_oz_per_ft FROM catalog_lineset_configs WHERE config_key = $1', [row.factoryLineConfig]);
+          if (!config.rows[0]) { await client.query('ROLLBACK'); return res.status(400).json({ error: 'Lineset config not found' }); }
+          baseline = baseline ?? Number(config.rows[0].reference_length_ft);
+          ozPerFt = ozPerFt ?? Number(config.rows[0].adjust_rate_oz_per_ft);
+        }
         const length = Number(row.linesetLength ?? 0);
-        const approximate = (length - Number(config.rows[0].reference_length_ft)) * Number(config.rows[0].adjust_rate_oz_per_ft);
+        const approximate = baseline != null && ozPerFt != null ? (length - baseline) * ozPerFt : null;
         const subcoolingValue = row.condenserSatTemp != null && row.liquidLineTemp != null
           ? row.condenserSatTemp - row.liquidLineTemp
           : null;
@@ -549,19 +566,23 @@ router.patch('/dispatch/corrections/:id/apply', requireRole('owner', 'dispatcher
              (id, address_id, system_number, lineset_length, factory_charge_oz,
               factory_line_config, approx_adjust_oz, adjusted_oz, fan_speed_cfm,
               liquid_line_temp, suction_line_temp, condenser_sat_temp,
-              subcooling_value, oem_subcooling_goal, subcooling_deviation)
-           VALUES ($1, (SELECT address_id FROM visits WHERE id = $2), $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+              subcooling_value, oem_subcooling_goal, subcooling_deviation,
+              manufacturer, factory_length_ft, oz_per_ft, refrigerant, factory_charge_source)
+           VALUES ($1, (SELECT address_id FROM visits WHERE id = $2), $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)
            ON CONFLICT (address_id, system_number) DO UPDATE SET lineset_length = EXCLUDED.lineset_length,
              factory_charge_oz = EXCLUDED.factory_charge_oz, factory_line_config = EXCLUDED.factory_line_config,
              approx_adjust_oz = EXCLUDED.approx_adjust_oz, adjusted_oz = EXCLUDED.adjusted_oz,
              fan_speed_cfm = EXCLUDED.fan_speed_cfm, liquid_line_temp = EXCLUDED.liquid_line_temp,
              suction_line_temp = EXCLUDED.suction_line_temp, condenser_sat_temp = EXCLUDED.condenser_sat_temp,
              subcooling_value = EXCLUDED.subcooling_value, oem_subcooling_goal = EXCLUDED.oem_subcooling_goal,
-             subcooling_deviation = EXCLUDED.subcooling_deviation`,
+             subcooling_deviation = EXCLUDED.subcooling_deviation, manufacturer = EXCLUDED.manufacturer,
+             factory_length_ft = EXCLUDED.factory_length_ft, oz_per_ft = EXCLUDED.oz_per_ft,
+             refrigerant = EXCLUDED.refrigerant, factory_charge_source = EXCLUDED.factory_charge_source`,
           [crypto.randomUUID(), visit.id, row.systemNumber, length, row.factoryChargeOz,
             row.factoryLineConfig, approximate, row.adjustedOz, row.fanSpeedCfm,
             row.liquidLineTemp, row.suctionLineTemp, row.condenserSatTemp,
-            subcoolingValue, oemSubcoolingGoal, subcoolingDeviation]
+            subcoolingValue, oemSubcoolingGoal, subcoolingDeviation,
+            row.manufacturer, baseline ?? null, ozPerFt ?? null, row.refrigerant, row.factoryChargeSource]
         );
       }
     }

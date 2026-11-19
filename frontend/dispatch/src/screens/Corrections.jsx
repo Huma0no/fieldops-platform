@@ -149,7 +149,7 @@ function CorrectionDetail ({ correction, onBack }) {
   const [notes, setNotes] = useState(snapshot.notes ?? '')
   const [note, setNote] = useState(correction.note ?? '')
   const [answers, setAnswers] = useState(() => Object.fromEntries((snapshot.checklistAnswers ?? []).map(a => [a.item, a.answer])))
-  const [catalog, setCatalog] = useState({ items: [], services: [], linesets: [], equipment: [] })
+  const [catalog, setCatalog] = useState({ items: [], services: [], manufacturers: [], equipment: [] })
   const [service, setService] = useState(() => normalizeService(snapshot.services, snapshot.systems))
   const [items, setItems] = useState(() => normalizeItems(snapshot.items))
   const [weighIn, setWeighIn] = useState(() => normalizeWeighIn(snapshot.weighIn))
@@ -157,8 +157,8 @@ function CorrectionDetail ({ correction, onBack }) {
   const [dirty, setDirty] = useState({ jobContext: false, propertyContext: false, notes: false, checklist: false, service: false, items: false, systems: false, weighIn: false })
 
   useEffect(() => {
-    Promise.all([api.get('/catalog/items'), api.get('/catalog/services'), api.get('/catalog/lineset-configs'), api.get('/catalog/equipment')])
-      .then(([items, services, linesets, equipment]) => setCatalog({ items: items ?? [], services: services ?? [], linesets: linesets ?? [], equipment: equipment ?? [] }))
+    Promise.all([api.get('/catalog/items'), api.get('/catalog/services'), api.get('/catalog/manufacturers'), api.get('/catalog/equipment')])
+      .then(([items, services, manufacturers, equipment]) => setCatalog({ items: items ?? [], services: services ?? [], manufacturers: manufacturers ?? [], equipment: equipment ?? [] }))
       .catch(err => setActionError(err.message ?? 'Catalog could not be loaded.'))
   }, [])
 
@@ -208,13 +208,7 @@ function CorrectionDetail ({ correction, onBack }) {
       if (dirty.service) changes.services = service.driveRun ? [{ serviceName: 'Drive Run' }] : service.rows
       if (dirty.items) changes.items = items.map(({ key, ...item }) => item)
       if (dirty.systems) changes.systems = systems
-      if (dirty.weighIn) {
-        if (weighIn.some(row => !row.factoryLineConfig)) {
-          setActionError('Each Weigh-In measurement requires a factory line config.')
-          return
-        }
-        changes.weighIn = weighIn
-      }
+      if (dirty.weighIn) changes.weighIn = weighIn
       const result = await api.patch(`/dispatch/corrections/${correction.id}/apply`, { changes, note })
       setAppliedTotal(result.totalPrice)
       setApplied(true)
@@ -335,7 +329,7 @@ function CorrectionDetail ({ correction, onBack }) {
               {measurement ? <details style={styles.weighDisclosure}>
                 <summary style={styles.systemSummary}>Weigh-In {system.systemNumber} <span>▸</span></summary>
                 <WeighInFields row={measurement} catalog={catalog} onChange={updateWeighIn} />
-              </details> : <button type="button" className="vd-key sm" onClick={() => { setWeighIn(current => [...current, { systemNumber: system.systemNumber, linesetLength: null, factoryLineConfig: '', factoryChargeOz: null, adjustedOz: null, fanSpeedCfm: null, liquidLineTemp: null, suctionLineTemp: null, condenserSatTemp: null }]); setDirty(current => ({ ...current, weighIn: true })) }}>Add Weigh-In</button>}
+              </details> : <button type="button" className="vd-key sm" onClick={() => { setWeighIn(current => [...current, { systemNumber: system.systemNumber, linesetLength: null, factoryLineConfig: null, manufacturer: null, factoryLengthFt: null, ozPerFt: null, refrigerant: null, factoryChargeSource: null, factoryChargeOz: null, adjustedOz: null, fanSpeedCfm: null, liquidLineTemp: null, suctionLineTemp: null, condenserSatTemp: null }]); setDirty(current => ({ ...current, weighIn: true })) }}>Add Weigh-In</button>}
             </div>})}
           </div>
           <p className="vd-hint" style={styles.flush}>Existing systems can be corrected; system count/topology is not changed here.</p>
@@ -532,6 +526,11 @@ function normalizeWeighIn (rows) {
     linesetLength: row.lineset_length,
     factoryChargeOz: row.factory_charge_oz,
     factoryLineConfig: row.factory_line_config,
+    manufacturer: row.manufacturer ?? null,
+    factoryLengthFt: row.factory_length_ft ?? null,
+    ozPerFt: row.oz_per_ft ?? null,
+    refrigerant: row.refrigerant ?? null,
+    factoryChargeSource: row.factory_charge_source ?? null,
     approxAdjustOz: row.approx_adjust_oz,
     adjustedOz: row.adjusted_oz,
     fanSpeedCfm: row.fan_speed_cfm,
@@ -563,8 +562,10 @@ function CatalogModelSelect ({ label, value, onChange, models }) {
 function WeighInFields ({ row, catalog, onChange }) {
   return <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(130px, 1fr))', gap:'8px', marginTop:'6px' }}>
     <NumberField label="Lineset length" value={row.linesetLength} onChange={value => onChange(row.systemNumber, 'linesetLength', value)} />
-    <label>Factory line config<select className="vd-input sm" value={row.factoryLineConfig ?? ''} onChange={e => onChange(row.systemNumber, 'factoryLineConfig', e.target.value)}><option value="">Select…</option>{catalog.linesets.map(config => <option key={config.config_key} value={config.config_key}>{config.config_key}</option>)}</select></label>
-    <NumberField label="Factory charge oz" value={row.factoryChargeOz} onChange={value => onChange(row.systemNumber, 'factoryChargeOz', value)} />
+    <ManufacturerSelect value={row.manufacturer} manufacturers={catalog.manufacturers}
+      onChange={value => { onChange(row.systemNumber, 'manufacturer', value || null); onChange(row.systemNumber, 'ozPerFt', null) }} />
+    <NumberField label="Factory length ft" value={row.factoryLengthFt} onChange={value => onChange(row.systemNumber, 'factoryLengthFt', value)} />
+    <NumberField label="Factory charge oz" value={row.factoryChargeOz} onChange={value => { onChange(row.systemNumber, 'factoryChargeOz', value); onChange(row.systemNumber, 'factoryChargeSource', 'edited') }} />
     <NumberField label="Adjusted oz" value={row.adjustedOz} onChange={value => onChange(row.systemNumber, 'adjustedOz', value)} />
     <NumberField label="Fan speed CFM" value={row.fanSpeedCfm} onChange={value => onChange(row.systemNumber, 'fanSpeedCfm', value)} />
     <NumberField label="Liquid line temp" value={row.liquidLineTemp} onChange={value => onChange(row.systemNumber, 'liquidLineTemp', value)} />
@@ -574,6 +575,18 @@ function WeighInFields ({ row, catalog, onChange }) {
     <label>Subcooling (derived)<input className="vd-input sm" value={row.subcoolingValue ?? ''} readOnly /></label>
     <label>Subcooling deviation (derived)<input className="vd-input sm" value={row.subcoolingDeviation ?? ''} readOnly /></label>
   </div>
+}
+
+// W3: manufacturer + factory length replace the lineset config. A typed
+// ("+ New") manufacturer stays selectable as stored; oz/ft then comes from
+// the catalog manufacturer on apply.
+function ManufacturerSelect ({ value, manufacturers, onChange }) {
+  const hasCurrent = value && !manufacturers.some(row => row.name === value)
+  return <label>Manufacturer<select className="vd-input sm" value={value ?? ''} onChange={event => onChange(event.target.value)}>
+    <option value="">Not recorded</option>
+    {hasCurrent && <option value={value}>{value} (stored)</option>}
+    {manufacturers.map(row => <option key={row.name} value={row.name}>{row.name}</option>)}
+  </select></label>
 }
 
 function NumberField ({ label, value, onChange }) {

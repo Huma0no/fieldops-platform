@@ -30,7 +30,10 @@ const WEIGH_IN_FIELDS = [
   ['approxAdjustOz', 'approx_adjust_oz'], ['adjustedOz', 'adjusted_oz'], ['fanSpeedCfm', 'fan_speed_cfm'],
   ['liquidLineTemp', 'liquid_line_temp'], ['suctionLineTemp', 'suction_line_temp'], ['condenserSatTemp', 'condenser_sat_temp'],
   ['subcoolingValue', 'subcooling_value'], ['oemSubcoolingGoal', 'oem_subcooling_goal'], ['subcoolingDeviation', 'subcooling_deviation'],
+  ['manufacturer', 'manufacturer'], ['factoryLengthFt', 'factory_length_ft'], ['ozPerFt', 'oz_per_ft'],
+  ['refrigerant', 'refrigerant'], ['factoryChargeSource', 'factory_charge_source'],
 ];
+const WEIGH_IN_COLUMNS = WEIGH_IN_FIELDS.map(([, column]) => column);
 
 function sameWeighInValue(stored, reported) {
   if (reported == null) return false;
@@ -158,6 +161,7 @@ async function applySnapshotWork(client, visit, snapshot, work = {}) {
     const systemNumber = Number(data.systemNumber ?? data.system_number);
     if (!Number.isInteger(systemNumber) || systemNumber < 1) continue;
     const reported = Object.fromEntries(WEIGH_IN_FIELDS.map(([field, column]) => [field, data[field] ?? data[column] ?? null]));
+    if (!['catalog', 'edited'].includes(reported.factoryChargeSource)) reported.factoryChargeSource = null;
     const before = previous.get(systemNumber);
     if (before) {
       for (const [field, column] of WEIGH_IN_FIELDS) {
@@ -168,24 +172,10 @@ async function applySnapshotWork(client, visit, snapshot, work = {}) {
       }
     }
     await client.query(
-      `INSERT INTO weigh_in_data
-        (id, address_id, system_number, lineset_length, factory_charge_oz, factory_line_config,
-         approx_adjust_oz, adjusted_oz, fan_speed_cfm, liquid_line_temp, suction_line_temp,
-         condenser_sat_temp, subcooling_value, oem_subcooling_goal, subcooling_deviation)
-       VALUES (gen_random_uuid()::text, $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+      `INSERT INTO weigh_in_data (id, address_id, system_number, ${WEIGH_IN_COLUMNS.join(', ')})
+       VALUES (gen_random_uuid()::text, $1, $2, ${WEIGH_IN_COLUMNS.map((_, i) => `$${i + 3}`).join(', ')})
        ON CONFLICT (address_id, system_number) DO UPDATE SET
-         lineset_length = EXCLUDED.lineset_length,
-         factory_charge_oz = EXCLUDED.factory_charge_oz,
-         factory_line_config = EXCLUDED.factory_line_config,
-         approx_adjust_oz = EXCLUDED.approx_adjust_oz,
-         adjusted_oz = EXCLUDED.adjusted_oz,
-         fan_speed_cfm = EXCLUDED.fan_speed_cfm,
-         liquid_line_temp = EXCLUDED.liquid_line_temp,
-         suction_line_temp = EXCLUDED.suction_line_temp,
-         condenser_sat_temp = EXCLUDED.condenser_sat_temp,
-         subcooling_value = EXCLUDED.subcooling_value,
-         oem_subcooling_goal = EXCLUDED.oem_subcooling_goal,
-         subcooling_deviation = EXCLUDED.subcooling_deviation`,
+         ${WEIGH_IN_COLUMNS.map(column => `${column} = EXCLUDED.${column}`).join(', ')}`,
       [visit.address_id, systemNumber, ...WEIGH_IN_FIELDS.map(([field]) => reported[field])]
     );
   }
