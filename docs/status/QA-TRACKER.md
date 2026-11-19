@@ -36,6 +36,15 @@ Leyenda: ⬜ no iniciado · 🟡 en curso / bloqueado · 🟢 completo
 
 ---
 
+## Current plan
+
+- **Done:** P5-1, W-LF + PP-01, Photos, W1a, W1b, W1c, W4/W4.1, D1–D6, OCR intake, W2.
+- **Next:** W3 (Weigh-In + Calc) → pre-pilot (real backups running; catalog: add models missing from route sheets; CC-09/CC-11 watch) → pilot on Kristo's laptop server → second round (see Backlog).
+- **Rule:** before each phase, the planner reviews the owning spec; outdated specs are corrected or discarded before building.
+- **Open decision (W2, 2026-11-19):** Leaks options keep their own catalog prices (Wall $50, eCoil/Cunit $20) until Kristo decides.
+
+---
+
 ## Hallazgos — Cross-cutting / Global
 
 | ID | Descripción | Prioridad | Estado | Chat dedicado |
@@ -152,8 +161,21 @@ Must be implemented after the WIP merge and before launch.
 | FF-09 | Commission label (2026-11-19, later round). The stored rate is what the office keeps (e.g. 20%); the Technicians mockup shows the technician's share (80%). Meaning stays as stored; a clearer label showing both share and kept is for a later round. | `dispatch/TECHNICIANS-SPEC.md`, `mockups/technicians-mockup.html` (10a, 10b) |
 | FF-10 | Inventory mockup extras (2026-11-19, later round): restock alert banner (items at or below the line, negatives), refrigerant stock by type (remaining and used), and the "what came back" received sheet that updates stock. Not built in D6. | `mockups/fieldops-dispatch-mockups.html` (06) |
 | FF-11 | Technicians roster at 768 px scrolls sideways by a few pixels (2026-11-19, later round): eight columns slightly exceed the width. | `dispatch/TECHNICIANS-SPEC.md` |
+| FF-12 | First-run quick guide for the Acc + Fix template (2026-11-19, later round): optional in the W2 pass, not built. | `fieldops/workspace/ACC-SPEC.md` |
 
 ## Backlog / pendiente de decisión
+
+**Second round** (built and working; changes deferred):
+1. Quick fix + notes when the server rejects a report for stale data.
+2. Intake: CATALOG / FREE TEXT field tags (FF-06).
+3. Lobby: waiting time, Return to lobby, priority order (FF-06).
+4. AI fallback for other PDF formats (FF-07).
+5. Printable Reports document (FF-08).
+6. Clearer commission share/kept label (FF-09).
+7. Inventory mockup extras (FF-10).
+8. Technicians table sideways scroll at 768 (FF-11).
+9. First-run quick guide (FF-12).
+10. Acc/Fix: tiles show the name only (no price); selected items listed below as chips with quantity and price. Open decision: if the price is editable, does the technician's price or the catalog win? (relates to FF-03 contractor pricing)
 
 - `SERVICE-MULTISYSTEM-SPEC.md` — rediseño de sección Service multisistema. Especificado, no implementado.
 - `TROUBLESHOOTING-ENGINE-SPEC.md` (F11) — motor de troubleshooting. Especificado, spec a medias (pendiente decisión de schema para umbrales numéricos).
