@@ -7,6 +7,7 @@
 
 import { useState, useEffect, Fragment } from 'react'
 import { api } from '@shared/api.js'
+import { formatMoney } from '../lib/money.mjs'
 
 export default function PayPeriods () {
   const [periods, setPeriods]   = useState([])
@@ -329,10 +330,7 @@ function formatDay (iso) {
   return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
 }
 
-function formatPrice (val) {
-  if (val == null) return '—'
-  return `$${Number(val).toFixed(2)}`
-}
+const formatPrice = formatMoney
 
 // Layout only; the look comes from dispatch.css (vd-*).
 const styles = {

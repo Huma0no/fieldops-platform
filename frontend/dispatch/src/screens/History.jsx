@@ -5,6 +5,7 @@
 
 import { useState, useEffect } from 'react'
 import { api } from '@shared/api.js'
+import { formatMoney } from '../lib/money.mjs'
 
 const CHECKLIST_ITEMS = [
   ['pdrain_ecoil', 'P-drain [eCoil]'],
@@ -469,10 +470,7 @@ function formatDate (iso) {
   catch (_) { return '—' }
 }
 
-function formatPrice (val) {
-  if (val == null) return '—'
-  return `$${Number(val).toFixed(2)}`
-}
+const formatPrice = formatMoney
 
 // Layout only; the look comes from dispatch.css (vd-*).
 const styles = {
