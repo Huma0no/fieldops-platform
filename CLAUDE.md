@@ -30,6 +30,12 @@ Before applying a change, state:
 
 If the net change is positive, justify why.
 
+## Test runs
+
+- While working, run only the tests relevant to the change: `npm test -- <files>`.
+- Run the full suite with `npm test` once at the end of each phase.
+- Never run bare `npx jest`: it runs parallel workers against the one test database (only `npm test` adds `--runInBand`).
+
 ## Phase reports
 
 Phase reports are read by Claude (planner), not by Kristo. English, terse, this format only:

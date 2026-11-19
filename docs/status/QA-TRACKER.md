@@ -148,6 +148,7 @@ Must be implemented after the WIP merge and before launch.
 | FF-06 | Dispatch mockup extras left out of D2 (Kristo, 2026-11-18), for a later round: CATALOG / FREE TEXT tags on Intake fields, Lobby waiting time per call, "Return a visit to lobby" action, and priority calls ordered first within their subdivision. | `docs/mockups/fieldops-dispatch-mockups.html` (01 Intake, 02 Lobby) |
 | FF-07 | PDF Intake AI fallback for route PDFs that are not CP3000 (other formats). Out of scope (2026-11-18); Intake reads CP3000 sheets with OCR + a deterministic parser and offers Manual Entry otherwise. | `dispatch/LOBBY-CALL-INTAKE-SPEC.md` (PDF route sheets) |
 | FF-08 | Dispatch Reports printable document from the mockup (2026-11-18, later round): summary page first, document number, "generated" timestamp, operator, and page footers. Today Print / Export prints the screen with a letterhead. | `dispatch/REPORTS-SPEC.md` |
+| FF-09 | Commission label (2026-11-19, later round). The stored rate is what the office keeps (e.g. 20%); the Technicians mockup shows the technician's share (80%). Meaning stays as stored; a clearer label showing both share and kept is for a later round. | `dispatch/TECHNICIANS-SPEC.md`, `mockups/technicians-mockup.html` (10a, 10b) |
 
 ## Backlog / pendiente de decisión
 
