@@ -10,7 +10,7 @@ const TABS = [
   { id: 'history',     label: 'History' },
   { id: 'inventory',   label: 'Inventory' },
   { id: 'restock',     label: 'Restock' },
-  { id: 'pay',         label: 'Pay Periods' },
+  { id: 'pay',         label: 'Ledger' },
   { id: 'corrections', label: 'Corrections' },
   { id: 'chat',        label: 'Chat' },
   { id: 'catalog',     label: 'Catalog' },

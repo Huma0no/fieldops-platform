@@ -12,7 +12,7 @@ Today, `UI_PLAN.md` F0 routes the dispatcher straight to Lobby after login. This
 
 Home's purpose: a quick daily-operations status panel. Not a launcher, not a retrospective analytics dashboard. It answers "what needs my attention right now" plus fast access to start new work. Nothing on this screen shows revenue numbers or dollar amounts.
 
-Full section list (order matters, left to right in nav): **Home, PDF Intake, Lobby, History, Inventory, Restock, Pay Periods, Corrections, Chat, Catalog, Technicians.**
+Full section list (order matters, left to right in nav): **Home, PDF Intake, Lobby, History, Inventory, Restock, Ledger, Corrections, Chat, Catalog, Technicians.**
 
 ---
 
