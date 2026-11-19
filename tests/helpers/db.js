@@ -33,6 +33,7 @@ async function truncateTables() {
     DELETE FROM pdf_batches;
     DELETE FROM technician_price_overrides;
     DELETE FROM technician_settings;
+    DELETE FROM technician_item_templates;
     DELETE FROM technicians;
   `);
 }

@@ -260,6 +260,16 @@ Per-technician app configuration (SYSTEM_DESIGN.md §4.5 — "Personal configura
 
 ---
 
+### technician_item_templates
+A technician's pinned Acc/Fix template per category (W2, ★ in the +Add sheet). No row means the suggested template.
+
+| Column | Type | Notes |
+|---|---|---|
+| technician_id | text FK | References technicians.id (PK with category) |
+| category | text | `accessory` or `fix` |
+| tile_keys | jsonb | Ordered tile keys: an `item_name`, or a `group_label` for a sub-option group |
+| updated_at | text | ISO timestamp |
+
 ### technician_price_overrides
 Per-technician customized prices on catalog defaults (SYSTEM_DESIGN.md §4.5 — "Customized prices: overrides on defaults").
 

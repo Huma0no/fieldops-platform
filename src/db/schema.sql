@@ -11,6 +11,7 @@
 -- DROP ORDER (reverse FK dependency)
 -- ---------------------------------------------------------------------------
 
+DROP TABLE IF EXISTS technician_item_templates CASCADE;
 DROP TABLE IF EXISTS edit_log CASCADE;
 DROP TABLE IF EXISTS corrections CASCADE;
 DROP TABLE IF EXISTS completion_submissions CASCADE;
@@ -510,3 +511,13 @@ CREATE UNIQUE INDEX pay_periods_week_start_idx ON pay_periods (week_start);
 
 CREATE INDEX inventory_assignments_technician_id_idx ON inventory_assignments (technician_id);
 CREATE INDEX device_tokens_technician_id_idx ON device_tokens (technician_id);
+
+-- W2 (Acc + Fix): a technician's pinned template per category ("yours").
+-- No row means the suggested template (usage history, or the default rank).
+CREATE TABLE technician_item_templates (
+  technician_id text NOT NULL REFERENCES technicians(id),
+  category      text NOT NULL CHECK (category IN ('accessory', 'fix')),
+  tile_keys     jsonb NOT NULL,
+  updated_at    text NOT NULL,
+  PRIMARY KEY (technician_id, category)
+);

@@ -504,6 +504,24 @@ PATCH /api/visits/:id/notes
   body: { notes }
 ```
 
+**Acc + Fix templates (W2):**
+
+```
+GET /api/workspace/acc-fix
+  auth: technician
+  returns: { usage: { [item_name]: reports using it among the technician's
+             last 30 completed Reports },
+             templates: { accessory: tileKeys[] | null, fix: tileKeys[] | null } }
+  The PWA caches it for offline use and builds the template: pinned tiles
+  ("yours"), else the most-used tiles (6 Acc / 4 Fix, companions excluded),
+  else catalog template_rank (default template).
+
+PUT /api/workspace/acc-fix/templates/:category      (accessory | fix)
+  auth: technician
+  body: { keys: tileKeys[] | null }   (null resets to the suggested template)
+  A tile key is an item_name, or a group_label for a sub-option group.
+```
+
 ---
 
 ## 8. Current Completion Endpoint & Offline-First Target
