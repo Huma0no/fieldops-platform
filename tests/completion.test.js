@@ -1076,7 +1076,8 @@ describe('POST /api/visits/:id/complete', () => {
       .post(`/api/visits/${visitId}/complete`)
       .set('Authorization', `Bearer ${otherToken}`);
 
-    expect(res.status).toBe(403);
+    // Status with body, so a failure shows what came back (CC-19).
+    expect({ status: res.status, body: res.body }).toMatchObject({ status: 403 });
   });
 
   it('returns 404 for unknown visit', async () => {

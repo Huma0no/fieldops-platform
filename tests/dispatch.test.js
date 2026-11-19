@@ -22,6 +22,9 @@ beforeEach(() => {
 afterEach(() => extractSpy.mockRestore());
 afterAll(() => pool.end());
 
+// Status with body, so a failed status check shows what came back (CC-19).
+const statusAndBody = res => ({ status: res.status, body: res.body });
+
 function uniqueCatalogName(prefix) {
   return `${prefix}-${crypto.randomBytes(6).toString('hex')}`;
 }
@@ -127,7 +130,7 @@ describe('POST /api/dispatch/parse-pdf', () => {
       .set('Authorization', `Bearer ${token}`)
       .attach('pdf', Buffer.from('pdf'), 'upload.pdf');
 
-    expect(res.status).toBe(200);
+    expect(statusAndBody(res)).toMatchObject({ status: 200 });
     expect(res.body.totalCalls).toBe(2);
     const kept = await pool.query('SELECT status FROM pdf_batches WHERE id = $1', [batch.rows[0].id]);
     expect(kept.rows).toEqual([{ status: 'released' }]);
@@ -198,6 +201,7 @@ describe('POST /api/dispatch/batch/:batchId/call/:index/confirm', () => {
       .post('/api/dispatch/parse-pdf')
       .set('Authorization', `Bearer ${token}`)
       .attach('pdf', Buffer.from('pdf'), 'upload.pdf');
+    expect(statusAndBody(res)).toMatchObject({ status: 200 });
     return res.body;
   }
 
@@ -253,7 +257,7 @@ describe('POST /api/dispatch/batch/:batchId/call/:index/confirm', () => {
         workType: 'AC',
       });
 
-    expect(res.status).toBe(200);
+    expect(statusAndBody(res)).toMatchObject({ status: 200 });
     expect(res.body.comparisonRequired).toBe(true);
     expect(res.body.existingAddress.street).toBe('123 MAPLE STREET');
     expect(res.body.incomingData).toBeDefined();
@@ -402,6 +406,7 @@ describe('POST /api/dispatch/batch/:batchId/release-to-lobby', () => {
       .post('/api/dispatch/parse-pdf')
       .set('Authorization', `Bearer ${token}`)
       .attach('pdf', Buffer.from('pdf'), 'upload.pdf');
+    expect(statusAndBody(parseRes)).toMatchObject({ status: 200 });
     const { batchId } = parseRes.body;
 
     // Confirm only 1 of 2 calls
@@ -414,7 +419,7 @@ describe('POST /api/dispatch/batch/:batchId/release-to-lobby', () => {
       .post(`/api/dispatch/batch/${batchId}/release-to-lobby`)
       .set('Authorization', `Bearer ${token}`);
 
-    expect(res.status).toBe(200);
+    expect(statusAndBody(res)).toMatchObject({ status: 200 });
     expect(res.body.mismatch).toBe(true);
     expect(res.body.expected).toBe(2);
     expect(res.body.actual).toBe(1);
