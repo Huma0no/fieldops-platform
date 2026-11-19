@@ -39,6 +39,8 @@ DROP TABLE IF EXISTS role_permissions CASCADE;
 DROP TABLE IF EXISTS catalog_item_relations CASCADE;
 DROP TABLE IF EXISTS catalog_services CASCADE;
 DROP TABLE IF EXISTS catalog_items CASCADE;
+DROP TABLE IF EXISTS catalog_equipment_charges CASCADE;
+DROP TABLE IF EXISTS catalog_manufacturers CASCADE;
 DROP TABLE IF EXISTS catalog_lineset_configs CASCADE;
 DROP TABLE IF EXISTS catalog_equipment CASCADE;
 DROP TABLE IF EXISTS device_tokens CASCADE;
@@ -57,8 +59,6 @@ CREATE TABLE catalog_equipment (
   refrigerant         text,
   is_a2l              boolean,
   btu                 integer,
-  factory_charge_oz   real,
-  revised_charge_oz   real,
   pesp                real,
   oem_subcooling_goal real
 );
@@ -68,10 +68,23 @@ CREATE TABLE catalog_lineset_configs (
   config_key            text PRIMARY KEY,
   reference_length_ft   real NOT NULL,
   adjust_rate_oz_per_ft real NOT NULL,
-  brand                 text,
-  revised_available     boolean NOT NULL DEFAULT false,
-  valid_from            date,
-  valid_before          date
+  brand                 text
+);
+
+-- 2b. catalog_manufacturers (W3): oz/ft and default factory length
+CREATE TABLE catalog_manufacturers (
+  name              text PRIMARY KEY,
+  oz_per_ft         real NOT NULL CHECK (oz_per_ft > 0),
+  default_length_ft real NOT NULL CHECK (default_length_ft > 0)
+);
+
+-- 2c. catalog_equipment_charges (W3): factory charge per manufacturer + length
+CREATE TABLE catalog_equipment_charges (
+  model        text NOT NULL REFERENCES catalog_equipment(model) ON UPDATE CASCADE ON DELETE CASCADE,
+  manufacturer text NOT NULL REFERENCES catalog_manufacturers(name) ON UPDATE CASCADE,
+  length_ft    real NOT NULL CHECK (length_ft > 0),
+  charge_oz    real NOT NULL CHECK (charge_oz >= 0),
+  PRIMARY KEY (model, manufacturer, length_ft)
 );
 
 -- 3. catalog_items
@@ -302,6 +315,11 @@ CREATE TABLE weigh_in_data (
   subcooling_value     real,
   oem_subcooling_goal  real,
   subcooling_deviation real,
+  manufacturer         text,
+  factory_length_ft    real,
+  oz_per_ft            real,
+  refrigerant          text,
+  factory_charge_source text CHECK (factory_charge_source IN ('catalog', 'edited')),
   CONSTRAINT weigh_in_data_address_system_unique UNIQUE (address_id, system_number)
 );
 

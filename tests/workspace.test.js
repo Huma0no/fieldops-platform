@@ -716,35 +716,44 @@ describe('PATCH /api/visits/:id/notes', () => {
 describe('PUT /api/visits/:id/weigh-in/:systemNumber', () => {
   beforeEach(async () => {
     await pool.query(`
-      INSERT INTO catalog_lineset_configs (config_key, reference_length_ft, adjust_rate_oz_per_ft)
-      VALUES ('STANDARD-25', 25, 0.5)
-      ON CONFLICT (config_key) DO NOTHING
+      INSERT INTO catalog_manufacturers (name, oz_per_ft, default_length_ft)
+      VALUES ('TESTMFR', 0.5, 25)
+      ON CONFLICT (name) DO NOTHING
     `);
     await pool.query(`
-      INSERT INTO catalog_equipment (model, unit_type, brand, factory_charge_oz, revised_charge_oz)
-      VALUES ('TEST-COND-WI', 'outdoor', 'TEST', 80, 70)
+      INSERT INTO catalog_equipment (model, unit_type, brand)
+      VALUES ('TEST-COND-WI', 'outdoor', 'TESTMFR')
       ON CONFLICT (model) DO NOTHING
+    `);
+    await pool.query(`
+      INSERT INTO catalog_equipment_charges (model, manufacturer, length_ft, charge_oz)
+      VALUES ('TEST-COND-WI', 'TESTMFR', 25, 80), ('TEST-COND-WI', 'TESTMFR', 15, 70)
+      ON CONFLICT DO NOTHING
     `);
   });
 
   const body = {
     linesetLength: 35,
-    factoryLineConfig: 'STANDARD-25',
-    factoryChargeUsed: 'factory',
+    manufacturer: 'TESTMFR',
+    factoryLengthFt: 25,
     adjustedOz: 82,
     fanSpeedCfm: 1200,
     liquidLineTemp: 90,
     suctionLineTemp: 55,
     condenserSatTemp: 105,
-    subcoolingValue: 18,
   };
 
-  it('stores weigh-in against address_id and returns all calculated fields', async () => {
-    const { visitId, addressId, token } = await seedAssignedVisit();
+  async function seedWeighInVisit () {
+    const seeded = await seedAssignedVisit();
     await pool.query(
       `UPDATE visit_systems SET outdoor_model = 'TEST-COND-WI' WHERE visit_id = $1 AND system_number = 1`,
-      [visitId]
+      [seeded.visitId]
     );
+    return seeded;
+  }
+
+  it('stores weigh-in against address_id and returns all calculated fields', async () => {
+    const { visitId, addressId, token } = await seedWeighInVisit();
     const res = await request(app)
       .put(`/api/visits/${visitId}/weigh-in/1`)
       .set('Authorization', `Bearer ${token}`)
@@ -752,13 +761,16 @@ describe('PUT /api/visits/:id/weigh-in/:systemNumber', () => {
     expect(res.status).toBe(200);
     expect(res.body.addressId).toBe(addressId);
     expect(res.body.systemNumber).toBe(1);
-    // approxAdjustOz = (35 - 25) * 0.5 = 5.0
+    // approxAdjustOz = (35 - 25) * 0.5 oz/ft (from the manufacturer) = 5.0
     expect(res.body.approxAdjustOz).toBeCloseTo(5.0);
+    expect(res.body.ozPerFt).toBe(0.5);
     // OEM subcooling goal defaults to 10°F when omitted
     expect(res.body.oemSubcoolingGoal).toBe(10);
-    // subcoolingDeviation = 18 - 10 = 8
-    expect(res.body.subcoolingDeviation).toBeCloseTo(8);
-    expect(res.body.factoryChargeOz).toBe(80); // factory, not revised
+    // subcooling = condenser sat − liquid = 105 − 90 = 15; deviation = 15 − 10
+    expect(res.body.subcoolingValue).toBeCloseTo(15);
+    expect(res.body.subcoolingDeviation).toBeCloseTo(5);
+    // The catalog charge for TESTMFR at 25 ft
+    expect(res.body).toMatchObject({ factoryChargeOz: 80, factoryChargeSource: 'catalog', factoryLineConfig: null });
     const row = await pool.query(
       `SELECT * FROM weigh_in_data WHERE address_id = $1 AND system_number = 1`,
       [addressId]
@@ -767,23 +779,19 @@ describe('PUT /api/visits/:id/weigh-in/:systemNumber', () => {
   });
 
   it('upserts on second call — only one row per (address_id, system_number)', async () => {
-    const { visitId, addressId, token } = await seedAssignedVisit();
-    await pool.query(
-      `UPDATE visit_systems SET outdoor_model = 'TEST-COND-WI' WHERE visit_id = $1 AND system_number = 1`,
-      [visitId]
-    );
+    const { visitId, addressId, token } = await seedWeighInVisit();
     await request(app)
       .put(`/api/visits/${visitId}/weigh-in/1`)
       .set('Authorization', `Bearer ${token}`)
       .send(body);
-    const secondBody = { ...body, subcoolingValue: 12, oemSubcoolingGoal: 14 };
+    const secondBody = { ...body, liquidLineTemp: 93, oemSubcoolingGoal: 14 };
     const res = await request(app)
       .put(`/api/visits/${visitId}/weigh-in/1`)
       .set('Authorization', `Bearer ${token}`)
       .send(secondBody);
     expect(res.status).toBe(200);
     expect(res.body.oemSubcoolingGoal).toBe(14);
-    expect(res.body.subcoolingDeviation).toBeCloseTo(-2); // 12 - 14
+    expect(res.body.subcoolingDeviation).toBeCloseTo(-2); // (105 − 93) − 14
     const rows = await pool.query(
       `SELECT * FROM weigh_in_data WHERE address_id = $1 AND system_number = 1`,
       [addressId]
@@ -792,11 +800,7 @@ describe('PUT /api/visits/:id/weigh-in/:systemNumber', () => {
   });
 
   it('preserves hydrated weigh-in fields when one value is changed and the complete record is saved', async () => {
-    const { visitId, addressId, token } = await seedAssignedVisit();
-    await pool.query(
-      `UPDATE visit_systems SET outdoor_model = 'TEST-COND-WI' WHERE visit_id = $1 AND system_number = 1`,
-      [visitId]
-    );
+    const { visitId, addressId, token } = await seedWeighInVisit();
     await request(app)
       .put(`/api/visits/${visitId}/weigh-in/1`)
       .set('Authorization', `Bearer ${token}`)
@@ -806,19 +810,19 @@ describe('PUT /api/visits/:id/weigh-in/:systemNumber', () => {
       .get(`/api/visits/${visitId}`)
       .set('Authorization', `Bearer ${token}`);
     const saved = detail.body.weighInData[0];
+    expect(saved).toMatchObject({ manufacturer: 'TESTMFR', factoryLengthFt: 25, ozPerFt: 0.5, factoryChargeSource: 'catalog' });
     const update = await request(app)
       .put(`/api/visits/${visitId}/weigh-in/1`)
       .set('Authorization', `Bearer ${token}`)
       .send({
         linesetLength: saved.linesetLength,
-        factoryLineConfig: saved.factoryLineConfig,
-        factoryChargeUsed: 'factory',
+        manufacturer: saved.manufacturer,
+        factoryLengthFt: saved.factoryLengthFt,
         adjustedOz: saved.adjustedOz,
         fanSpeedCfm: 1300,
         liquidLineTemp: saved.liquidLineTemp,
         suctionLineTemp: saved.suctionLineTemp,
         condenserSatTemp: saved.condenserSatTemp,
-        subcoolingValue: saved.subcoolingValue,
         oemSubcoolingGoal: saved.oemSubcoolingGoal,
       });
 
@@ -836,24 +840,20 @@ describe('PUT /api/visits/:id/weigh-in/:systemNumber', () => {
       liquid_line_temp: 90,
       suction_line_temp: 55,
       condenser_sat_temp: 105,
-      subcooling_value: 18,
+      subcooling_value: 15,
     });
   });
 
   it('persists an editable OEM subcooling goal and calculates deviation from it', async () => {
-    const { visitId, addressId, token } = await seedAssignedVisit();
-    await pool.query(
-      `UPDATE visit_systems SET outdoor_model = 'TEST-COND-WI' WHERE visit_id = $1 AND system_number = 1`,
-      [visitId]
-    );
+    const { visitId, addressId, token } = await seedWeighInVisit();
 
     const res = await request(app)
       .put(`/api/visits/${visitId}/weigh-in/1`)
       .set('Authorization', `Bearer ${token}`)
-      .send({ ...body, oemSubcoolingGoal: 15 });
+      .send({ ...body, oemSubcoolingGoal: 12 });
 
     expect(res.status).toBe(200);
-    expect(res.body.oemSubcoolingGoal).toBe(15);
+    expect(res.body.oemSubcoolingGoal).toBe(12);
     expect(res.body.subcoolingDeviation).toBeCloseTo(3);
 
     const row = await pool.query(
@@ -861,7 +861,7 @@ describe('PUT /api/visits/:id/weigh-in/:systemNumber', () => {
        FROM weigh_in_data WHERE address_id = $1 AND system_number = 1`,
       [addressId]
     );
-    expect(row.rows[0]).toEqual({ oem_subcooling_goal: 15, subcooling_deviation: 3 });
+    expect(row.rows[0]).toEqual({ oem_subcooling_goal: 12, subcooling_deviation: 3 });
   });
 
   it('rejects a non-finite OEM subcooling goal', async () => {
@@ -874,29 +874,30 @@ describe('PUT /api/visits/:id/weigh-in/:systemNumber', () => {
     expect(res.body.error).toBe('OEM subcooling goal must be a finite number');
   });
 
-  it('uses revised_charge_oz when factoryChargeUsed is "revised"', async () => {
-    const { visitId, token } = await seedAssignedVisit();
-    await pool.query(
-      `UPDATE visit_systems SET outdoor_model = 'TEST-COND-WI' WHERE visit_id = $1 AND system_number = 1`,
-      [visitId]
-    );
-    const revisedBody = { ...body, factoryChargeUsed: 'revised' };
-    const res = await request(app)
+  it('uses the catalog charge for the chosen length; a typed charge is "edited"', async () => {
+    const { visitId, token } = await seedWeighInVisit();
+    const at15 = await request(app)
       .put(`/api/visits/${visitId}/weigh-in/1`)
       .set('Authorization', `Bearer ${token}`)
-      .send(revisedBody);
-    expect(res.status).toBe(200);
-    expect(res.body.factoryChargeOz).toBe(70); // revised_charge_oz
+      .send({ ...body, factoryLengthFt: 15 });
+    expect(at15.status).toBe(200);
+    expect(at15.body).toMatchObject({ factoryChargeOz: 70, factoryChargeSource: 'catalog' });
+
+    const typed = await request(app)
+      .put(`/api/visits/${visitId}/weigh-in/1`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ ...body, factoryChargeOz: 77 });
+    expect(typed.body).toMatchObject({ factoryChargeOz: 77, factoryChargeSource: 'edited' });
   });
 
-  it('returns 400 for unknown linesetConfig', async () => {
-    const { visitId, token } = await seedAssignedVisit();
+  it('leaves the charge and approx adjust empty when the catalog has no value', async () => {
+    const { visitId, token } = await seedWeighInVisit();
     const res = await request(app)
       .put(`/api/visits/${visitId}/weigh-in/1`)
       .set('Authorization', `Bearer ${token}`)
-      .send({ ...body, factoryLineConfig: 'NO-SUCH-CONFIG' });
-    expect(res.status).toBe(400);
-    expect(res.body.error).toBe('Lineset config not found');
+      .send({ ...body, manufacturer: 'Unknown Brand', factoryLengthFt: 30 });
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({ factoryChargeOz: null, factoryChargeSource: null, approxAdjustOz: null, ozPerFt: null });
   });
 });
 

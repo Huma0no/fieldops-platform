@@ -293,120 +293,213 @@ ON CONFLICT (model) DO NOTHING;
 -- 4b. catalog_equipment — outdoor (68 models)
 --    unit_type: 'condenser' | 'heat_pump'
 --    is_a2l: true for R-454B and R-32 (A2L class), false for R-410A (A1, legacy)
---    revised_charge_oz: post-May-2025 field-adjusted value for R-454B units;
---                       NULL = not yet field-verified
+--    Factory charges live in catalog_equipment_charges (section 4c).
 --    R-410A series included as legacy active per CATALOG_REVIEW.md.
 -- ─────────────────────────────────────────────────────────────────────────────
 
 INSERT INTO catalog_equipment
-  (model, unit_type, brand, series, refrigerant, is_a2l, btu, factory_charge_oz, revised_charge_oz)
+  (model, unit_type, brand, series, refrigerant, is_a2l, btu)
 VALUES
 
   -- Lennox ML17XC1 — R-410A condenser (legacy)
-  ('ML17XC1-018', 'condenser', 'Lennox', 'ML17XC1', 'R-410A', false, 18000,  72, null),
-  ('ML17XC1-024', 'condenser', 'Lennox', 'ML17XC1', 'R-410A', false, 24000,  82, null),
-  ('ML17XC1-030', 'condenser', 'Lennox', 'ML17XC1', 'R-410A', false, 30000, 104, null),
-  ('ML17XC1-036', 'condenser', 'Lennox', 'ML17XC1', 'R-410A', false, 36000, 136, null),
-  ('ML17XC1-042', 'condenser', 'Lennox', 'ML17XC1', 'R-410A', false, 42000, 146, null),
-  ('ML17XC1-047', 'condenser', 'Lennox', 'ML17XC1', 'R-410A', false, 47000, 157, null),
-  ('ML17XC1-059', 'condenser', 'Lennox', 'ML17XC1', 'R-410A', false, 59000, 190, null),
+  ('ML17XC1-018', 'condenser', 'Lennox', 'ML17XC1', 'R-410A', false, 18000),
+  ('ML17XC1-024', 'condenser', 'Lennox', 'ML17XC1', 'R-410A', false, 24000),
+  ('ML17XC1-030', 'condenser', 'Lennox', 'ML17XC1', 'R-410A', false, 30000),
+  ('ML17XC1-036', 'condenser', 'Lennox', 'ML17XC1', 'R-410A', false, 36000),
+  ('ML17XC1-042', 'condenser', 'Lennox', 'ML17XC1', 'R-410A', false, 42000),
+  ('ML17XC1-047', 'condenser', 'Lennox', 'ML17XC1', 'R-410A', false, 47000),
+  ('ML17XC1-059', 'condenser', 'Lennox', 'ML17XC1', 'R-410A', false, 59000),
 
   -- Lennox ML18XC2 — R-410A condenser (legacy)
-  ('ML18XC2-036', 'condenser', 'Lennox', 'ML18XC2', 'R-410A', false, 36000, 128, null),
-  ('ML18XC2-048', 'condenser', 'Lennox', 'ML18XC2', 'R-410A', false, 48000, 177, null),
+  ('ML18XC2-036', 'condenser', 'Lennox', 'ML18XC2', 'R-410A', false, 36000),
+  ('ML18XC2-048', 'condenser', 'Lennox', 'ML18XC2', 'R-410A', false, 48000),
 
   -- Lennox EL17XP1 — R-410A heat pump (legacy)
-  ('EL17XP1-18',  'heat_pump', 'Lennox', 'EL17XP1', 'R-410A', false, 18000,  92, null),
-  ('EL17XP1-24',  'heat_pump', 'Lennox', 'EL17XP1', 'R-410A', false, 24000,  90, null),
-  ('EL17XP1-30',  'heat_pump', 'Lennox', 'EL17XP1', 'R-410A', false, 30000, 111, null),
-  ('EL17XP1-36',  'heat_pump', 'Lennox', 'EL17XP1', 'R-410A', false, 36000, 131, null),
-  ('EL17XP1-42',  'heat_pump', 'Lennox', 'EL17XP1', 'R-410A', false, 42000, 156, null),
-  ('EL17XP1-48',  'heat_pump', 'Lennox', 'EL17XP1', 'R-410A', false, 48000, 140, null),
-  ('EL17XP1-60',  'heat_pump', 'Lennox', 'EL17XP1', 'R-410A', false, 60000, 158, null),
+  ('EL17XP1-18', 'heat_pump', 'Lennox', 'EL17XP1', 'R-410A', false, 18000),
+  ('EL17XP1-24', 'heat_pump', 'Lennox', 'EL17XP1', 'R-410A', false, 24000),
+  ('EL17XP1-30', 'heat_pump', 'Lennox', 'EL17XP1', 'R-410A', false, 30000),
+  ('EL17XP1-36', 'heat_pump', 'Lennox', 'EL17XP1', 'R-410A', false, 36000),
+  ('EL17XP1-42', 'heat_pump', 'Lennox', 'EL17XP1', 'R-410A', false, 42000),
+  ('EL17XP1-48', 'heat_pump', 'Lennox', 'EL17XP1', 'R-410A', false, 48000),
+  ('EL17XP1-60', 'heat_pump', 'Lennox', 'EL17XP1', 'R-410A', false, 60000),
 
   -- Lennox ML14KC1 — R-454B condenser (all revised charges field-verified)
-  ('ML14KC1-018', 'condenser', 'Lennox', 'ML14KC1', 'R-454B', true, 18000,  78,  92),
-  ('ML14KC1-024', 'condenser', 'Lennox', 'ML14KC1', 'R-454B', true, 24000,  78,  87),
-  ('ML14KC1-030', 'condenser', 'Lennox', 'ML14KC1', 'R-454B', true, 30000,  90,  99),
-  ('ML14KC1-036', 'condenser', 'Lennox', 'ML14KC1', 'R-454B', true, 36000, 109, 118),
-  ('ML14KC1-041', 'condenser', 'Lennox', 'ML14KC1', 'R-454B', true, 41000, 119, 128),
-  ('ML14KC1-042', 'condenser', 'Lennox', 'ML14KC1', 'R-454B', true, 42000, 114, 123),
-  ('ML14KC1-047', 'condenser', 'Lennox', 'ML14KC1', 'R-454B', true, 47000, 125, 134),
-  ('ML14KC1-048', 'condenser', 'Lennox', 'ML14KC1', 'R-454B', true, 48000, 142, 151),
-  ('ML14KC1-059', 'condenser', 'Lennox', 'ML14KC1', 'R-454B', true, 59000, 152, 161),
-  ('ML14KC1-060', 'condenser', 'Lennox', 'ML14KC1', 'R-454B', true, 60000, 142, 151),
+  ('ML14KC1-018', 'condenser', 'Lennox', 'ML14KC1', 'R-454B', true, 18000),
+  ('ML14KC1-024', 'condenser', 'Lennox', 'ML14KC1', 'R-454B', true, 24000),
+  ('ML14KC1-030', 'condenser', 'Lennox', 'ML14KC1', 'R-454B', true, 30000),
+  ('ML14KC1-036', 'condenser', 'Lennox', 'ML14KC1', 'R-454B', true, 36000),
+  ('ML14KC1-041', 'condenser', 'Lennox', 'ML14KC1', 'R-454B', true, 41000),
+  ('ML14KC1-042', 'condenser', 'Lennox', 'ML14KC1', 'R-454B', true, 42000),
+  ('ML14KC1-047', 'condenser', 'Lennox', 'ML14KC1', 'R-454B', true, 47000),
+  ('ML14KC1-048', 'condenser', 'Lennox', 'ML14KC1', 'R-454B', true, 48000),
+  ('ML14KC1-059', 'condenser', 'Lennox', 'ML14KC1', 'R-454B', true, 59000),
+  ('ML14KC1-060', 'condenser', 'Lennox', 'ML14KC1', 'R-454B', true, 60000),
 
   -- Lennox ML17KC2 — R-454B condenser (revised charges not yet field-verified)
-  ('ML17KC2-024', 'condenser', 'Lennox', 'ML17KC2', 'R-454B', true, 24000, 100, null),
-  ('ML17KC2-036', 'condenser', 'Lennox', 'ML17KC2', 'R-454B', true, 36000, 104, null),
-  ('ML17KC2-048', 'condenser', 'Lennox', 'ML17KC2', 'R-454B', true, 48000, 126, null),
-  ('ML17KC2-060', 'condenser', 'Lennox', 'ML17KC2', 'R-454B', true, 60000, 149, null),
+  ('ML17KC2-024', 'condenser', 'Lennox', 'ML17KC2', 'R-454B', true, 24000),
+  ('ML17KC2-036', 'condenser', 'Lennox', 'ML17KC2', 'R-454B', true, 36000),
+  ('ML17KC2-048', 'condenser', 'Lennox', 'ML17KC2', 'R-454B', true, 48000),
+  ('ML17KC2-060', 'condenser', 'Lennox', 'ML17KC2', 'R-454B', true, 60000),
 
   -- Trane 4TTR — R-410A condenser (legacy)
-  ('4TTR6024N1000AA', 'condenser', 'Trane', '4TTR', 'R-410A', false, 24000, 148, null),
-  ('4TTR5042A1000AA', 'condenser', 'Trane', '4TTR', 'R-410A', false, 42000, 130, null),
-  ('4TTR5048A1000AA', 'condenser', 'Trane', '4TTR', 'R-410A', false, 48000, 114, null),
-  ('4TTR5060A1000AA', 'condenser', 'Trane', '4TTR', 'R-410A', false, 60000, 152, null),
+  ('4TTR6024N1000AA', 'condenser', 'Trane', '4TTR', 'R-410A', false, 24000),
+  ('4TTR5042A1000AA', 'condenser', 'Trane', '4TTR', 'R-410A', false, 42000),
+  ('4TTR5048A1000AA', 'condenser', 'Trane', '4TTR', 'R-410A', false, 48000),
+  ('4TTR5060A1000AA', 'condenser', 'Trane', '4TTR', 'R-410A', false, 60000),
 
   -- Trane 5TTR — R-454B condenser (partial revised charges)
-  ('5TTR5018', 'condenser', 'Trane', '5TTR', 'R-454B', true, 18000,  60, null),
-  ('5TTR5024', 'condenser', 'Trane', '5TTR', 'R-454B', true, 24000,  58,   83),
-  ('5TTR5030', 'condenser', 'Trane', '5TTR', 'R-454B', true, 30000,  56, null),
-  ('5TTR5036', 'condenser', 'Trane', '5TTR', 'R-454B', true, 36000,  56,   80),
-  ('5TTR5042', 'condenser', 'Trane', '5TTR', 'R-454B', true, 42000,  81, null),
-  ('5TTR5048', 'condenser', 'Trane', '5TTR', 'R-454B', true, 48000, 106,  130),
-  ('5TTR5060', 'condenser', 'Trane', '5TTR', 'R-454B', true, 60000,  95,  119),
+  ('5TTR5018', 'condenser', 'Trane', '5TTR', 'R-454B', true, 18000),
+  ('5TTR5024', 'condenser', 'Trane', '5TTR', 'R-454B', true, 24000),
+  ('5TTR5030', 'condenser', 'Trane', '5TTR', 'R-454B', true, 30000),
+  ('5TTR5036', 'condenser', 'Trane', '5TTR', 'R-454B', true, 36000),
+  ('5TTR5042', 'condenser', 'Trane', '5TTR', 'R-454B', true, 42000),
+  ('5TTR5048', 'condenser', 'Trane', '5TTR', 'R-454B', true, 48000),
+  ('5TTR5060', 'condenser', 'Trane', '5TTR', 'R-454B', true, 60000),
 
   -- Goodman GLXS4BA — R-32 condenser
-  ('GLXS4BA1810AA', 'condenser', 'Goodman', 'GLXS4BA', 'R-32', true, 18000,  53, null),
-  ('GLXS4BA2410AA', 'condenser', 'Goodman', 'GLXS4BA', 'R-32', true, 24000,  53, null),
-  ('GLXS4BA3010AA', 'condenser', 'Goodman', 'GLXS4BA', 'R-32', true, 30000,  63, null),
-  ('GLXS4BA3610AA', 'condenser', 'Goodman', 'GLXS4BA', 'R-32', true, 36000,  69, null),
-  ('GLXS4BA4210AA', 'condenser', 'Goodman', 'GLXS4BA', 'R-32', true, 42000,  83, null),
-  ('GLXS4BA4810AA', 'condenser', 'Goodman', 'GLXS4BA', 'R-32', true, 48000,  91, null),
-  ('GLXS4BA6010AA', 'condenser', 'Goodman', 'GLXS4BA', 'R-32', true, 60000,  94, null),
+  ('GLXS4BA1810AA', 'condenser', 'Goodman', 'GLXS4BA', 'R-32', true, 18000),
+  ('GLXS4BA2410AA', 'condenser', 'Goodman', 'GLXS4BA', 'R-32', true, 24000),
+  ('GLXS4BA3010AA', 'condenser', 'Goodman', 'GLXS4BA', 'R-32', true, 30000),
+  ('GLXS4BA3610AA', 'condenser', 'Goodman', 'GLXS4BA', 'R-32', true, 36000),
+  ('GLXS4BA4210AA', 'condenser', 'Goodman', 'GLXS4BA', 'R-32', true, 42000),
+  ('GLXS4BA4810AA', 'condenser', 'Goodman', 'GLXS4BA', 'R-32', true, 48000),
+  ('GLXS4BA6010AA', 'condenser', 'Goodman', 'GLXS4BA', 'R-32', true, 60000),
 
   -- Goodman GLXS5BA — R-32 condenser
-  ('GLXS5BA1810AA', 'condenser', 'Goodman', 'GLXS5BA', 'R-32', true, 18000,  54, null),
-  ('GLXS5BA2410AA', 'condenser', 'Goodman', 'GLXS5BA', 'R-32', true, 24000,  65, null),
-  ('GLXS5BA3010AA', 'condenser', 'Goodman', 'GLXS5BA', 'R-32', true, 30000,  87, null),
-  ('GLXS5BA3610AA', 'condenser', 'Goodman', 'GLXS5BA', 'R-32', true, 36000,  88, null),
-  ('GLXS5BA4210AA', 'condenser', 'Goodman', 'GLXS5BA', 'R-32', true, 42000, 141, null),
-  ('GLXS5BA4810AA', 'condenser', 'Goodman', 'GLXS5BA', 'R-32', true, 48000, 138, null),
-  ('GLXS5BA6010AA', 'condenser', 'Goodman', 'GLXS5BA', 'R-32', true, 60000, 167, null),
+  ('GLXS5BA1810AA', 'condenser', 'Goodman', 'GLXS5BA', 'R-32', true, 18000),
+  ('GLXS5BA2410AA', 'condenser', 'Goodman', 'GLXS5BA', 'R-32', true, 24000),
+  ('GLXS5BA3010AA', 'condenser', 'Goodman', 'GLXS5BA', 'R-32', true, 30000),
+  ('GLXS5BA3610AA', 'condenser', 'Goodman', 'GLXS5BA', 'R-32', true, 36000),
+  ('GLXS5BA4210AA', 'condenser', 'Goodman', 'GLXS5BA', 'R-32', true, 42000),
+  ('GLXS5BA4810AA', 'condenser', 'Goodman', 'GLXS5BA', 'R-32', true, 48000),
+  ('GLXS5BA6010AA', 'condenser', 'Goodman', 'GLXS5BA', 'R-32', true, 60000),
 
   -- Goodman GLZS4BA — R-32 heat pump
-  ('GLZS4BA1810AA', 'heat_pump', 'Goodman', 'GLZS4BA', 'R-32', true, 18000,  70, null),
-  ('GLZS4BA2410AA', 'heat_pump', 'Goodman', 'GLZS4BA', 'R-32', true, 24000,  70, null),
-  ('GLZS4BA3010AA', 'heat_pump', 'Goodman', 'GLZS4BA', 'R-32', true, 30000,  81, null),
-  ('GLZS4BA3610AA', 'heat_pump', 'Goodman', 'GLZS4BA', 'R-32', true, 36000,  83, null),
-  ('GLZS4BA4210AA', 'heat_pump', 'Goodman', 'GLZS4BA', 'R-32', true, 42000, 139, null),
-  ('GLZS4BA4810AA', 'heat_pump', 'Goodman', 'GLZS4BA', 'R-32', true, 48000, 174, null),
-  ('GLZS4BA6010AA', 'heat_pump', 'Goodman', 'GLZS4BA', 'R-32', true, 60000, 194, null),
+  ('GLZS4BA1810AA', 'heat_pump', 'Goodman', 'GLZS4BA', 'R-32', true, 18000),
+  ('GLZS4BA2410AA', 'heat_pump', 'Goodman', 'GLZS4BA', 'R-32', true, 24000),
+  ('GLZS4BA3010AA', 'heat_pump', 'Goodman', 'GLZS4BA', 'R-32', true, 30000),
+  ('GLZS4BA3610AA', 'heat_pump', 'Goodman', 'GLZS4BA', 'R-32', true, 36000),
+  ('GLZS4BA4210AA', 'heat_pump', 'Goodman', 'GLZS4BA', 'R-32', true, 42000),
+  ('GLZS4BA4810AA', 'heat_pump', 'Goodman', 'GLZS4BA', 'R-32', true, 48000),
+  ('GLZS4BA6010AA', 'heat_pump', 'Goodman', 'GLZS4BA', 'R-32', true, 60000),
 
-  -- Daikin DC6VSS — R-32 condenser (factory_charge_oz NULL for 4810 and 6010)
-  ('DC6VSS2410', 'condenser', 'Daikin', 'DC6VSS', 'R-32', true, 24000,  74, null),
-  ('DC6VSS3010', 'condenser', 'Daikin', 'DC6VSS', 'R-32', true, 30000,  76, null),
-  ('DC6VSS3610', 'condenser', 'Daikin', 'DC6VSS', 'R-32', true, 36000,  83, null),
-  ('DC6VSS4210', 'condenser', 'Daikin', 'DC6VSS', 'R-32', true, 42000, 100, null),
-  ('DC6VSS4810', 'condenser', 'Daikin', 'DC6VSS', 'R-32', true, 48000, null, null),
-  ('DC6VSS6010', 'condenser', 'Daikin', 'DC6VSS', 'R-32', true, 60000, null, null)
+  -- Daikin DC6VSS — R-32 condenser (no charge for 4810 and 6010)
+  ('DC6VSS2410', 'condenser', 'Daikin', 'DC6VSS', 'R-32', true, 24000),
+  ('DC6VSS3010', 'condenser', 'Daikin', 'DC6VSS', 'R-32', true, 30000),
+  ('DC6VSS3610', 'condenser', 'Daikin', 'DC6VSS', 'R-32', true, 36000),
+  ('DC6VSS4210', 'condenser', 'Daikin', 'DC6VSS', 'R-32', true, 42000),
+  ('DC6VSS4810', 'condenser', 'Daikin', 'DC6VSS', 'R-32', true, 48000),
+  ('DC6VSS6010', 'condenser', 'Daikin', 'DC6VSS', 'R-32', true, 60000)
 
 ON CONFLICT (model) DO NOTHING;
 
 
 -- ─────────────────────────────────────────────────────────────────────────────
--- catalog_lineset_configs (7 rows) — previously seeded only by migration 010.
--- Weigh-In and Quick Charge Calc read these rows; without them the
--- line-configuration selector is empty.
+-- 4c. catalog_manufacturers and catalog_equipment_charges (W3)
+--    A factory charge per manufacturer + factory length. Former "factory"
+--    values are the 15 ft charge; former "revised" values are Trane 25 ft
+--    and Lennox 30 ft. A missing combination is typed by the technician.
 -- ─────────────────────────────────────────────────────────────────────────────
-INSERT INTO catalog_lineset_configs (config_key, reference_length_ft, adjust_rate_oz_per_ft, brand, revised_available, valid_from, valid_before)
+INSERT INTO catalog_manufacturers (name, oz_per_ft, default_length_ft) VALUES
+  ('Daikin', 0.6, 15), ('Goodman', 0.6, 15), ('Lennox', 0.6, 30), ('Trane', 0.47, 15)
+ON CONFLICT (name) DO NOTHING;
+
+INSERT INTO catalog_equipment_charges (model, manufacturer, length_ft, charge_oz)
 VALUES
-  ('TRANE-PRE-2025', 10, 0.47, 'Trane',   false, NULL,         '2025-05-01'),
-  ('TRANE-MID-2025', 25, 0.47, 'Trane',   true,  '2025-05-01', '2026-01-01'),
-  ('TRANE-2026',     15, 0.47, 'Trane',   false, '2026-01-01', NULL),
-  ('LENNOX-30',      30, 0.60, 'Lennox',  true,  NULL,         NULL),
-  ('LENNOX-15',      15, 0.60, 'Lennox',  false, NULL,         NULL),
-  ('GOODMAN',        15, 0.60, 'Goodman', false, NULL,         NULL),
-  ('DAIKIN',         15, 0.60, 'Daikin',  false, NULL,         NULL)
+  ('ML17XC1-018', 'Lennox', 15, 72),
+  ('ML17XC1-024', 'Lennox', 15, 82),
+  ('ML17XC1-030', 'Lennox', 15, 104),
+  ('ML17XC1-036', 'Lennox', 15, 136),
+  ('ML17XC1-042', 'Lennox', 15, 146),
+  ('ML17XC1-047', 'Lennox', 15, 157),
+  ('ML17XC1-059', 'Lennox', 15, 190),
+  ('ML18XC2-036', 'Lennox', 15, 128),
+  ('ML18XC2-048', 'Lennox', 15, 177),
+  ('EL17XP1-18', 'Lennox', 15, 92),
+  ('EL17XP1-24', 'Lennox', 15, 90),
+  ('EL17XP1-30', 'Lennox', 15, 111),
+  ('EL17XP1-36', 'Lennox', 15, 131),
+  ('EL17XP1-42', 'Lennox', 15, 156),
+  ('EL17XP1-48', 'Lennox', 15, 140),
+  ('EL17XP1-60', 'Lennox', 15, 158),
+  ('ML14KC1-018', 'Lennox', 15, 78),
+  ('ML14KC1-018', 'Lennox', 30, 92),
+  ('ML14KC1-024', 'Lennox', 15, 78),
+  ('ML14KC1-024', 'Lennox', 30, 87),
+  ('ML14KC1-030', 'Lennox', 15, 90),
+  ('ML14KC1-030', 'Lennox', 30, 99),
+  ('ML14KC1-036', 'Lennox', 15, 109),
+  ('ML14KC1-036', 'Lennox', 30, 118),
+  ('ML14KC1-041', 'Lennox', 15, 119),
+  ('ML14KC1-041', 'Lennox', 30, 128),
+  ('ML14KC1-042', 'Lennox', 15, 114),
+  ('ML14KC1-042', 'Lennox', 30, 123),
+  ('ML14KC1-047', 'Lennox', 15, 125),
+  ('ML14KC1-047', 'Lennox', 30, 134),
+  ('ML14KC1-048', 'Lennox', 15, 142),
+  ('ML14KC1-048', 'Lennox', 30, 151),
+  ('ML14KC1-059', 'Lennox', 15, 152),
+  ('ML14KC1-059', 'Lennox', 30, 161),
+  ('ML14KC1-060', 'Lennox', 15, 142),
+  ('ML14KC1-060', 'Lennox', 30, 151),
+  ('ML17KC2-024', 'Lennox', 15, 100),
+  ('ML17KC2-036', 'Lennox', 15, 104),
+  ('ML17KC2-048', 'Lennox', 15, 126),
+  ('ML17KC2-060', 'Lennox', 15, 149),
+  ('4TTR6024N1000AA', 'Trane', 15, 148),
+  ('4TTR5042A1000AA', 'Trane', 15, 130),
+  ('4TTR5048A1000AA', 'Trane', 15, 114),
+  ('4TTR5060A1000AA', 'Trane', 15, 152),
+  ('5TTR5018', 'Trane', 15, 60),
+  ('5TTR5024', 'Trane', 15, 58),
+  ('5TTR5024', 'Trane', 25, 83),
+  ('5TTR5030', 'Trane', 15, 56),
+  ('5TTR5036', 'Trane', 15, 56),
+  ('5TTR5036', 'Trane', 25, 80),
+  ('5TTR5042', 'Trane', 15, 81),
+  ('5TTR5048', 'Trane', 15, 106),
+  ('5TTR5048', 'Trane', 25, 130),
+  ('5TTR5060', 'Trane', 15, 95),
+  ('5TTR5060', 'Trane', 25, 119),
+  ('GLXS4BA1810AA', 'Goodman', 15, 53),
+  ('GLXS4BA2410AA', 'Goodman', 15, 53),
+  ('GLXS4BA3010AA', 'Goodman', 15, 63),
+  ('GLXS4BA3610AA', 'Goodman', 15, 69),
+  ('GLXS4BA4210AA', 'Goodman', 15, 83),
+  ('GLXS4BA4810AA', 'Goodman', 15, 91),
+  ('GLXS4BA6010AA', 'Goodman', 15, 94),
+  ('GLXS5BA1810AA', 'Goodman', 15, 54),
+  ('GLXS5BA2410AA', 'Goodman', 15, 65),
+  ('GLXS5BA3010AA', 'Goodman', 15, 87),
+  ('GLXS5BA3610AA', 'Goodman', 15, 88),
+  ('GLXS5BA4210AA', 'Goodman', 15, 141),
+  ('GLXS5BA4810AA', 'Goodman', 15, 138),
+  ('GLXS5BA6010AA', 'Goodman', 15, 167),
+  ('GLZS4BA1810AA', 'Goodman', 15, 70),
+  ('GLZS4BA2410AA', 'Goodman', 15, 70),
+  ('GLZS4BA3010AA', 'Goodman', 15, 81),
+  ('GLZS4BA3610AA', 'Goodman', 15, 83),
+  ('GLZS4BA4210AA', 'Goodman', 15, 139),
+  ('GLZS4BA4810AA', 'Goodman', 15, 174),
+  ('GLZS4BA6010AA', 'Goodman', 15, 194),
+  ('DC6VSS2410', 'Daikin', 15, 74),
+  ('DC6VSS3010', 'Daikin', 15, 76),
+  ('DC6VSS3610', 'Daikin', 15, 83),
+  ('DC6VSS4210', 'Daikin', 15, 100)
+ON CONFLICT DO NOTHING;
+
+
+-- ─────────────────────────────────────────────────────────────────────────────
+-- catalog_lineset_configs (7 rows) — kept only for Weigh-In readings
+-- recorded before W3 (weigh_in_data.factory_line_config).
+-- ─────────────────────────────────────────────────────────────────────────────
+INSERT INTO catalog_lineset_configs (config_key, reference_length_ft, adjust_rate_oz_per_ft, brand)
+VALUES
+  ('TRANE-PRE-2025', 10, 0.47, 'Trane'),
+  ('TRANE-MID-2025', 25, 0.47, 'Trane'),
+  ('TRANE-2026',     15, 0.47, 'Trane'),
+  ('LENNOX-30',      30, 0.60, 'Lennox'),
+  ('LENNOX-15',      15, 0.60, 'Lennox'),
+  ('GOODMAN',        15, 0.60, 'Goodman'),
+  ('DAIKIN',         15, 0.60, 'Daikin')
 ON CONFLICT (config_key) DO NOTHING;

@@ -11,8 +11,8 @@ afterAll(() => pool.end());
 
 async function seedEquipmentRow (model = `MDL-${crypto.randomBytes(4).toString('hex')}`) {
   await pool.query(
-    `INSERT INTO catalog_equipment (model, unit_type, brand, pesp, factory_charge_oz, revised_charge_oz)
-     VALUES ($1, 'condenser', 'TestBrand', 10.5, 120, 118)
+    `INSERT INTO catalog_equipment (model, unit_type, brand, pesp)
+     VALUES ($1, 'condenser', 'TestBrand', 10.5)
      ON CONFLICT (model) DO NOTHING`,
     [model]
   );
@@ -444,56 +444,95 @@ describe('PATCH /api/dispatch/catalog/:table/:id', () => {
   });
 });
 
-// ── PATCH /api/dispatch/catalog/catalog_lineset_configs ───────────────────────
+// ── Manufacturers and charges per manufacturer + length (W3) ─────────────────
 
-describe('PATCH /api/dispatch/catalog/catalog_lineset_configs', () => {
-  async function seedLinesetRow (configKey = `LC-${crypto.randomBytes(4).toString('hex')}`) {
-    await pool.query(
-      `INSERT INTO catalog_lineset_configs (config_key, reference_length_ft, adjust_rate_oz_per_ft)
-       VALUES ($1, 25, 0.6)
-       ON CONFLICT (config_key) DO NOTHING`,
-      [configKey]
-    );
-    return configKey;
-  }
+describe('Manufacturers and equipment charges', () => {
+  const mfr = () => `Mfr-${crypto.randomBytes(4).toString('hex')}`;
 
-  it('updates fields for catalog_lineset_configs (dispatcher)', async () => {
+  it('creates, lists and edits a manufacturer (dispatcher); technicians cannot', async () => {
     const { token } = await seedDispatcherWithToken();
-    const configKey = await seedLinesetRow();
+    const { token: techToken } = await seedTechnicianWithToken();
+    const name = mfr();
 
-    const res = await request(app)
-      .patch(`/api/dispatch/catalog/catalog_lineset_configs/${encodeURIComponent(configKey)}`)
-      .set('Authorization', `Bearer ${token}`)
-      .send({ reference_length_ft: 30, adjust_rate_oz_per_ft: 0.75 });
+    const created = await request(app).post('/api/dispatch/catalog/manufacturers')
+      .set('Authorization', `Bearer ${token}`).send({ name, oz_per_ft: 0.6, default_length_ft: 15 });
+    expect(created.status).toBe(201);
+    expect(created.body).toEqual({ name, oz_per_ft: 0.6, default_length_ft: 15 });
 
-    expect(res.status).toBe(200);
-    expect(res.body.config_key).toBe(configKey);
-    expect(res.body.reference_length_ft).toBe(30);
-    expect(res.body.adjust_rate_oz_per_ft).toBe(0.75);
+    const dup = await request(app).post('/api/dispatch/catalog/manufacturers')
+      .set('Authorization', `Bearer ${token}`).send({ name, oz_per_ft: 0.6, default_length_ft: 15 });
+    expect(dup.status).toBe(409);
+    const bad = await request(app).post('/api/dispatch/catalog/manufacturers')
+      .set('Authorization', `Bearer ${token}`).send({ name: mfr(), oz_per_ft: 0, default_length_ft: 15 });
+    expect(bad.status).toBe(400);
+
+    const list = await request(app).get('/api/catalog/manufacturers').set('Authorization', `Bearer ${techToken}`);
+    expect(list.status).toBe(200);
+    expect(list.body).toEqual(expect.arrayContaining([{ name, oz_per_ft: 0.6, default_length_ft: 15 }]));
+
+    const edited = await request(app).patch(`/api/dispatch/catalog/catalog_manufacturers/${encodeURIComponent(name)}`)
+      .set('Authorization', `Bearer ${token}`).send({ oz_per_ft: 0.47, default_length_ft: 30 });
+    expect(edited.status).toBe(200);
+    expect(edited.body).toMatchObject({ oz_per_ft: 0.47, default_length_ft: 30 });
+
+    const forbidden = await request(app).post('/api/dispatch/catalog/manufacturers')
+      .set('Authorization', `Bearer ${techToken}`).send({ name: mfr(), oz_per_ft: 0.6, default_length_ft: 15 });
+    expect(forbidden.status).toBe(403);
   });
 
-  it('returns 400 when a required field is set to null', async () => {
+  it('replaces a model\'s charges, serves them with the equipment, and renames follow the manufacturer', async () => {
     const { token } = await seedDispatcherWithToken();
-    const configKey = await seedLinesetRow();
+    const name = mfr();
+    await pool.query('INSERT INTO catalog_manufacturers (name, oz_per_ft, default_length_ft) VALUES ($1, 0.6, 15)', [name]);
+    const model = await seedEquipmentRow();
 
-    const res = await request(app)
-      .patch(`/api/dispatch/catalog/catalog_lineset_configs/${encodeURIComponent(configKey)}`)
+    const put = await request(app).put(`/api/dispatch/catalog/equipment/${encodeURIComponent(model)}/charges`)
       .set('Authorization', `Bearer ${token}`)
-      .send({ reference_length_ft: null });
+      .send({ charges: [{ manufacturer: name, length_ft: 30, charge_oz: 92 }, { manufacturer: name, length_ft: 15, charge_oz: 78 }] });
+    expect(put.status).toBe(200);
+    expect(put.body.charges).toEqual([
+      { manufacturer: name, length_ft: 15, charge_oz: 78 },
+      { manufacturer: name, length_ft: 30, charge_oz: 92 },
+    ]);
 
-    expect(res.status).toBe(400);
+    // Removing a length row = sending the list without it.
+    await request(app).put(`/api/dispatch/catalog/equipment/${encodeURIComponent(model)}/charges`)
+      .set('Authorization', `Bearer ${token}`).send({ charges: [{ manufacturer: name, length_ft: 15, charge_oz: 80 }] });
+    const renamed = `${name}-R`;
+    await request(app).patch(`/api/dispatch/catalog/catalog_manufacturers/${encodeURIComponent(name)}`)
+      .set('Authorization', `Bearer ${token}`).send({ name: renamed });
+
+    const equipment = await request(app).get('/api/catalog/equipment').set('Authorization', `Bearer ${token}`);
+    expect(equipment.body.find(row => row.model === model).charges).toEqual([{ manufacturer: renamed, length_ft: 15, charge_oz: 80 }]);
   });
 
-  it('returns 403 for technician role', async () => {
-    const { token } = await seedTechnicianWithToken();
-    const configKey = await seedLinesetRow();
+  it('rejects invalid, duplicate or unknown-manufacturer charges and unknown models', async () => {
+    const { token } = await seedDispatcherWithToken();
+    const name = mfr();
+    await pool.query('INSERT INTO catalog_manufacturers (name, oz_per_ft, default_length_ft) VALUES ($1, 0.6, 15)', [name]);
+    const model = await seedEquipmentRow();
+    const put = charges => request(app).put(`/api/dispatch/catalog/equipment/${encodeURIComponent(model)}/charges`)
+      .set('Authorization', `Bearer ${token}`).send({ charges });
 
-    const res = await request(app)
-      .patch(`/api/dispatch/catalog/catalog_lineset_configs/${encodeURIComponent(configKey)}`)
+    expect((await put([{ manufacturer: name, length_ft: 0, charge_oz: 10 }])).status).toBe(400);
+    expect((await put([{ manufacturer: name, length_ft: 15, charge_oz: '' }])).status).toBe(400);
+    expect((await put([{ manufacturer: name, length_ft: 15, charge_oz: 1 }, { manufacturer: name, length_ft: 15, charge_oz: 2 }])).status).toBe(400);
+    expect((await put([{ manufacturer: 'Nobody', length_ft: 15, charge_oz: 1 }])).status).toBe(400);
+    const missing = await request(app).put('/api/dispatch/catalog/equipment/NO-SUCH-MODEL/charges')
+      .set('Authorization', `Bearer ${token}`).send({ charges: [] });
+    expect(missing.status).toBe(404);
+  });
+
+  it('creates equipment with its charges in one request', async () => {
+    const { token } = await seedDispatcherWithToken();
+    const name = mfr();
+    await pool.query('INSERT INTO catalog_manufacturers (name, oz_per_ft, default_length_ft) VALUES ($1, 0.6, 15)', [name]);
+    const model = `MDL-${crypto.randomBytes(4).toString('hex')}`;
+    const res = await request(app).post('/api/dispatch/catalog/equipment')
       .set('Authorization', `Bearer ${token}`)
-      .send({ reference_length_ft: 20 });
-
-    expect(res.status).toBe(403);
+      .send({ model, unit_type: 'condenser', brand: name, charges: [{ manufacturer: name, length_ft: 15, charge_oz: 70 }] });
+    expect(res.status).toBe(201);
+    expect(res.body.charges).toEqual([{ manufacturer: name, length_ft: 15, charge_oz: 70 }]);
   });
 });
 

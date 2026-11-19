@@ -1443,23 +1443,33 @@ describe('POST /api/visits/:id/complete', () => {
         ON CONFLICT (config_key) DO NOTHING
       `);
       await pool.query(`
-        INSERT INTO catalog_equipment (model, unit_type, brand, factory_charge_oz, revised_charge_oz)
-        VALUES ('TEST-COND-WI-COMP', 'outdoor', 'TEST', 80, 70)
+        INSERT INTO catalog_manufacturers (name, oz_per_ft, default_length_ft)
+        VALUES ('TESTMFR', 0.5, 25)
+        ON CONFLICT (name) DO NOTHING
+      `);
+      await pool.query(`
+        INSERT INTO catalog_equipment (model, unit_type, brand)
+        VALUES ('TEST-COND-WI-COMP', 'outdoor', 'TESTMFR')
         ON CONFLICT (model) DO NOTHING
+      `);
+      await pool.query(`
+        INSERT INTO catalog_equipment_charges (model, manufacturer, length_ft, charge_oz)
+        VALUES ('TEST-COND-WI-COMP', 'TESTMFR', 25, 80)
+        ON CONFLICT DO NOTHING
       `);
       await pool.query(
         `UPDATE visit_systems SET outdoor_model = 'TEST-COND-WI-COMP' WHERE visit_id = $1 AND system_number = 1`,
         [visitId]
       );
 
-      // Server calculates factoryChargeOz=80, approxAdjustOz=5, subcoolingDeviation=8
+      // Server calculates factoryChargeOz=80, approxAdjustOz=5, subcooling 105 − 90 = 15, deviation 5
       const putRes = await request(app)
         .put(`/api/visits/${visitId}/weigh-in/1`)
         .set('Authorization', `Bearer ${token}`)
         .send({
           linesetLength: 35,
-          factoryLineConfig: 'STANDARD-25',
-          factoryChargeUsed: 'factory',
+          manufacturer: 'TESTMFR',
+          factoryLengthFt: 25,
           adjustedOz: 82,
           fanSpeedCfm: 1200,
           liquidLineTemp: 90,
@@ -1471,7 +1481,7 @@ describe('POST /api/visits/:id/complete', () => {
       expect(putRes.status).toBe(200);
       expect(putRes.body.factoryChargeOz).toBe(80);
       expect(putRes.body.approxAdjustOz).toBeCloseTo(5.0);
-      expect(putRes.body.subcoolingDeviation).toBeCloseTo(8.0);
+      expect(putRes.body.subcoolingDeviation).toBeCloseTo(5.0);
 
       // Snapshot omits factoryChargeOz and approxAdjustOz (null/undefined) but supplies an explicit subcoolingDeviation and updated fanSpeedCfm
       const snapshot = {
@@ -1544,9 +1554,19 @@ describe('POST /api/visits/:id/complete', () => {
         ON CONFLICT (config_key) DO NOTHING
       `);
       await pool.query(`
-        INSERT INTO catalog_equipment (model, unit_type, brand, factory_charge_oz, revised_charge_oz)
-        VALUES ('TEST-COND-WI-REPEAT', 'outdoor', 'TEST', 80, 70)
+        INSERT INTO catalog_manufacturers (name, oz_per_ft, default_length_ft)
+        VALUES ('TESTMFR', 0.5, 25)
+        ON CONFLICT (name) DO NOTHING
+      `);
+      await pool.query(`
+        INSERT INTO catalog_equipment (model, unit_type, brand)
+        VALUES ('TEST-COND-WI-REPEAT', 'outdoor', 'TESTMFR')
         ON CONFLICT (model) DO NOTHING
+      `);
+      await pool.query(`
+        INSERT INTO catalog_equipment_charges (model, manufacturer, length_ft, charge_oz)
+        VALUES ('TEST-COND-WI-REPEAT', 'TESTMFR', 25, 80)
+        ON CONFLICT DO NOTHING
       `);
       await pool.query(
         `UPDATE visit_systems SET outdoor_model = 'TEST-COND-WI-REPEAT' WHERE visit_id = $1 AND system_number = 1`,
@@ -1559,8 +1579,8 @@ describe('POST /api/visits/:id/complete', () => {
         .set('Authorization', `Bearer ${token}`)
         .send({
           linesetLength: 35,
-          factoryLineConfig: 'STANDARD-25',
-          factoryChargeUsed: 'factory',
+          manufacturer: 'TESTMFR',
+          factoryLengthFt: 25,
           adjustedOz: 82,
           fanSpeedCfm: 1100,
           liquidLineTemp: 90,
@@ -1587,7 +1607,7 @@ describe('POST /api/visits/:id/complete', () => {
         systemNumber: 1,
         factoryChargeOz: 80,
         approxAdjustOz: 5,
-        subcoolingDeviation: 8,
+        subcoolingDeviation: 5,
         fanSpeedCfm: 1250,
         adjustedOz: 84,
       });
@@ -1621,7 +1641,7 @@ describe('POST /api/visits/:id/complete', () => {
           systemNumber: 1,
           factoryChargeOz: 80,
           approxAdjustOz: 5,
-          subcoolingDeviation: 8,
+          subcoolingDeviation: 5,
           fanSpeedCfm: 1250,
           adjustedOz: 84,
         }),
@@ -1634,7 +1654,7 @@ describe('POST /api/visits/:id/complete', () => {
       expect(dbRow.rows[0]).toEqual({
         factory_charge_oz: 80,
         approx_adjust_oz: 5,
-        subcooling_deviation: 8,
+        subcooling_deviation: 5,
         fan_speed_cfm: 1250,
         adjusted_oz: 84,
       });
