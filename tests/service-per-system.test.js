@@ -157,7 +157,8 @@ describe('per-system service pricing', () => {
 
   it('prices Weigh-In per system: $20 with Finish, $10 without', async () => {
     const visit = await twoSystemVisit();
-    expect((await addItem(visit, 'Weight-In-Data', 'accessory')).status).toBe(200);
+    // A 2-system call starts Weigh-In at quantity 2 (W2: unit × quantity).
+    expect((await addItem(visit, 'Weight-In-Data', 'accessory', 2)).status).toBe(200);
     const res = await patchServices(visit, [
       { systemNumber: 1, serviceName: 'AC', isFinish: true },
       { systemNumber: 2, serviceName: 'AC', isFinish: false },
@@ -166,6 +167,17 @@ describe('per-system service pricing', () => {
     // Services 20 + 30, Weigh-In 20 + 10.
     expect(res.body.totalPrice).toBe(80);
   });
+});
+
+it('starts a multiplying item at the system count when no quantity is sent (W2)', async () => {
+  const visit = await twoSystemVisit();
+  const res = await request(app)
+    .post(`/api/visits/${visit.visitId}/items`)
+    .set('Authorization', `Bearer ${visit.token}`)
+    .send({ itemName: 'Weight-In-Data', category: 'accessory' });
+  expect(res.status).toBe(200);
+  const { rows } = await pool.query(`SELECT quantity FROM visit_items WHERE visit_id = $1 AND item_name = 'Weight-In-Data'`, [visit.visitId]);
+  expect(rows[0].quantity).toBe(2);
 });
 
 describe('per-system Report submission', () => {

@@ -120,15 +120,15 @@ async function resolveCompanionCascade(db, visitId, itemName, mode) {
     );
     if (existing.rows.length > 0) continue;
     const cat = await db.query(
-      `SELECT default_price, tech_supplied, category FROM catalog_items WHERE item_name = $1`,
+      `SELECT default_price, tech_supplied, category, multiplies_by_system_count FROM catalog_items WHERE item_name = $1`,
       [name]
     );
     if (cat.rows.length === 0) continue;
     const c = cat.rows[0];
     await db.query(
       `INSERT INTO visit_items (id, visit_id, item_name, category, quantity, price, tech_supplied)
-       VALUES (gen_random_uuid()::text, $1, $2, $3, 1, $4, $5)`,
-      [visitId, name, c.category, c.default_price ?? 0, c.tech_supplied]
+       VALUES (gen_random_uuid()::text, $1, $2, $3, $4, $5, $6)`,
+      [visitId, name, c.category, await startingQuantity(db, visitId, c), c.default_price ?? 0, c.tech_supplied]
     );
     added.push(name);
   }
@@ -242,6 +242,14 @@ router.patch(
 );
 
 // POST /api/visits/:id/items
+// A new line starts at the call's system count when the item multiplies by
+// systems, otherwise at 1 (W2; the same rule as the Workspace).
+async function startingQuantity(db, visitId, catalogRow) {
+  if (!catalogRow.multiplies_by_system_count) return 1;
+  const { rows } = await db.query('SELECT count(*)::int AS n FROM visit_systems WHERE visit_id = $1', [visitId]);
+  return Math.max(1, rows[0].n);
+}
+
 router.post(
   '/:id/items',
   requireRole('technician'),
@@ -333,7 +341,7 @@ router.post(
       const insertRes = await pool.query(
         `INSERT INTO visit_items (id, visit_id, item_name, category, description, quantity, price, tech_supplied)
          VALUES (gen_random_uuid()::text, $1, $2, $3, $4, $5, $6, $7) RETURNING id`,
-        [id, itemName, catalog.category, itemDescription, quantity, resolvedPrice, catalog.tech_supplied]
+        [id, itemName, catalog.category, itemDescription, quantityProvided ? quantity : await startingQuantity(pool, id, catalog), resolvedPrice, catalog.tech_supplied]
       );
       const newId = insertRes.rows[0].id;
 
