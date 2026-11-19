@@ -13,8 +13,13 @@ export default function Inventory () {
   const [assignForm, setAssignForm] = useState({ technicianId: '', itemName: '', quantity: '', periodStart: '' })
   const [assignError, setAssignError] = useState('')
   const [assignSuccess, setAssignSuccess] = useState('')
+  // Active technicians only (the endpoint's default, as in Reports).
+  const [technicians, setTechnicians] = useState([])
 
   useEffect(() => { loadInventory() }, [])
+  useEffect(() => {
+    api.get('/dispatch/technicians').then(d => setTechnicians(d ?? [])).catch(() => {})
+  }, [])
 
   async function loadInventory () {
     setLoading(true)
@@ -107,13 +112,15 @@ export default function Inventory () {
         <div className="vd-unit">
           <div className="vd-unit-head"><span className="vd-unit-id">ASN</span><span className="vd-unit-name">Assign stock</span></div>
           <div className="vd-unit-body" style={styles.form}>
-            <label><span className="vd-label">Technician ID</span>
-              <input
-                className="vd-input data"
+            <label><span className="vd-label">Technician</span>
+              <select
+                className="vd-input"
                 value={assignForm.technicianId}
                 onChange={e => setAssignForm(f => ({ ...f, technicianId: e.target.value }))}
-                placeholder="Technician ID"
-              />
+              >
+                <option value="">Select a technician…</option>
+                {technicians.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+              </select>
             </label>
             <label><span className="vd-label">Item name</span>
               <input
