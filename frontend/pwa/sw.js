@@ -153,7 +153,9 @@ self.addEventListener('fetch', event => {
   if (
     url.pathname.startsWith('/@vite/') ||
     url.pathname.startsWith('/@fs/') ||
-    url.pathname.startsWith('/node_modules/')
+    url.pathname.startsWith('/node_modules/') ||
+    // Dispatch shares the pilot server's origin; this worker never serves it.
+    url.pathname.startsWith('/dispatch/')
   ) {
     return
   }

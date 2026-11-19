@@ -31,6 +31,14 @@ app.get('/api/health', async (req, res) => {
 app.post('/api/auth/login', loginLimiter);
 app.use('/api/auth', require('./routes/auth'));
 
+// The apps, before the session check (PP-02): FieldOps as-is at / (no build
+// step; its service worker precaches source paths) and Dispatch's Vite build
+// at /dispatch/ (`npm run build:dispatch`). Only existing files are served;
+// anything else falls through to the API.
+const path = require('path');
+app.use('/dispatch', express.static(path.join(__dirname, '../frontend/dispatch/dist')));
+app.use(express.static(path.join(__dirname, '../frontend/pwa')));
+
 // All operational routes require a valid server-side session. Temporary passwords
 // can access only the authentication routes until replaced.
 app.use(authenticate, requirePasswordChanged);
