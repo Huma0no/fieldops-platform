@@ -9,3 +9,6 @@ frontend/dispatch/dist/
 
 # Real CP3000 route PDFs (customer data) — never commit
 tests/fixtures/private/
+
+# Saved Company form pages hold the signed-in account (personal data); never commit them.
+docs/shared/reference/*.mhtml
