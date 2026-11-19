@@ -1,6 +1,5 @@
 require('dotenv').config();
 const express = require('express');
-const cors = require('cors');
 const rateLimit = require('express-rate-limit');
 const { pool } = require('./db/pool');
 const { authenticate, requirePasswordChanged, requireRole } = require('./middleware/auth');
@@ -10,7 +9,8 @@ const app = express();
 // TRUST_PROXY = number of proxies in front of the server; unset = direct exposure.
 const trustProxyHops = Number(process.env.TRUST_PROXY);
 if (trustProxyHops > 0) app.set('trust proxy', trustProxyHops);
-app.use(cors());
+// No CORS: FieldOps and Dispatch are served from the API's own origin (pilot)
+// or through the Vite dev proxy, so only same-origin requests are allowed (C7).
 app.use(express.json());
 
 // Only sign-in is rate limited (password guessing). Authenticated routes have
