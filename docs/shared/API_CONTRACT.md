@@ -328,18 +328,24 @@ FieldOps is offline-first (`/docs/OFFLINE-FIRST-CONTRACT.md`) and must be able t
 ```
 GET /api/catalog/version
   auth: technician or dispatcher
-  returns: { version } — md5 of the items, equipment, lineset-configs,
-    item-relations and services rows. The PWA refetches its offline catalog copy when it
+  returns: { version } — md5 of the items, equipment, equipment charges,
+    manufacturers, item-relations and services rows. The PWA refetches its offline catalog copy when it
     changes (requests carry ?v=<version> so the service worker's catalog
     cache keys the new copy).
 
 GET /api/catalog/equipment
   auth: technician or dispatcher
-  returns: [] of catalog_equipment rows
+  returns: [] of catalog_equipment rows, each with
+    charges: [{ manufacturer, length_ft, charge_oz }] (W3)
+
+GET /api/catalog/manufacturers
+  auth: technician or dispatcher
+  returns: [] of catalog_manufacturers rows { name, oz_per_ft, default_length_ft }
 
 GET /api/catalog/lineset-configs
   auth: technician or dispatcher
-  returns: [] of catalog_lineset_configs rows
+  returns: [] of catalog_lineset_configs rows (legacy; kept for readings
+    recorded before W3 and earlier app versions)
 
 GET /api/catalog/items
   auth: technician or dispatcher
@@ -358,12 +364,13 @@ PATCH /api/dispatch/catalog/:table/:id
   body: any editable column for the given catalog row
   editable columns per table:
     catalog_equipment:      unit_type, brand, series, refrigerant, is_a2l, btu,
-                            factory_charge_oz, revised_charge_oz, pesp, oem_subcooling_goal
+                            pesp, oem_subcooling_goal
     catalog_items:          category, default_price, tech_supplied,
                             multiplies_by_system_count, custom_price,
                             expected_price_min, expected_price_max, finish_addon_price
     catalog_services:       default_price, multiplies_by_system_count
-    catalog_lineset_configs: reference_length_ft, adjust_rate_oz_per_ft
+    catalog_manufacturers:  name, oz_per_ft, default_length_ft
+                            (a rename cascades to the equipment charges; 409 if taken)
   effect: updates the catalog row — e.g. dispatcher manually updating pesp
           from a technician's field-reading note
   note: editing a catalog value never changes historical visit records —
@@ -372,10 +379,25 @@ PATCH /api/dispatch/catalog/:table/:id
 POST /api/dispatch/catalog/equipment
   auth: dispatcher
   body (required): { model, unit_type, brand }
-  body (optional): { series, refrigerant, is_a2l, btu, factory_charge_oz,
-                     revised_charge_oz, pesp, oem_subcooling_goal }
-  returns: 201 + created catalog_equipment row
-  errors: 400 if model/unit_type/brand missing, 409 if model already exists
+  body (optional): { series, refrigerant, is_a2l, btu, pesp, oem_subcooling_goal,
+                     charges: [{ manufacturer, length_ft, charge_oz }] }
+  returns: 201 + created catalog_equipment row with its charges
+  errors: 400 if model/unit_type/brand missing or a charge is invalid,
+          409 if model already exists
+
+PUT /api/dispatch/catalog/equipment/:model/charges
+  auth: dispatcher
+  body: { charges: [{ manufacturer, length_ft, charge_oz }] } — the model's whole
+        list (add, edit or remove a length row by sending the new list)
+  returns: { model, charges } ordered by manufacturer, length
+  errors: 400 for a missing/unknown manufacturer, length ≤ 0, charge < 0 or a
+          duplicate manufacturer + length; 404 unknown model
+
+POST /api/dispatch/catalog/manufacturers
+  auth: dispatcher
+  body: { name, oz_per_ft, default_length_ft } (both numbers > 0)
+  returns: 201 + created catalog_manufacturers row
+  errors: 400 invalid, 409 name already exists
 
 POST /api/dispatch/catalog/items
   auth: dispatcher
@@ -388,7 +410,7 @@ POST /api/dispatch/catalog/items
   errors: 400 if required fields missing or category invalid, 409 if item_name already exists
 
 Note: POST /api/dispatch/catalog/services does not exist — the service list is fixed.
-      POST /api/dispatch/catalog/lineset-configs does not exist — configs are fixed.
+      Lineset configs are legacy and no longer edited (W3).
 ```
 
 ---
@@ -461,18 +483,17 @@ PATCH /api/visits/:id/systems/:systemNumber
 
 PUT /api/visits/:id/weigh-in/:systemNumber
   auth: technician (must be assigned)
-  body: { linesetLength, factoryLineConfig, factoryChargeUsed, adjustedOz, fanSpeedCfm,
-          liquidLineTemp, suctionLineTemp, condenserSatTemp, subcoolingValue }
-  note: factoryChargeUsed is the technician's choice of "factory" or "revised" — required
-        whenever the visit's equipment model has a non-null catalog_equipment.revised_charge_oz
-        (currently Trane and Lennox lineset config variants). The technician reads the
-        physical nameplate in the field and picks accordingly; the server cannot resolve
-        this automatically. Ignored (and not required) for models with no revised_charge_oz.
-  effect: server calculates approxAdjustOz from catalog_lineset_configs, reads
-          oemSubcoolingGoal from catalog_equipment, calculates subcoolingDeviation,
-          stores whichever factory_charge_oz value (factory or revised) corresponds
-          to factoryChargeUsed
-  returns: full weigh-in record with calculated fields
+  body: { linesetLength, manufacturer, factoryLengthFt, ozPerFt?, refrigerant?,
+          factoryChargeOz?, adjustedOz, fanSpeedCfm, liquidLineTemp, suctionLineTemp,
+          condenserSatTemp, oemSubcoolingGoal? }   (W3)
+  effect: oz/ft from the manufacturer unless sent; approxAdjustOz =
+          (linesetLength − factoryLengthFt) × oz/ft (null when one is missing);
+          a sent factoryChargeOz is stored as "edited", otherwise the catalog charge
+          for the system's outdoor model + manufacturer + length ("catalog", or null);
+          subcoolingValue = condenserSatTemp − liquidLineTemp; subcoolingDeviation =
+          subcooling − oemSubcoolingGoal (default 10)
+  returns: full weigh-in record with calculated fields, including manufacturer,
+           factoryLengthFt, ozPerFt, refrigerant and factoryChargeSource
 
 POST /api/visits/:id/photos
   auth: technician (must be assigned; any visit status — photos may arrive

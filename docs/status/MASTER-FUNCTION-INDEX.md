@@ -52,7 +52,7 @@ A `CLOSED` section is a finished product area: its code, UX, and specifications 
 | My Calls | `docs/fieldops/MY-CALLS-SPEC.md` | SPEC CLOSED | Implemented; QA verification tracked globally | Assigned visits; entry point to Workspace. |
 | Reports | `docs/fieldops/REPORTS-SPEC.md` | SPEC CLOSED | QA VERIFIED | Daily completions, share/export, correction request entry. |
 | Chat | Dispatch/FieldOps Chat docs | SPEC REVIEW REQUIRED | PARTIAL | Dispatch passive sync remains a design decision; PWA polling exists. |
-| Quick Charge Calc | `docs/fieldops/CALC-SPEC.md` | SPEC CLOSED | IMPLEMENTED | Standalone tool. |
+| Quick Charge Calc | `docs/fieldops/CALC-SPEC.md` | SPEC CLOSED | IMPLEMENTED (automated verification) | Standalone tool. W3 (2026-11-19): FT1/FT2 or Total (mutually exclusive), Manufacturer + Factory length, breakdown with refrigerant badge. |
 | Menu / Settings | `docs/fieldops/SETTINGS-SPEC.md` | SPEC CLOSED | QA pending | Menu also owns Transfers entry/badge behavior. |
 | Transfers | `docs/fieldops/TRANSFER-SPEC.md` | SPEC CLOSED | QA VERIFIED | Incoming transfer flow implemented. |
 
@@ -121,19 +121,19 @@ A `CLOSED` section is a finished product area: its code, UX, and specifications 
 
 | Function | Spec Status | Implementation / QA | Notes |
 |---|---|---|---|
-| Per-system Weigh-In | SPEC CLOSED | IMPLEMENTED | Independent system data. |
-| Auto factory charge | SPEC CLOSED | IMPLEMENTED | Spec says prefilled from catalog. |
-| Line configuration | SPEC CLOSED | IMPLEMENTED | Outdoor-brand-aware selector. |
-| Approx adjustment | SPEC CLOSED | IMPLEMENTED | Auto-calculated from lineset + configuration. |
+| Per-system Weigh-In | SPEC CLOSED | IMPLEMENTED (automated verification) | Independent system data; one system at a time via the banner switcher (W3). |
+| Auto factory charge | SPEC CLOSED | IMPLEMENTED (automated verification) | Catalog charge for the outdoor model + manufacturer + length (`catalog_equipment_charges`), editable: "· catalog" / "· edited"; empty when the catalog has none (W3). |
+| Manufacturer + Factory length | SPEC CLOSED | IMPLEMENTED (automated verification) | Replaces the line configuration and Factory/Revised selector (W3): outdoor-brand default, + New (oz/ft), + Custom length, refrigerant asked when missing. |
+| Approx adjustment | SPEC CLOSED | IMPLEMENTED (automated verification) | (Lineset ft − factory length) × oz/ft. |
 | Adjusted charge | SPEC CLOSED | IMPLEMENTED | Technician input. |
 | Fan CFM / temperatures | SPEC CLOSED | IMPLEMENTED | Numeric capture. |
-| Subcooling calculation | SPEC CLOSED | IMPLEMENTED | Computed. |
+| Subcooling calculation | SPEC CLOSED | IMPLEMENTED (automated verification) | Condenser Sat − Liquid Temp (WS-08 resolved in W3). |
 | OEM SC goal | SPEC CLOSED | IMPLEMENTED / QA PENDING | Canonical rule: default to 10°F per system; technician may edit each system's goal. Persist locally and server-side; restore saved values; legacy missing values default to 10°F. Deviation = measured SC − effective goal. |
 | SC deviation | SPEC CLOSED | IMPLEMENTED | Computed. |
 | Scale photo GPS/EXIF | SPEC CLOSED | IMPLEMENTED | Required for Company form compliance. |
 | Fan Speed photo GPS/EXIF | SPEC CLOSED | IMPLEMENTED | Required for Company form compliance. |
-| New Total Charge | SPEC CLOSED | IMPLEMENTED | Read-only computed output. |
-| System switcher | SPEC CLOSED | DEFERRED | Existing behavior retained. |
+| New Total Charge | SPEC CLOSED | IMPLEMENTED (automated verification) | Factory + Adjusted, in lb/oz and oz. |
+| System switcher | SPEC CLOSED | IMPLEMENTED | Banner 1 · 2 · 3 · + (W3); dot = essentials filled. |
 | Refrigerant auto-restock batching | SPEC PARTIAL | OPEN | Business rule exists in project discussion; needs canonical spec and implementation audit. |
 
 ## 8. Workspace — Checklist + Notes
@@ -176,7 +176,7 @@ A `CLOSED` section is a finished product area: its code, UX, and specifications 
 |---|---|---|
 | PDF Intake | SPEC CLOSED / IMPLEMENTED (catalog integrity) | Thermostat/Accessory review and the shared persistence path now accept only matching existing catalog entries; unmatched values remain contextual review data and do not create catalog or visit items. The extraction API itself remains stub/unconfigured. |
 | Manual Call Intake | SPEC CLOSED / IMPLEMENTED / focused automated + manual flow QA | Catalog-backed Thermostat/Accessory selection is restricted to matching existing entries. Unknown or wrong-category values return controlled 400 errors; no catalog upsert occurs. Manual Create → Release → Assign → FieldOps My Calls QA passed locally. |
-| Catalog administration — create/edit | PARTIALLY IMPLEMENTED / automated coverage | Dispatch → Catalog already creates/edits Equipment and Items, and edits supported Service and Lineset Config properties. Equipment is the current successor to the historical Config-Equipment concept; no parallel feature is needed. |
+| Catalog administration — create/edit | PARTIALLY IMPLEMENTED / automated coverage | Dispatch → Catalog already creates/edits Equipment and Items, and edits supported Service properties; Equipment charges per manufacturer + length and Manufacturers are created/edited there (W3). Equipment is the current successor to the historical Config-Equipment concept; no parallel feature is needed. |
 | Catalog lifecycle — deactivate/reactivate | SPEC PARTIAL / FUTURE | No catalog active/inactive or equivalent lifecycle exists. Future work must exclude deactivated entries from new selectors while preserving historical references; normal hard delete is not intended. It does not block the Intake repair. |
 | Lobby | QA VERIFIED | Current tracker marks complete. |
 | History | QA VERIFIED with minor backlog | Detail exists; list still lacks some fields. |

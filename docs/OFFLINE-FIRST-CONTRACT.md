@@ -90,7 +90,7 @@ Dispatch may rely on assignment state and successfully submitted terminal states
 
 ## Implementation status (2026-11-17, W-LF)
 
-- **Download:** while online, My Calls creates a Local Visit Draft for every assigned or in-progress call that has none. The catalog (items, relations, services, equipment, lineset configs) and the technician's own prices are cached on the device.
+- **Download:** while online, My Calls creates a Local Visit Draft for every assigned or in-progress call that has none. The catalog (items, relations, services, equipment with its charges, manufacturers) and the technician's own prices are cached on the device.
 - **Start offline:** Start marks the draft started at once. Without a connection the Start is recorded per technician and sent when the server is reachable (on reconnect or app start); Dispatch sees "in progress" then. A server answer that the Start no longer applies (already finished) discards it. Start still needs a downloaded draft.
 - **Workspace:** every edit (Service, T-stat, Accessories, Fixes, quantities, Weigh-In, Notes, checklist) updates only the draft and is repriced on the device with `frontend/shared/pricing.mjs`. No Workspace edit writes to the server.
 - **Generate Report** creates the pending snapshot offline; delivery happens on reconnect. The server recomputes prices from its catalog and records differences without rejecting (PP-01, `REPORT-SNAPSHOT-CONTRACT.md`).

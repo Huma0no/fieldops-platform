@@ -44,7 +44,7 @@ Dispatch Intake creates a visit in `pending_review`; batch release publishes it 
 
 ## 5. Catalog Boundary
 
-`Dispatch → Catalog` owns administrative create/edit of the current catalog domains: Equipment, Items, Services, and Lineset Configs. Intake and Workspace consume/select catalog data; they do not implicitly create or mutate master catalog rows. Server-side catalog resolution supplies valid references, operational properties, and initial resolved values to new visit records.
+`Dispatch → Catalog` owns administrative create/edit of the current catalog domains: Equipment (with its charges per manufacturer + length), Items, Services, and Manufacturers. Intake and Workspace consume/select catalog data; they do not implicitly create or mutate master catalog rows. Server-side catalog resolution supplies valid references, operational properties, and initial resolved values to new visit records.
 
 Catalog deactivate/reactivate and selector filtering are future work. They must preserve historical references and are not currently implemented.
 

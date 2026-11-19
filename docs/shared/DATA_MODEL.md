@@ -9,7 +9,7 @@
 
 ## Overview
 
-27 tables covering all entities defined in SYSTEM_DESIGN.md, including five catalog tables (`catalog_equipment`, `catalog_lineset_configs`, `catalog_items`, `catalog_item_relations`, `catalog_services`), a centralized `role_permissions` table for scalable, multi-tenant-ready authorization, per-technician `technician_settings` / `technician_price_overrides` / `restock_records`, `corrections` backing the post-submission correction request flow, and `pdf_batches` coordinating PDF intake review and Lobby release. Designed for PostgreSQL.
+27 tables covering all entities defined in SYSTEM_DESIGN.md, including the catalog tables (`catalog_equipment`, `catalog_equipment_charges`, `catalog_manufacturers`, `catalog_lineset_configs` (legacy), `catalog_items`, `catalog_item_relations`, `catalog_services`), a centralized `role_permissions` table for scalable, multi-tenant-ready authorization, per-technician `technician_settings` / `technician_price_overrides` / `restock_records`, `corrections` backing the post-submission correction request flow, and `pdf_batches` coordinating PDF intake review and Lobby release. Designed for PostgreSQL.
 
 All primary keys are UUIDs. All timestamps are stored as ISO 8601 text.
 
@@ -29,8 +29,6 @@ Indoor and outdoor equipment models — the single source for refrigerant, facto
 | refrigerant | text | "R-454B", "R-32" — null for indoor-only models |
 | is_a2l | boolean | Outdoor models only — drives the Lobby's "A2L" tag (SYSTEM_DESIGN §6). Cannot be derived from `refrigerant` text alone; must be explicit. |
 | btu | integer | Outdoor models only |
-| factory_charge_oz | real | Nameplate factory charge — outdoor models only |
-| revised_charge_oz | real | Alternate factory charge value — applies to Trane models only. Trane is the only brand where factory refrigerant charge varies by manufacture date, and that date cannot be looked up; the technician must read it from the physical equipment nameplate in the field. There is no calculable cutoff — both values are offered, technician picks per nameplate. |
 | pesp | real | Possible ESP — Furnace/AirHandler models only (a blower characteristic, not a condenser one). Null when no data exists. Edited manually by dispatcher as real field readings come in via technician notes. |
 | oem_subcooling_goal | real | Fixed at 10 for all models — informational only. New-construction work is verified via weigh-in by lineset length, not subcooling, so brand/model differentiation here is intentionally not implemented. |
 
@@ -42,18 +40,42 @@ Indoor and outdoor equipment models — the single source for refrigerant, facto
 
 ---
 
-### catalog_lineset_configs
-Factory lineset presets used to calculate `approx_adjust_oz` during weigh-in.
+### catalog_manufacturers
+Lineset manufacturers for Weigh-In and Quick Charge Calc (W3, migration 034).
 
 | Column | Type | Notes |
 |---|---|---|
-| config_key | text PK | Preset identifier — matches `weigh_in_data.factory_line_config`. Brands with a revised-charge variant (currently Trane, Lennox) have two separate preset rows — e.g. "Trane 10ft" and "Trane 25ft Revised" — the technician selects whichever matches the equipment nameplate. |
-| reference_length_ft | real | Factory reference lineset length this preset is based on |
-| adjust_rate_oz_per_ft | real | Refrigerant adjustment per foot of difference from the reference length |
+| name | text PK | "Daikin", "Goodman", "Lennox", "Trane". Renames cascade to `catalog_equipment_charges`. |
+| oz_per_ft | real | Refrigerant adjustment per foot of lineset beyond the factory length (> 0) |
+| default_length_ft | real | Factory length preselected for this manufacturer (> 0): Lennox 30, others 15 |
+
+---
+
+### catalog_equipment_charges
+Factory charge of an outdoor model per manufacturer + factory length (W3, migration 034); replaces `catalog_equipment.factory_charge_oz` / `revised_charge_oz`.
+
+| Column | Type | Notes |
+|---|---|---|
+| model | text FK | References `catalog_equipment.model` (cascade on update/delete) |
+| manufacturer | text FK | References `catalog_manufacturers.name` (cascade on update) |
+| length_ft | real | Factory length (> 0) |
+| charge_oz | real | Factory charge in oz (≥ 0) |
 
 **Rules:**
-- `approx_adjust_oz` in `weigh_in_data` is calculated server-side from `lineset_length` against this table's `reference_length_ft` and `adjust_rate_oz_per_ft` for the visit's selected `factory_line_config`.
-- Seed data source: `src/data.js` / `utils.js` (ACstartup repo). Current presets: Trane 10ft, Trane 25ft Revised, Lennox 15ft, Lennox 30ft Revised, Daikin 10ft, Goodman 10ft.
+- Primary key (model, manufacturer, length_ft). A missing combination means no catalog value: Weigh-In shows it empty for the technician to type.
+- Migration 034 moved old factory values to 15 ft and old revised values to Trane 25 ft / Lennox 30 ft (`/docs/shared/CATALOG.md`).
+
+---
+
+### catalog_lineset_configs
+Legacy factory lineset presets, kept only for `weigh_in_data` rows recorded before W3 (`factory_line_config`). Not edited and not used for new readings; migration 034 dropped its date-window columns (`revised_available`, `valid_from`, `valid_before`).
+
+| Column | Type | Notes |
+|---|---|---|
+| config_key | text PK | Matches `weigh_in_data.factory_line_config` on legacy rows |
+| reference_length_ft | real | Factory reference lineset length |
+| adjust_rate_oz_per_ft | real | Refrigerant adjustment per foot |
+| brand | text | Brand of the preset |
 
 ---
 
@@ -440,9 +462,14 @@ Refrigerant charge data per system per address. Captured during a visit but belo
 | address_id | text FK | References addresses.id |
 | system_number | integer | System this weigh-in belongs to (1, 2, 3...) |
 | lineset_length | real | Feet |
-| factory_charge_oz | real | OEM factory charge in oz. For equipment with a `catalog_equipment.revised_charge_oz` value (currently Trane, Lennox), this stores whichever of the two catalog values the technician selected based on the physical nameplate — see `factoryChargeUsed` in API_CONTRACT.md §7. For all other equipment, this is simply `catalog_equipment.factory_charge_oz`. |
-| factory_line_config | text | Preset config key |
-| approx_adjust_oz | real | Calculated from lineset + config |
+| factory_charge_oz | real | Factory charge in oz used for the reading: the catalog charge for the chosen manufacturer + length, or the value the technician typed (see `factory_charge_source`) |
+| factory_line_config | text | Legacy preset config key (rows before W3); null for new readings |
+| manufacturer | text | Manufacturer chosen in Weigh-In (catalog name or typed with "+ New") |
+| factory_length_ft | real | Factory length chosen (standard or custom) |
+| oz_per_ft | real | oz/ft used (from the manufacturer, or typed with "+ New") |
+| refrigerant | text | Refrigerant of the outdoor unit (catalog) or typed when missing |
+| factory_charge_source | text | `catalog` or `edited`; null when no factory charge |
+| approx_adjust_oz | real | (lineset_length − factory_length_ft) × oz_per_ft |
 | adjusted_oz | real | Recorded by technician |
 | fan_speed_cfm | real | Measured CFM |
 | liquid_line_temp | real | °F |
@@ -458,7 +485,7 @@ Refrigerant charge data per system per address. Captured during a visit but belo
 - A system's weigh-in may be captured across different visits — system 1 on visit 1, system 2 on visit 2. This is normal operating behavior.
 - If The Company never reassigns the address, some systems may remain without weigh-in data. This is acceptable — no row is created until data is actually captured.
 - `oem_subcooling_goal` is read from the catalog at capture time and stored explicitly for immutable history.
-- `approx_adjust_oz` is calculated dynamically from `lineset_length` and `factory_line_config` but stored as evidence of what the technician saw in field.
+- `approx_adjust_oz` is calculated from `lineset_length`, `factory_length_ft` and `oz_per_ft` (legacy rows: `factory_line_config`) and stored as evidence of what the technician saw in field.
 - `subcooling_deviation` is calculated by the server: positive = overcharged, negative = undercharged.
 - Corrections may change recorded raw measurement inputs through the existing address/system row. `approx_adjust_oz`, `subcooling_value`, and `subcooling_deviation` remain server-derived rather than direct inputs.
 
@@ -756,7 +783,9 @@ Change history for visits — what changed and when, not who requested it.
 | visit_items | visits | visit_id |
 | visit_items | catalog_items | item_name |
 | weigh_in_data | addresses | address_id |
-| weigh_in_data | catalog_lineset_configs | factory_line_config |
+| weigh_in_data | catalog_lineset_configs | factory_line_config (legacy) |
+| catalog_equipment_charges | catalog_equipment | model |
+| catalog_equipment_charges | catalog_manufacturers | manufacturer |
 | visit_photos | visits | visit_id |
 | transfers | visits | visit_id |
 | transfers | technicians | from_tech_id, to_tech_id |
