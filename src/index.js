@@ -87,8 +87,11 @@ const PORT = process.env.PORT || 3001;
 if (require.main === module) {
   const { bootstrapInitialOwner } = require('./routes/auth');
   bootstrapInitialOwner().then(() => {
-    app.listen(PORT, () => {
-      console.log(`FieldOps server listening on port ${PORT}`);
+    // HOST=127.0.0.1 keeps the pilot server off the local network; Tailscale
+    // Serve is its only way in (FIRST-LAUNCH-RUNBOOK §5). Unset = all interfaces.
+    const HOST = process.env.HOST || undefined;
+    app.listen(PORT, HOST, () => {
+      console.log(`FieldOps server listening on ${HOST ?? '*'}:${PORT}`);
     });
     const { autoClosePeriods, ensureCurrentPeriodExists } = require('./services/autoClose');
     async function runPayPeriodJob() {
