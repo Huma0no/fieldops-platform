@@ -27,12 +27,6 @@ One screen: the single check for the period, covering every technician in it —
 - **Correction reconciliation:** a priced correction to a closed or paid source week never changes that week's historical payout line. The system calculates the signed difference using the source line's snapshotted commission rate and records one auditable adjustment for the first eligible later open period. If no such period exists, it remains pending and attaches automatically when one is created. Positive is additional compensation; negative is a deduction.
 - **Exclude from this run:** a checkbox per technician. Unchecking removes them from this week's run without losing their data — checking it back in restores them with their numbers intact.
 
-## Ghost Deduction — owner-only
-
-`Ghost Deduction = Calculated (the whole period, everyone's work, the same figure behind Money In) − Actual Received (what the check for the period actually was)`.
-
-This gap is Kristo's alone. It never touches technician payouts — those stay fixed at `gross × (1 − commission_rate_applied) ± their own lines`, regardless of this number.
-
 ## Open Items
 
 - Deductible expenses (gas/tools/vehicle) line: shown in the mockup as TBD, no defined behavior yet.

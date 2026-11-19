@@ -99,14 +99,6 @@ function PeriodDetail ({ period, onBack, onUpdated }) {
   // Adjustment forms: { [techId]: { open, amount, note, saving, error } }
   const [adjForms, setAdjForms] = useState({})
 
-  // Ghost deduction
-  const [ghostInput,  setGhostInput]  = useState(period.ghostDeduction != null ? String(period.ghostDeduction) : '')
-  const [savingGhost, setSavingGhost] = useState(false)
-  const [ghostError,  setGhostError]  = useState('')
-  useEffect(() => {
-    setGhostInput(period.ghostDeduction != null ? String(period.ghostDeduction) : '')
-  }, [period.ghostDeduction])
-
   const isOpen       = period.status === 'open'
   const hasAnomalies = period.anomalies?.length > 0
   const canClose     = isOpen && (!hasAnomalies || ackAnomalies)
@@ -155,16 +147,6 @@ function PeriodDetail ({ period, onBack, onUpdated }) {
     } catch (err) {
       setAdjForms(prev => ({ ...prev, [techId]: { ...prev[techId], saving: false, error: err.message ?? 'Save failed' } }))
     }
-  }
-
-  async function saveGhostDeduction () {
-    setSavingGhost(true); setGhostError('')
-    try {
-      await api.post(`/dispatch/pay-periods/${period.id}/ghost-deduction`, { amount: Number(ghostInput) })
-      onUpdated(period)
-    } catch (err) {
-      setGhostError(err.message ?? 'Save failed')
-    } finally { setSavingGhost(false) }
   }
 
   const colSpan = isOpen ? 5 : 4
@@ -306,53 +288,6 @@ function PeriodDetail ({ period, onBack, onUpdated }) {
         </div>
       </div>
 
-      {/* Ghost deduction — closed periods only */}
-      {(period.status === 'closed' || period.status === 'paid') && (
-        <div className="vd-unit">
-          <div className="vd-unit-head"><span className="vd-unit-id">GHD</span><span className="vd-unit-name">Ghost deduction</span></div>
-          <div className="vd-unit-body">
-            <div className="vd-rail">
-              <div className="vd-readout">
-                <div className="cap">Total generated</div>
-                <div className="num">{formatPrice(period.totalGenerated)}</div>
-              </div>
-              <div className="op">−</div>
-              <div className={`vd-readout${period.status === 'closed' ? ' edit' : ''}`}>
-                <div className="cap">Ghost deduction</div>
-                {period.status === 'closed' ? (
-                  <div style={styles.ghostEdit}>
-                    <input
-                      type="number"
-                      step="0.01"
-                      className="vd-input data"
-                      aria-label="Ghost deduction"
-                      placeholder="0.00"
-                      value={ghostInput}
-                      onChange={e => setGhostInput(e.target.value)}
-                    />
-                    <button type="button" className="vd-key dark" onClick={saveGhostDeduction} disabled={savingGhost || ghostInput === ''}>
-                      {savingGhost ? 'Saving…' : 'Save'}
-                    </button>
-                  </div>
-                ) : (
-                  <div className="num">{formatPrice(period.ghostDeduction)}</div>
-                )}
-              </div>
-              <div className="op">=</div>
-              <div className="vd-readout derived">
-                <div className="cap">Difference</div>
-                <div className="num">
-                  {period.totalGenerated != null && period.ghostDeduction != null
-                    ? formatPrice(period.totalGenerated - period.ghostDeduction)
-                    : '—'}
-                </div>
-              </div>
-            </div>
-            {ghostError && <p className="vd-error" style={styles.errorGap}>{ghostError}</p>}
-          </div>
-        </div>
-      )}
-
       {/* Actions */}
       <div className="vd-unit">
         <div className="vd-unit-body" style={styles.actions}>
@@ -416,7 +351,6 @@ const styles = {
   noteField:   { display: 'flex', flexDirection: 'column', flex: 1, minWidth: '160px' },
   adjCell:     { padding: '5px 8px 5px 28px', background: 'var(--vd-panel)' },
   adjAmount:   { marginRight: '12px' },
-  ghostEdit:   { display: 'flex', gap: '8px', alignItems: 'center', marginTop: '5px' },
   errorGap:    { marginTop: '8px' },
   actions:     { display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' },
   actionError: { width: '100%' },

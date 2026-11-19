@@ -19,7 +19,7 @@
 | Dispatch | History | 🟢 Completo | Sesión 2026-07-24: full visit detail (services, items, weigh-in, photos) y property history agregados al detail; field-name mismatches corregidos. D-01 probablemente resuelto por el nuevo detail — confirmar en QA manual. D-05 sigue abierto (cosmético, baja prioridad). Falta en el list: nombre de técnico y workType (ver Backlog) |
 | Dispatch | Inventory | ⬜ No iniciado | |
 | Dispatch | Restock | 🟢 Completo | Sesión 2026-07-24: alerta de low-stock implementada, verificado E2E |
-| Dispatch | Pay Periods | 🟢 Completo | Sesión 2026-07-24: adjustments (Add/Deduct), Ghost Deduction y auto-close implementados; field-name mismatches corregidos. Falta `totalGross` en la respuesta del list (ver Backlog) |
+| Dispatch | Pay Periods | 🟢 Completo | Sesión 2026-07-24: adjustments (Add/Deduct) y auto-close implementados; field-name mismatches corregidos. Falta `totalGross` en la respuesta del list (ver Backlog) |
 | Dispatch | Corrections | 🟢 Completo | Sesión 2026-07-24: two-tier review con evidence photos, endpoint de detail, y field-name mismatches implementados/corregidos |
 | Dispatch | Chat | 🟡 Fix aplicado, falta verificación manual | D-03 y D-06 resueltos en commit `84c54c4` (tests pasan); idea Broadcast sigue en backlog |
 | Dispatch | Catalog | 🟢 Completo | Edit inline + persistencia confirmados, sin bugs |

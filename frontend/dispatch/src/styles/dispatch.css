@@ -303,7 +303,7 @@ textarea.vd-input { resize: vertical; line-height: 1.5; }
 .vd-toasts { position: fixed; bottom: 20px; right: 20px; display: flex; flex-direction: column; gap: 8px; z-index: 9999; }
 .vd-toasts .vd-alert { min-width: 240px; max-width: 340px; }
 
-/* ── Rail: three cells joined by operators (Ledger cycle, ghost deduction) ── */
+/* ── Rail: three cells joined by arrows (Ledger cycle) ── */
 .vd-rail { display: grid; grid-template-columns: 1fr 30px 1fr 30px 1fr; align-items: stretch; }
 .vd-rail .op { display: flex; align-items: center; justify-content: center; font-family: var(--vd-font-data); font-weight: 700; font-size: 18px; color: var(--vd-dim); }
 .vd-step { border: 2px solid var(--vd-ink); background: var(--vd-plate); padding: 13px 14px; }
@@ -315,11 +315,6 @@ textarea.vd-input { resize: vertical; line-height: 1.5; }
 .vd-step.done .swhat, .vd-step.now .swhat { color: var(--vd-plate); opacity: 0.75; }
 .vd-step.now { position: relative; z-index: 1; box-shadow: 0 0 0 3px var(--vd-panel), 0 0 0 6px var(--vd-ink); }
 .vd-step.next { border-color: var(--vd-dim); color: var(--vd-dim); background-image: repeating-linear-gradient(45deg, rgba(16, 16, 16, 0.07) 0 3px, transparent 3px 7px); }
-.vd-rail .vd-readout.edit { background: var(--vd-plate); box-shadow: none; }
-.vd-rail .vd-readout.derived { background: var(--vd-ink); color: var(--vd-plate); box-shadow: none; }
-.vd-rail .vd-readout.derived .cap { color: var(--vd-plate); opacity: 0.75; }
-.vd-rail .vd-readout .num { font-size: 24px; margin-top: 7px; }
-.vd-rail .vd-readout .cap { margin-top: 0; }
 .vd-status { display: inline-flex; align-items: center; gap: 7px; font-family: var(--vd-font-stencil); text-transform: uppercase; letter-spacing: 1.3px; font-size: 11px; }
 .vd-status.off { color: var(--vd-dim); }
 .vd-table tr.inact td { color: var(--vd-dim); }

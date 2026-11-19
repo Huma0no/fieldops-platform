@@ -86,17 +86,6 @@
   .tot-line .tr{margin-left:auto;font-family:var(--data);font-weight:700;font-size:22px;}
   .tbd-line{display:flex;align-items:center;gap:12px;border:2px dashed var(--mute);padding:11px 12px;margin-top:12px;color:var(--mute);}
   .tbd-line .tr{margin-left:auto;font-family:var(--data);font-weight:700;font-size:13px;}
-  .ghost-strip{display:grid;grid-template-columns:1fr 30px 1fr 30px 1fr;align-items:stretch;}
-  .gcell{border:2px solid var(--ink);background:var(--panel);padding:13px 14px;box-shadow:inset 2px 2px 0 rgba(16,16,16,.12);}
-  .gcell .gl{font-family:var(--stencil);text-transform:uppercase;letter-spacing:1.4px;font-size:10px;color:var(--dim);}
-  .gcell .gv{font-family:var(--data);font-weight:700;font-size:24px;margin-top:7px;}
-  .gcell .gn{font-size:10px;color:var(--dim);margin-top:8px;line-height:1.4;}
-  .gcell.edit{background:var(--plate);box-shadow:none;}
-  .gcell.edit input.data{margin-top:5px;font-size:22px;padding:5px 8px;text-align:left;}
-  .gcell.derived{background:var(--ink);color:var(--plate);box-shadow:none;}
-  .gcell.derived .gl{color:#B5B3AC;}
-  .gcell.derived .gn{color:#B5B3AC;}
-  .gop{display:flex;align-items:center;justify-content:center;font-family:var(--data);font-weight:700;font-size:20px;color:var(--dim);}
   .tcard{margin-top:16px;}
   .thdr{display:flex;align-items:center;gap:10px;background:var(--ink);color:var(--plate);padding:7px 11px;}
   .thdr .tn{font-size:14px;font-weight:600;}
@@ -127,8 +116,8 @@
   .fastbar{display:flex;align-items:flex-end;gap:12px;flex-wrap:wrap;}
   .fastbar .fb{flex:1;min-width:130px;}
   @media (max-width:880px){
-    .cols-2,.rail,.ghost-strip{grid-template-columns:1fr;}
-    .rail .arrow,.ghost-strip .gop{transform:rotate(90deg);padding:6px 0;}
+    .cols-2,.rail{grid-template-columns:1fr;}
+    .rail .arrow{transform:rotate(90deg);padding:6px 0;}
     .gsearch{max-width:none;margin:10px 0;}
     .masthead{flex-wrap:wrap;}
   }
@@ -190,30 +179,15 @@
           <div class="sub-line"><span>M. Reyes &middot; 80% &plusmn; his lines</span><span class="sr">$2,022.00</span></div>
           <div class="sub-line"><span>J. Ortiz &middot; 80%</span><span class="sr">$1,568.00</span></div>
           <div class="sub-line"><span>R. Delgado &middot; 80% &plusmn; his lines</span><span class="sr">$1,730.00</span></div>
-          <div class="mline" style="border-top:1px solid var(--line);"><span class="ml">Taxes <span class="badge hatch" style="margin-left:4px;">Reference only</span></span><span class="mr">$950.40</span></div>
+          <div class="mline" style="border-top:1px solid var(--line);"><span class="ml">Taxes <span class="badge hatch" style="margin-left:4px;">Reference only</span></span><span class="mr">$960.40</span></div>
           <div class="sub-line"><span>Your gross</span><span class="sr">$3,490.00</span></div>
           <div class="sub-line"><span>Commission kept &middot; 20% of theirs</span><span class="sr">$1,312.00</span></div>
-          <div class="sub-line"><span>Less ghost deduction</span><span class="sr">&minus;$50.00</span></div>
-          <div class="sub-line"><span>Taxable</span><span class="sr">$4,752.00</span></div>
-          <div class="sub-line"><span>20% of $4,752.00</span><span class="sr">$950.40</span></div>
+          <div class="sub-line"><span>Taxable</span><span class="sr">$4,802.00</span></div>
+          <div class="sub-line"><span>20% of $4,802.00</span><span class="sr">$960.40</span></div>
           <div class="tbd-line"><span class="stencil" style="color:var(--mute);">Deductible expenses</span><span class="hint" style="color:var(--mute);">gas &middot; tools &middot; vehicle</span><span class="tr">TBD</span></div>
           <div class="tot-line"><span class="tl">Actually leaves</span><span class="tr">$5,320.00</span></div>
           <div class="hint" style="margin-top:8px;">Taxes aren't paid from this screen &mdash; they're here so the number never surprises you. Only technician compensation actually leaves.</div>
         </div>
-      </div>
-    </div>
-
-    <div class="unit" style="margin-top:20px;">
-      <div class="unit-head"><span class="unit-id">GHD</span><span class="unit-name">Ghost deduction</span><span class="unit-note">Yours only &middot; explains your own gap &middot; touches no technician</span></div>
-      <div class="unit-body">
-        <div class="ghost-strip">
-          <div class="gcell"><div class="gl">Calculated</div><div class="gv">$10,050.00</div><div class="gn">total generated &mdash; every technician's gross plus your own, summed</div></div>
-          <div class="gop">&minus;</div>
-          <div class="gcell edit"><div class="gl">Actual received</div><input type="text" class="data" value="$10,000.00"><div class="gn">the one number you enter &mdash; the whole check total</div></div>
-          <div class="gop">=</div>
-          <div class="gcell derived"><div class="gl">Ghost deduction</div><div class="gv">$50.00</div><div class="gn">figured for you &middot; not editable</div></div>
-        </div>
-        <div class="hint" style="margin-top:10px;">One subtraction. Calculated is the whole period &mdash; everyone's work, yours included, the same figure that backs Money In. You type what the check actually was, and the gap names itself. It lands only on your side: technician payouts stay fixed at their gross &times; 80% &plusmn; their own lines, untouched by this number.</div>
       </div>
     </div>
 

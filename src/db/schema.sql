@@ -356,7 +356,6 @@ CREATE TABLE pay_periods (
   gross_total      real,
   tax_amount       real,
   paid_at          text,
-  ghost_deduction  real,
   created_at       text
 );
 

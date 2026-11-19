@@ -32,7 +32,7 @@ async function fetchPeriodWithLines(periodId) {
   if (pResult.rows.length === 0) return null;
   const period = pResult.rows[0];
 
-  const [lResult, adjResult, tgResult] = await Promise.all([
+  const [lResult, adjResult] = await Promise.all([
     pool.query(
       `SELECT ppl.*, t.name AS technician_name
        FROM pay_period_lines ppl
@@ -45,13 +45,6 @@ async function fetchPeriodWithLines(periodId) {
        WHERE destination_pay_period_id = $1 AND status = 'applied'
        ORDER BY created_at`,
       [periodId]
-    ),
-    pool.query(
-      `SELECT COALESCE(SUM(v.total_price), 0) AS total_generated
-       FROM visits v
-       WHERE v.status IN ('completed', 'temporarily')
-         AND v.completed_at >= $1 AND v.completed_at <= $2`,
-      [period.week_start, period.week_end]
     ),
   ]);
 
@@ -83,8 +76,6 @@ async function fetchPeriodWithLines(periodId) {
 
   return {
     ...periodShape(period),
-    ghostDeduction: period.ghost_deduction != null ? Number(period.ghost_deduction) : null,
-    totalGenerated: Number(tgResult.rows[0].total_generated),
     lines,
   };
 }
@@ -236,25 +227,6 @@ router.post('/pay-periods/:id/adjustments', requireRole('owner', 'dispatcher'), 
     );
     const data = await fetchPeriodWithLines(id);
     res.status(201).json(data);
-  } catch (err) {
-    next(err);
-  }
-});
-
-// POST /api/dispatch/pay-periods/:id/ghost-deduction
-router.post('/pay-periods/:id/ghost-deduction', requireRole('owner', 'dispatcher'), async (req, res, next) => {
-  const { id } = req.params;
-  const { amount } = req.body;
-  if (amount == null) return res.status(400).json({ error: 'amount is required' });
-  try {
-    const pResult = await pool.query('SELECT status FROM pay_periods WHERE id = $1', [id]);
-    if (pResult.rows.length === 0) return res.status(404).json({ error: 'Pay period not found' });
-    if (pResult.rows[0].status !== 'closed') {
-      return res.status(400).json({ error: 'Ghost deduction can only be set on closed pay periods' });
-    }
-    await pool.query('UPDATE pay_periods SET ghost_deduction = $1 WHERE id = $2', [amount, id]);
-    const data = await fetchPeriodWithLines(id);
-    res.json(data);
   } catch (err) {
     next(err);
   }

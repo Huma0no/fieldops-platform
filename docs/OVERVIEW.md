@@ -40,7 +40,7 @@ Technician collaborators
 
 **Compensation model** (full detail: `/docs/dispatch/LEDGER-SPEC.md`):
 - Each technician has an individually editable commission %, defaulting to 20% when a technician is added, adjustable at any time.
-- Kristo keeps the remainder plus a marginal "Ghost Deduction" (Total Generated − Actual Received) that affects only his own income, never a technician's payout.
+- Kristo keeps the remainder.
 - Weekly cycle: Monday–Sunday → auto-closes the following Wednesday → Company check Friday → distribution to technicians by Sunday.
 
 **Scale:**

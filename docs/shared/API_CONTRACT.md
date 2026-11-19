@@ -719,10 +719,10 @@ GET /api/pay/mine
   auth: technician
   query: ?periodId?
   returns: own pay_period_lines only (including own adjustments) — never
-           other technicians' data, never ghost_deduction (owner-only)
+           other technicians' data
 ```
 
-**Cycle — automatic, not a dispatcher action:** each week (Mon–Sun) auto-closes the following Wednesday via a scheduled job, not a manual "close" endpoint. On close: `gross_amount` is calculated per technician from completed visits in range, `commission_rate_applied` is snapshotted from each technician's current `commission_rate`, `net_amount` is derived, `ghost_deduction` is set (Total Generated − Actual Received, owner-only), and any still-"open" `corrections` on visits within the week flip to "expired". The Company check follows Friday; technician distribution follows by Sunday.
+**Cycle — automatic, not a dispatcher action:** each week (Mon–Sun) auto-closes the following Wednesday via a scheduled job, not a manual "close" endpoint. On close: `gross_amount` is calculated per technician from completed visits in range, `commission_rate_applied` is snapshotted from each technician's current `commission_rate`, `net_amount` is derived, and any still-"open" `corrections` on visits within the week flip to "expired". The Company check follows Friday; technician distribution follows by Sunday.
 
 **Price anomaly detection:** manually reviewing every service report line by line is tedious. The catalog can define an expected min/max range per item, particularly relevant for free-form "Other" entries. Visits with any price outside the expected range for its item are flagged visually during the daily audit — this does not block anything, it only draws the dispatcher's attention before approval.
 

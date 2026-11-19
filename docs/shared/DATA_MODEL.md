@@ -556,7 +556,6 @@ Weekly settlement header — called "Ledger" in the product/UI. One record per M
 | week_end | date | Sunday |
 | status | text | "open", "closed", "paid" |
 | gross_total | real | Sum of all completed visit totals in period |
-| ghost_deduction | real | Total Generated − Actual Received for the week. Affects only the owner's (Kristo's) own income — never redistributed across technicians, never touches any technician's `net_amount` below. |
 | tax_amount | real | Informational — pending accounting confirmation |
 | closed_at | text | ISO 8601 — set automatically the Wednesday following week_end, not a manual dispatcher action |
 | paid_at | text | ISO 8601 — null until paid |
@@ -583,8 +582,8 @@ Per-technician breakdown within a Ledger week.
 | excluded | boolean | Default false. Dispatcher can exclude a technician from a given run without losing their underlying data — flips back in when unmarked. **Not yet built** — no `excluded` column or exclude action exists in code as of 2026-07-30. |
 
 **Rules:**
-- `role = "owner"` has no `pay_period_lines` row — the owner isn't paid out of their own Ledger, they keep whatever remains after all technician payouts and `ghost_deduction`. **Known gap:** as of 2026-07-30 the running code gives the owner their own line — confirm and reconcile before treating this rule as built.
-- `net_amount` = `gross_amount × (1 − commission_rate_applied)` plus the sum of that technician's own adjustment lines (see `pay_period_adjustments`) — never affected by `ghost_deduction`.
+- `role = "owner"` has no `pay_period_lines` row — the owner isn't paid out of their own Ledger, they keep whatever remains after all technician payouts. **Known gap:** as of 2026-07-30 the running code gives the owner their own line — confirm and reconcile before treating this rule as built.
+- `net_amount` = `gross_amount × (1 − commission_rate_applied)` plus the sum of that technician's own adjustment lines (see `pay_period_adjustments`).
 - Tax is informational at the `pay_periods` level, not deducted per line.
 
 ---
