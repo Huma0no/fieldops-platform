@@ -5,7 +5,7 @@
 
 import { useState, useEffect } from 'react'
 import { api } from '@shared/api.js'
-import { formatMoney } from '../lib/money.mjs'
+import { formatMoney } from '@shared/money.mjs'
 
 const CHECKLIST_ITEMS = [
   ['pdrain_ecoil', 'P-drain [eCoil]'],

@@ -5,6 +5,7 @@
  */
 
 import { api }                  from '../../../shared/api.js'
+import { formatMoney }          from '../../../shared/money.mjs'
 import { NavBar, navBarStyles } from '../components/nav-bar.js'
 
 const STYLES_ID = 'styles-pay'
@@ -114,10 +115,7 @@ function formatRange (start, end) {
   return `${fmt(start)} – ${fmt(end)}`
 }
 
-function formatPrice (val) {
-  if (val == null) return '—'
-  return `$${Number(val).toFixed(2)}`
-}
+const formatPrice = formatMoney
 
 const screenStyles = `
   .screen { display:flex; flex-direction:column; height:100dvh; background:var(--surface-base); overflow:hidden; }

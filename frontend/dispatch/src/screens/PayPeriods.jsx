@@ -7,7 +7,7 @@
 
 import { useState, useEffect, Fragment } from 'react'
 import { api } from '@shared/api.js'
-import { formatMoney } from '../lib/money.mjs'
+import { formatMoney } from '@shared/money.mjs'
 
 export default function PayPeriods () {
   const [periods, setPeriods]   = useState([])

@@ -1,8 +1,8 @@
-describe('Dispatch money format', () => {
+describe('money format (Dispatch and PWA)', () => {
   let formatMoney
 
   beforeAll(async () => {
-    ({ formatMoney } = await import('../frontend/dispatch/src/lib/money.mjs'))
+    ({ formatMoney } = await import('../frontend/shared/money.mjs'))
   })
 
   it('puts the minus sign before the dollar sign', () => {

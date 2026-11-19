@@ -1,4 +1,4 @@
-// Dollar amounts for Dispatch: "$40.00", and "−$40.00" (minus sign before the
+// Dollar amounts for Dispatch and the PWA: "$40.00", and "−$40.00" (minus sign before the
 // dollar sign) for negatives. Missing values read "—".
 export function formatMoney (value) {
   if (value == null) return '—'
