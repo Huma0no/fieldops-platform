@@ -13,19 +13,9 @@ if (trustProxyHops > 0) app.set('trust proxy', trustProxyHops);
 app.use(cors());
 app.use(express.json());
 
-function skipGlobalRateLimit (req) {
-  // FieldOps polls this endpoint while the app is open; it must not consume
-  // the general request budget used to protect interactive API routes.
-  return req.path.startsWith('/api/sync/')
-}
-
-const globalLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 100,
-  skip: skipGlobalRateLimit,
-});
-app.use(globalLimiter);
-
+// Only sign-in is rate limited (password guessing). Authenticated routes have
+// no per-IP cap: Dispatch polling and a technician's uploads share an IP and
+// must not lock each other out (CC-18).
 const loginLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 10 });
 
 app.get('/api/health', async (req, res) => {
@@ -107,4 +97,3 @@ if (require.main === module) {
 }
 
 module.exports = app;
-module.exports.skipGlobalRateLimit = skipGlobalRateLimit;

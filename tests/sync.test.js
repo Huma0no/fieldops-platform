@@ -26,9 +26,21 @@ async function seedToken(technicianId) {
 }
 
 describe('GET /api/sync/changes', () => {
-  it('exempts FieldOps sync polling from the global rate limit', () => {
-    expect(app.skipGlobalRateLimit({ path: '/api/sync/changes' })).toBe(true);
-    expect(app.skipGlobalRateLimit({ path: '/api/visits/mine' })).toBe(false);
+  it('caps sign-in attempts per IP but never authenticated requests (CC-18)', async () => {
+    const tech = await seedTech({ role: 'dispatcher' });
+    const token = await seedToken(tech.id);
+    // Lobby polls every 10 s: 120 requests is more than 15 minutes of it.
+    for (let i = 0; i < 120; i++) {
+      const res = await request(app).get('/api/dispatch/lobby').set('Authorization', `Bearer ${token}`);
+      expect(res.status).toBe(200);
+    }
+
+    const attempts = [];
+    for (let i = 0; i < 11; i++) {
+      attempts.push((await request(app).post('/api/auth/login').send({ username: 'nobody', password: 'wrong-password' })).status);
+    }
+    expect(attempts.slice(0, 10).every(status => status !== 429)).toBe(true);
+    expect(attempts[10]).toBe(429);
   });
 
   it('returns 400 when since is missing', async () => {
