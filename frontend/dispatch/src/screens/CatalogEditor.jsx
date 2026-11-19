@@ -392,10 +392,17 @@ function itemEditValsFromRow (row) {
   }
 }
 
+// Thermostats have no price of their own (CATALOG.md): an empty price is $0,
+// never null (S1200). Other items keep an empty price as null.
+function itemPrice (value, category) {
+  if (value !== '') return Number(value)
+  return category === 'thermostat' ? 0 : null
+}
+
 function itemBodyFromVals (vals) {
   return {
     category:                   vals.category,
-    default_price:              vals.default_price     !== '' ? Number(vals.default_price)     : null,
+    default_price:              itemPrice(vals.default_price, vals.category),
     tech_supplied:              vals.tech_supplied,
     multiplies_by_system_count: vals.multiplies_by_system_count,
     custom_price:               vals.custom_price,
@@ -463,7 +470,7 @@ function ItemsTab () {
         item_name:                  addForm.item_name.trim(),
         category:                   addForm.category.trim(),
         tech_supplied:              addForm.tech_supplied,
-        default_price:              addForm.default_price     !== '' ? Number(addForm.default_price)     : null,
+        default_price:              itemPrice(addForm.default_price, addForm.category.trim()),
         multiplies_by_system_count: addForm.multiplies_by_system_count,
         custom_price:               addForm.custom_price,
         expected_price_min:         addForm.expected_price_min !== '' ? Number(addForm.expected_price_min) : null,
