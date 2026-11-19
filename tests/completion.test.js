@@ -1335,6 +1335,42 @@ describe('POST /api/visits/:id/complete', () => {
       expect(completeRes.body.items).toEqual([]);
     });
 
+    it('accepts several "Other" lines and still rejects a repeated catalog item (W2)', async () => {
+      const { visitId, token, tech } = await seedAssignedVisit();
+      await addService(visitId, 'AC');
+      await pool.query(
+        `INSERT INTO catalog_items (item_name, category, default_price, tech_supplied, multiplies_by_system_count, custom_price)
+         VALUES ('Other', 'accessory', NULL, true, false, true),
+                ('FIN180P', 'accessory', 10, false, false, false)
+         ON CONFLICT (item_name) DO NOTHING`
+      );
+      const base = {
+        version: 1, visitId, technicianId: tech.id, createdAt: '2026-11-19T10:00:00.000Z',
+        terminalIntent: 'completed', cancel: false, service: { serviceName: 'AC', ac: true },
+        weighInData: [], systems: [], notes: '', checklistAnswers: [], evidenceRefs: [],
+      };
+      const repeated = {
+        ...base, submissionId: 'sub-repeated-fin', totalPrice: 170,
+        items: [{ item_name: 'FIN180P', category: 'accessory', quantity: 1, price: 10 }, { item_name: 'FIN180P', category: 'accessory', quantity: 1, price: 10 }],
+      };
+      const rejected = await request(app).post(`/api/visits/${visitId}/complete`).set('Authorization', `Bearer ${token}`)
+        .send({ submissionId: repeated.submissionId, snapshot: await reviewedSnapshot(visitId, repeated) });
+      expect(rejected.status).toBe(400);
+
+      const snapshot = {
+        ...base, submissionId: 'sub-two-others', totalPrice: 161,
+        items: [
+          { item_name: 'Other', category: 'accessory', quantity: 1, price: 7, description: 'Clamp' },
+          { item_name: 'Other', category: 'accessory', quantity: 1, price: 4, description: 'Strap' },
+        ],
+      };
+      const res = await request(app).post(`/api/visits/${visitId}/complete`).set('Authorization', `Bearer ${token}`)
+        .send({ submissionId: snapshot.submissionId, snapshot: await reviewedSnapshot(visitId, snapshot) });
+      expect(res.status).toBe(200);
+      expect(res.body.totalPrice).toBe(161);
+      expect(res.body.items.map(item => [item.description, item.price])).toEqual(expect.arrayContaining([['Clamp', 7], ['Strap', 4]]));
+    });
+
     it('completes a visit with a NULL-price thermostat and priced accessory without coercing thermostat price to 0', async () => {
       const { visitId, token, tech } = await seedAssignedVisit();
       await addService(visitId, 'AC');

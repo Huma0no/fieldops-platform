@@ -22,6 +22,8 @@ const { applySystemChanges } = require('../services/visitSystems');
 const router = express.Router();
 
 const TERMINAL_STATUSES = ['completed', 'temporarily', 'cancelled'];
+// Items that may appear on more than one line (each with its own description).
+const REPEATABLE_ITEMS = new Set(['Other', 'Other Fix']);
 // Report field ↔ weigh_in_data column, in INSERT order.
 const WEIGH_IN_FIELDS = [
   ['linesetLength', 'lineset_length'], ['factoryChargeOz', 'factory_charge_oz'], ['factoryLineConfig', 'factory_line_config'],
@@ -107,7 +109,9 @@ async function applySnapshotWork(client, visit, snapshot, work = {}) {
   const itemNames = new Set();
   const validItems = [];
   for (const item of snapshot.items ?? []) {
-    if (!item?.item_name || itemNames.has(item.item_name)) {
+    // One line per catalog item, except "Other" / "Other Fix": each is its
+    // own line with its own description and price (W2).
+    if (!item?.item_name || (itemNames.has(item.item_name) && !REPEATABLE_ITEMS.has(item.item_name))) {
       throw Object.assign(new Error('Duplicate or invalid item in completion snapshot'), { status: 400 });
     }
     itemNames.add(item.item_name);

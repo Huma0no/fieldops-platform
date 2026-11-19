@@ -173,7 +173,9 @@ async function validateChanges(db, changes) {
     if (!Array.isArray(changes.items)) return { error: 'items must be an array' };
     const names = [...new Set(changes.items.map(i => i?.itemName))];
     if (names.some(n => typeof n !== 'string')) return { error: 'items require catalog itemName values' };
-    if (names.length !== changes.items.length) return { error: 'items cannot contain duplicate catalog entries' };
+    // One line per catalog item, except "Other" / "Other Fix" (W2).
+    const single = changes.items.map(i => i.itemName).filter(n => n !== 'Other' && n !== 'Other Fix');
+    if (new Set(single).size !== single.length) return { error: 'items cannot contain duplicate catalog entries' };
     const catalog = await db.query(`SELECT item_name, category, default_price, tech_supplied, custom_price, finish_addon_price
                                     FROM catalog_items WHERE item_name = ANY($1)`, [names]);
     if (catalog.rows.length !== names.length) return { error: 'An item is not in the catalog' };

@@ -423,6 +423,23 @@ describe('PATCH /api/dispatch/corrections/:id/apply', () => {
     expect((await pool.query('SELECT total_price FROM visits WHERE id = $1', [visitId])).rows[0].total_price).toBe(150);
   });
 
+  it('applies several "Other" lines, each with its own description and price (W2)', async () => {
+    const { token } = await seedDispatcherWithToken();
+    const { tech } = await seedTechnicianWithToken();
+    const { visitId } = await seedCompletedVisit({ technicianId: tech.id });
+    const corrId = await seedOpenCorrection(visitId, tech.id);
+    await pool.query(`INSERT INTO catalog_items (item_name, category, default_price, tech_supplied, custom_price)
+                      VALUES ('Other', 'accessory', NULL, true, true) ON CONFLICT (item_name) DO NOTHING`);
+    const res = await request(app).patch(`/api/dispatch/corrections/${corrId}/apply`)
+      .set('Authorization', `Bearer ${token}`).send({ changes: { items: [
+        { itemName: 'Other', quantity: 1, price: 7, description: 'Clamp' },
+        { itemName: 'Other', quantity: 1, price: 4, description: 'Strap' },
+      ] } });
+    expect(res.status).toBe(200);
+    const rows = await pool.query(`SELECT description, price FROM visit_items WHERE visit_id = $1 ORDER BY description`, [visitId]);
+    expect(rows.rows).toEqual([{ description: 'Clamp', price: 7 }, { description: 'Strap', price: 4 }]);
+  });
+
   it('notifies the requesting technician', async () => {
     const { token } = await seedDispatcherWithToken();
     const { tech } = await seedTechnicianWithToken();

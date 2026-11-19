@@ -167,14 +167,14 @@ function CorrectionDetail ({ correction, onBack }) {
   const thermostat = items.find(item => item.category === 'thermostat') ?? null
   const workItems = items.filter(item => item.category !== 'thermostat')
 
-  function updateItem (itemName, patch) {
-    setItems(current => current.map(item => item.itemName === itemName ? { ...item, ...patch } : item))
+  function updateItem (key, patch) {
+    setItems(current => current.map(item => item.key === key ? { ...item, ...patch } : item))
     setDirty(current => ({ ...current, items: true }))
   }
   function addItem (itemName) {
     const entry = catalog.items.find(item => item.item_name === itemName)
-    if (!entry || items.some(item => item.itemName === itemName)) return
-    setItems(current => [...current, { itemName, category: entry.category, quantity: 1, price: entry.default_price ?? 0, description: '' }])
+    if (!entry || (items.some(item => item.itemName === itemName) && !REPEATABLE_ITEMS.has(itemName))) return
+    setItems(current => [...current, { key: nextItemKey(), itemName, category: entry.category, quantity: 1, price: entry.default_price ?? 0, description: '' }])
     setDirty(current => ({ ...current, items: true }))
   }
   function updateJob (field, value) {
@@ -206,7 +206,7 @@ function CorrectionDetail ({ correction, onBack }) {
       if (dirty.notes) changes.notes = notes
       if (dirty.checklist) changes.checklistAnswers = checklistAnswers
       if (dirty.service) changes.services = service.driveRun ? [{ serviceName: 'Drive Run' }] : service.rows
-      if (dirty.items) changes.items = items
+      if (dirty.items) changes.items = items.map(({ key, ...item }) => item)
       if (dirty.systems) changes.systems = systems
       if (dirty.weighIn) {
         if (weighIn.some(row => !row.factoryLineConfig)) {
@@ -347,13 +347,13 @@ function CorrectionDetail ({ correction, onBack }) {
             <label>Catalog thermostat
               <select className="vd-input sm" value={thermostat?.itemName ?? ''} onChange={e => {
                 const next = e.target.value
-                setItems(current => [...current.filter(item => item.category !== 'thermostat'), ...(next ? [{ itemName: next, category: 'thermostat', quantity: 1, price: 0, description: '' }] : [])]); setDirty(current => ({ ...current, items: true }))
+                setItems(current => [...current.filter(item => item.category !== 'thermostat'), ...(next ? [{ key: nextItemKey(), itemName: next, category: 'thermostat', quantity: 1, price: 0, description: '' }] : [])]); setDirty(current => ({ ...current, items: true }))
               }}>
                 <option value="">None</option>{thermostats.map(item => <option key={item.item_name} value={item.item_name}>{item.item_name}</option>)}
               </select>
             </label>
             {thermostat && <label>Quantity
-              <input className="vd-input sm" type="number" min="1" value={thermostat.quantity} onChange={e => updateItem(thermostat.itemName, { quantity: Number(e.target.value) })} />
+              <input className="vd-input sm" type="number" min="1" value={thermostat.quantity} onChange={e => updateItem(thermostat.key, { quantity: Number(e.target.value) })} />
             </label>}
           </div>
         </div>}
@@ -363,19 +363,19 @@ function CorrectionDetail ({ correction, onBack }) {
           <div className="vd-form-grid">
             <label style={{ gridColumn: '1 / -1' }}>Add catalog item
               <select className="vd-input sm" defaultValue="" onChange={e => { addItem(e.target.value); e.target.value = '' }}>
-                <option value="">Select…</option>{selectableItems.filter(item => !items.some(selected => selected.itemName === item.item_name)).map(item => <option key={item.item_name} value={item.item_name}>{item.category === 'fix' ? 'Fix — ' : 'Accessory — '}{item.item_name}</option>)}
+                <option value="">Select…</option>{selectableItems.filter(item => REPEATABLE_ITEMS.has(item.item_name) || !items.some(selected => selected.itemName === item.item_name)).map(item => <option key={item.item_name} value={item.item_name}>{item.category === 'fix' ? 'Fix — ' : 'Accessory — '}{item.item_name}</option>)}
               </select>
             </label>
             {workItems.map(item => {
               const definition = catalog.items.find(entry => entry.item_name === item.itemName)
               const custom = definition?.custom_price
               const needsDescription = item.itemName === 'Other' || item.itemName === 'Other Fix'
-              return <div key={item.itemName} style={styles.itemRow}>
-                <strong style={styles.itemName}>{item.itemName}</strong> <button type="button" className="vd-key sm" onClick={() => { setItems(current => current.filter(selected => selected.itemName !== item.itemName)); setDirty(current => ({ ...current, items: true })) }}>Remove</button>
+              return <div key={item.key} style={styles.itemRow}>
+                <strong style={styles.itemName}>{item.itemName}</strong> <button type="button" className="vd-key sm" onClick={() => { setItems(current => current.filter(selected => selected.key !== item.key)); setDirty(current => ({ ...current, items: true })) }}>Remove</button>
                 <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(130px, 1fr))', gap:'8px', marginTop:'6px' }}>
-                  <label>Quantity<input className="vd-input sm" type="number" min="1" value={item.quantity} onChange={e => updateItem(item.itemName, { quantity: Number(e.target.value) })} /></label>
-                  {custom && <label>Price<input className="vd-input sm" type="number" min="0" step="0.01" value={item.price} onChange={e => updateItem(item.itemName, { price: Number(e.target.value) })} /></label>}
-                  {needsDescription && <label>Description<input className="vd-input sm" value={item.description ?? ''} onChange={e => updateItem(item.itemName, { description: e.target.value })} /></label>}
+                  <label>Quantity<input className="vd-input sm" type="number" min="1" value={item.quantity} onChange={e => updateItem(item.key, { quantity: Number(e.target.value) })} /></label>
+                  {custom && <label>Price<input className="vd-input sm" type="number" min="0" step="0.01" value={item.price} onChange={e => updateItem(item.key, { price: Number(e.target.value) })} /></label>}
+                  {needsDescription && <label>Description<input className="vd-input sm" value={item.description ?? ''} onChange={e => updateItem(item.key, { description: e.target.value })} /></label>}
                 </div>
               </div>
             })}
@@ -510,8 +510,14 @@ function normalizePropertyContext (property = {}) {
   }
 }
 
+// "Other" / "Other Fix" may repeat (W2), so rows are keyed locally, not by name.
+const REPEATABLE_ITEMS = new Set(['Other', 'Other Fix'])
+let itemKeySeq = 0
+function nextItemKey () { return `item-${++itemKeySeq}` }
+
 function normalizeItems (items) {
   return (items ?? []).map(item => ({
+    key: nextItemKey(),
     itemName: item.item_name,
     category: item.category,
     description: item.description ?? '',
