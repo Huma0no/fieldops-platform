@@ -11,8 +11,10 @@ function serviceLabel (row, multiSystem) {
   return row.systemNumber != null && multiSystem ? `${name} · System ${row.systemNumber}` : name
 }
 
-function itemLabel (item) {
-  const name = item.description ?? ITEM_LABELS[item.itemName] ?? item.itemName
+// Catalog labels (W2): "EEV Wire", "LP Kit · Lennox 1Stg"; keys stay in the data.
+function itemLabel (item, entry) {
+  const catalogLabel = entry?.group_label && entry?.option_label ? `${entry.group_label} · ${entry.option_label}` : entry?.label
+  const name = item.description ?? catalogLabel ?? ITEM_LABELS[item.itemName] ?? item.itemName
   return (item.quantity ?? 1) > 1 ? `${name} × ${item.quantity}` : name
 }
 
@@ -55,6 +57,7 @@ export function receiptModel (snapshot, { catalog = { services: [], items: [] },
     overrides,
   })
 
+  const catalogByName = new Map((catalog.items ?? []).map(entry => [entry.item_name, entry]))
   const groups = []
   const mark = (line, adjusted, key) => (adjusted.has(key) ? { ...line, adjustedFrom: adjusted.get(key) } : line)
   const services = (snapshot.services ?? []).map((row, i) => mark(
@@ -67,7 +70,7 @@ export function receiptModel (snapshot, { catalog = { services: [], items: [] },
     const lines = items
       .map((item, i) => ({ item, amount: priced.amounts.items[i] }))
       .filter(({ item }) => item.category === category)
-      .map(({ item, amount }) => mark({ label: itemLabel(item), amount }, itemAdjusted, item.itemName))
+      .map(({ item, amount }) => mark({ label: itemLabel(item, catalogByName.get(item.itemName)), amount }, itemAdjusted, item.itemName))
     if (lines.length) groups.push({ title, lines })
   }
 

@@ -24,6 +24,7 @@ import { CalcPanel, calcPanelStyles } from '../components/calc-panel.js'
 import { Receipt, receiptStyles } from '../components/receipt.js'
 import { receiptModel } from '../lib/receipt.mjs'
 import { GUIDED_RETURN_KEY, guidedContextFromVisit, saveGuidedContext } from '../lib/guided-context.mjs'
+import { OTHER_ITEM, buildTiles, sheetTiles, templateFor, tilePriceLabel, tileUsage, visibleTiles } from '../lib/acc-fix.mjs'
 import {
   addLocalVisitDraftItem,
   createLocalVisitDraft,
@@ -113,12 +114,16 @@ let priceOverrides = {}
 // Service step: the system the switcher selected, or null for the default
 // selection that applies to every system without its own override.
 let selectedSystem = null
+// Acc + Fix (W2): cached usage and pinned templates, and open group tiles.
+let accFix = { usage: {}, templates: { accessory: null, fix: null }, pending: {} }
+const openGroups = new Set()
 
 export default async function mount (appEl) {
   injectStyles()
   appEl.innerHTML = ''
   activeStep = 'service'
   selectedSystem = null
+  openGroups.clear()
   completedSections.clear()
   clearTimeout(notesDraftTimer)
 
@@ -228,6 +233,8 @@ export default async function mount (appEl) {
     return
   }
 
+  loadAccFixCache()
+  syncAccFix()
   appEl.innerHTML = ''
   gps = loadGpsState() ?? { lat: null, lon: null, source: null, denied: false }
   renderScreen(appEl)
@@ -993,53 +1000,343 @@ function setThermostatQuantity (item, quantity) {
   afterItemChange('thermostat')
 }
 
+// ── Acc + Fix: template layout (W2) ─────────────────────────────
+// Tiles from the technician's template (pinned "yours", most-used
+// "suggested", or the default), plus tiles added on this call, those
+// pre-specified at Intake and anything selected. Group tiles reveal their
+// sub-options; each chosen option is its own line. Selected lines show
+// × N with − / +. "+ Add" opens the sheet (search, ★ pin, + Other).
+const ACC_FIX_HINT = { 'Ext. Wire': 'choose location' }
+
+function accFixCacheKey () { return `fo_accfix_${getActiveTechnicianId() ?? 'anon'}` }
+
+function loadAccFixCache () {
+  accFix = { usage: {}, templates: { accessory: null, fix: null }, pending: {} }
+  try { Object.assign(accFix, JSON.parse(localStorage.getItem(accFixCacheKey()) ?? '{}')) } catch { /* fresh cache */ }
+}
+
+function saveAccFixCache () {
+  try { localStorage.setItem(accFixCacheKey(), JSON.stringify(accFix)) } catch { /* storage full or blocked */ }
+}
+
+// Pins made offline are kept and sent when the API answers again.
+async function syncAccFix () {
+  for (const [category, keys] of Object.entries(accFix.pending ?? {})) {
+    try {
+      await api.put(`/workspace/acc-fix/templates/${category}`, { keys })
+      delete accFix.pending[category]
+      saveAccFixCache()
+    } catch { return }
+  }
+  try {
+    const data = await api.get('/workspace/acc-fix')
+    accFix.usage = data?.usage ?? {}
+    accFix.templates = { ...accFix.templates, ...(data?.templates ?? {}) }
+    saveAccFixCache()
+    if (activeStep === 'accessories' || activeStep === 'fixes') renderBody()
+  } catch { /* offline: keep the cached template */ }
+}
+
+function setPinnedTemplate (category, keys) {
+  accFix.templates = { ...accFix.templates, [category]: keys }
+  accFix.pending = { ...accFix.pending, [category]: keys }
+  saveAccFixCache()
+  syncAccFix()
+}
+
+function accFixTemplate (category, tiles) {
+  return templateFor(tiles, category, { usage: accFix.usage, pinned: accFix.templates?.[category] ?? null })
+}
+
 function buildItemsSection (category) {
   const wrap = document.createElement('div')
   wrap.className = 'ws-section-content'
-  const isCancelled = isCancelMode()
-  const items       = catalogItems.filter(i => i.category === category)
-  const activeItems = (visit._items ?? []).filter(i => i.category === category)
-  const preIds      = category === 'accessory' ? (visit.pre_identified_accessories ?? []) : []
-  const sectionId   = category === 'accessory' ? 'accessories' : 'fixes'
-
-  const grid = document.createElement('div')
-  grid.className = 'ws-btn-grid'
-
-  items.forEach(item => {
-    const isActive = activeItems.some(a => a.item_name === item.item_name)
-    const isPre    = !isActive && preIds.includes(item.item_name)
-    const btn = document.createElement('button')
-    btn.className = `ws-item-btn${isActive ? ' ws-item-btn--active' : ''}${isPre ? ' ws-item-btn--pre' : ''}`
-    btn.disabled  = !!isCancelled
-    btn.innerHTML = isPre ? `${item.item_name}<span class="ws-pre-label">suggested</span>` : item.item_name
-    btn.addEventListener('click', async () => {
-      if (isActive) {
-        const existing = activeItems.find(a => a.item_name === item.item_name)
-        if (existing) {
-          removeLocalVisitDraftItem(visit, existing.id, itemRelations)
-          afterItemChange(sectionId)
-        }
-        return
-      }
-      if (item.custom_price) { showCustomPriceModal(item, ({ price, description }) => addItem(item, category, 1, price, description)); return }
-      addItem(item, category)
-    })
-    grid.appendChild(btn)
+  const sectionId = category === 'accessory' ? 'accessories' : 'fixes'
+  const locked = isCancelMode() || isDriveRunMode()
+  const tiles = buildTiles(catalogItems, category, itemRelations)
+  const template = accFixTemplate(category, tiles)
+  const active = (visit._items ?? []).filter(i => i.category === category)
+  const preIds = category === 'accessory' ? (visit.pre_identified_accessories ?? []) : []
+  const shown = visibleTiles(tiles, {
+    templateKeys: template.keys,
+    addedKeys: visit._accFixAdded?.[category] ?? [],
+    selectedNames: active.map(i => i.item_name),
+    preIdentified: preIds,
   })
 
+  const bar = document.createElement('div')
+  bar.className = 'ws-tpl-bar'
+  const barText = document.createElement('span')
+  barText.className = 'ws-tpl-text'
+  const source = document.createElement('b')
+  source.textContent = template.source
+  barText.append('Template: ', source, template.source === 'suggested' ? ' · from your last 30 reports' : '')
+  bar.appendChild(barText)
+  if (template.source === 'yours') {
+    const reset = document.createElement('button')
+    reset.type = 'button'; reset.className = 'ws-tpl-link'; reset.textContent = 'reset'
+    reset.setAttribute('aria-label', 'Reset the template to suggested')
+    reset.addEventListener('click', () => { setPinnedTemplate(category, null); renderBody() })
+    bar.appendChild(reset)
+  }
+  wrap.appendChild(bar)
+
+  const grid = document.createElement('div')
+  grid.className = 'ws-tile-grid'
+  for (const tile of shown) grid.appendChild(buildAccFixTile(tile, category, active, preIds, locked))
+  const add = document.createElement('button')
+  add.type = 'button'; add.className = 'ws-tile ws-tile--add'; add.textContent = '+ Add'
+  add.disabled = locked
+  add.addEventListener('click', () => openAddSheet(category))
+  grid.appendChild(add)
   wrap.appendChild(grid)
-  if (activeItems.length) {
+
+  // Free-text and custom-price lines ("Other", fees) are listed below the grid.
+  const custom = active.filter(line => catalogItems.find(entry => entry.item_name === line.item_name)?.custom_price)
+  if (custom.length) {
     const list = document.createElement('div')
     list.className = 'ws-items-list'
-    activeItems.forEach(i => list.appendChild(buildItemChip(i)))
+    custom.forEach(line => list.appendChild(buildCustomLine(line, locked)))
     wrap.appendChild(list)
   }
+
   const doneBtn = document.createElement('button')
   doneBtn.className = 'ws-done-btn'
-  doneBtn.textContent = activeItems.length ? 'Done' : 'Skip'
+  doneBtn.textContent = active.length ? 'Done' : 'Skip'
   doneBtn.addEventListener('click', () => markSectionComplete(sectionId))
   wrap.appendChild(doneBtn)
   return wrap
+}
+
+function buildAccFixTile (tile, category, active, preIds, locked) {
+  const lines = active.filter(line => tile.items.some(item => item.item_name === line.item_name))
+  const on = lines.length > 0 || (tile.group && openGroups.has(tile.key))
+  const pre = !on && tile.items.some(item => preIds.includes(item.item_name))
+  const el = document.createElement('div')
+  el.className = `ws-tile${tile.wide ? ' ws-tile--wide' : ''}${on ? ' ws-tile--on' : ''}${tile.companionOf ? ' ws-tile--comp' : ''}${pre ? ' ws-tile--pre' : ''}${locked ? ' ws-tile--locked' : ''}`
+  el.setAttribute('role', 'button')
+  el.tabIndex = locked ? -1 : 0
+  el.setAttribute('aria-pressed', String(on))
+  el.setAttribute('aria-disabled', String(locked))
+  const name = document.createElement('span')
+  name.className = 'ws-tile-name'
+  name.textContent = tile.label
+  el.appendChild(name)
+
+  if (tile.group && on) {
+    const options = document.createElement('div')
+    options.className = 'ws-tile-opts'
+    for (const item of tile.items) {
+      const line = lines.find(entry => entry.item_name === item.item_name)
+      const opt = document.createElement('div')
+      opt.className = `ws-opt${line ? ' ws-opt--on' : ''}`
+      const btn = document.createElement('button')
+      btn.type = 'button'; btn.className = 'ws-opt-btn'; btn.disabled = locked
+      btn.textContent = item.option_label ?? item.label ?? item.item_name
+      btn.setAttribute('aria-pressed', String(Boolean(line)))
+      btn.addEventListener('click', (event) => {
+        event.stopPropagation()
+        if (line) { removeLocalVisitDraftItem(visit, line.id, itemRelations); afterItemChange(sectionIdForCategory(category)) }
+        else addItem(item, category)
+      })
+      opt.appendChild(btn)
+      if (line) opt.appendChild(buildQuantityStepper(line, category, locked))
+      options.appendChild(opt)
+    }
+    el.appendChild(options)
+    if (!lines.length) {
+      const need = document.createElement('span')
+      need.className = 'ws-tile-need'
+      need.textContent = ACC_FIX_HINT[tile.key] ?? 'choose an option'
+      el.appendChild(need)
+    }
+  } else if (lines.length) {
+    el.appendChild(buildQuantityStepper(lines[0], category, locked))
+  } else {
+    const price = document.createElement('span')
+    price.className = 'ws-tile-price'
+    price.textContent = pre ? 'suggested' : (tile.items[0].custom_price ? '$ —' : tilePriceLabel(tile))
+    el.appendChild(price)
+  }
+
+  const toggle = () => {
+    if (locked) return
+    if (tile.group) {
+      if (on) {
+        lines.forEach(line => removeLocalVisitDraftItem(visit, line.id, itemRelations))
+        openGroups.delete(tile.key)
+        afterItemChange(sectionIdForCategory(category))
+      } else {
+        openGroups.add(tile.key)
+        renderBody()
+      }
+      return
+    }
+    if (lines.length) {
+      removeLocalVisitDraftItem(visit, lines[0].id, itemRelations)
+      afterItemChange(sectionIdForCategory(category))
+      return
+    }
+    const item = tile.items[0]
+    if (item.custom_price) { showCustomPriceModal(item, ({ price, description }) => addItem(item, category, 1, price, description)); return }
+    addItem(item, category)
+  }
+  el.addEventListener('click', toggle)
+  el.addEventListener('keydown', (event) => {
+    if (event.target === el && (event.key === 'Enter' || event.key === ' ')) { event.preventDefault(); toggle() }
+  })
+  return el
+}
+
+function sectionIdForCategory (category) {
+  return category === 'accessory' ? 'accessories' : 'fixes'
+}
+
+// × N with − / + (no upper limit; 1 is the lowest — tap the tile to remove).
+function buildQuantityStepper (line, category, locked) {
+  const row = document.createElement('div')
+  row.className = 'ws-qty'
+  const step = (delta, label) => {
+    const btn = document.createElement('button')
+    btn.type = 'button'; btn.className = 'ws-qty-btn'; btn.textContent = label
+    btn.disabled = locked || (delta < 0 && line.quantity <= 1)
+    btn.setAttribute('aria-label', `${delta < 0 ? 'Fewer' : 'More'} ${line.item_name}`)
+    btn.addEventListener('click', (event) => {
+      event.stopPropagation()
+      if (setLocalVisitDraftItemQuantity(visit, line.id, line.quantity + delta)) afterItemChange(sectionIdForCategory(category))
+    })
+    return btn
+  }
+  const qty = document.createElement('span')
+  qty.className = 'ws-qty-n'
+  qty.textContent = `×${line.quantity}`
+  row.append(step(-1, '−'), qty, step(1, '+'))
+  return row
+}
+
+function buildCustomLine (line, locked) {
+  const entry = catalogItems.find(item => item.item_name === line.item_name)
+  const row = document.createElement('div')
+  row.className = 'ws-item-chip'
+  const name = document.createElement('span')
+  name.className = 'ws-chip-name'
+  name.textContent = line.description ? `Other · ${line.description}` : (entry?.label ?? line.item_name)
+  if (line.tech_supplied) {
+    const badge = document.createElement('em')
+    badge.className = 'ws-ts-badge'
+    badge.textContent = 'TECH SUPPLIED'
+    name.append(' ', badge)
+  }
+  const right = document.createElement('div'); right.className = 'ws-chip-right'
+  const price = document.createElement('span'); price.className = 'ws-chip-price'
+  price.textContent = formatPrice(Number(line.price ?? 0) * (line.quantity ?? 1))
+  const del = document.createElement('button'); del.className = 'ws-chip-del'; del.textContent = '×'
+  del.disabled = locked
+  del.setAttribute('aria-label', `Remove ${name.textContent}`)
+  del.addEventListener('click', () => {
+    removeLocalVisitDraftItem(visit, line.id, itemRelations)
+    afterItemChange(sectionIdForCategory(line.category))
+  })
+  right.append(price, del)
+  row.append(name, right)
+  return row
+}
+
+// +Add sheet: search, the full catalog with price and usage, Add (this call
+// only), ★ (keep in my template) and + Other.
+function openAddSheet (category) {
+  const tiles = buildTiles(catalogItems, category, itemRelations)
+  const counts = tileUsage(tiles, accFix.usage)
+  const overlay = makeOverlay()
+  const modal = makeModal('Add item')
+  modal.classList.add('ws-sheet')
+  const close = () => { overlay.remove(); renderBody() }
+  overlay.addEventListener('click', (event) => { if (event.target === overlay) close() })
+
+  const search = document.createElement('input')
+  search.type = 'search'; search.className = 'ws-price-input'; search.placeholder = 'Search…'
+  search.setAttribute('aria-label', 'Search the catalog')
+
+  const other = document.createElement('div')
+  other.className = 'ws-other-row'
+  const desc = document.createElement('input')
+  desc.type = 'text'; desc.className = 'ws-price-input ws-other-desc'; desc.placeholder = '+ Other — description'
+  desc.setAttribute('aria-label', 'Other description')
+  const amount = document.createElement('input')
+  amount.type = 'number'; amount.min = '0'; amount.step = '0.01'; amount.inputMode = 'decimal'
+  amount.className = 'ws-price-input ws-other-amount'; amount.placeholder = '$'
+  amount.setAttribute('aria-label', 'Other price')
+  const ok = document.createElement('button')
+  ok.type = 'button'; ok.className = 'ws-other-ok'; ok.textContent = '✓'
+  ok.setAttribute('aria-label', 'Add Other')
+  ok.addEventListener('click', () => {
+    const description = desc.value.trim()
+    const price = parseFloat(amount.value)
+    const otherItem = catalogItems.find(item => item.item_name === OTHER_ITEM[category])
+    if (!otherItem || !description || !Number.isFinite(price) || price < 0) return
+    overlay.remove()
+    addItem(otherItem, category, 1, price, description)
+  })
+  other.append(desc, amount, ok)
+  const otherNote = document.createElement('p')
+  otherNote.className = 'ws-modal-note'
+  otherNote.textContent = category === 'accessory'
+    ? 'Other accessories are Tech supplied and never enter the catalog.'
+    : 'Other fixes are added to this report only.'
+
+  const list = document.createElement('div')
+  list.className = 'ws-sheet-list'
+  const renderList = () => {
+    list.innerHTML = ''
+    const template = accFixTemplate(category, tiles)
+    const active = (visit._items ?? []).filter(i => i.category === category)
+    const shown = new Set(visibleTiles(tiles, {
+      templateKeys: template.keys,
+      addedKeys: visit._accFixAdded?.[category] ?? [],
+      selectedNames: active.map(i => i.item_name),
+    }).map(tile => tile.key))
+    for (const tile of sheetTiles(tiles, search.value)) {
+      const row = document.createElement('div')
+      row.className = 'ws-sheet-row'
+      const name = document.createElement('div')
+      name.className = 'ws-sheet-name'
+      name.textContent = tile.label
+      const meta = document.createElement('small')
+      meta.textContent = `${tile.items[0].custom_price ? '$ —' : tilePriceLabel(tile)}${counts[tile.key] ? ` · used ${counts[tile.key]}×` : ''}`
+      name.appendChild(meta)
+      const pinned = template.keys.includes(tile.key)
+      const star = document.createElement('button')
+      star.type = 'button'; star.className = `ws-star${pinned ? ' ws-star--on' : ''}`; star.textContent = '★'
+      star.setAttribute('aria-pressed', String(pinned))
+      star.setAttribute('aria-label', `${pinned ? 'Remove' : 'Keep'} ${tile.label} ${pinned ? 'from' : 'in'} my template`)
+      star.addEventListener('click', () => {
+        const keys = pinned ? template.keys.filter(key => key !== tile.key) : [...template.keys, tile.key]
+        setPinnedTemplate(category, keys)
+        renderList()
+      })
+      const addBtn = document.createElement('button')
+      addBtn.type = 'button'; addBtn.className = 'ws-sheet-add'
+      addBtn.textContent = shown.has(tile.key) ? 'Shown' : 'Add'
+      addBtn.disabled = shown.has(tile.key)
+      addBtn.addEventListener('click', () => {
+        visit._accFixAdded = { ...(visit._accFixAdded ?? {}), [category]: [...new Set([...(visit._accFixAdded?.[category] ?? []), tile.key])] }
+        overlay.remove()
+        if (tile.group) { openGroups.add(tile.key); persistCurrentDraft(); renderBody(); return }
+        const item = tile.items[0]
+        if (item.custom_price) { showCustomPriceModal(item, ({ price, description }) => addItem(item, category, 1, price, description)); persistCurrentDraft(); renderBody(); return }
+        addItem(item, category)
+      })
+      row.append(name, star, addBtn)
+      list.appendChild(row)
+    }
+  }
+  search.addEventListener('input', renderList)
+  renderList()
+
+  const done = makeActions([{ label: 'Done', cls: 'secondary', fn: close }])
+  modal.append(search, other, otherNote, list, done)
+  overlay.appendChild(modal)
+  document.getElementById('ws-screen')?.appendChild(overlay)
 }
 
 function addItem (item, category, quantity, customPrice, description) {
@@ -1649,25 +1946,6 @@ function downloadLocalReport () {
   URL.revokeObjectURL(url)
 }
 
-function buildItemChip (item) {
-  const chip = document.createElement('div'); chip.className='ws-item-chip'
-  const name = document.createElement('span'); name.className='ws-chip-name'
-  const displayName = item.description ?? item.item_name
-  name.textContent = item.quantity > 1 ? `${displayName} × ${item.quantity}` : displayName
-  const right = document.createElement('div'); right.className='ws-chip-right'
-  if (item.price) {
-    const price = document.createElement('span'); price.className='ws-chip-price'
-    price.textContent = `$${Number(item.price).toFixed(2)}`; right.appendChild(price)
-  }
-  const del = document.createElement('button'); del.className='ws-chip-del'; del.textContent='×'
-  del.addEventListener('click', () => {
-    removeLocalVisitDraftItem(visit, item.id, itemRelations)
-    afterItemChange(item.category==='thermostat' ? 'thermostat' : item.category==='accessory' ? 'accessories' : 'fixes')
-  })
-  right.appendChild(del); chip.appendChild(name); chip.appendChild(right)
-  return chip
-}
-
 // Called by the (unchanged) content-builder functions after a data change.
 // sectionId may be a pre-merge id (e.g. 'thermostat', 'startup') — map it to
 // the step that now owns it and re-render if that step is the one showing.
@@ -1781,6 +2059,46 @@ function injectStyles () {
   .ws-chip-name{font-size:var(--text-sm);font-weight:600;color:var(--fo-ink);}
   .ws-chip-right{display:flex;align-items:center;gap:var(--space-2);}
   .ws-chip-price{font-size:var(--text-sm);color:var(--fo-ink-soft);font-family:var(--fo-font-mono);}
+  /* Acc + Fix template layout (W2) */
+  .ws-tpl-bar{display:flex;align-items:center;gap:8px;margin:0 2px;font-family:var(--fo-font-mono);font-size:var(--text-xs);color:var(--fo-ink-soft);}
+  .ws-tpl-text{flex:1;}
+  .ws-tpl-text b{color:var(--fo-accent-deep);}
+  .ws-tpl-link{border:none;background:none;padding:4px;font-family:var(--fo-font-mono);font-size:var(--text-xs);font-weight:700;color:var(--fo-accent-deep);cursor:pointer;}
+  .ws-tile-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;grid-auto-flow:dense;}
+  .ws-tile{min-height:58px;border:none;border-radius:var(--fo-radius-sm);background:var(--fo-tile);box-shadow:var(--fo-shadow-raised);color:var(--fo-ink-soft);font-family:var(--fo-font-mono);font-size:var(--text-sm);font-weight:700;padding:8px 6px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;text-align:center;cursor:pointer;-webkit-tap-highlight-color:transparent;}
+  .ws-tile--wide{grid-column:span 2;}
+  .ws-tile--on{box-shadow:var(--fo-shadow-inset);color:var(--fo-accent-deep);}
+  .ws-tile--comp{outline:1.5px dashed var(--fo-accent);outline-offset:-4px;}
+  .ws-tile--pre{color:var(--fo-accent);}
+  .ws-tile--locked{opacity:.35;cursor:not-allowed;}
+  .ws-tile--add{background:transparent;box-shadow:none;outline:1.5px dashed var(--fo-ink-soft);outline-offset:-2px;color:var(--fo-accent-deep);}
+  .ws-tile--add:disabled{opacity:.35;}
+  .ws-tile-price{font-size:10px;font-weight:600;color:var(--fo-ink-soft);}
+  .ws-tile-need{font-size:10px;font-weight:700;color:var(--fo-no);}
+  .ws-tile-opts{display:flex;flex-wrap:wrap;gap:6px;justify-content:center;width:100%;}
+  .ws-opt{display:flex;flex-direction:column;align-items:center;gap:4px;}
+  .ws-opt-btn{height:32px;padding:0 10px;border:none;border-radius:9px;background:var(--fo-tile);box-shadow:var(--fo-shadow-raised);font-family:var(--fo-font-mono);font-size:11px;font-weight:700;color:var(--fo-ink-soft);cursor:pointer;}
+  .ws-opt--on .ws-opt-btn{box-shadow:var(--fo-shadow-inset);color:var(--fo-accent-deep);}
+  .ws-qty{display:flex;align-items:center;gap:4px;}
+  .ws-qty-btn{width:30px;height:30px;border:none;border-radius:8px;background:var(--fo-tile);box-shadow:var(--fo-shadow-raised);font-family:var(--fo-font-mono);font-size:var(--text-sm);font-weight:700;color:var(--fo-accent-deep);cursor:pointer;}
+  .ws-qty-btn:disabled{opacity:.35;cursor:default;}
+  .ws-qty-n{min-width:30px;text-align:center;font-family:var(--fo-font-mono);font-size:var(--text-sm);font-weight:700;color:var(--fo-accent-deep);}
+  .ws-ts-badge{font-style:normal;font-family:var(--fo-font-mono);font-size:9px;font-weight:700;color:var(--fo-accent-deep);box-shadow:var(--fo-shadow-inset);padding:2px 6px;border-radius:6px;white-space:nowrap;}
+  .ws-sheet{max-height:82%;}
+  .ws-sheet-list{flex:1;min-height:120px;overflow-y:auto;}
+  .ws-other-row{display:flex;gap:8px;align-items:center;}
+  .ws-other-row .ws-price-input{width:auto;font-size:var(--text-base);text-align:left;}
+  .ws-sheet input[type=search]{font-size:var(--text-base);text-align:left;}
+  .ws-other-desc{flex:1;min-width:0;}
+  .ws-other-row .ws-other-amount{width:84px;flex-shrink:0;}
+  .ws-other-ok{width:44px;height:44px;flex-shrink:0;border:none;border-radius:var(--fo-radius-sm);background:var(--fo-tile);box-shadow:var(--fo-shadow-raised);font-size:18px;font-weight:800;color:var(--fo-accent-deep);cursor:pointer;}
+  .ws-sheet-row{display:flex;align-items:center;gap:10px;padding:10px 4px;border-bottom:1px solid var(--fo-panel-lo);}
+  .ws-sheet-name{flex:1;min-width:0;font-weight:700;font-size:var(--text-base);color:var(--fo-ink);}
+  .ws-sheet-name small{display:block;font-family:var(--fo-font-mono);font-size:var(--text-xs);font-weight:600;color:var(--fo-ink-soft);}
+  .ws-star{width:36px;height:36px;border:none;border-radius:10px;background:var(--fo-tile);box-shadow:var(--fo-shadow-raised);font-size:16px;color:var(--fo-panel-lo);cursor:pointer;}
+  .ws-star--on{color:var(--fo-accent);}
+  .ws-sheet-add{height:36px;padding:0 12px;border:none;border-radius:10px;background:var(--fo-tile);box-shadow:var(--fo-shadow-raised);font-family:var(--fo-font-mono);font-size:var(--text-xs);font-weight:700;color:var(--fo-accent-deep);cursor:pointer;}
+  .ws-sheet-add:disabled{box-shadow:var(--fo-shadow-inset);color:var(--fo-ink-soft);cursor:default;}
   .ws-chip-del{background:none;border:none;color:var(--fo-no);font-size:18px;cursor:pointer;padding:0 2px;line-height:1;-webkit-tap-highlight-color:transparent;}
   .ws-done-btn{flex:1;background:var(--fo-panel);box-shadow:var(--fo-shadow-raised);color:var(--fo-accent-deep);border:none;border-radius:var(--fo-radius-sm);font-family:var(--fo-font-body);font-size:var(--text-base);font-weight:800;padding:var(--space-3);cursor:pointer;-webkit-tap-highlight-color:transparent;}
   .ws-done-btn--generate{color:var(--fo-ok);}

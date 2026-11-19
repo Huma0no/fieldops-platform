@@ -147,3 +147,28 @@ it('Correct report takes the call data from the server and keeps the technician 
     id: 'v1', address: { street: '123 TEST LANE NORTH' }, orderNumber: 'A2', notes: 'kept', _items: [{ item_name: 'UT3000' }],
   });
 });
+
+it('labels lines with catalog labels and sub-options; keys stay in the data (W2)', () => {
+  const labelCatalog = {
+    services: [],
+    items: [
+      { item_name: 'Ecoil Wire', category: 'accessory', default_price: 10, label: 'EEV Wire' },
+      { item_name: 'LP Kit Goodman', category: 'accessory', default_price: 20, group_label: 'LP Kit', option_label: 'Goodman' },
+      { item_name: 'Other', category: 'accessory', custom_price: true },
+    ],
+  };
+  const model = receiptModel({
+    services: [],
+    items: [
+      { itemName: 'Ecoil Wire', category: 'accessory', quantity: 2, price: 10 },
+      { itemName: 'LP Kit Goodman', category: 'accessory', quantity: 1, price: 20 },
+      { itemName: 'Other', category: 'accessory', quantity: 1, price: 12, description: 'Drain elbow' },
+      { itemName: 'Other', category: 'accessory', quantity: 1, price: 4, description: 'Pan tablet' },
+    ],
+    totalPrice: 56,
+  }, { catalog: labelCatalog });
+  expect(model.groups).toEqual([{ title: 'ACCESSORIES', lines: [
+    { label: 'EEV Wire × 2', amount: 20 }, { label: 'LP Kit · Goodman', amount: 20 },
+    { label: 'Drain elbow', amount: 12 }, { label: 'Pan tablet', amount: 4 },
+  ] }]);
+});

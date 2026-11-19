@@ -200,6 +200,8 @@ function localItemFromCatalog (item, { quantity = 1, price, description = null }
   }
 }
 
+const REPEATABLE_ITEM_NAMES = new Set(['Other', 'Other Fix'])
+
 // A new line starts at quantity 1, or at the call's system count for items
 // that multiply by systems (W2); the technician can change it freely.
 export function initialItemQuantity (item, systemCount = 1) {
@@ -233,7 +235,8 @@ export function addLocalVisitDraftItem (draft, item, {
   for (const companion of companions) removedNames.delete(companion)
 
   let retained = existing.filter(entry => !removedNames.has(entry.item_name))
-  const selected = existing.find(entry => entry.item_name === itemName)
+  // One line per item, except "Other" / "Other Fix": each is a new line (W2).
+  const selected = REPEATABLE_ITEM_NAMES.has(itemName) ? null : existing.find(entry => entry.item_name === itemName)
   if (selected) retained = retained.filter(entry => entry.item_name !== itemName)
   const newItems = [localItemFromCatalog(item, { quantity: quantity ?? initialItemQuantity(item, systemCount), price, description })]
   for (const companionName of companions) {
