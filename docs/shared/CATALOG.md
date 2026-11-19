@@ -1,12 +1,12 @@
 # Catalog
 
-**Version:** 1.0
-**Date:** 2026-07-30
+**Version:** 1.1
+**Date:** 2026-11-19
 **Status:** Live — seed data executed and verified against these rules
 
 ## Purpose
 
-The catalog (equipment, accessories, fixes, services, thermostats, builders) lives on the server as the single source of truth, seeded via `scripts/seed-catalog.sql`. Both Dispatch and FieldOps consume it through the API — neither app duplicates it locally beyond offline caching. Table structure: `/docs/shared/DATA_MODEL.md` (`catalog_equipment`, `catalog_lineset_configs`, `catalog_items`, `catalog_item_relations`, `catalog_services`).
+The catalog (equipment, accessories, fixes, services, thermostats, builders) lives on the server as the single source of truth, seeded via `scripts/seed-catalog.sql`. Both Dispatch and FieldOps consume it through the API — neither app duplicates it locally beyond offline caching. Table structure: `/docs/shared/DATA_MODEL.md` (`catalog_equipment`, `catalog_equipment_charges`, `catalog_manufacturers`, `catalog_items`, `catalog_item_relations`, `catalog_services`).
 
 This document does not reproduce the full equipment/accessory/fix data — that lives in the seed file and the database, not here, to avoid a second copy going stale. It documents the rules that govern how catalog items combine and price.
 
@@ -14,7 +14,7 @@ This document does not reproduce the full equipment/accessory/fix data — that 
 
 Dispatch Intake selects existing catalog entries; it does not create or upsert global catalog data. In particular, its Thermostat and Accessory fields must use valid `catalog_items` entries of the matching category, so the resulting `visit_items` rows retain their catalog references.
 
-Dispatch → Catalog already provides administrative create/edit functionality for Equipment, Items, Services, and Lineset Configs. The historical Config-Equipment concept is absorbed by its Equipment subsection; no separate Config-Equipment surface is needed.
+Dispatch → Catalog already provides administrative create/edit functionality for Equipment (with its charges), Items, Services, and Manufacturers. The historical Config-Equipment concept is absorbed by its Equipment subsection; no separate Config-Equipment surface is needed.
 
 The remaining future gap is catalog lifecycle management. The catalog tables do not yet have an active/inactive, deactivate, archive, or equivalent behavior. That future work must support administrative deactivate/reactivate, exclude deactivated entries from new operational selectors, and preserve historical references. Hard delete is not the normal lifecycle action.
 
@@ -38,15 +38,20 @@ Governed by five combination rules:
 
 Combination rules with modifiers (Finish, etc.) are resolved by the pricing engine, not documented per-item here. The existing Weight-In-Data + Finish rule resolves that visit item's price from its $10 base plus its $10 addon to $20; `visit_items.price` persists that resolved price for the visit, and the Completion Report consumes it directly.
 
-## Lineset Configs
+## Manufacturers
 
-`catalog_lineset_configs` (per `/docs/shared/DATA_MODEL.md`) drives two calculations that share the same baseline-length-and-multiplier data: Weigh-In's **Approx Adjust oz** field and the standalone **Quick Charge Calc** (`/docs/fieldops/CALC-SPEC.md`).
+`catalog_manufacturers` (per `/docs/shared/DATA_MODEL.md`): name, **oz/ft** and **default factory length**. They drive Weigh-In's **Approx Adjust oz** and the standalone **Quick Charge Calc** (`/docs/fieldops/CALC-SPEC.md`), and the default Factory length of both.
 
-**Formula:** `(actual lineset ft − config's reference length ft) × oz/ft multiplier`
+**Formula:** `(actual lineset ft − factory length ft) × oz/ft`
 
-**Multiplier by outdoor brand:**
-- Trane: 0.47 oz/ft
-- Lennox, Goodman, Daikin: 0.6 oz/ft
+| Manufacturer | oz/ft | Default length |
+|---|---|---|
+| Trane | 0.47 | 15 ft |
+| Lennox | 0.6 | 30 ft |
+| Goodman | 0.6 | 15 ft |
+| Daikin | 0.6 | 15 ft |
+
+Dispatch → Catalog → Manufacturers adds and edits them. The legacy `catalog_lineset_configs` table stays only for Weigh-In rows recorded before W3; it has no date windows and is no longer edited or used for new readings.
 
 ## Fixes
 
@@ -58,9 +63,10 @@ No catalog price of their own (`default_price = 0`) — their cost is derived fr
 
 ## Equipment (indoor/outdoor)
 
-Full model list, factory charge, and revised charge live in `scripts/seed-catalog.sql`, not duplicated here.
+Full model list lives in `scripts/seed-catalog.sql`, not duplicated here.
 
-- **Revised Charge** applies to units manufactured after May 2025 (R-454B supply-chain adjustment) — the technician determines which charge applies based on manufacture date in the field.
+- **Charges per manufacturer + length** (`catalog_equipment_charges`): an outdoor model has zero or more factory charges, each for one manufacturer + factory length (e.g. Lennox ML14KC1-018: 15 ft 78 oz, 30 ft 92 oz). Weigh-In prefills the charge for the selected manufacturer + length; a missing combination shows empty and the technician types it. Dispatch edits them in the Equipment form (add, edit or remove a length row).
+- **Migration from Factory / Revised (W3, 2026-11-19):** old revised values became the charge of their length (Trane 25 ft, Lennox 30 ft); old factory values went to the brand's base length (Trane 15 ft, Daikin and Goodman 15 ft, Lennox 15 ft — the seed's Lennox revised values are the factory value + 15 ft × 0.6 oz/ft, so the factory column is the 15 ft charge). The manufacture-date rule for Revised Charge is removed.
 - **R-410A** stays in the catalog as active legacy refrigerant, seeded alongside current equipment — not deprecated.
 
 ## Builders
