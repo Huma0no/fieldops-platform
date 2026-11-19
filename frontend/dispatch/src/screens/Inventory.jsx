@@ -55,13 +55,6 @@ export default function Inventory () {
     }
   }
 
-  // Group inventory by technician
-  const byTech = inventory.reduce((acc, row) => {
-    const key = row.technician_id
-    if (!acc[key]) acc[key] = { name: row.technician_name, items: [] }
-    acc[key].items.push(row)
-    return acc
-  }, {})
 
   return (
     <div style={styles.page}>
@@ -74,12 +67,13 @@ export default function Inventory () {
         <div style={styles.tablePane}>
           {loading ? (
             <p style={styles.loading}>Loading…</p>
-          ) : Object.keys(byTech).length === 0 ? (
+          ) : inventory.length === 0 ? (
             <p style={styles.empty}>No inventory data.</p>
           ) : (
-            Object.entries(byTech).map(([techId, { name, items }]) => (
-              <div key={techId} style={styles.techBlock}>
-                <p style={styles.techName}>{name}</p>
+            // The API returns one entry per technician with that week's items.
+            inventory.map(({ technicianId, technicianName, items }) => (
+              <div key={technicianId} style={styles.techBlock}>
+                <p style={styles.techName}>{technicianName}</p>
                 <table style={styles.table}>
                   <thead>
                     <tr>
@@ -90,13 +84,13 @@ export default function Inventory () {
                   </thead>
                   <tbody>
                     {items.map(item => {
-                      const balance = item.assigned - item.consumed
-                      const low     = balance <= (item.low_threshold ?? 2)
+                      const balance = item.balance
+                      const low     = balance <= 2
                       return (
-                        <tr key={item.item_name} style={styles.tr}>
-                          <td style={styles.td}>{item.item_name}</td>
-                          <td style={styles.td}>{item.assigned}</td>
-                          <td style={styles.td}>{item.consumed}</td>
+                        <tr key={item.itemName} style={styles.tr}>
+                          <td style={styles.td}>{item.itemName}</td>
+                          <td style={styles.td}>{item.quantityAssigned}</td>
+                          <td style={styles.td}>{item.quantityConsumed}</td>
                           <td style={{ ...styles.td, color: low ? 'var(--color-plasma)' : 'var(--text-primary)', fontWeight: low ? 600 : 400 }}>
                             {balance}
                             {low && <span style={styles.lowTag}>low</span>}
