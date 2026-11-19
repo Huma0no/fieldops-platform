@@ -11,7 +11,7 @@
  * assets; a test fails when the stamp is stale. Do not edit it by hand.
  */
 
-const SHELL_CACHE  = 'fieldops-shell-428b2d061724'
+const SHELL_CACHE  = 'fieldops-shell-516a57562af3'
 const CATALOG_CACHE = 'fieldops-catalog-v1'
 
 const SHELL_ASSETS = [
@@ -54,6 +54,7 @@ const SHELL_ASSETS = [
   '/src/lib/my-calls-visit.mjs',
   '/src/lib/workspace-visit.mjs',
   '/src/lib/acc-fix.mjs',
+  '/src/lib/lineset.mjs',
   '/src/lib/session-boot.mjs',
   '/src/lib/guided-context.mjs',
   '/src/vendor/exifr-lite.mjs',
@@ -78,7 +79,7 @@ const SHELL_ASSETS = [
 const CATALOG_PATHS = [
   '/api/catalog/items',
   '/api/catalog/equipment',
-  '/api/catalog/lineset-configs',
+  '/api/catalog/manufacturers',
   '/api/catalog/item-relations',
   '/api/catalog/services',
 ]
