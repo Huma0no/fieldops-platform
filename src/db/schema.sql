@@ -12,6 +12,8 @@
 -- ---------------------------------------------------------------------------
 
 DROP TABLE IF EXISTS technician_item_templates CASCADE;
+DROP TABLE IF EXISTS auth_sessions CASCADE;
+DROP TABLE IF EXISTS visit_system_changes CASCADE;
 DROP TABLE IF EXISTS edit_log CASCADE;
 DROP TABLE IF EXISTS corrections CASCADE;
 DROP TABLE IF EXISTS completion_submissions CASCADE;
