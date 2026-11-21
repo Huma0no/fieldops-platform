@@ -168,9 +168,9 @@ Spec: `docs/shared/PHOTOS-GPS-INTEGRATIONS.md` (The Company's Google Form) — f
 
 | Function | Spec Status | Implementation | Notes |
 |---|---|---|---|
-| Per-system prefilled link | SPEC CLOSED | PP-03 | FieldOps Reports, delivered card → Company form → one link per system; opens in a new tab. |
-| Prefill weigh-in fields | SPEC CLOSED | PP-03 | 16 of 18 fields: 13 from Weigh-In and the address, 3 constants ("Big Tex Air Conditioning", "15 ft.", "3/8"). Plain numbers, ASCII "-", one decimal. |
-| Link disabled when data missing | SPEC CLOSED | PP-03 | Enabled only when the 11 required numeric fields have values; otherwise a note names what is missing. |
+| Per-system prefilled link | SPEC CLOSED | IMPLEMENTED (automated verification), device QA pending | FieldOps Reports, delivered card → Company form → one link per system; opens in a new tab. |
+| Prefill weigh-in fields | SPEC CLOSED | IMPLEMENTED (automated verification) | 16 of 18 fields: 13 from Weigh-In and the address, 3 constants ("Big Tex Air Conditioning", "15 ft.", "3/8"). Plain numbers, ASCII "-", one decimal. |
+| Link disabled when data missing | SPEC CLOSED | IMPLEMENTED (automated verification) | Enabled only when the 11 required numeric fields have values; otherwise a note names what is missing. |
 | Link disabled when record edited after capture | DEFERRED (second round) | NOT IMPLEMENTED | Needs an "edited after capture" marker the data model does not have. |
 | Scale/Fan photos, test holes | SPEC CLOSED | Technician on the form | Photos uploaded by the technician (downloads carry GPS, §7, CC-17); test holes ticked on the form. |
 
@@ -300,7 +300,7 @@ Pilot: Kristo as the only technician, real jobs, in parallel with the legacy app
 | 3 | Manual intake → Lobby → assign | READY | R-08 manual QA; Lobby assign. | — |
 | 4 | Workspace end to end, running total | READY (automated + 390 px runs) | W1–W3; phone and server totals matched. | Device QA. |
 | 5 | SCALE/FAN photos with GPS for the Company form | READY (automated) | Server embeds GPS (`src/routes/workspace.js`); downloads use the server copy (CC-17). | Device QA with a real photo. |
-| 6 | Company Google Form link | MISSING | §10: no code; form URL and field IDs not in the repository. | Kristo supplies URL + field IDs; build per-system link, disabled when required data is missing. |
+| 6 | Company Google Form link | READY (automated) | §10: FieldOps Reports → Company form, one prefilled link per system (`frontend/pwa/src/lib/company-form.mjs`, 2026-11-20). | Device QA: open one link signed in to Google, submit with photos. |
 | 7 | Report text and total | READY (automated) | `src/services/report.js` matches `REPORT-TEXT.md`. | — |
 | 8 | Offline drafts, queue, photos | PARTIAL | Code ready; the offline app shell needs a service worker, which needs HTTPS (item 1). | Device test after item 1: airplane mode → full call → reconnect. |
 | 9 | Catalog: real data, current prices | PARTIAL | 144 equipment models, 21 accessories, 12 fixes, 8 thermostats (S1200 price fixed, migration 035). Gaps: Daikin DC6VSS4810/6010 and most Lennox 30 ft charges; route-sheet models missing. | Kristo reviews prices; adds models and charges in Dispatch → Catalog. |
