@@ -89,7 +89,7 @@ ON CONFLICT (item_name) DO NOTHING;
 
 
 -- ─────────────────────────────────────────────────────────────────────────────
--- 2c. catalog_items — thermostats (7 rows)
+-- 2c. catalog_items — thermostats (8 rows)
 --    default_price = 0: thermostat cost is derived by the price engine, not
 --    from a fixed catalog price. All tech supplied.
 -- ─────────────────────────────────────────────────────────────────────────────
@@ -103,7 +103,8 @@ VALUES
   ('T-8321',     'thermostat', 0, true, false, false),
   ('Ecobee',     'thermostat', 0, true, false, false),
   ('Daikin One', 'thermostat', 0, true, false, false),
-  ('TH2110',     'thermostat', 0, true, false, false)
+  ('TH2110',     'thermostat', 0, true, false, false),
+  ('S1200',      'thermostat', 0, true, false, false)
 ON CONFLICT (item_name) DO NOTHING;
 
 
