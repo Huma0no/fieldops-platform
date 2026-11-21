@@ -24,6 +24,15 @@ it('serves every FieldOps file its service worker precaches, without a session',
   expect(module.headers['content-type']).toMatch(/javascript/);
 });
 
+it('serves every icon the FieldOps manifest lists, so the home-screen install has one', async () => {
+  const manifest = JSON.parse(fs.readFileSync(path.join(__dirname, '../frontend/pwa/manifest.json'), 'utf8'));
+  expect(manifest.icons.length).toBeGreaterThan(0);
+  for (const icon of manifest.icons) {
+    const res = await request(app).get(icon.src);
+    expect({ src: icon.src, status: res.status, type: res.headers['content-type'] }).toEqual({ src: icon.src, status: 200, type: 'image/png' });
+  }
+});
+
 it('keeps the API behind the session check and ignores dotfiles', async () => {
   expect((await request(app).get('/api/visits/mine')).status).toBe(401);
   expect((await request(app).get('/.DS_Store')).status).toBe(401);
