@@ -29,10 +29,37 @@ Cross-app infrastructure: photo capture and storage, GPS/EXIF requirements, and 
 
 ## The Company's Google Form
 
-**Status: not implemented (audit 2026-11-19); spec incomplete.** The form URL and the field-ID mapping are not in the repository and must come from Kristo before building (QA-TRACKER PP-03).
+**Status: specified 2026-11-20 (PP-03); rules decided by Kristo.** Form: "Refrigerant Charge Weigh-In Data", `https://docs.google.com/forms/d/e/1FAIpQLSfUeFILu20Amgas2beSG5wd2ZJfW7sEgvPKUy4BJFjd3sbHLg/viewform`. One page, 18 fields: 16 prefillable, 2 file uploads. Read from a page Kristo saved on 2026-11-19 (kept out of git: it holds the signed-in account). The form requires a Google sign-in and records the submitter's name, email and photo, so the phone's browser must be signed in to the Google account that can open it.
 
-- 16 of 18 fields are prefillable via URL parameters (confirmed against the form's real HTML source).
-- One link per system. **Pilot rule (Kristo, 2026-11-19):** the "Company Form" button is disabled only when that system's required Weigh-In data is missing. Disabling it when the record was edited after capture is **deferred to the second round**.
+**Prefilled link:** `…/viewform?usp=pp_url&entry.<ID>=<value>&…`, every value URL-encoded (`encodeURIComponent`).
+
+| # | Form field | Entry ID | Type | Value |
+|---|---|---|---|---|
+| 1 | Address: | 1124000801 | text, required | Visit address street; with more than one system on the visit, followed by " – System N" |
+| 2 | HVAC Contractor Company Name: | 284031722 | dropdown, required | Constant "Big Tex Air Conditioning" |
+| 3 | Length of lineset. | 37391195 | text, required | Weigh-In `linesetLength` |
+| 4 | Factory supplied liquid line length. | 1317202447 | dropdown, required (only option "15 ft.") | Constant "15 ft.", whatever the real factory length; FieldOps lengths and calculations are unchanged |
+| 5 | Weight of factory supplied refrigerant (oz) | 961493071 | text, required | `factoryChargeOz` |
+| 6 | Diameter of liquid line. | 1678145086 | dropdown, required | Constant "3/8" |
+| 7 | Approx weight of refrigerant to add/remove (oz) | 799811941 | text, required | `approxAdjustOz` |
+| 8 | Weight of refrigerant added/removed (oz) | 1078120223 | text, required | `adjustedOz` |
+| 9 | Photos of jug after system charge. | — | file upload, required | Technician uploads the SCALE photo on the form (Reports download carries GPS) |
+| 10 | Photos of fan speed setting. | — | file upload, required | Technician uploads the FAN photo on the form |
+| 11 | Fan speed setting (CFM) | 1404438998 | text, required | `fanSpeedCfm` |
+| 12 | Liquid line temp. (*F) | 1295748710 | text, required | `liquidLineTemp` |
+| 13 | Suction line temp. (*F) | 183118902 | text, required | `suctionLineTemp` |
+| 14 | Condenser saturation temp. (*F) | 565216059 | text, required | `condenserSatTemp` |
+| 15 | Subcooling value (*F) | 119493154 | text, required | `subcoolingValue` |
+| 16 | OEM subcooling goal (*F) | 375059625 | text, required | `oemSubcoolingGoal` |
+| 17 | Subcooling deviation (*F) | 1208255497 | text, required | `subcoolingDeviation` |
+| 18 | Test holes | 197292571 | checkboxes, optional (Return, Supply) | Technician completes on the form; not prefilled |
+
+**Rules (Kristo, 2026-11-20):**
+- **Numbers:** plain, no units, ASCII "-" for negatives, at most one decimal (e.g. `15`, `-2.4`).
+- **One link per system** of the visit, from that system's Weigh-In reading.
+- **Enabled** only when all 11 required numeric fields (3, 5, 7, 8, 11–17) have a value; otherwise disabled with a short note naming what is missing. The "edited after capture" rule stays **deferred** (second round).
+- **Location:** FieldOps Reports, on each delivered (Sent) visit card, a **Company form** button next to Download; it lists the visit's systems, one link each. Values come from the server's Report when loaded, otherwise the snapshot on the phone.
+- **Opens in a new tab.**
 
 ## Server storage (current)
 

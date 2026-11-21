@@ -22,6 +22,7 @@
 - After a download, a delivered card reads "Sent · downloaded".
 - **Rejected Report (WS-12):** the card says which parts differ and what to do (`docs/architecture/REPORT-SNAPSHOT-CONTRACT.md`).
 - **Download:** JSON · ZIP (photos) · All, on delivered and pending Reports (`docs/shared/PHOTOS-GPS-INTEGRATIONS.md`).
+- **Company form (PP-03, 2026-11-20):** on delivered (Sent) cards, next to Download. Lists the visit's systems; each opens the Company's Google Form prefilled for that system in a new tab, or is disabled with a note naming the missing values. Map and rules: `docs/shared/PHOTOS-GPS-INTEGRATIONS.md` (The Company's Google Form).
 
 ## Missing
 

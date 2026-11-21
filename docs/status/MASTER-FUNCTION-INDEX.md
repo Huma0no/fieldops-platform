@@ -164,13 +164,15 @@ A `CLOSED` section is a finished product area: its code, UX, and specifications 
 
 ## 10. Company Google Form Integration
 
+Spec: `docs/shared/PHOTOS-GPS-INTEGRATIONS.md` (The Company's Google Form) — field map with entry IDs and rules decided by Kristo (2026-11-20).
+
 | Function | Spec Status | Implementation | Notes |
 |---|---|---|---|
-| Per-system prefilled link | SPEC CLOSED | NOT IMPLEMENTED | One link per system. No code exists (pilot audit, 2026-11-19). |
-| Prefill weigh-in fields | SPEC INCOMPLETE | NOT IMPLEMENTED | 16/18 fields described as prefillable, but the repository holds neither the form URL nor the field-ID mapping; both must come from Kristo before building. |
-| Link disabled when data missing | SPEC CLOSED | NOT IMPLEMENTED | **Pilot rule (Kristo, 2026-11-19):** the link is disabled only when that system's required Weigh-In data is missing. |
-| Link disabled when record edited after capture | DEFERRED (second round) | NOT IMPLEMENTED | Needs an "edited after capture" marker the data model does not have. Deferred by Kristo (2026-11-19). |
-| Scale/Fan photos | SPEC CLOSED | IMPLEMENTED (photos) | Technician uploads the SCALE/FAN images to the Company form; downloads carry GPS (§7, CC-17). |
+| Per-system prefilled link | SPEC CLOSED | PP-03 | FieldOps Reports, delivered card → Company form → one link per system; opens in a new tab. |
+| Prefill weigh-in fields | SPEC CLOSED | PP-03 | 16 of 18 fields: 13 from Weigh-In and the address, 3 constants ("Big Tex Air Conditioning", "15 ft.", "3/8"). Plain numbers, ASCII "-", one decimal. |
+| Link disabled when data missing | SPEC CLOSED | PP-03 | Enabled only when the 11 required numeric fields have values; otherwise a note names what is missing. |
+| Link disabled when record edited after capture | DEFERRED (second round) | NOT IMPLEMENTED | Needs an "edited after capture" marker the data model does not have. |
+| Scale/Fan photos, test holes | SPEC CLOSED | Technician on the form | Photos uploaded by the technician (downloads carry GPS, §7, CC-17); test holes ticked on the form. |
 
 ## 11. Dispatch Surface
 
