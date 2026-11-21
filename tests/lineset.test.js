@@ -54,6 +54,13 @@ describe('Weigh-In + Calc lineset', () => {
     expect(m.signed(15)).toBe('+15')
   })
 
+  it('rounds to one decimal, half away from zero (shared with the Company form)', () => {
+    expect([2.35, -2.35, 1.45, -1.45, 0.05, -0.04, 12].map(m.round1)).toEqual([2.4, -2.4, 1.5, -1.5, 0.1, 0, 12])
+    // A screen value: (lineset − baseline) × oz/ft = (10 − 15) × 0.47 = −2.35 → −2.4.
+    expect(m.approxAdjust(10, 15, 0.47)).toBe(-2.4)
+    expect(m.subcooling(107.25, 95)).toBe(12.3)
+  })
+
   it('Calc uses the FT1/FT2 marks or the typed total, and flags a short lineset', () => {
     expect(m.calcBreakdown({ ft1: 80, ft2: 25, total: '', baselineFt: 30, ozPerFt: 0.6 }))
       .toEqual({ totalFt: 55, fromMarks: true, marksFt: 55, ready: true, extraFt: 25, addOz: 15, short: false })

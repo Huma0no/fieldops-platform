@@ -16,8 +16,11 @@ describe('Company Google Form links', () => {
   const params = url => new URL(url).searchParams
 
   it('formats numbers plainly: ASCII minus, at most one decimal, null when absent', () => {
-    expect(m.formNumber(-2.35)).toBe('-2.3')
-    expect(m.formNumber(-2.36)).toBe('-2.4')
+    // Half away from zero, the same rounding the Weigh-In screen uses.
+    expect(m.formNumber(-2.35)).toBe('-2.4')
+    expect(m.formNumber(2.35)).toBe('2.4')
+    expect(m.formNumber(1.45)).toBe('1.5')
+    expect(m.formNumber(-2.34)).toBe('-2.3')
     expect(m.formNumber(15)).toBe('15')
     expect(m.formNumber('7.25')).toBe('7.3')
     expect(m.formNumber(-0.04)).toBe('0')
@@ -43,7 +46,7 @@ describe('Company Google Form links', () => {
     expect(p.get('entry.1317202447')).toBe('15 ft.') // always 15 ft., whatever the real length (30 here)
     expect(p.get('entry.1678145086')).toBe('3/8')
     expect(p.get('entry.37391195')).toBe('55')
-    expect(p.get('entry.799811941')).toBe('-2.3')
+    expect(p.get('entry.799811941')).toBe('-2.4')
     expect(p.get('entry.1208255497')).toBe('2')
     // Photos (fields 9–10) and test holes (18) are not prefilled.
     expect(p.has('entry.197292571')).toBe(false)

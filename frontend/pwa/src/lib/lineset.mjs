@@ -6,7 +6,13 @@
 export const STANDARD_LENGTHS = [10, 15, 25, 30]
 
 const num = value => (value === '' || value == null || !Number.isFinite(Number(value)) ? null : Number(value))
-const round1 = value => Math.round(value * 10) / 10
+// One decimal, half away from zero (2.35 → 2.4, -2.35 → -2.4). toPrecision
+// first absorbs binary error (1.45 * 10 = 14.499…). Shared by the Weigh-In
+// screen and the Company form, so the form gets what the screen shows.
+export function round1 (value) {
+  const rounded = Math.sign(value) * Math.round(Number((Math.abs(value) * 10).toPrecision(12))) / 10
+  return rounded === 0 ? 0 : rounded
+}
 
 // Factory length options: the standard lengths plus any other given length
 // (a manufacturer's default, a saved value), ascending.

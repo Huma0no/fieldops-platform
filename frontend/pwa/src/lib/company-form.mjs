@@ -1,5 +1,6 @@
 // Company Google Form prefilled links (PP-03): one per system of a Report.
 // Map and rules: docs/shared/PHOTOS-GPS-INTEGRATIONS.md (The Company's Google Form).
+import { round1 } from './lineset.mjs'
 
 export const COMPANY_FORM_URL = 'https://docs.google.com/forms/d/e/1FAIpQLSfUeFILu20Amgas2beSG5wd2ZJfW7sEgvPKUy4BJFjd3sbHLg/viewform'
 
@@ -24,13 +25,13 @@ const READINGS = [
   ['1208255497', 'subcoolingDeviation', 'SC deviation'],
 ]
 
-// Plain number, ASCII "-" for negatives, at most one decimal; null when absent.
+// Plain number, ASCII "-" for negatives, at most one decimal (the Weigh-In
+// screen's rounding); null when absent.
 export function formNumber (value) {
   if (value === null || value === undefined || value === '') return null
   const number = Number(value)
   if (!Number.isFinite(number)) return null
-  const rounded = Math.round(number * 10) / 10
-  return String(rounded === 0 ? 0 : rounded)
+  return String(round1(number))
 }
 
 const systemNumberOf = row => Number(row?.systemNumber ?? row?.system_number)
