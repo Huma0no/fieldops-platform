@@ -80,6 +80,8 @@ router.get('/reports/refrigerant', requireRole('owner', 'dispatcher'), async (re
         w.adjusted_oz,
         w.factory_charge_oz   AS factory_charge_used,
         w.factory_line_config,
+        w.manufacturer,
+        w.factory_length_ft,
         v.completed_at,
         v.technician_id,
         (SELECT service_name FROM visit_services WHERE visit_id = v.id LIMIT 1) AS service_name
@@ -101,6 +103,8 @@ router.get('/reports/refrigerant', requireRole('owner', 'dispatcher'), async (re
       adjustedOz:        r.adjusted_oz,
       factoryChargeUsed: r.factory_charge_used,
       factoryLineConfig: r.factory_line_config,
+      manufacturer:      r.manufacturer,
+      factoryLengthFt:   r.factory_length_ft,
       completedAt:       r.completed_at,
       technicianId:      r.technician_id,
     })));

@@ -191,7 +191,7 @@ function RefrigerantSection ({ data, exclAddr, onToggleAddr, technicians }) {
               <table className="vd-table" style={S.groupTable}>
                 <thead>
                   <tr>
-                    {['System', 'Service', 'Adj. Oz', 'Factory Charge', 'Lineset Config', 'Date', 'Tech'].map(h => <th key={h}>{h}</th>)}
+                    {['System', 'Service', 'Adj. Oz', 'Factory Charge', 'Manufacturer · Length', 'Date', 'Tech'].map(h => <th key={h}>{h}</th>)}
                   </tr>
                 </thead>
                 <tbody>
@@ -201,7 +201,7 @@ function RefrigerantSection ({ data, exclAddr, onToggleAddr, technicians }) {
                       <td>{row.serviceName ?? '—'}</td>
                       <td className="num">{row.adjustedOz != null ? `${row.adjustedOz} oz` : '—'}</td>
                       <td className="num">{row.factoryChargeUsed != null ? `${row.factoryChargeUsed} oz` : '—'}</td>
-                      <td>{row.factoryLineConfig ?? '—'}</td>
+                      <td>{linesetLabel(row)}</td>
                       <td className="num" style={S.nowrap}>{fmtDate(row.completedAt)}</td>
                       <td>{techName(row.technicianId)}</td>
                     </tr>
@@ -219,6 +219,14 @@ function RefrigerantSection ({ data, exclAddr, onToggleAddr, technicians }) {
 }
 
 // ── Root screen ────────────────────────────────────────────────────────────────
+
+// A16: the reading's manufacturer + factory length (W3); readings recorded
+// before W3 show their legacy lineset config.
+function linesetLabel (row) {
+  const length = row.factoryLengthFt != null ? `${row.factoryLengthFt} ft` : null
+  const label = [row.manufacturer, length].filter(Boolean).join(' ')
+  return label || row.factoryLineConfig || '—'
+}
 
 export default function Reports () {
   const { dateFrom: defFrom, dateTo: defTo } = weekRange()

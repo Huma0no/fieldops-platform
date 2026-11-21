@@ -227,6 +227,22 @@ describe('GET /api/dispatch/reports/refrigerant', () => {
     expect(Number(res.body[0].factoryChargeUsed)).toBe(40);
     expect(res.body[0].factoryLineConfig).toBe('STD-15');
     expect(res.body[0].serviceName).toBe('AC');
+    expect(res.body[0]).toMatchObject({ manufacturer: null, factoryLengthFt: null });
+  });
+
+  it('returns the manufacturer and factory length of a W3 reading (A16)', async () => {
+    const { token } = await seedDispatcherWithToken();
+    const { addressId } = await seedCompletedVisitWithItem();
+    await pool.query(
+      `INSERT INTO weigh_in_data (id, address_id, system_number, lineset_length, adjusted_oz, factory_charge_oz, manufacturer, factory_length_ft)
+       VALUES (gen_random_uuid()::text, $1, 1, 40, 6.0, 92, 'Lennox', 30)`,
+      [addressId]
+    );
+    const res = await request(app)
+      .get('/api/dispatch/reports/refrigerant?dateFrom=2026-07-01&dateTo=2026-07-31')
+      .set('Authorization', `Bearer ${token}`);
+    expect(res.status).toBe(200);
+    expect(res.body[0]).toMatchObject({ manufacturer: 'Lennox', factoryLengthFt: 30, factoryLineConfig: null });
   });
 
   it('returns 403 for technician role', async () => {
