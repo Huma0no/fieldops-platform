@@ -98,9 +98,10 @@ Decided 2026-11-19 (QA-TRACKER PP-02). **Status: prepared, not installed** — r
 2. **[Kristo]** `sudo pmset -c sleep 0 disksleep 0 displaysleep 15` (on power: never sleeps; the display may).
 3. System Preferences → Energy Saver → Power Adapter: tick "Prevent computer from sleeping automatically when the display is off".
 
-### 5.6 Nightly backup to iCloud Drive (14 days)
-1. `mkdir -p ~/Library/Mobile\ Documents/com~apple~CloudDocs/FieldOps-backups`.
-2. Create `~/Library/LaunchAgents/com.fieldops.pilot-backup.plist` (runs at 22:30; a run missed while asleep runs at wake):
+### 5.6 Nightly backup to Google Drive (14 days)
+1. **[Kristo]** Install **Google Drive for desktop** (google.com/drive/download) and sign in. Confirm at install that the current release still supports macOS 12 Monterey; if not, use the last version that does.
+2. **[Kristo]** Find the Drive folder on disk: `ls ~/Library/CloudStorage` (current versions: `GoogleDrive-<account>/My Drive`); older versions mount `/Volumes/GoogleDrive/My Drive`. Create `FieldOps-backups` inside it. Below, `<drive>` is the full path of `My Drive`. Keep Drive running and signed in; it uploads what the job writes.
+3. Create `~/Library/LaunchAgents/com.fieldops.pilot-backup.plist` (runs at 22:30; a run missed while asleep runs at wake):
    ```xml
    <?xml version="1.0" encoding="UTF-8"?>
    <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -108,16 +109,16 @@ Decided 2026-11-19 (QA-TRACKER PP-02). **Status: prepared, not installed** — r
      <key>Label</key><string>com.fieldops.pilot-backup</string>
      <key>ProgramArguments</key><array>
        <string>/bin/zsh</string><string>-c</string>
-       <string>set -a; source /Users/chrismaldo/fieldops-pilot/app/.env; set +a; PILOT_DATABASE_URL="$DATABASE_URL" BACKUP_DIR="/Users/chrismaldo/Library/Mobile Documents/com~apple~CloudDocs/FieldOps-backups" exec /Users/chrismaldo/fieldops-pilot/app/scripts/pilot-backup.sh</string>
+       <string>set -a; source /Users/chrismaldo/fieldops-pilot/app/.env; set +a; PILOT_DATABASE_URL="$DATABASE_URL" BACKUP_DIR="<drive>/FieldOps-backups" exec /Users/chrismaldo/fieldops-pilot/app/scripts/pilot-backup.sh</string>
      </array>
      <key>StartCalendarInterval</key><dict><key>Hour</key><integer>22</integer><key>Minute</key><integer>30</integer></dict>
      <key>StandardOutPath</key><string>/Users/chrismaldo/fieldops-pilot/logs/backup.log</string>
      <key>StandardErrorPath</key><string>/Users/chrismaldo/fieldops-pilot/logs/backup-error.log</string>
    </dict></plist>
    ```
-3. `launchctl load -w ~/Library/LaunchAgents/com.fieldops.pilot-backup.plist`, then run it once now: `launchctl start com.fieldops.pilot-backup` and check `backup.log`.
-4. **[Kristo]** If `backup-error.log` shows "Operation not permitted" for the iCloud folder, add `/bin/zsh` to System Preferences → Security & Privacy → Privacy → Full Disk Access, and run step 3 again.
-5. `scripts/pilot-backup.sh` writes `fieldops-YYYY-MM-DD.dump` (pg_dump custom format) and `photos-YYYY-MM-DD.tar.gz`, and deletes those older than 14 days.
+4. `launchctl load -w ~/Library/LaunchAgents/com.fieldops.pilot-backup.plist`, then run it once now: `launchctl start com.fieldops.pilot-backup` and check `backup.log`, and that the two files appear in Google Drive on the web.
+5. **[Kristo]** If `backup-error.log` shows "Operation not permitted" for the Drive folder, add `/bin/zsh` to System Preferences → Security & Privacy → Privacy → Full Disk Access, and run step 4 again.
+6. `scripts/pilot-backup.sh` writes `fieldops-YYYY-MM-DD.dump` (pg_dump custom format) and `photos-YYYY-MM-DD.tar.gz`, and deletes those older than 14 days. Deleted files go to Google Drive's trash, which empties itself after 30 days.
 
 ### 5.7 Test restore (once, before the first real job)
 1. `psql -U postgres -c "CREATE DATABASE fieldops_restorecheck"`.

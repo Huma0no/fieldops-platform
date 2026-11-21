@@ -1,7 +1,8 @@
 #!/bin/zsh
 # Nightly pilot backup (docs/architecture/FIRST-LAUNCH-RUNBOOK.md §5): a
 # database dump plus a dated copy of the photos folder, written to BACKUP_DIR
-# (an iCloud Drive folder on the pilot Mac); files older than KEEP_DAYS go.
+# (a Google Drive for desktop folder on the pilot Mac); files older than
+# KEEP_DAYS go.
 #
 # Env: PILOT_DATABASE_URL, PHOTO_STORAGE_DIR, BACKUP_DIR; optional KEEP_DAYS
 # (default 14) and PG_BIN (default /Library/PostgreSQL/18/bin).
