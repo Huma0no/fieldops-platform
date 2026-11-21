@@ -25,6 +25,7 @@ import {
 } from '../lib/completion-submission.mjs'
 import { startSync }            from '../lib/sync.js'
 import { buildReportDownload }  from '../lib/report-download.mjs'
+import { companyFormLinks }     from '../lib/company-form.mjs'
 import { receiptModel }         from '../lib/receipt.mjs'
 import { REFRESH_CALL_DATA_KEY } from '../lib/workspace-visit.mjs'
 import { Receipt, receiptStyles } from '../components/receipt.js'
@@ -471,9 +472,65 @@ function buildReportCard (visit) {
   actions.appendChild(buildViewButton(visit, { label: 'View report', className: 'rc-btn rc-btn--secondary' }))
 
   actions.appendChild(buildDownloadButton(visit, { delivered: true }))
+  actions.appendChild(buildCompanyFormButton(visit))
 
   card.appendChild(actions)
   return card
+}
+
+// PP-03: the Company's Google Form, prefilled per system, from the server's
+// Report when loaded (fetched on open), otherwise the phone's snapshot.
+function buildCompanyFormButton (visit) {
+  const btn = document.createElement('button')
+  btn.className   = 'rc-btn rc-btn--ghost'
+  btn.textContent = 'Company form'
+  btn.addEventListener('click', async e => {
+    e.stopPropagation()
+    if (!serverReports.has(visit.id) && navigator.onLine !== false) {
+      try { serverReports.set(visit.id, await api.get(`/visits/${visit.id}/download`)) } catch (_) {}
+    }
+    const report = serverReports.get(visit.id) ?? visit.snapshot
+    if (!report) { alert('Needs connection — this report is not on this phone.'); return }
+    showCompanyFormMenu(btn, companyFormLinks(report))
+  })
+  return btn
+}
+
+function showCompanyFormMenu (anchorEl, links) {
+  document.querySelector('.rc-context-menu')?.remove()
+  const menu = document.createElement('div')
+  menu.className = 'rc-context-menu'
+  if (!links.length) {
+    const none = document.createElement('p')
+    none.className = 'rc-context-note'
+    none.textContent = 'No systems on this report.'
+    menu.appendChild(none)
+  }
+  for (const link of links) {
+    const item = document.createElement('button')
+    item.className   = 'rc-context-item'
+    item.textContent = `System ${link.systemNumber}`
+    if (link.url) {
+      item.addEventListener('click', () => {
+        menu.remove()
+        window.open(link.url, '_blank', 'noopener')
+      })
+    } else {
+      item.disabled = true
+      const note = document.createElement('span')
+      note.className = 'rc-context-note'
+      note.textContent = `Missing: ${link.missing.join(', ')}`
+      item.appendChild(note)
+    }
+    menu.appendChild(item)
+  }
+  const rect = anchorEl.getBoundingClientRect()
+  menu.style.top   = `${rect.bottom + 4}px`
+  menu.style.right = `${window.innerWidth - rect.right}px`
+  document.body.appendChild(menu)
+
+  function close (e) { if (!menu.contains(e.target)) { menu.remove(); document.removeEventListener('click', close) } }
+  setTimeout(() => document.addEventListener('click', close), 0)
 }
 
 function buildDownloadButton (visit, { delivered }) {
@@ -699,4 +756,7 @@ const screenStyles = `
   .rc-context-menu { position:fixed; background:var(--fo-panel); box-shadow:var(--fo-shadow-card); border-radius:var(--fo-radius-sm); padding:var(--space-2) 0; min-width:180px; z-index:100; }
   .rc-context-item { display:block; width:100%; background:none; border:none; text-align:left; font-size:var(--text-base); color:var(--fo-ink); padding:var(--space-3) var(--space-4); cursor:pointer; }
   .rc-context-item:active { background:var(--fo-well); box-shadow:var(--fo-shadow-inset); }
+  .rc-context-item:disabled { color:var(--fo-ink-soft); cursor:default; }
+  .rc-context-note { display:block; margin:2px 0 0; padding:0 var(--space-4); font-size:var(--text-xs); color:var(--fo-ink-soft); }
+  .rc-context-item .rc-context-note { padding:0; }
 `
