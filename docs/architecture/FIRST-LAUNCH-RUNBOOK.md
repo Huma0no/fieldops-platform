@@ -37,7 +37,9 @@ Start the server. On first start it creates the `Dispatcher` owner account (`doc
 
 ## 5. Pilot hosting on Kristo's Mac
 
-Decided 2026-11-19 (QA-TRACKER PP-02). **Status: prepared, not installed** — run the steps in order once approved. **[Kristo]** marks steps that need Kristo's hands (installs, sign-ins, passwords, the phone).
+Decided 2026-11-19 (QA-TRACKER PP-02). **Status: installed 2026-11-23** at commit `38282c2`; health check over HTTPS, a manual backup to Google Drive and the test restore passed. **[Kristo]** marks steps that need Kristo's hands (installs, sign-ins, passwords, the phone).
+
+**macOS 12 (Monterey) host.** The Mac is a MacBook Air 7,2 and cannot go past macOS 12.7.6, which gets no security updates. Current Tailscale (1.104 and later) and Google Drive for desktop (134 and later) require macOS 13. The pilot runs on the last versions that support Monterey (Tailscale 1.102.4, Drive 126.0) as a trial; decline their update offers. Risk: none of the three gets security fixes, and Google may stop syncing the old Drive client, so check the backup daily on drive.google.com (§5.6). Kristo accepted this on 2026-11-23; a Windows 11 PC was also too old. Any secrets (DB password, bootstrap password) are typed by Kristo, never pasted into an agent chat.
 
 **Layout.** One server, one origin, tailnet only:
 - `https://<mac>.<tailnet>.ts.net/` — FieldOps (served as-is from `frontend/pwa`), `/api/…` — the API, `/dispatch/` — Dispatch (its Vite build).
@@ -52,7 +54,7 @@ Decided 2026-11-19 (QA-TRACKER PP-02). **Status: prepared, not installed** — r
 
 ### 5.2 Pilot database (PostgreSQL 18, already installed at `/Library/PostgreSQL/18`)
 1. **[Kristo]** Choose the database password source: the existing `postgres` user (its password goes into the files below) or a new role `fieldops_pilot` (recommended: `CREATE ROLE fieldops_pilot LOGIN PASSWORD '…'`).
-2. Create the database: `psql -U postgres -c "CREATE DATABASE fieldops_pilot OWNER fieldops_pilot"`.
+2. Create the database: `psql -U postgres -c "CREATE DATABASE fieldops_pilot OWNER fieldops_pilot"` (with the `postgres` user: `OWNER postgres`; the 2026-11-23 install uses `postgres`).
 3. Write `~/fieldops-pilot/app/.env` (`chmod 600`; the server reads it at start):
    ```
    DATABASE_URL=postgresql://fieldops_pilot:<password>@localhost:5432/fieldops_pilot
@@ -82,24 +84,25 @@ Decided 2026-11-19 (QA-TRACKER PP-02). **Status: prepared, not installed** — r
      <key>StandardErrorPath</key><string>/Users/chrismaldo/fieldops-pilot/logs/server-error.log</string>
    </dict></plist>
    ```
-2. `launchctl load -w ~/Library/LaunchAgents/com.fieldops.pilot.plist`, then `curl -s http://127.0.0.1:3100/api/health` → `{"status":"ok","db":"connected"}`.
+2. `launchctl load -w ~/Library/LaunchAgents/com.fieldops.pilot.plist`, then `curl -s http://127.0.0.1:3100/api/health` → `{"status":"ok","db":"connected"}`. Confirm with `launchctl list | grep fieldops` that the service is loaded (a first attempt by hand did not load it and left no logs).
 3. Restart after an update: `launchctl kickstart -k gui/$(id -u)/com.fieldops.pilot`.
 4. LaunchAgents run while Kristo is logged in. After a reboot, log in (FileVault prevents automatic login).
 
 ### 5.4 Tailscale and HTTPS
-1. **[Kristo]** Install Tailscale for macOS (standalone download from tailscale.com; confirm the current release supports macOS 12 Monterey, otherwise use the last one that does) and sign in.
+1. **[Kristo]** Install Tailscale for macOS and sign in. On macOS 12 use `https://pkgs.tailscale.com/stable/Tailscale-1.102.4-macos.pkg` (needs macOS 12.4; notarized), not the download page, which offers 1.104+ (macOS 13+).
 2. **[Kristo]** In the Tailscale admin console → DNS: enable **MagicDNS** and **HTTPS Certificates**.
 3. Serve the pilot over HTTPS on the tailnet only: `/Applications/Tailscale.app/Contents/MacOS/Tailscale serve --bg 3100`. Check with `… serve status`; it prints `https://<mac>.<tailnet>.ts.net`. Do **not** run `funnel`.
-4. **[Kristo]** Phone: install the Tailscale app, sign in to the same tailnet, open `https://<mac>.<tailnet>.ts.net/` in Chrome, sign in to FieldOps, and add it to the home screen. Then turn on airplane mode once and confirm FieldOps still opens (offline shell).
+4. Do step 5 first: the phone needs a technician account, which Dispatch creates (§3). After the Dispatcher's first sign-in, delete the `DISPATCH_BOOTSTRAP_PASSWORD` line from `.env` and restart (§5.3 step 3).
+   **[Kristo]** Phone: install the Tailscale app, sign in to the same tailnet, open `https://<mac>.<tailnet>.ts.net/` in Chrome, sign in to FieldOps, and add it to the home screen. Then turn on airplane mode once and confirm FieldOps still opens (offline shell).
 5. Dispatch on the Mac: `https://<mac>.<tailnet>.ts.net/dispatch/`. FieldOps and Dispatch share one origin, so in the same browser they share the sign-in cookie: use Dispatch on the Mac and FieldOps on the phone.
 
 ### 5.5 Keep the Mac awake during work
 1. **[Kristo]** Keep the MacBook Air plugged in with the lid open.
 2. **[Kristo]** `sudo pmset -c sleep 0 disksleep 0 displaysleep 15` (on power: never sleeps; the display may).
-3. System Preferences → Energy Saver → Power Adapter: tick "Prevent computer from sleeping automatically when the display is off".
+3. System Preferences → Battery → Power Adapter (macOS 12 laptops; "Energy Saver" on desktops): tick "Prevent your Mac from automatically sleeping when the display is off". Step 2 already ticks it; check it. Before step 2 the Mac slept after 1 minute on power.
 
 ### 5.6 Nightly backup to Google Drive (14 days)
-1. **[Kristo]** Install **Google Drive for desktop** (google.com/drive/download) and sign in. Confirm at install that the current release still supports macOS 12 Monterey; if not, use the last version that does.
+1. **[Kristo]** Install **Google Drive for desktop** (google.com/drive/download) and sign in. The current installer (134.0.1) refuses macOS 12, and Google offers no older installer; this Mac already had Drive 126.0 (needs macOS 12.1), signed in to the account that receives the backups. Decline update offers.
 2. **[Kristo]** Find the Drive folder on disk: `ls ~/Library/CloudStorage` (current versions: `GoogleDrive-<account>/My Drive`); older versions mount `/Volumes/GoogleDrive/My Drive`. Create `FieldOps-backups` inside it. Below, `<drive>` is the full path of `My Drive`. Keep Drive running and signed in; it uploads what the job writes.
 3. Create `~/Library/LaunchAgents/com.fieldops.pilot-backup.plist` (runs at 22:30; a run missed while asleep runs at wake):
    ```xml
@@ -117,10 +120,12 @@ Decided 2026-11-19 (QA-TRACKER PP-02). **Status: prepared, not installed** — r
    </dict></plist>
    ```
 4. `launchctl load -w ~/Library/LaunchAgents/com.fieldops.pilot-backup.plist`, then run it once now: `launchctl start com.fieldops.pilot-backup` and check `backup.log`, and that the two files appear in Google Drive on the web.
-5. **[Kristo]** If `backup-error.log` shows "Operation not permitted" for the Drive folder, add `/bin/zsh` to System Preferences → Security & Privacy → Privacy → Full Disk Access, and run step 4 again.
+5. **[Kristo]** If `backup-error.log` shows "Operation not permitted" for the Drive folder, add `/bin/zsh` to System Preferences → Security & Privacy → Privacy → Full Disk Access, and run step 4 again. Expected on the first run: the dump and photo files are written, then the 14-day cleanup (`find`) is refused and the job exits 1 without the "backup ok" line.
 6. `scripts/pilot-backup.sh` writes `fieldops-YYYY-MM-DD.dump` (pg_dump custom format) and `photos-YYYY-MM-DD.tar.gz`, and deletes those older than 14 days. Deleted files go to Google Drive's trash, which empties itself after 30 days.
+7. **[Kristo]** Daily: confirm the day's two files are on drive.google.com (the Drive client is unsupported on macOS 12).
 
 ### 5.7 Test restore (once, before the first real job)
+Done 2026-11-23 from `fieldops-2026-11-23.dump` in Drive: tables, catalog, visits, submissions, Weigh-In rows, accounts and migrations matched the pilot; the photo archive extracted (no photos yet).
 1. `psql -U postgres -c "CREATE DATABASE fieldops_restorecheck"`.
 2. `/Library/PostgreSQL/18/bin/pg_restore --no-owner -d postgresql://postgres:<password>@localhost:5432/fieldops_restorecheck "<backup folder>/fieldops-<date>.dump"`.
 3. `psql …/fieldops_restorecheck -c "select count(*) from catalog_items"` (and, once there are jobs, `visits`) matches the pilot.
