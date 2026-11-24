@@ -154,6 +154,19 @@ describe('GET /api/visits/mine', () => {
     expect(res.body[1].id).toBe(idA);
   });
 
+  it('leaves out Temporarily visits: a terminal status, like completed (FT-02)', async () => {
+    const { token } = await seedTechnicianWithToken();
+    const { visitId: activeId } = await seedInLobbyVisit();
+    const { visitId: temporarilyId } = await seedInLobbyVisit();
+    await request(app).post(`/api/visits/${activeId}/claim`).set('Authorization', `Bearer ${token}`);
+    await request(app).post(`/api/visits/${temporarilyId}/claim`).set('Authorization', `Bearer ${token}`);
+    await pool.query(`UPDATE visits SET status = 'temporarily', completed_at = $1 WHERE id = $2`, [new Date().toISOString(), temporarilyId]);
+
+    const res = await request(app).get('/api/visits/mine').set('Authorization', `Bearer ${token}`);
+    expect(res.status).toBe(200);
+    expect(res.body.map(v => v.id)).toEqual([activeId]);
+  });
+
   it('returns 403 for dispatcher role', async () => {
     const { token } = await seedDispatcherWithToken();
     const res = await request(app).get('/api/visits/mine').set('Authorization', `Bearer ${token}`);

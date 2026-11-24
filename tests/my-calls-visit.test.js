@@ -60,6 +60,8 @@ describe('My Calls Local Visit Draft recovery', () => {
   it('shows the refresh error only when no locally workable call exists', () => {
     expect(shouldShowMyCallsLoadError(new Error('offline'), [])).toBe(true)
     expect(shouldShowMyCallsLoadError(new Error('offline'), [{ id: 'done', status: 'completed' }])).toBe(true)
+    // Temporarily is terminal too (FT-02): not a workable call.
+    expect(shouldShowMyCallsLoadError(new Error('offline'), [{ id: 'temp', status: 'temporarily' }])).toBe(true)
     expect(shouldShowMyCallsLoadError(null, [])).toBe(false)
   })
 })

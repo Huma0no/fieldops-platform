@@ -1,4 +1,4 @@
-const ACTIVE_STATUSES = new Set(['assigned', 'in_progress', 'temporarily'])
+const ACTIVE_STATUSES = new Set(['assigned', 'in_progress'])
 
 function isActiveVisit (visit) {
   return ACTIVE_STATUSES.has(visit?.status) || visit?.is_deferred === true

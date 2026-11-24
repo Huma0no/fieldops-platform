@@ -172,7 +172,7 @@ visitsRouter.get('/mine', requireRole('technician'), async (req, res, next) => {
        FROM visits v
        JOIN addresses a ON a.id = v.address_id
        WHERE v.technician_id = $1
-         AND v.status IN ('assigned', 'in_progress', 'temporarily')
+         AND v.status IN ('assigned', 'in_progress')
        ORDER BY v.is_deferred DESC, v.scheduled_time ASC NULLS LAST`,
       [req.technician.id]
     );
