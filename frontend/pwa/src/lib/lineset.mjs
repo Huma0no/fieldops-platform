@@ -14,6 +14,13 @@ export function round1 (value) {
   return rounded === 0 ? 0 : rounded
 }
 
+// Typed Weigh-In readings keep at most one decimal: a second decimal is
+// dropped as it is typed or pasted ("12.34" → "12.3"); anything else is kept.
+export function oneDecimal (text) {
+  const match = String(text).match(/^(-?\d*\.\d)\d+$/)
+  return match ? match[1] : String(text)
+}
+
 // Factory length options: the standard lengths plus any other given length
 // (a manufacturer's default, a saved value), ascending.
 export function lengthOptions (...extra) {

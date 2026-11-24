@@ -61,6 +61,11 @@ describe('Weigh-In + Calc lineset', () => {
     expect(m.subcooling(107.25, 95)).toBe(12.3)
   })
 
+  it('keeps at most one decimal in a typed reading, dropping a second one', () => {
+    expect(['12.34', '-2.35', '.25', '107.999'].map(m.oneDecimal)).toEqual(['12.3', '-2.3', '.2', '107.9'])
+    expect(['12.3', '12.', '12', '', '-', '-0.5', '1e3'].map(m.oneDecimal)).toEqual(['12.3', '12.', '12', '', '-', '-0.5', '1e3'])
+  })
+
   it('Calc uses the FT1/FT2 marks or the typed total, and flags a short lineset', () => {
     expect(m.calcBreakdown({ ft1: 80, ft2: 25, total: '', baselineFt: 30, ozPerFt: 0.6 }))
       .toEqual({ totalFt: 55, fromMarks: true, marksFt: 55, ready: true, extraFt: 25, addOz: 15, short: false })

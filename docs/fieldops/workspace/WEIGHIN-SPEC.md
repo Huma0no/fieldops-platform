@@ -37,6 +37,10 @@ One row: **Lineset ft** · **Manufacturer** · **Factory length**.
 - **Scale photo** — carries GPS (EXIF, else the phone's location), see `/docs/shared/PHOTOS-GPS-INTEGRATIONS.md`; without one it is a warning, never a block.
 - **Fan Speed photo** — same as Scale.
 
+## Typed numbers: one decimal (2026-11-23)
+
+The typed readings (Lineset ft, custom Length ft, Factory charge, Adjusted oz, Liquid, Suction, Condenser sat, OEM SC goal, Fan CFM) accept at most one decimal. A second decimal is dropped as it is typed or pasted (`12.34` → `12.3`, not rounded). **oz/ft** (+ New manufacturer) is a rate like `0.47` and keeps two decimals. Computed values are rounded to one decimal, half away from zero.
+
 ## Missing catalog data
 
 Any value the catalog does not have (a charge for that manufacturer + length, a refrigerant, an oz/ft) shows empty and the technician types it. Nothing blocks.

@@ -69,6 +69,7 @@ import {
   newTotalOz,
   scDeviation,
   minus,
+  oneDecimal,
   signed,
   subcooling,
 } from '../lib/lineset.mjs'
@@ -1451,6 +1452,10 @@ function buildWeighInPanel (systemNum) {
     input.className = `ws-wi-input${readOnly ? ' ws-wi-input--calc' : ''}`
     input.id = `wi-${systemNum}-${key}`; input.placeholder = placeholder
     if (readOnly) { input.readOnly = true; input.tabIndex = -1 } else if (state[key] != null) input.value = state[key]
+    // At most one decimal while typing; oz/ft is a manufacturer rate (0.47) and keeps two.
+    if (!readOnly && key !== 'ozPerFt') {
+      input.addEventListener('input', () => { const kept = oneDecimal(input.value); if (kept !== input.value) input.value = kept })
+    }
     refs[key] = input
     return input
   }
