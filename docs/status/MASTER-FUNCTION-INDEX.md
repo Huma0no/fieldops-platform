@@ -61,9 +61,9 @@ A `CLOSED` section is a finished product area: its code, UX, and specifications 
 | Function | Status | Notes |
 |---|---|---|
 | Collapsed job card | SPEC CLOSED / IMPLEMENTED | Address, subdivision, builder, Navigate. |
-| Expand job card | SPEC CLOSED / IMPLEMENTED | Tap card except Navigate. |
-| Equipment/accessory briefing | SPEC CLOSED / IMPLEMENTED | Pre-specified thermostat + accessories + system count. |
-| Per-system briefing | SPEC CLOSED / IMPLEMENTED | Equipment, charge, subcooling, ESP/CFM and contextual LV/Blower tools. |
+| Expand job card | SPEC CLOSED / IMPLEMENTED (FT-03, 2026-11-23), device QA pending | Tap anywhere on the card except its buttons; opens offline from the Local Visit Draft. |
+| Equipment/accessory briefing | SPEC CLOSED / IMPLEMENTED (FT-03), device QA pending | Work type, pre-specified thermostat + accessory chips + system count, intake notes. |
+| Per-system briefing | SPEC CLOSED / PARTIAL (FT-03) | Built: models + type, tonnage, refrigerant, factory charge, ESP. Not built (no data source yet): over-charge threshold, subcooling, CFM max/min, LV/Blower buttons. |
 | Start Report | SPEC CLOSED / IMPLEMENTED | Opens Workspace for the visit. |
 | Cancel entry point | SPEC CLOSED / IMPLEMENTED (focused automated verification) | Opens Workspace Notes as a Cancel-originated session without calling `/start` or persisting cancellation. Full-suite verification remains inconclusive because PostgreSQL test infrastructure failed in `tests/helpers/db.js:truncateTables`; manual QA remains pending. |
 | Load Sheet Summary | SPEC CLOSED / IMPLEMENTATION AUDIT | Aggregates thermostats + accessories across visible jobs. |

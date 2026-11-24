@@ -1,7 +1,10 @@
+import { catalogCharge, linesetDefaults } from './lineset.mjs'
+
 const ACTIVE_STATUSES = new Set(['assigned', 'in_progress'])
 
+// A deferred call is still assigned; once finished, deferral never keeps it (FT-03).
 function isActiveVisit (visit) {
-  return ACTIVE_STATUSES.has(visit?.status) || visit?.is_deferred === true
+  return ACTIVE_STATUSES.has(visit?.status)
 }
 
 export function shouldShowMyCallsLoadError (remoteError, visits = []) {
@@ -59,4 +62,40 @@ export function localMyCallsVisits ({ drafts = [], cachedVisits = [], completion
 export function mergeLocalDraftVisits (visits = [], drafts = []) {
   const recovered = localDraftVisits(drafts)
   return mergeMyCallsVisits(visits, recovered)
+}
+
+const UNIT_TYPES = { condenser: 'Condenser', heat_pump: 'Heat pump', furnace: 'Furnace', air_handler: 'Air handler' }
+
+// FT-03: the expanded My Calls card, from the server's visit detail or the
+// Local Visit Draft (offline) plus the cached catalog. Briefing values with no
+// data source today (over-charge threshold, subcooling, CFM max/min) are not
+// built; catalog values missing for a model stay null.
+export function myCallsBriefing (source = {}, { equipment = [], manufacturers = [], catalogItems = [] } = {}) {
+  const items = (source._items ?? source.items ?? []).map(item => ({
+    itemName: item.itemName ?? item.item_name,
+    category: item.category,
+    quantity: Number(item.quantity ?? 1),
+  }))
+  const labels = new Map(catalogItems.map(row => [row.item_name, row.label]))
+  const chips = items
+    .filter(item => item.category === 'thermostat' || item.category === 'accessory')
+    .map(item => ({ label: labels.get(item.itemName) || item.itemName, quantity: item.quantity }))
+  const systems = (source.systems ?? []).map(system => {
+    const indoor = equipment.find(row => row.model === system.indoorModel)
+    const outdoor = equipment.find(row => row.model === system.outdoorModel)
+    const { manufacturer, factoryLengthFt, refrigerant } = linesetDefaults({ manufacturers, equipment, outdoorModel: system.outdoorModel })
+    return {
+      systemNumber: system.systemNumber,
+      indoorModel: system.indoorModel ?? null,
+      indoorType: UNIT_TYPES[indoor?.unit_type] ?? null,
+      outdoorModel: system.outdoorModel ?? null,
+      outdoorType: UNIT_TYPES[outdoor?.unit_type] ?? null,
+      // Capacity of the outdoor unit; an indoor btu is heating input, not tons.
+      tons: outdoor?.btu ? outdoor.btu / 12000 : null,
+      refrigerant: system.refrigerant ?? refrigerant ?? null,
+      factoryChargeOz: catalogCharge(equipment, system.outdoorModel, manufacturer, factoryLengthFt),
+      esp: indoor?.pesp ?? null,
+    }
+  })
+  return { workType: source.workType ?? null, notes: source.companyNotes ?? null, items, chips, systems }
 }

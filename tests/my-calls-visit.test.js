@@ -64,4 +64,83 @@ describe('My Calls Local Visit Draft recovery', () => {
     expect(shouldShowMyCallsLoadError(new Error('offline'), [{ id: 'temp', status: 'temporarily' }])).toBe(true)
     expect(shouldShowMyCallsLoadError(null, [])).toBe(false)
   })
+
+  it('leaves out a deferred call once it is finished: deferral never keeps a card (FT-03)', () => {
+    const result = localMyCallsVisits({
+      drafts: [{ id: 'deferred-done', status: 'completed', isDeferred: true, address: {} }],
+      cachedVisits: [{ id: 'cached-deferred-done', status: 'temporarily', is_deferred: true }],
+    })
+    expect(result).toEqual([])
+  })
+})
+
+describe('My Calls expanded card briefing (FT-03)', () => {
+  let myCallsBriefing
+
+  beforeAll(async () => {
+    ({ myCallsBriefing } = await import('../frontend/pwa/src/lib/my-calls-visit.mjs'))
+  })
+
+  const catalog = {
+    equipment: [
+      { model: 'ML14KC1-036', unit_type: 'condenser', brand: 'Lennox', refrigerant: 'R-454B', btu: 36000, pesp: null,
+        charges: [{ manufacturer: 'Lennox', length_ft: 15, charge_oz: 78 }, { manufacturer: 'Lennox', length_ft: 30, charge_oz: 148 }] },
+      { model: 'EL296V', unit_type: 'furnace', brand: 'Lennox', refrigerant: null, btu: null, pesp: 0.5, charges: [] },
+    ],
+    manufacturers: [{ name: 'Lennox', oz_per_ft: 0.6, default_length_ft: 30 }],
+    catalogItems: [{ item_name: 'Ecoil Wire', label: 'EEV Wire' }, { item_name: 'UT3000', label: null }],
+  }
+
+  it('builds the card from the server detail: work type, chips, notes and per-system briefing', () => {
+    const briefing = myCallsBriefing({
+      workType: 'ac_heat',
+      companyNotes: 'Gate code 1234',
+      items: [
+        { itemName: 'UT3000', category: 'accessory', quantity: 1 },
+        { itemName: 'Ecoil Wire', category: 'accessory', quantity: 2 },
+        { itemName: 'T6 Pro', category: 'thermostat', quantity: 2 },
+        { itemName: 'Pressure Test', category: 'fix', quantity: 1 },
+      ],
+      systems: [{ systemNumber: 1, indoorModel: 'EL296V', outdoorModel: 'ML14KC1-036', refrigerant: null }],
+    }, catalog)
+    expect(briefing.workType).toBe('ac_heat')
+    expect(briefing.notes).toBe('Gate code 1234')
+    // Fixes are work, not pre-specified load: no chip.
+    expect(briefing.chips).toEqual([
+      { label: 'UT3000', quantity: 1 }, { label: 'EEV Wire', quantity: 2 }, { label: 'T6 Pro', quantity: 2 },
+    ])
+    expect(briefing.items).toHaveLength(4)
+    expect(briefing.items[1]).toEqual({ itemName: 'Ecoil Wire', category: 'accessory', quantity: 2 })
+    expect(briefing.systems).toEqual([{
+      systemNumber: 1,
+      indoorModel: 'EL296V', indoorType: 'Furnace',
+      outdoorModel: 'ML14KC1-036', outdoorType: 'Condenser',
+      tons: 3, refrigerant: 'R-454B',
+      // Lennox default length 30 ft → 148 oz.
+      factoryChargeOz: 148,
+      esp: 0.5,
+    }])
+  })
+
+  it('reads the Local Visit Draft the same way (offline), and leaves unknown values empty', () => {
+    const briefing = myCallsBriefing({
+      workType: 'prestart', companyNotes: null,
+      _items: [{ item_name: 'Ecoil Wire', category: 'accessory', quantity: 1 }],
+      systems: [
+        { systemNumber: 1, indoorModel: 'Typed indoor', outdoorModel: 'Typed outdoor', refrigerant: 'R-410A' },
+        { systemNumber: 2, indoorModel: null, outdoorModel: null, refrigerant: null },
+      ],
+    }, catalog)
+    expect(briefing.chips).toEqual([{ label: 'EEV Wire', quantity: 1 }])
+    expect(briefing.items).toEqual([{ itemName: 'Ecoil Wire', category: 'accessory', quantity: 1 }])
+    expect(briefing.notes).toBeNull()
+    expect(briefing.systems[0]).toEqual({
+      systemNumber: 1, indoorModel: 'Typed indoor', indoorType: null, outdoorModel: 'Typed outdoor', outdoorType: null,
+      tons: null, refrigerant: 'R-410A', factoryChargeOz: null, esp: null,
+    })
+    expect(briefing.systems[1].refrigerant).toBeNull()
+    // No catalog cached yet: models still show.
+    expect(myCallsBriefing({ systems: [{ systemNumber: 1, indoorModel: 'EL296V', outdoorModel: 'ML14KC1-036' }] }).systems[0])
+      .toMatchObject({ indoorModel: 'EL296V', outdoorModel: 'ML14KC1-036', tons: null, factoryChargeOz: null })
+  })
 })

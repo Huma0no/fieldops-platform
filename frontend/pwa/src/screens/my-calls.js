@@ -209,7 +209,7 @@ function renderList () {
   }
 
   const activeVisits = visits.filter(
-    v => ['assigned', 'in_progress'].includes(v.status) || v.is_deferred
+    v => ['assigned', 'in_progress'].includes(v.status)
   )
 
   if (!activeVisits.length) {
@@ -242,7 +242,7 @@ function renderList () {
 
 function aggregateLoadSheet () {
   const activeVisits = visits.filter(
-    v => ['assigned', 'in_progress'].includes(v.status) || v.is_deferred
+    v => ['assigned', 'in_progress'].includes(v.status)
   )
 
   const totals = new Map()   // itemName -> qty

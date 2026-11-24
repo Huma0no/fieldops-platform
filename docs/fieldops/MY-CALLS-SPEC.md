@@ -18,7 +18,7 @@ Reveals, in order: work type label (single free-text field, no phase/scope split
 
 **Per-system briefing** shows: indoor model + outdoor model, indoor/outdoor type, tonnage, refrigerant, factory charge (oz + lb) for the outdoor model's manufacturer at its default factory length (`catalog_equipment_charges`, W3; empty when the catalog has none), over-charge threshold, subcooling, ESP, CFM max/min. Each system block carries its own LV and Blower Data buttons, scoped to that system's equipment.
 
-_Implementation note (audit 2026-11-19, A15):_ the running card shows the indoor and outdoor models, the refrigerant and the order number; the factory charge and the other briefing values above are specified but not built.
+_Implementation note (FT-03, 2026-11-23; replaces the A15 audit note):_ the expanded card shows the work type, the chips (pre-specified thermostats and accessories with their quantity, plus the system count), the intake notes and, per system, the indoor and outdoor models with their catalog type, tonnage (the outdoor unit's catalog BTU ÷ 12,000), refrigerant, factory charge and ESP (the indoor unit's catalog `pesp`). A value the catalog lacks for a model is left out. It opens from the downloaded Local Visit Draft and the cached catalog, so it works offline, and refreshes from the server when reachable. The order number and builder contact follow the briefing. **Not built (no data source yet):** over-charge threshold, subcooling, CFM max/min, and the LV and Blower Data buttons.
 
 When one card is expanded, sibling cards visually recede. The active job's address stays fixed in the header context.
 

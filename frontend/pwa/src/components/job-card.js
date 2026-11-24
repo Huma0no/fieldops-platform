@@ -19,11 +19,15 @@ import { Badge, Tag } from './badge.js'
 import { cancelConfirmationStyles, showCancelConfirmation } from '../lib/cancel-confirmation.mjs'
 import { getJobCardActionState, openPendingCancelWorkspace, startJobAndOpenWorkspace } from '../lib/job-card-actions.mjs'
 import { startVisitLocalFirst } from '../lib/pending-starts.mjs'
+import { getCatalog, getLocalVisitDraft } from '../lib/db.js'
+import { myCallsBriefing } from '../lib/my-calls-visit.mjs'
+import { formatLbOz } from '../lib/lineset.mjs'
 
 export function JobCard ({ visit, isCancelPending = false, onStart, onOpenWorkspace, onNavigate, onItemsLoaded }) {
   let expanded  = false
   let fullVisit = null   // loaded on first expand
   let loading   = false
+  let guidedSource = null   // detail or Local Visit Draft behind fullVisit
 
   const el = document.createElement('div')
   el.className = `job-card ${visit.is_deferred ? 'job-card--deferred' : ''}`
@@ -93,8 +97,6 @@ export function JobCard ({ visit, isCancelPending = false, onStart, onOpenWorksp
     header.appendChild(left)
     header.appendChild(right)
 
-    // Make header tappable to expand/collapse
-    header.addEventListener('click', toggleExpand)
     el.appendChild(header)
 
     // ── Tags row ─────────────────────────────────────────
@@ -118,6 +120,11 @@ export function JobCard ({ visit, isCancelPending = false, onStart, onOpenWorksp
         body.appendChild(spinner)
       } else if (fullVisit) {
         body.appendChild(buildExpandedContent(fullVisit))
+      } else {
+        const offline = document.createElement('div')
+        offline.className   = 'jc-spinner'
+        offline.textContent = 'Details need a connection.'
+        body.appendChild(offline)
       }
 
       el.appendChild(body)
@@ -205,77 +212,104 @@ export function JobCard ({ visit, isCancelPending = false, onStart, onOpenWorksp
     return cancelBtn
   }
 
+  // FT-03: a tap anywhere on the card except its buttons and links toggles it.
+  el.addEventListener('click', toggleExpand)
+
   async function toggleExpand (e) {
-    // Don't toggle if user tapped a button
-    if (e.target.closest('button')) return
+    if (e.target.closest('button, a')) return
 
     expanded = !expanded
 
     if (expanded && !fullVisit) {
       loading = true
       render()
+      // Offline first: the downloaded Local Visit Draft and the cached catalog;
+      // the server detail only refreshes it when reachable.
+      const [catalog, draft] = await Promise.all([
+        Promise.all(['equipment', 'manufacturers', 'items'].map(key => getCatalog(key).catch(() => null)))
+          .then(([equipment, manufacturers, catalogItems]) => ({ equipment: equipment ?? [], manufacturers: manufacturers ?? [], catalogItems: catalogItems ?? [] })),
+        getLocalVisitDraft(visit.id).catch(() => null),
+      ])
+      if (draft) {
+        showDetail(draft, catalog)
+        loading = false
+        render()
+      }
       try {
-        fullVisit = await api.get(`/visits/${visit.id}`)
-        // Expose loaded items on the shared visit object so My Calls can
-        // aggregate them into the Load Sheet Summary without a second fetch.
-        visit.items = fullVisit.items
-        onItemsLoaded?.()
-        // Also fetch weigh-in reference if address exists
-        if (fullVisit.address_id) {
-          try {
-            fullVisit._weighIn = await api.get(`/addresses/${fullVisit.address_id}/weigh-in`)
-          } catch (_) { /* no prior weigh-in — that's fine */ }
-        }
+        showDetail(await api.get(`/visits/${visit.id}`), catalog)
       } catch (err) {
         console.error('Failed to load visit detail:', err)
-      } finally {
-        loading = false
       }
+      loading = false
     }
     // The last expanded card is the active call for Guided.
-    if (expanded && fullVisit) saveGuidedContext(localStorage, guidedContextFromVisit(fullVisit))
+    if (expanded && guidedSource) saveGuidedContext(localStorage, guidedContextFromVisit(guidedSource))
 
     render()
   }
 
+  function showDetail (source, catalog) {
+    guidedSource = { id: visit.id, ...source }
+    fullVisit = { ...myCallsBriefing(source, catalog), orderNumber: source.orderNumber ?? null, contactName: source.contactName ?? source.contacts?.name ?? null, contactPhone: source.contactPhone ?? source.contacts?.phone ?? null }
+    // Expose loaded items on the shared visit object so My Calls can
+    // aggregate them into the Load Sheet Summary without a second fetch.
+    visit.items = fullVisit.items
+    onItemsLoaded?.()
+  }
+
+  // Spec order: work type → chips → intake notes → per-system briefing.
   function buildExpandedContent (v) {
     const wrap = document.createElement('div')
     wrap.className = 'jc-detail'
 
-    // Systems quick info
-    if (v.systems?.length) {
-      const section = document.createElement('div')
-      section.className = 'jc-section'
-
-      v.systems.forEach((sys, i) => {
-        const row = document.createElement('div')
-        row.className = 'jc-detail-group'
-
-        if (v.systems.length > 1) {
-          const label = document.createElement('p')
-          label.className   = 'jc-section-label'
-          label.textContent = `System ${i + 1}`
-          row.appendChild(label)
-        }
-
-        row.appendChild(detailRow('Indoor',  sys.indoor_model  ?? '—', 'jc-detail-value--chip'))
-        row.appendChild(detailRow('Outdoor', sys.outdoor_model ?? '—', 'jc-detail-value--chip'))
-        if (sys.refrigerant) {
-          row.appendChild(detailRow('Refrigerant', sys.refrigerant))
-        }
-        section.appendChild(row)
-      })
-
-      wrap.appendChild(section)
+    if (v.workType) {
+      const workType = document.createElement('p')
+      workType.className   = 'jc-work-type'
+      workType.textContent = formatWorkType(v.workType)
+      wrap.appendChild(workType)
     }
 
-    // Order number
-    if (v.order_number) {
-      wrap.appendChild(detailRow('Order #', v.order_number))
+    const chips = v.chips.map(chip => chip.quantity > 1 ? `${chip.label} ×${chip.quantity}` : chip.label)
+    if (v.systems.length) chips.push(v.systems.length === 1 ? '1 system' : `${v.systems.length} systems`)
+    if (chips.length) {
+      const row = document.createElement('div')
+      row.className = 'jc-chips'
+      chips.forEach(text => row.appendChild(Tag(text, 'default')))
+      wrap.appendChild(row)
     }
 
-    // Builder contact
-    if (v.builder_contact_name || v.builder_contact_phone) {
+    if (v.notes) {
+      const notesSection = document.createElement('div')
+      notesSection.className = 'jc-notes-ref'
+      notesSection.textContent = v.notes
+      wrap.appendChild(notesSection)
+    }
+
+    v.systems.forEach(sys => {
+      const group = document.createElement('div')
+      group.className = 'jc-detail-group'
+
+      if (v.systems.length > 1) {
+        const label = document.createElement('p')
+        label.className   = 'jc-section-label'
+        label.textContent = `System ${sys.systemNumber}`
+        group.appendChild(label)
+      }
+
+      group.appendChild(detailRow('Indoor',  [sys.indoorModel ?? '—', sys.indoorType].filter(Boolean).join(' · '), 'jc-detail-value--chip'))
+      group.appendChild(detailRow('Outdoor', [sys.outdoorModel ?? '—', sys.outdoorType].filter(Boolean).join(' · '), 'jc-detail-value--chip'))
+      if (sys.tons != null)            group.appendChild(detailRow('Tonnage', `${sys.tons} ton`))
+      if (sys.refrigerant)             group.appendChild(detailRow('Refrigerant', sys.refrigerant))
+      if (sys.factoryChargeOz != null) group.appendChild(detailRow('Factory charge', `${sys.factoryChargeOz} oz · ${formatLbOz(sys.factoryChargeOz)}`))
+      if (sys.esp != null)             group.appendChild(detailRow('ESP', `${sys.esp} in. w.c.`))
+      wrap.appendChild(group)
+    })
+
+    if (v.orderNumber) {
+      wrap.appendChild(detailRow('Order #', v.orderNumber))
+    }
+
+    if (v.contactName || v.contactPhone) {
       const contactRow = document.createElement('div')
       contactRow.className = 'jc-detail-row'
 
@@ -286,40 +320,19 @@ export function JobCard ({ visit, isCancelPending = false, onStart, onOpenWorksp
       const val = document.createElement('span')
       val.className = 'jc-detail-value'
 
-      if (v.builder_contact_phone) {
+      if (v.contactPhone) {
         const link = document.createElement('a')
-        link.href        = `tel:${v.builder_contact_phone}`
+        link.href        = `tel:${v.contactPhone}`
         link.className   = 'jc-contact-link'
-        link.textContent = v.builder_contact_name ?? v.builder_contact_phone
+        link.textContent = v.contactName ?? v.contactPhone
         val.appendChild(link)
       } else {
-        val.textContent = v.builder_contact_name ?? '—'
+        val.textContent = v.contactName
       }
 
       contactRow.appendChild(lbl)
       contactRow.appendChild(val)
       wrap.appendChild(contactRow)
-    }
-
-    // Company notes
-    if (v.company_notes) {
-      const notesSection = document.createElement('div')
-      notesSection.className = 'jc-notes-ref'
-      notesSection.textContent = v.company_notes
-      wrap.appendChild(notesSection)
-    }
-
-    // Previous weigh-in reference (collapsed summary)
-    if (v._weighIn && Object.keys(v._weighIn).length > 0) {
-      const weighIn = document.createElement('div')
-      weighIn.className = 'jc-weigh-ref'
-
-      const label = document.createElement('p')
-      label.className   = 'jc-section-label'
-      label.textContent = 'Prior weigh-in on file'
-      weighIn.appendChild(label)
-
-      wrap.appendChild(weighIn)
     }
 
     return wrap
@@ -651,9 +664,30 @@ export const jobCardStyles = `
     margin-top: var(--space-1);
   }
 
-  .jc-weigh-ref {
-    padding-top: var(--space-2);
-    margin-top: var(--space-1);
+  .jc-work-type {
+    font-family: var(--fo-font-body);
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--fo-ink);
+  }
+
+  .jc-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+    padding-bottom: var(--space-1);
+  }
+
+  .jc-chips .tag {
+    font-family: var(--fo-font-mono);
+    font-size: 9px;
+    letter-spacing: 0.04em;
+    padding: 2px 8px;
+    border: none;
+    border-radius: 20px;
+    background: var(--fo-panel);
+    color: var(--fo-ink-soft);
+    box-shadow: var(--fo-shadow-subtle);
   }
 
   .jc-actions {
