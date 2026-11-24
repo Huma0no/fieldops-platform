@@ -108,6 +108,7 @@ The office's CP3000 route PDFs ("Microsoft Print to PDF") have no text layer: ev
 - **Models:** indoor and outdoor are matched to the equipment catalog with OCR-aware rules (O/0, I/L/1, S/5, B/8; one extra or missing leading character; catalog base model as prefix, e.g. 5TTR5024 for 5TTR5024A1). One confident match is used and its OCR text shown; otherwise the raw text stays, flagged. Coils have no catalog and are always flagged for checking.
 - **Accessories:** suggested only from a line that starts with `M#` (e.g. FIN180P, Dehum), flagged as suggestions. Accessories mentioned inside the notes are not added.
 - **Review:** flagged fields are highlighted (amber, dashed) with "Check: reason" so Dispatch checks them before Confirm.
+- **Review order (FT-01, 2026-11-23):** the call fields first (time, address, city/state/ZIP, subdivision, order, builder, contact, work type, company notes), then the systems (indoor, outdoor, coil per system), then Thermostat and Accessories, then Skip/Confirm. The whole review column scrolls as one area, so no field is ever squeezed out of view.
 - An AI fallback for other PDF formats is out of scope (QA-TRACKER FF-07).
 
 ### Origen mixto (PDF vs. manual)

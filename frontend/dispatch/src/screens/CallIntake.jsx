@@ -485,29 +485,6 @@ function PdfReviewStage({ batch, callIndex, call, loading, fields, flags, ocr, o
           <div className="vd-hint" style={s.loadingCall}>Loading call…</div>
         ) : (
           <>
-            {editedSystems.length > 0 && (
-              <div style={s.systemsBox}>
-                {editedSystems.map((sys, i) => (
-                  <div key={i} style={s.sysRow}>
-                    {editedSystems.length > 1 && <h4 className="vd-sub">System {i + 1}</h4>}
-                    <FlagNote flag={flags[`systems.${i}`]} />
-                    <SearchableSelect
-                      value={sys.indoorModel ?? ''} onChange={v => onSystemChange(i, 'indoorModel', v)}
-                      options={indoorOptions} placeholder="Indoor model" classes={flagged(s.selectClasses, flags[`systems.${i}.indoorModel`])}
-                    />
-                    <FlagNote flag={flags[`systems.${i}.indoorModel`]} raw={ocr[`systems.${i}.indoorModel`]} />
-                    <SearchableSelect
-                      value={sys.outdoorModel ?? ''} onChange={v => onSystemChange(i, 'outdoorModel', v)}
-                      options={outdoorOptions} placeholder="Outdoor model" classes={flagged(s.selectClasses, flags[`systems.${i}.outdoorModel`])}
-                    />
-                    <FlagNote flag={flags[`systems.${i}.outdoorModel`]} raw={ocr[`systems.${i}.outdoorModel`]} />
-                    <input className={`vd-input${flags[`systems.${i}.coilModel`] ? ' flag' : ''}`} value={sys.coilModel ?? ''} onChange={e => onSystemChange(i, 'coilModel', e.target.value)} placeholder="Coil model" />
-                    <FlagNote flag={flags[`systems.${i}.coilModel`]} />
-                  </div>
-                ))}
-              </div>
-            )}
-            <FlagNote flag={flags.systems} />
             <div style={s.fieldsGrid}>
               {Object.entries(PDF_FIELD_LABELS).filter(([key]) => key !== 'preSpecifiedThermostat').map(([key, label]) => (
                 <div key={key} style={s.fieldRow}>
@@ -520,6 +497,30 @@ function PdfReviewStage({ batch, callIndex, call, loading, fields, flags, ocr, o
                   <FlagNote flag={flags[key]} />
                 </div>
               ))}
+              {/* Systems last, just before Thermostat and Accessories (FT-01). */}
+              {editedSystems.length > 0 && (
+                <div style={s.systemsBox}>
+                  {editedSystems.map((sys, i) => (
+                    <div key={i} style={s.sysRow}>
+                      {editedSystems.length > 1 && <h4 className="vd-sub">System {i + 1}</h4>}
+                      <FlagNote flag={flags[`systems.${i}`]} />
+                      <SearchableSelect
+                        value={sys.indoorModel ?? ''} onChange={v => onSystemChange(i, 'indoorModel', v)}
+                        options={indoorOptions} placeholder="Indoor model" classes={flagged(s.selectClasses, flags[`systems.${i}.indoorModel`])}
+                      />
+                      <FlagNote flag={flags[`systems.${i}.indoorModel`]} raw={ocr[`systems.${i}.indoorModel`]} />
+                      <SearchableSelect
+                        value={sys.outdoorModel ?? ''} onChange={v => onSystemChange(i, 'outdoorModel', v)}
+                        options={outdoorOptions} placeholder="Outdoor model" classes={flagged(s.selectClasses, flags[`systems.${i}.outdoorModel`])}
+                      />
+                      <FlagNote flag={flags[`systems.${i}.outdoorModel`]} raw={ocr[`systems.${i}.outdoorModel`]} />
+                      <input className={`vd-input${flags[`systems.${i}.coilModel`] ? ' flag' : ''}`} value={sys.coilModel ?? ''} onChange={e => onSystemChange(i, 'coilModel', e.target.value)} placeholder="Coil model" />
+                      <FlagNote flag={flags[`systems.${i}.coilModel`]} />
+                    </div>
+                  ))}
+                </div>
+              )}
+              <FlagNote flag={flags.systems} />
               <div style={s.fieldRow}>
                 <label className="vd-label">{PDF_FIELD_LABELS.preSpecifiedThermostat}</label>
                 <SearchableSelect
@@ -1013,12 +1014,12 @@ const s = {
   pdfFrame: { flex: 1, border: 'none', background: 'var(--vd-plate)' },
   pdfPlaceholder: { flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' },
   formPane: { flex: '1 1 50%', display: 'flex', flexDirection: 'column', minWidth: 0, overflow: 'hidden' },
-  formBody: { flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', gap: '14px', padding: '14px 18px 18px' },
+  formBody: { flex: 1, minHeight: 0, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '14px', padding: '14px 18px 18px' },
   progressWrap: { display: 'flex', flexDirection: 'column', gap: '6px', flexShrink: 0 },
   loadingCall: { flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' },
   systemsBox: { display: 'flex', flexDirection: 'column', gap: '10px', flexShrink: 0 },
   sysRow: { display: 'flex', flexDirection: 'column', gap: '6px' },
-  fieldsGrid: { flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '12px', paddingRight: '4px' },
+  fieldsGrid: { display: 'flex', flexDirection: 'column', gap: '12px' },
   fieldRow: { display: 'flex', flexDirection: 'column' },
   reviewActions: { display: 'flex', justifyContent: 'flex-end', gap: '12px', flexShrink: 0, paddingTop: '4px', paddingBottom: '4px' },
   doneCard: { width: '100%', maxWidth: '440px' },
