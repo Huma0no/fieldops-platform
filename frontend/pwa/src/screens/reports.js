@@ -482,7 +482,7 @@ function buildReportCard (visit) {
 // Report when loaded (fetched on open), otherwise the phone's snapshot.
 function buildCompanyFormButton (visit) {
   const btn = document.createElement('button')
-  btn.className   = 'rc-btn rc-btn--ghost'
+  btn.className   = 'rc-btn rc-btn--neutral'
   btn.textContent = 'Company form'
   btn.addEventListener('click', async e => {
     e.stopPropagation()
@@ -535,7 +535,7 @@ function showCompanyFormMenu (anchorEl, links) {
 
 function buildDownloadButton (visit, { delivered }) {
   const downloadBtn = document.createElement('button')
-  downloadBtn.className   = 'rc-btn rc-btn--ghost'
+  downloadBtn.className   = 'rc-btn rc-btn--neutral'
   downloadBtn.textContent = 'Download'
   downloadBtn.addEventListener('click', e => {
     e.stopPropagation()
@@ -744,6 +744,10 @@ const screenStyles = `
   .rc-btn { border-radius:var(--fo-radius-sm); font-family:var(--fo-font-body); font-size:var(--text-sm); font-weight:700; padding:var(--space-2) var(--space-3); cursor:pointer; border:none; -webkit-tap-highlight-color:transparent; }
   .rc-btn--secondary { background:var(--fo-panel); box-shadow:var(--fo-shadow-raised); color:var(--fo-accent-deep); }
   .rc-btn--ghost { background:var(--fo-well); box-shadow:var(--fo-shadow-well); color:var(--fo-ink-soft); }
+  /* Download and Company form: a normal raised button, neutral text (FT-06). Inset reads as pressed/on. */
+  .rc-btn--neutral { background:var(--fo-panel); box-shadow:var(--fo-shadow-raised); color:var(--fo-ink); }
+  .rc-btn:focus:not(:focus-visible) { outline:none; }
+  .rc-btn:focus-visible { outline:2px solid var(--fo-accent); outline-offset:2px; }
 
   .empty-state { display:flex; flex-direction:column; align-items:center; gap:var(--space-3); padding:var(--space-8) var(--space-6); text-align:center; }
   .empty-title { font-size:var(--text-base); font-family:var(--fo-font-mono); font-weight:700; color:var(--fo-ink-soft); }
