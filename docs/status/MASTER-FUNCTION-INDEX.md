@@ -170,7 +170,8 @@ Spec: `docs/shared/PHOTOS-GPS-INTEGRATIONS.md` (The Company's Google Form) — f
 |---|---|---|---|
 | Per-system prefilled link | SPEC CLOSED | IMPLEMENTED (automated verification), device QA pending | FieldOps Reports, delivered card → Company form → one link per system; opens in a new tab. |
 | Prefill weigh-in fields | SPEC CLOSED | IMPLEMENTED (automated verification) | 16 of 18 fields: 13 from Weigh-In and the address, 3 constants ("Big Tex Air Conditioning", "15 ft.", "3/8"). Plain numbers, ASCII "-", one decimal. |
-| Link disabled when data missing | SPEC CLOSED | IMPLEMENTED (automated verification) | Enabled only when the 11 required numeric fields have values; otherwise a note names what is missing. |
+| Link always opens with partial data | SPEC CLOSED | IMPLEMENTED (automated verification) | FT-05 (2026-11-23): replaces "link disabled when data missing". Values present are prefilled, missing ones stay empty and are named under the system. |
+| "Was the form sent?" prompt, sent flag + date, usage record, Dispatch entry point | DEFERRED (second round) | NOT IMPLEMENTED | FT-05; open questions in the spec. |
 | Link disabled when record edited after capture | DEFERRED (second round) | NOT IMPLEMENTED | Needs an "edited after capture" marker the data model does not have. |
 | Scale/Fan photos, test holes | SPEC CLOSED | Technician on the form | Photos uploaded by the technician (downloads carry GPS, §7, CC-17); test holes ticked on the form. |
 
