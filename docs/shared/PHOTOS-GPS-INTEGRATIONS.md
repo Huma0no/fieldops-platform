@@ -57,9 +57,15 @@ Cross-app infrastructure: photo capture and storage, GPS/EXIF requirements, and 
 **Rules (Kristo, 2026-11-20):**
 - **Numbers:** plain, no units, ASCII "-" for negatives, at most one decimal (e.g. `15`, `-2.4`).
 - **One link per system** of the visit, from that system's Weigh-In reading.
-- **Enabled** only when all 11 required numeric fields (3, 5, 7, 8, 11–17) have a value; otherwise disabled with a short note naming what is missing. The "edited after capture" rule stays **deferred** (second round).
+- **Always opens (FT-05, Kristo 2026-11-23; replaces the earlier rule that disabled the link until all 11 required numbers had a value):** values that exist are prefilled; missing ones, including the address, are left empty for the technician to complete on the form. The system's entry names what is missing. A visit without Weigh-In (Prestart, Drive Run) gets the address and the constants only. The "edited after capture" rule stays **deferred** (second round).
 - **Location:** FieldOps Reports, on each delivered (Sent) visit card, a **Company form** button next to Download; it lists the visit's systems, one link each. Values come from the server's Report when loaded, otherwise the snapshot on the phone.
 - **Opens in a new tab.**
+- **Deferred to the second round (FT-05, Kristo 2026-11-23):**
+  - On return to the FieldOps or Dispatch window after opening the form, ask "Was the form sent?".
+  - Yes marks it sent, with the date. It never locks: the form can be opened and sent again.
+  - Record each use (who, when, which visit and system).
+  - A Company form entry point in Dispatch.
+  - Open questions for that design: per system or per visit; whether both Dispatch and the technician can mark it sent; where "sent" is shown; marking it while offline.
 
 ## Server storage (current)
 

@@ -38,7 +38,8 @@ const systemNumberOf = row => Number(row?.systemNumber ?? row?.system_number)
 
 // report: a Report (server version or the phone's snapshot) with address,
 // systems and weighInData. Returns one entry per system:
-// { systemNumber, url | null, missing: [labels] }.
+// { systemNumber, url, missing: [labels] }. The link always opens (FT-05):
+// values present are prefilled, missing ones stay empty and are named.
 export function companyFormLinks (report) {
   const fromSystems = (report?.systems ?? []).map(systemNumberOf)
   const fromReadings = (report?.weighInData ?? []).map(systemNumberOf)
@@ -51,10 +52,10 @@ export function companyFormLinks (report) {
     const values = READINGS.map(([entry, field, label]) => ({ entry, label, value: formNumber(row[field]) }))
     const missing = values.filter(v => v.value === null).map(v => v.label)
     if (!street) missing.unshift('Address')
-    if (missing.length) return { systemNumber, url: null, missing }
-    const address = numbers.length > 1 ? `${street} – System ${systemNumber}` : street
+    const address = !street ? null : numbers.length > 1 ? `${street} – System ${systemNumber}` : street
     const params = [[ADDRESS_ENTRY, address], ...CONSTANTS, ...values.map(v => [v.entry, v.value])]
+      .filter(([, value]) => value !== null)
     const query = params.map(([entry, value]) => `entry.${entry}=${encodeURIComponent(value)}`).join('&')
-    return { systemNumber, url: `${COMPANY_FORM_URL}?usp=pp_url&${query}`, missing: [] }
+    return { systemNumber, url: `${COMPANY_FORM_URL}?usp=pp_url&${query}`, missing }
   })
 }

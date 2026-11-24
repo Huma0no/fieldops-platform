@@ -510,13 +510,12 @@ function showCompanyFormMenu (anchorEl, links) {
     const item = document.createElement('button')
     item.className   = 'rc-context-item'
     item.textContent = `System ${link.systemNumber}`
-    if (link.url) {
-      item.addEventListener('click', () => {
-        menu.remove()
-        window.open(link.url, '_blank', 'noopener')
-      })
-    } else {
-      item.disabled = true
+    // Always opens (FT-05); what is missing stays empty on the form and is named here.
+    item.addEventListener('click', () => {
+      menu.remove()
+      window.open(link.url, '_blank', 'noopener')
+    })
+    if (link.missing.length) {
       const note = document.createElement('span')
       note.className = 'rc-context-note'
       note.textContent = `Missing: ${link.missing.join(', ')}`

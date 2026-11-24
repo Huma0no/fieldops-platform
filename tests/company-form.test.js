@@ -64,7 +64,7 @@ describe('Company Google Form links', () => {
     expect(links[1].url).toContain('entry.1124000801=100%20Oak%20St%20%E2%80%93%20System%202')
   })
 
-  it('disables a system whose required values are missing and names them', () => {
+  it('always opens: prefills what exists, leaves missing values empty and names them (FT-05)', () => {
     const links = m.companyFormLinks({
       address: { street: '100 Oak St' },
       systems: [{ systemNumber: 1 }, { systemNumber: 2 }, { systemNumber: 3 }],
@@ -73,13 +73,22 @@ describe('Company Google Form links', () => {
         reading(2, { fanSpeedCfm: null, suctionLineTemp: '', factoryChargeOz: undefined }),
       ],
     })
-    expect(links[0].url).not.toBeNull()
-    expect(links[1]).toEqual({ systemNumber: 2, url: null, missing: ['Factory charge', 'Fan CFM', 'Suction temp'] })
-    // No Weigh-In at all: every required value is missing.
-    expect(links[2].url).toBeNull()
+    expect(links[0].missing).toEqual([])
+    expect(links[1].missing).toEqual(['Factory charge', 'Fan CFM', 'Suction temp'])
+    const partial = params(links[1].url)
+    expect(partial.get('entry.37391195')).toBe('55')
+    expect(partial.has('entry.1404438998')).toBe(false)
+    expect(partial.has('entry.183118902')).toBe(false)
+    expect(partial.has('entry.961493071')).toBe(false)
+    expect([...partial.keys()]).toHaveLength(13)
+    // No Weigh-In at all (a Prestart): address and constants only.
     expect(links[2].missing).toHaveLength(11)
-    // Server Report rows (snake-case system_number) and a missing address.
+    expect([...params(links[2].url).keys()].sort()).toEqual(['entry.1124000801', 'entry.1317202447', 'entry.1678145086', 'entry.284031722', 'usp'])
+    expect(params(links[2].url).get('entry.1124000801')).toBe('100 Oak St – System 3')
+    // Server Report rows (snake-case system_number) and a missing address: no address entry.
     const [noAddress] = m.companyFormLinks({ systems: [{ system_number: 1 }], weighInData: [reading(1)] })
-    expect(noAddress).toEqual({ systemNumber: 1, url: null, missing: ['Address'] })
+    expect(noAddress.missing).toEqual(['Address'])
+    expect(noAddress.url.startsWith(`${m.COMPANY_FORM_URL}?usp=pp_url&`)).toBe(true)
+    expect(params(noAddress.url).has('entry.1124000801')).toBe(false)
   })
 })
