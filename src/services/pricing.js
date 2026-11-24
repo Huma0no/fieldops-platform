@@ -37,19 +37,17 @@ function sharedPricing() {
 }
 
 async function calculateVisitPrice(db, visitId) {
-  const [servicesRes, itemsRes, systemsRes, visitRes, catalogServicesRes] = await Promise.all([
-    db.query(
-      'SELECT service_name, is_finish, is_temporarily, price, system_number FROM visit_services WHERE visit_id = $1',
-      [visitId]
-    ),
-    db.query(
-      'SELECT item_name, category, description, quantity, price FROM visit_items WHERE visit_id = $1',
-      [visitId]
-    ),
-    db.query('SELECT COUNT(*)::int AS cnt FROM visit_systems WHERE visit_id = $1', [visitId]),
-    db.query('SELECT technician_id FROM visits WHERE id = $1', [visitId]),
-    db.query('SELECT * FROM catalog_services'),
-  ]);
+  const servicesRes = await db.query(
+    'SELECT service_name, is_finish, is_temporarily, price, system_number FROM visit_services WHERE visit_id = $1',
+    [visitId]
+  );
+  const itemsRes = await db.query(
+    'SELECT item_name, category, description, quantity, price FROM visit_items WHERE visit_id = $1',
+    [visitId]
+  );
+  const systemsRes = await db.query('SELECT COUNT(*)::int AS cnt FROM visit_systems WHERE visit_id = $1', [visitId]);
+  const visitRes = await db.query('SELECT technician_id FROM visits WHERE id = $1', [visitId]);
+  const catalogServicesRes = await db.query('SELECT * FROM catalog_services');
   const itemNames = [...new Set(itemsRes.rows.map(row => row.item_name))];
   const catalogItemsRes = await db.query('SELECT * FROM catalog_items WHERE item_name = ANY($1)', [itemNames]);
   const techId = visitRes.rows[0]?.technician_id;

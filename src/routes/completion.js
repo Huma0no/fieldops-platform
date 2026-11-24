@@ -45,10 +45,8 @@ const MAX_SUBMISSION_ID_LENGTH = 120;
 
 async function priceSnapshotItems(client, visit, services, validItems) {
   if (!validItems.length) return [];
-  const [technicianRes, systemsRes] = await Promise.all([
-    client.query('SELECT technician_id FROM visits WHERE id = $1', [visit.id]),
-    client.query('SELECT COUNT(*)::int AS cnt FROM visit_systems WHERE visit_id = $1', [visit.id]),
-  ]);
+  const technicianRes = await client.query('SELECT technician_id FROM visits WHERE id = $1', [visit.id]);
+  const systemsRes = await client.query('SELECT COUNT(*)::int AS cnt FROM visit_systems WHERE visit_id = $1', [visit.id]);
   const overrides = {};
   const technicianId = technicianRes.rows[0]?.technician_id;
   if (technicianId) {

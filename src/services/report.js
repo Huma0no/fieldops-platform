@@ -205,33 +205,31 @@ async function generateLiveReportJSON(db, visitId) {
   const v = visitRow.rows[0];
   const isCancelled = v.status === 'cancelled';
 
-  const [systems, services, items, photos, weighIn] = await Promise.all([
-    db.query(
-      'SELECT system_number, indoor_model, outdoor_model, coil_model, refrigerant FROM visit_systems WHERE visit_id = $1 ORDER BY system_number',
-      [visitId]
-    ),
-    db.query(
-      'SELECT service_name, is_finish, is_temporarily, price, system_number FROM visit_services WHERE visit_id = $1 ORDER BY system_number NULLS FIRST',
-      [visitId]
-    ),
-    db.query(
-      'SELECT item_name, category, description, quantity, price, tech_supplied FROM visit_items WHERE visit_id = $1',
-      [visitId]
-    ),
-    db.query(
-      'SELECT slug, category FROM visit_photos WHERE visit_id = $1 AND detached_reason IS NULL',
-      [visitId]
-    ),
-    db.query(
-      `SELECT system_number, lineset_length, factory_charge_oz, factory_line_config,
-              approx_adjust_oz, adjusted_oz, fan_speed_cfm, liquid_line_temp,
-              suction_line_temp, condenser_sat_temp, subcooling_value,
-              oem_subcooling_goal, subcooling_deviation,
-              manufacturer, factory_length_ft, oz_per_ft, refrigerant, factory_charge_source
-       FROM weigh_in_data WHERE address_id = $1`,
-      [v.address_id]
-    ),
-  ]);
+  const systems = await db.query(
+    'SELECT system_number, indoor_model, outdoor_model, coil_model, refrigerant FROM visit_systems WHERE visit_id = $1 ORDER BY system_number',
+    [visitId]
+  );
+  const services = await db.query(
+    'SELECT service_name, is_finish, is_temporarily, price, system_number FROM visit_services WHERE visit_id = $1 ORDER BY system_number NULLS FIRST',
+    [visitId]
+  );
+  const items = await db.query(
+    'SELECT item_name, category, description, quantity, price, tech_supplied FROM visit_items WHERE visit_id = $1',
+    [visitId]
+  );
+  const photos = await db.query(
+    'SELECT slug, category FROM visit_photos WHERE visit_id = $1 AND detached_reason IS NULL',
+    [visitId]
+  );
+  const weighIn = await db.query(
+    `SELECT system_number, lineset_length, factory_charge_oz, factory_line_config,
+            approx_adjust_oz, adjusted_oz, fan_speed_cfm, liquid_line_temp,
+            suction_line_temp, condenser_sat_temp, subcooling_value,
+            oem_subcooling_goal, subcooling_deviation,
+            manufacturer, factory_length_ft, oz_per_ft, refrigerant, factory_charge_source
+     FROM weigh_in_data WHERE address_id = $1`,
+    [v.address_id]
+  );
 
   return {
     id: v.id,
@@ -320,19 +318,17 @@ async function createCanonicalReportSnapshot(db, visitId, {
     const reported = new Set(sourceSubmission.weighInData.map(row => Number(row.systemNumber ?? row.system_number)));
     report.weighInData = report.weighInData.filter(row => reported.has(Number(row.systemNumber)));
   }
-  const [contextResult, technicianResult, evidenceResult] = await Promise.all([
-    db.query(
-      `SELECT v.address_id, v.work_type, v.notes, v.checklist_answers
-       FROM visits v WHERE v.id = $1`,
-      [visitId]
-    ),
-    db.query('SELECT name FROM technicians WHERE id = $1', [technicianId]),
-    db.query(
-      `SELECT id, visit_id, system_number, slug, tag, label, category, stored_at
-       FROM visit_photos WHERE visit_id = $1 AND detached_reason IS NULL ORDER BY id`,
-      [visitId]
-    ),
-  ]);
+  const contextResult = await db.query(
+    `SELECT v.address_id, v.work_type, v.notes, v.checklist_answers
+     FROM visits v WHERE v.id = $1`,
+    [visitId]
+  );
+  const technicianResult = await db.query('SELECT name FROM technicians WHERE id = $1', [technicianId]);
+  const evidenceResult = await db.query(
+    `SELECT id, visit_id, system_number, slug, tag, label, category, stored_at
+     FROM visit_photos WHERE visit_id = $1 AND detached_reason IS NULL ORDER BY id`,
+    [visitId]
+  );
   const context = contextResult.rows[0];
   const technicianName = technicianResult.rows[0]?.name;
   if (!context || !technicianName) {
