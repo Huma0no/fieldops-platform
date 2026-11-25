@@ -162,12 +162,25 @@ First real jobs on the pilot: 3 visits (2 Prestart, 1 AC & Heat + Temporarily), 
 | FT-01 | Intake PDF review: the systems block sat above the fields and only the fields scrolled, so with several systems or flags the fields shrank to a sliver or vanished (calls confirmed unseen). | High | 🟢 Fixed 2026-11-23 (`4e50f2b`): one scroll area; systems below the call fields, before Thermostat/Accessories. Device check pending. | `dispatch/LOBBY-CALL-INTAKE-SPEC.md` (Review order) |
 | FT-02 | A submitted Temporarily visit stayed in My Calls as an empty card: the server active list and the PWA active sets treated `temporarily` (a terminal status) as active. | High | 🟢 Fixed 2026-11-23 (`df6fd1d`). | `shared/DATA_MODEL.md` (terminal states) |
 | FT-03 | My Calls card: tapping does not show the specified details (only the header expands; work type, item chips and per-system briefing missing; details need a connection). Same gap as audit A15. Root cause: the card read snake_case fields (`indoor_model`, `order_number`) while the API sends camelCase, only the header was tappable, and the details needed the server. **Fixed 2026-11-23:** whole card taps; built from the Local Visit Draft offline, refreshed online; fields without a data source listed in MY-CALLS-SPEC. | Medium | 🟢 Fixed, device QA pending | `fieldops/MY-CALLS-SPEC.md` (Expanded card) |
-| FT-04 | Photos: offer Take photo and Choose from gallery (today camera only). | Medium | ⏸ Waits for the Day 2 photo test | `shared/PHOTOS-GPS-INTEGRATIONS.md` |
+| FT-04 | Photos: offer Take photo and Choose from gallery (today camera only). | Medium | ⏸ Day 2 photo test passed (camera, GPS OK); the gallery option awaits a decision | `shared/PHOTOS-GPS-INTEGRATIONS.md` |
 | FT-05 | Company form unusable in the field: the link stayed disabled until all 11 required numbers existed (Prestart visits have none). | High | 🟢 Pilot part fixed 2026-11-23 (`4c68b4d`): always opens, prefilling what exists. Deferred to the second round: "Was the form sent?" prompt, sent flag + date (never locks), usage record, Dispatch entry point. | `shared/PHOTOS-GPS-INTEGRATIONS.md`, `fieldops/REPORTS-SPEC.md` |
 | FT-06 | Reports: Download and Company form looked pressed (inset well style) and kept a focus ring after a tap. | Low | 🟢 Fixed 2026-11-23 (`8d70ac7`): raised neutral style; focus ring only for keyboard focus. Device check pending. | `fieldops/DESIGN-SYSTEM.md` |
 | FT-07 | Missing accessory EEV Wire ($10). Added on the pilot by Kristo through the Dispatch Catalog editor (editor test passed): accessory, $10, tech supplied no, per system yes. **Root cause (2026-11-23):** EEV Wire already exists as `Ecoil Wire` (label "EEV Wire"), a UT3000 companion; companions are hidden until their board is on and never listed in the +Add sheet, even by search, so it cannot be added without UT3000. The pilot now has both rows. Seed line not added (it would duplicate the item). **Fixed 2026-11-25 (Kristo's decision):** renamed "EEV Wire" everywhere (migration 036 removes the unused duplicate and moves every reference; report text unchanged); EEV Wire, only, can also be added on its own from +Add. | Low | 🟢 Fixed, device QA pending | `workspace/ACC-SPEC.md`, `frontend/pwa/src/lib/acc-fix.mjs` (`sheetTiles`) |
 
 Also from Day 1: Weigh-In typed readings keep at most one decimal (`5e41e5b`, `fieldops/workspace/WEIGHIN-SPEC.md`).
+
+## Field test findings — Day 2 (2026-11-24)
+
+Pilot jobs: 2 completed, 1 cancelled, all Reports accepted by the server at once.
+
+**Passed:** photos with GPS (SCALE and FAN carry location); Company form opens and prefills (FT-05); multi-system accessories.
+
+| ID | Finding | Priority | Status | Reference |
+|---|---|---|---|---|
+| D2-01 | Completed calls stayed in My Calls after Generate Report. Pilot data: the Reports reached the server at once (accepted, status completed), so the card came from the phone: the local recovery step merged into the previous list and never removed a card, and a server answer arriving before the local read was merged with the previous local state. | High | 🟢 Fixed 2026-11-25: the list is rebuilt from its sources; a call with a queued Report leaves at once. Device QA pending | `fieldops/MY-CALLS-SPEC.md` |
+| D2-02 | An open My Calls card collapsed by itself after 10–15 s: every 20 s sync poll re-rendered the list even with no change. | Medium | 🟢 Fixed 2026-11-25: a poll without visit changes leaves the screen; refreshes keep open cards and the scroll. Device QA pending | `fieldops/MY-CALLS-SPEC.md` |
+| D2-03 | Collapsed card: the line under the address read "— · —" (it read field names the server never sends); the sort compared nothing. Kristo: no work type on the collapsed card. | Medium | 🟢 Fixed 2026-11-25: Subdivision · Builder; sort by scheduled time. Device QA pending | `fieldops/MY-CALLS-SPEC.md` (Collapsed card) |
+| D2-04 | Load Sheet Summary ignored quantities changed in FieldOps (it counted only items loaded by expanding a card). | Low | 🟢 Fixed 2026-11-25: reads each call's Local Visit Draft. Device QA pending | `fieldops/MY-CALLS-SPEC.md` (Load Sheet Summary) |
 
 ## Future features (out of current scope)
 
@@ -199,6 +212,9 @@ Also from Day 1: Weigh-In typed readings keep at most one decimal (`5e41e5b`, `f
 8. Technicians table sideways scroll at 768 (FF-11).
 9. First-run quick guide (FF-12).
 10. Acc/Fix: tiles show the name only (no price); selected items listed below as chips with quantity and price. Open decision: if the price is editable, does the technician's price or the catalog win? (relates to FF-03 contractor pricing)
+11. My Calls card (Kristo, Day 2): a quick call button to the contact.
+12. My Calls card (Kristo, Day 2): Company notes collapsed at the bottom of the card.
+13. My Calls card (Kristo, Day 2): the address's visit history, collapsed in the card.
 
 - `SERVICE-MULTISYSTEM-SPEC.md` — rediseño de sección Service multisistema. Especificado, no implementado.
 - `TROUBLESHOOTING-ENGINE-SPEC.md` (F11) — motor de troubleshooting. Especificado, spec a medias (pendiente decisión de schema para umbrales numéricos).
