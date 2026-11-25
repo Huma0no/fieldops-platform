@@ -11,7 +11,8 @@ export function shouldShowMyCallsLoadError (remoteError, visits = []) {
   return Boolean(remoteError) && !visits.some(isActiveVisit)
 }
 
-// Converts durable Local Visit Drafts into the existing My Calls card shape.
+// Converts durable Local Visit Drafts into the My Calls card shape: the
+// server's /visits/mine fields (camelCase), so one card reads both (Day 2).
 // Server records win whenever available; this only enables offline recovery.
 export function localDraftVisits (drafts = [], completionSubmissions = []) {
   const finalizedVisitIds = new Set(
@@ -26,13 +27,14 @@ export function localDraftVisits (drafts = [], completionSubmissions = []) {
       id: draft.id,
       status: draft.status ?? draft.serverStatus ?? 'assigned',
       address: draft.address,
-      scheduled_time: draft.scheduledTime,
-      work_type: draft.workType,
+      scheduledTime: draft.scheduledTime,
+      workType: draft.workType,
       items: draft._items,
-      total_price: draft.totalPrice,
-      is_deferred: draft.isDeferred,
+      totalPrice: draft.totalPrice,
+      isDeferred: draft.isDeferred,
+      hasMultipleSystems: draft.hasMultipleSystems,
       systems: draft.systems,
-      order_number: draft.orderNumber,
+      orderNumber: draft.orderNumber,
     }))
     .filter(isActiveVisit)
 }
@@ -54,6 +56,18 @@ export function myCallsList ({ serverVisits = null, localVisits = [], completion
     .map(entry => entry.visitId))
   return mergeMyCallsVisits(serverVisits ?? [], localVisits)
     .filter(visit => isActiveVisit(visit) && !queued.has(visit.id))
+}
+
+// Deferred calls first, then by scheduled time; a call without a time last.
+export function sortMyCalls (visits = []) {
+  const at = visit => {
+    const time = visit.scheduledTime ? new Date(visit.scheduledTime).getTime() : NaN
+    return Number.isNaN(time) ? Infinity : time
+  }
+  return [
+    ...visits.filter(visit => visit.isDeferred),
+    ...visits.filter(visit => !visit.isDeferred).sort((a, b) => (at(a) === at(b) ? 0 : at(a) < at(b) ? -1 : 1)),
+  ]
 }
 
 export function localMyCallsVisits ({ drafts = [], cachedVisits = [], completionSubmissions = [] } = {}) {

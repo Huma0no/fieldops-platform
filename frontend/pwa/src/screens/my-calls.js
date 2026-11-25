@@ -4,7 +4,7 @@
  *
  * Layout:
  *   Header (title + notification bell)
- *   Visit list (deferred first, then by scheduled_time)
+ *   Visit list (deferred first, then by scheduled time)
  *   Bottom NavBar
  *
  * Exported as default(appEl) per the app.js routing contract.
@@ -18,7 +18,7 @@ import { startSync, forceSync }         from '../lib/sync.js'
 import { NotificationBell, notificationStyles } from '../components/notifications.js'
 import { cacheMyCallsVisits, getActiveTechnicianId, getAllCompletionSubmissions, getAllLocalVisitDrafts, getCachedMyCallsVisits, getCatalog, getLocalVisitDraft, saveLocalVisitDraft } from '../lib/db.js'
 import { confirmedLocalCancelVisitIds, createLocalVisitDraft } from '../lib/workspace-visit.mjs'
-import { localMyCallsVisits, myCallsList, shouldShowMyCallsLoadError } from '../lib/my-calls-visit.mjs'
+import { localMyCallsVisits, myCallsList, shouldShowMyCallsLoadError, sortMyCalls } from '../lib/my-calls-visit.mjs'
 
 // ── Styles (injected once) ─────────────────────────────────
 
@@ -230,13 +230,7 @@ function renderList () {
     return
   }
 
-  // Deferred visits first, then sorted by scheduled_time
-  const sorted = [
-    ...activeVisits.filter(v => v.is_deferred),
-    ...activeVisits.filter(v => !v.is_deferred).sort((a, b) =>
-      new Date(a.scheduled_time) - new Date(b.scheduled_time)
-    ),
-  ]
+  const sorted = sortMyCalls(activeVisits)
 
   // An unchanged call keeps its card element (open state, loaded details);
   // a changed one is rebuilt, open if it was open.

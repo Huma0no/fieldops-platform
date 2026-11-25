@@ -14,6 +14,8 @@ A call leaves the list as soon as its Report is generated, including while the R
 
 Minimal: address, subdivision, builder, and a Navigate button only. No delete/edit. No explicit expand control — tapping anywhere except Navigate expands the card. Navigate opens maps (`https://maps.google.com/maps?q={encoded_address}`) in a new tab.
 
+The line under the address reads **Subdivision · Builder**. The work type is not on the collapsed card; it opens the expanded card (Kristo, 2026-11-25). Cards are ordered deferred first, then by scheduled time; a call without a time goes last.
+
 ## Expanded card
 
 Reveals, in order: work type label (single free-text field, no phase/scope split) → equipment/accessory chips (pre-specified thermostat + accessories + system count, already inserted as real visit items at visit creation) → intake notes line → per-system briefing → **Start Report**, alongside a **Cancel (✕)** entry point. Cancel first uses the shared confirmation dialog; dismissing keeps the technician on the card, while confirmation opens Workspace in durable Cancel mode. A card with a confirmed local Cancel draft, before backend acknowledgement, shows **Cancel Pending** and **Continue Cancel** instead of another Cancel entry point; it resumes the existing Notes/Checklist Cancel mode without another confirmation. Full mechanism: `/docs/fieldops/CANCEL-SPEC.md`.

@@ -30,7 +30,7 @@ export function JobCard ({ visit, isCancelPending = false, expanded: startExpand
   let guidedSource = null   // detail or Local Visit Draft behind fullVisit
 
   const el = document.createElement('div')
-  el.className = `job-card ${visit.is_deferred ? 'job-card--deferred' : ''}`
+  el.className = `job-card ${visit.isDeferred ? 'job-card--deferred' : ''}`
   el.dataset.visitId = visit.id
 
   render()
@@ -47,7 +47,7 @@ export function JobCard ({ visit, isCancelPending = false, expanded: startExpand
     const left = document.createElement('div')
     left.className = 'jc-header-left'
 
-    const badgeEl = Badge(visit.is_deferred ? 'deferred' : visit.status)
+    const badgeEl = Badge(visit.isDeferred ? 'deferred' : visit.status)
     left.appendChild(badgeEl)
 
     const addr = document.createElement('p')
@@ -57,7 +57,8 @@ export function JobCard ({ visit, isCancelPending = false, expanded: startExpand
 
     const meta = document.createElement('p')
     meta.className   = 'jc-meta'
-    meta.textContent = `${visit.builder ?? '—'} · ${formatWorkType(visit.work_type)}`
+    // Subdivision · Builder (MY-CALLS-SPEC); the work type is on the expanded card.
+    meta.textContent = [visit.address?.subdivision, visit.address?.builder].filter(Boolean).join(' · ') || '—'
     left.appendChild(meta)
 
     const right = document.createElement('div')
@@ -65,7 +66,7 @@ export function JobCard ({ visit, isCancelPending = false, expanded: startExpand
 
     const time = document.createElement('span')
     time.className   = 'jc-time'
-    time.textContent = formatTime(visit.scheduled_time)
+    time.textContent = formatTime(visit.scheduledTime)
     right.appendChild(time)
 
     const iconRow = document.createElement('div')
@@ -408,7 +409,7 @@ function detailRow (label, value, valueClass) {
 function buildTags (visit) {
   const tags = []
   if (visit.is_a2l)          tags.push(Tag('A2L', 'signal'))
-  if (visit.has_multiple_systems) tags.push(Tag('Multi-system', 'default'))
+  if (visit.hasMultipleSystems) tags.push(Tag('Multi-system', 'default'))
   if (visit.is_urgent)       tags.push(Tag('Urgent', 'heat'))
   return tags
 }

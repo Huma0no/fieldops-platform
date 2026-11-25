@@ -21,7 +21,7 @@ describe('My Calls Local Visit Draft recovery', () => {
       scheduledTime: '2026-08-23T09:00:00Z', workType: 'AC Startup', _items: [], totalPrice: 20,
     }] })
     expect(result).toEqual([expect.objectContaining({
-      id: 'offline-visit', status: 'in_progress', scheduled_time: '2026-08-23T09:00:00Z', total_price: 20,
+      id: 'offline-visit', status: 'in_progress', scheduledTime: '2026-08-23T09:00:00Z', totalPrice: 20,
     })])
   })
 
@@ -40,7 +40,7 @@ describe('My Calls Local Visit Draft recovery', () => {
       id: 'cancel-pending', status: 'in_progress', address: { street: '200 Cancel Way' }, _items: [], totalPrice: 0,
       _cancelMode: { confirmed: true },
     }] })
-    expect(result).toEqual([expect.objectContaining({ id: 'cancel-pending', status: 'in_progress', total_price: 0 })])
+    expect(result).toEqual([expect.objectContaining({ id: 'cancel-pending', status: 'in_progress', totalPrice: 0 })])
   })
 
   it('excludes local work after a pending or delivered completion snapshot', () => {
@@ -107,6 +107,19 @@ describe('My Calls list after Generate Report (Day 2)', () => {
       completionSubmissions: [{ visitId: 'reopened', lifecycle: 'delivered' }],
     })
     expect(list.map(v => [v.id, v.status])).toEqual([['reopened', 'assigned']])
+  })
+})
+
+describe('My Calls order (Day 2)', () => {
+  it('puts deferred calls first, then sorts by scheduled time, a call without one last', async () => {
+    const { sortMyCalls } = await import('../frontend/pwa/src/lib/my-calls-visit.mjs')
+    const sorted = sortMyCalls([
+      { id: 'late', scheduledTime: '2026-11-25T08:30:00' },
+      { id: 'none', scheduledTime: null },
+      { id: 'deferred', isDeferred: true, scheduledTime: '2026-11-25T09:00:00' },
+      { id: 'early', scheduledTime: '2026-11-25T07:30:00' },
+    ])
+    expect(sorted.map(v => v.id)).toEqual(['deferred', 'early', 'late', 'none'])
   })
 })
 
