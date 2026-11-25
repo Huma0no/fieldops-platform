@@ -42,6 +42,9 @@ let loadSheetOpen = false
 let loadError     = null
 let cancelPendingVisitIds = new Set()
 let loadSequence = 0
+// Open cards and their elements survive list refreshes (Day 2).
+const expandedVisitIds = new Set()
+let cardsByVisitId = new Map()   // id -> { key, el }
 
 // ── Mount ──────────────────────────────────────────────────
 
@@ -86,6 +89,8 @@ export default function mount (appEl) {
   // carried over from an earlier visit to this screen.
   visits = []
   serverVisits = null
+  cardsByVisitId = new Map()
+  expandedVisitIds.clear()
   isLoading = true
   loadVisits()
 
@@ -193,27 +198,13 @@ async function refreshLocalDraftState (activeTechnicianId = getActiveTechnicianI
 }
 
 
+// A poll with no visit change leaves the screen as it is (Day 2: the
+// re-render every 20 s collapsed open cards); a change reloads the list.
 function onSyncUpdate (e) {
-  const { visits: updated } = e.detail ?? {}
-  if (!updated) return
-
-  // Merge updated visits into local state
-  updated.forEach(v => {
-    const idx = visits.findIndex(x => x.id === v.id)
-    if (idx >= 0) {
-      visits[idx] = { ...visits[idx], ...v }
-    } else {
-      visits.push(v)
-    }
-  })
-
-  // Remove visits no longer assigned to this technician
-  if (e.detail.removedVisitIds?.length) {
-    visits = visits.filter(v => !e.detail.removedVisitIds.includes(v.id))
-  }
-
-  renderList()
-  renderLoadSheet()
+  const { visits: updated, removedVisitIds } = e.detail ?? {}
+  if (!updated?.length && !removedVisitIds?.length) return
+  if (!document.getElementById('visit-list')) return
+  loadVisits()
 }
 
 // ── Render ─────────────────────────────────────────────────
@@ -221,6 +212,8 @@ function onSyncUpdate (e) {
 function renderList () {
   const listEl = document.getElementById('visit-list')
   if (!listEl) return
+  const scrollEl = document.getElementById('visit-scroll')
+  const scrollTop = scrollEl?.scrollTop ?? 0
   listEl.innerHTML = ''
 
   if (isLoading) {
@@ -245,17 +238,31 @@ function renderList () {
     ),
   ]
 
+  // An unchanged call keeps its card element (open state, loaded details);
+  // a changed one is rebuilt, open if it was open.
+  const nextCards = new Map()
   sorted.forEach(visit => {
-    const card = JobCard({
+    const isCancelPending = cancelPendingVisitIds.has(visit.id)
+    const { items, ...summary } = visit
+    const key = JSON.stringify([summary, isCancelPending])
+    const kept = cardsByVisitId.get(visit.id)
+    const reuse = kept?.key === key
+    if (reuse) visit.items ??= kept.visit.items
+    const card = reuse ? kept.el : JobCard({
       visit,
-      isCancelPending: cancelPendingVisitIds.has(visit.id),
+      isCancelPending,
+      expanded:        expandedVisitIds.has(visit.id),
+      onExpandedChange: (id, open) => { if (open) expandedVisitIds.add(id); else expandedVisitIds.delete(id) },
       onStart:         () => loadVisits(),   // reload after start
       onOpenWorkspace: id  => navigateTo(`/workspace?id=${id}`),
       onNavigate:      route => navigateTo(route),
       onItemsLoaded:   () => renderLoadSheet(),
     })
+    nextCards.set(visit.id, { key, el: card, visit: reuse ? kept.visit : visit })
     listEl.appendChild(card)
   })
+  cardsByVisitId = nextCards
+  if (scrollEl) scrollEl.scrollTop = scrollTop
 }
 
 // ── Load Sheet Summary ──────────────────────────────────────

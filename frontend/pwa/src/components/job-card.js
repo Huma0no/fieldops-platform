@@ -23,7 +23,7 @@ import { getCatalog, getLocalVisitDraft } from '../lib/db.js'
 import { myCallsBriefing } from '../lib/my-calls-visit.mjs'
 import { formatLbOz } from '../lib/lineset.mjs'
 
-export function JobCard ({ visit, isCancelPending = false, onStart, onOpenWorkspace, onNavigate, onItemsLoaded }) {
+export function JobCard ({ visit, isCancelPending = false, expanded: startExpanded = false, onExpandedChange, onStart, onOpenWorkspace, onNavigate, onItemsLoaded }) {
   let expanded  = false
   let fullVisit = null   // loaded on first expand
   let loading   = false
@@ -34,6 +34,8 @@ export function JobCard ({ visit, isCancelPending = false, onStart, onOpenWorksp
   el.dataset.visitId = visit.id
 
   render()
+  // A card rebuilt by a list refresh opens as it was (Day 2).
+  if (startExpanded) toggleExpand()
 
   function render () {
     el.innerHTML = ''
@@ -216,9 +218,10 @@ export function JobCard ({ visit, isCancelPending = false, onStart, onOpenWorksp
   el.addEventListener('click', toggleExpand)
 
   async function toggleExpand (e) {
-    if (e.target.closest('button, a')) return
+    if (e?.target.closest('button, a')) return
 
     expanded = !expanded
+    onExpandedChange?.(visit.id, expanded)
 
     if (expanded && !fullVisit) {
       loading = true

@@ -8,7 +8,7 @@
 
 The technician's list of assigned visits — the entry point into a job.
 
-A call leaves the list as soon as its Report is generated, including while the Report is still queued on the phone (Day 2, 2026-11-25). The list is rebuilt from the server's active calls and the phone's downloaded calls on every refresh.
+A call leaves the list as soon as its Report is generated, including while the Report is still queued on the phone (Day 2, 2026-11-25). The list is rebuilt from the server's active calls and the phone's downloaded calls on every refresh. A refresh (pull, or a sync that brings a visit change) keeps open cards open and the scroll position; a sync with no visit change leaves the screen untouched.
 
 ## Collapsed card
 
