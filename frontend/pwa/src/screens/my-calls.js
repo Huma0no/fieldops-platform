@@ -18,7 +18,7 @@ import { startSync, forceSync }         from '../lib/sync.js'
 import { NotificationBell, notificationStyles } from '../components/notifications.js'
 import { cacheMyCallsVisits, getActiveTechnicianId, getAllCompletionSubmissions, getAllLocalVisitDrafts, getCachedMyCallsVisits, getCatalog, getLocalVisitDraft, saveLocalVisitDraft } from '../lib/db.js'
 import { confirmedLocalCancelVisitIds, createLocalVisitDraft } from '../lib/workspace-visit.mjs'
-import { localMyCallsVisits, myCallsList, shouldShowMyCallsLoadError, sortMyCalls } from '../lib/my-calls-visit.mjs'
+import { localMyCallsVisits, myCallsList, loadSheetSummary, shouldShowMyCallsLoadError, sortMyCalls } from '../lib/my-calls-visit.mjs'
 
 // ── Styles (injected once) ─────────────────────────────────
 
@@ -262,28 +262,7 @@ function renderList () {
 // ── Load Sheet Summary ──────────────────────────────────────
 
 function aggregateLoadSheet () {
-  const activeVisits = visits.filter(
-    v => ['assigned', 'in_progress'].includes(v.status)
-  )
-
-  const totals = new Map()   // itemName -> qty
-  let allLoaded = true
-
-  activeVisits.forEach(v => {
-    if (!v.items) { allLoaded = false; return }
-    v.items
-      .filter(i => i.category === 'thermostat' || i.category === 'accessory')
-      .forEach(i => {
-        totals.set(i.itemName, (totals.get(i.itemName) ?? 0) + (i.quantity ?? 0))
-      })
-  })
-
-  const rows = [...totals.entries()]
-    .map(([name, qty]) => ({ name, qty }))
-    .sort((a, b) => a.name.localeCompare(b.name))
-  const totalCount = rows.reduce((sum, r) => sum + r.qty, 0)
-
-  return { rows, totalCount, allLoaded, activeCount: activeVisits.length }
+  return loadSheetSummary(visits.filter(v => ['assigned', 'in_progress'].includes(v.status)), localDrafts)
 }
 
 function renderLoadSheet () {

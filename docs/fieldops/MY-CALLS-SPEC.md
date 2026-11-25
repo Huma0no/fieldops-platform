@@ -28,7 +28,7 @@ When one card is expanded, sibling cards visually recede. The active job's addre
 
 ## Load Sheet Summary
 
-Collapsed by default, at the foot of the card list. Aggregates thermostats + accessories (not refrigerant) across all visible jobs, with quantities; collapsed header shows a total piece count. Shows a hint to expand cards if not all visits have been fetched yet.
+Collapsed by default, at the foot of the card list. Aggregates thermostats + accessories (not refrigerant) across all visible jobs, with quantities, from each call's current items (its Local Visit Draft when downloaded, so a quantity changed in FieldOps shows here; Day 2, 2026-11-25); collapsed header shows a total piece count. Shows a hint to expand cards if not all visits have been fetched yet.
 
 ## Start Report
 

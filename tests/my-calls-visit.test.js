@@ -123,6 +123,26 @@ describe('My Calls order (Day 2)', () => {
   })
 })
 
+describe('Load Sheet Summary (Day 2)', () => {
+  it("uses each call's current items: the Local Visit Draft when present, else the loaded items", async () => {
+    const { loadSheetSummary } = await import('../frontend/pwa/src/lib/my-calls-visit.mjs')
+    const visits = [
+      { id: 'edited', items: [{ itemName: 'S900B', category: 'thermostat', quantity: 1 }] },
+      { id: 'server-only', items: [{ itemName: 'Float Switch', category: 'accessory', quantity: 1 }, { itemName: 'Pressure Test', category: 'fix', quantity: 1 }] },
+      { id: 'not-loaded' },
+    ]
+    const drafts = [{ id: 'edited', _items: [
+      { item_name: 'S900B', category: 'thermostat', quantity: 2 },
+      { item_name: 'Float Switch', category: 'accessory', quantity: 1 },
+    ] }]
+    expect(loadSheetSummary(visits, drafts)).toEqual({
+      rows: [{ name: 'Float Switch', qty: 2 }, { name: 'S900B', qty: 2 }],
+      totalCount: 4, allLoaded: false, activeCount: 3,
+    })
+    expect(loadSheetSummary(visits.slice(0, 2), drafts).allLoaded).toBe(true)
+  })
+})
+
 describe('My Calls expanded card briefing (FT-03)', () => {
   let myCallsBriefing
 

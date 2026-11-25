@@ -58,6 +58,29 @@ export function myCallsList ({ serverVisits = null, localVisits = [], completion
     .filter(visit => isActiveVisit(visit) && !queued.has(visit.id))
 }
 
+// Load Sheet Summary: thermostats + accessories across the listed calls, from
+// each call's current items — its Local Visit Draft when the phone has one
+// (quantities changed in FieldOps), else the items loaded from the server.
+export function loadSheetSummary (visits = [], drafts = []) {
+  const draftItems = new Map(drafts.map(draft => [draft.id, draft._items]))
+  const totals = new Map()
+  let allLoaded = true
+  visits.forEach(visit => {
+    const items = draftItems.get(visit.id) ?? visit.items
+    if (!items) { allLoaded = false; return }
+    items
+      .filter(item => item.category === 'thermostat' || item.category === 'accessory')
+      .forEach(item => {
+        const name = item.itemName ?? item.item_name
+        totals.set(name, (totals.get(name) ?? 0) + Number(item.quantity ?? 0))
+      })
+  })
+  const rows = [...totals.entries()]
+    .map(([name, qty]) => ({ name, qty }))
+    .sort((a, b) => a.name.localeCompare(b.name))
+  return { rows, totalCount: rows.reduce((sum, row) => sum + row.qty, 0), allLoaded, activeCount: visits.length }
+}
+
 // Deferred calls first, then by scheduled time; a call without a time last.
 export function sortMyCalls (visits = []) {
   const at = visit => {
