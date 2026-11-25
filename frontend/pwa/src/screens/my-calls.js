@@ -18,7 +18,7 @@ import { startSync, forceSync }         from '../lib/sync.js'
 import { NotificationBell, notificationStyles } from '../components/notifications.js'
 import { cacheMyCallsVisits, getActiveTechnicianId, getAllCompletionSubmissions, getAllLocalVisitDrafts, getCachedMyCallsVisits, getCatalog, getLocalVisitDraft, saveLocalVisitDraft } from '../lib/db.js'
 import { confirmedLocalCancelVisitIds, createLocalVisitDraft } from '../lib/workspace-visit.mjs'
-import { localMyCallsVisits, mergeMyCallsVisits, shouldShowMyCallsLoadError } from '../lib/my-calls-visit.mjs'
+import { localMyCallsVisits, myCallsList, shouldShowMyCallsLoadError } from '../lib/my-calls-visit.mjs'
 
 // ── Styles (injected once) ─────────────────────────────────
 
@@ -82,7 +82,11 @@ export default function mount (appEl) {
   // Pull-to-refresh
   setupPullToRefresh(scrollArea)
 
-  // Initial load
+  // Initial load: the list is rebuilt from the server and the phone, never
+  // carried over from an earlier visit to this screen.
+  visits = []
+  serverVisits = null
+  isLoading = true
   loadVisits()
 
   // Start sync — updates arrive via 'sync:update' event
@@ -93,18 +97,23 @@ export default function mount (appEl) {
 
 // ── Data ───────────────────────────────────────────────────
 
+// Day 2: the list is recomposed from its sources each time; merging into the
+// previous list kept finished calls whose Report was already delivered.
+function composeVisits () {
+  visits = myCallsList({ serverVisits, localVisits, completionSubmissions })
+}
+
 async function loadVisits () {
   const sequence = ++loadSequence
   const activeTechnicianId = getActiveTechnicianId()
-  isLoading = true
   renderList()
   renderLoadSheet()
 
   // Local draft recovery is independent of server refresh and outbox retry.
   // It must be able to end the skeleton state even when the API is offline.
-  void refreshLocalDraftState(activeTechnicianId).then(() => {
+  const localRead = refreshLocalDraftState(activeTechnicianId).then(() => {
     if (sequence !== loadSequence) return
-    visits = mergeMyCallsVisits(visits, localVisits)
+    composeVisits()
     if (isLoading) isLoading = false
     renderList()
     renderLoadSheet()
@@ -112,15 +121,22 @@ async function loadVisits () {
 
   try {
     const remoteVisits = await api.get('/visits/mine')
+    // Compose with this load's local state, never the previous one.
+    await localRead
     if (sequence !== loadSequence) return
-    visits = mergeMyCallsVisits(remoteVisits, localVisits)
+    serverVisits = remoteVisits
+    composeVisits()
     loadError = null
     // A cache write cannot delay rendering or turn a working server response
     // into an error state. It is only used by the next offline boot.
     void cacheMyCallsVisits(remoteVisits, activeTechnicianId).catch(err => console.error('Failed to cache My Calls:', err))
     void downloadVisitDrafts(remoteVisits, activeTechnicianId)
   } catch (err) {
+    await localRead
     if (sequence !== loadSequence) return
+    // Unreachable: the phone's downloaded calls only.
+    serverVisits = null
+    composeVisits()
     loadError = err
     console.error('Failed to load visits:', err)
   } finally {
@@ -133,6 +149,8 @@ async function loadVisits () {
 
 let localDrafts = []
 let localVisits = []
+let serverVisits = null   // this load's /visits/mine; null when unreachable
+let completionSubmissions = []
 
 // Offline-first download (docs/OFFLINE-FIRST-CONTRACT.md): while the server is
 // reachable, every active call without a Local Visit Draft gets one, so it can
@@ -154,13 +172,14 @@ async function downloadVisitDrafts (remoteVisits, technicianId) {
 
 async function refreshLocalDraftState (activeTechnicianId = getActiveTechnicianId()) {
   try {
-    const [drafts, cachedVisits, completionSubmissions] = await Promise.all([
+    const [drafts, cachedVisits, submissions] = await Promise.all([
       getAllLocalVisitDrafts(activeTechnicianId),
       getCachedMyCallsVisits(activeTechnicianId),
       getAllCompletionSubmissions(activeTechnicianId),
     ])
     localDrafts = drafts
-    localVisits = localMyCallsVisits({ drafts, cachedVisits, completionSubmissions })
+    completionSubmissions = submissions
+    localVisits = localMyCallsVisits({ drafts, cachedVisits, completionSubmissions: submissions })
     cancelPendingVisitIds = confirmedLocalCancelVisitIds(localDrafts)
   } catch (err) {
     // A local read failure must not alter shared visit state or imply
@@ -168,6 +187,7 @@ async function refreshLocalDraftState (activeTechnicianId = getActiveTechnicianI
     console.error('Failed to read local My Calls data:', err)
     localDrafts = []
     localVisits = []
+    completionSubmissions = []
     cancelPendingVisitIds = new Set()
   }
 }

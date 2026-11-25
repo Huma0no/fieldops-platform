@@ -44,6 +44,18 @@ export function mergeMyCallsVisits (serverVisits = [], localVisits = []) {
   return [...serverVisits, ...localVisits.filter(visit => !known.has(visit.id))]
 }
 
+// The My Calls list, rebuilt from its sources on every refresh (Day 2): the
+// server's active calls (null when unreachable) plus the phone's downloaded
+// calls. A call whose Report is generated and still queued on the phone
+// leaves the list at once, even though the server still lists it.
+export function myCallsList ({ serverVisits = null, localVisits = [], completionSubmissions = [] } = {}) {
+  const queued = new Set(completionSubmissions
+    .filter(entry => entry.lifecycle === 'pending')
+    .map(entry => entry.visitId))
+  return mergeMyCallsVisits(serverVisits ?? [], localVisits)
+    .filter(visit => isActiveVisit(visit) && !queued.has(visit.id))
+}
+
 export function localMyCallsVisits ({ drafts = [], cachedVisits = [], completionSubmissions = [] } = {}) {
   const draftsAsVisits = localDraftVisits(drafts, completionSubmissions)
   const finalizedVisitIds = new Set(

@@ -74,6 +74,42 @@ describe('My Calls Local Visit Draft recovery', () => {
   })
 })
 
+describe('My Calls list after Generate Report (Day 2)', () => {
+  let myCallsList
+
+  beforeAll(async () => {
+    ({ myCallsList } = await import('../frontend/pwa/src/lib/my-calls-visit.mjs'))
+  })
+
+  const call = (id, status = 'in_progress') => ({ id, status, address: { street: id } })
+
+  it('drops a call whose Report is generated, even while the server still lists it (queued offline)', () => {
+    const list = myCallsList({
+      serverVisits: [call('reported'), call('open', 'assigned')],
+      localVisits: [],
+      completionSubmissions: [{ visitId: 'reported', lifecycle: 'pending' }],
+    })
+    expect(list.map(v => v.id)).toEqual(['open'])
+  })
+
+  it('is rebuilt from its sources, so a card never outlives them', () => {
+    // The server no longer lists the delivered call and the phone has no
+    // local copy of it: nothing keeps it.
+    expect(myCallsList({ serverVisits: [call('open')], localVisits: [] }).map(v => v.id)).toEqual(['open'])
+    // Offline: the downloaded calls only.
+    expect(myCallsList({ serverVisits: null, localVisits: [call('cached')] }).map(v => v.id)).toEqual(['cached'])
+  })
+
+  it('keeps the server list authoritative for delivered Reports and inactive statuses', () => {
+    const list = myCallsList({
+      serverVisits: [call('reopened', 'assigned'), call('done', 'completed')],
+      localVisits: [call('reopened')],
+      completionSubmissions: [{ visitId: 'reopened', lifecycle: 'delivered' }],
+    })
+    expect(list.map(v => [v.id, v.status])).toEqual([['reopened', 'assigned']])
+  })
+})
+
 describe('My Calls expanded card briefing (FT-03)', () => {
   let myCallsBriefing
 

@@ -8,6 +8,8 @@
 
 The technician's list of assigned visits — the entry point into a job.
 
+A call leaves the list as soon as its Report is generated, including while the Report is still queued on the phone (Day 2, 2026-11-25). The list is rebuilt from the server's active calls and the phone's downloaded calls on every refresh.
+
 ## Collapsed card
 
 Minimal: address, subdivision, builder, and a Navigate button only. No delete/edit. No explicit expand control — tapping anywhere except Navigate expands the card. Navigate opens maps (`https://maps.google.com/maps?q={encoded_address}`) in a new tab.
