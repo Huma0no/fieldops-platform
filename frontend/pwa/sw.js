@@ -11,7 +11,7 @@
  * assets; a test fails when the stamp is stale. Do not edit it by hand.
  */
 
-const SHELL_CACHE  = 'fieldops-shell-69b909afa864'
+const SHELL_CACHE  = 'fieldops-shell-f98a986209ce'
 const CATALOG_CACHE = 'fieldops-catalog-v1'
 
 const SHELL_ASSETS = [

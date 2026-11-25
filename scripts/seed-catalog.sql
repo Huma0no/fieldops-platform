@@ -55,7 +55,7 @@ VALUES
   ('AprilAir',            'accessory',  10,   false, false, false,  null),
   ('RDS',                 'accessory',  10,   true,  true,  false,  null),
   ('Trane Harness',       'accessory',  10,   false, true,  false,  null),
-  ('Ecoil Wire',          'accessory',  10,   false, true,  false,  null),
+  ('EEV Wire',            'accessory',  10,   false, true,  false,  null),
   ('LP Kit Lennox 1stg',  'accessory',  20,   true,  true,  false,  null),
   ('LP Kit Lennox 2stg',  'accessory',  20,   true,  true,  false,  null),
   ('LP Kit Goodman',      'accessory',  20,   true,  true,  false,  null),
@@ -112,7 +112,6 @@ ON CONFLICT (item_name) DO NOTHING;
 -- 2c. W2 Acc + Fix: labels, sub-option groups, default template, wide tiles
 --     (same values as migration 032).
 -- Labels (keys untouched).
-UPDATE catalog_items SET label = 'EEV Wire'   WHERE item_name = 'Ecoil Wire';
 UPDATE catalog_items SET label = 'Open eCoil' WHERE item_name = 'Open Ecoil';
 UPDATE catalog_items SET label = 'Weigh-in'   WHERE item_name = 'Weight-In-Data';
 
@@ -149,7 +148,7 @@ UPDATE catalog_items SET tile_wide = true WHERE item_name IN ('UT3000', 'Harmony
 --
 --    Companions (auto-activate when trigger is selected):
 --      HZ322  → Bypass
---      UT3000 → DAPC, eBypass, Ecoil Wire
+--      UT3000 → DAPC, eBypass, EEV Wire
 --
 --    Zone board exclusion group (mutually exclusive):
 --      HZ322 ↔ Harmony ↔ UT3000 — all 6 directional pairs
@@ -160,7 +159,7 @@ WITH to_insert (item_name, relation_type, related_item_name, exclusion_group_id)
     ('HZ322',   'companion',       'Bypass',      null::text),
     ('UT3000',  'companion',       'DAPC',         null),
     ('UT3000',  'companion',       'eBypass',      null),
-    ('UT3000',  'companion',       'Ecoil Wire',   null),
+    ('UT3000',  'companion',       'EEV Wire',     null),
     ('HZ322',   'exclusion_group', 'Harmony',     'zone-boards'),
     ('HZ322',   'exclusion_group', 'UT3000',      'zone-boards'),
     ('Harmony', 'exclusion_group', 'HZ322',       'zone-boards'),

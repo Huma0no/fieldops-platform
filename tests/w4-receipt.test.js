@@ -152,7 +152,7 @@ it('labels lines with catalog labels and sub-options; keys stay in the data (W2)
   const labelCatalog = {
     services: [],
     items: [
-      { item_name: 'Ecoil Wire', category: 'accessory', default_price: 10, label: 'EEV Wire' },
+      { item_name: 'EEV Wire', category: 'accessory', default_price: 10 },
       { item_name: 'LP Kit Goodman', category: 'accessory', default_price: 20, group_label: 'LP Kit', option_label: 'Goodman' },
       { item_name: 'Other', category: 'accessory', custom_price: true },
     ],
@@ -160,7 +160,7 @@ it('labels lines with catalog labels and sub-options; keys stay in the data (W2)
   const model = receiptModel({
     services: [],
     items: [
-      { itemName: 'Ecoil Wire', category: 'accessory', quantity: 2, price: 10 },
+      { itemName: 'EEV Wire', category: 'accessory', quantity: 2, price: 10 },
       { itemName: 'LP Kit Goodman', category: 'accessory', quantity: 1, price: 20 },
       { itemName: 'Other', category: 'accessory', quantity: 1, price: 12, description: 'Drain elbow' },
       { itemName: 'Other', category: 'accessory', quantity: 1, price: 4, description: 'Pan tablet' },
@@ -171,4 +171,10 @@ it('labels lines with catalog labels and sub-options; keys stay in the data (W2)
     { label: 'EEV Wire × 2', amount: 20 }, { label: 'LP Kit · Goodman', amount: 20 },
     { label: 'Drain elbow', amount: 12 }, { label: 'Pan tablet', amount: 4 },
   ] }]);
+  // A Report accepted before the rename (2026-11-25) keeps "Ecoil Wire" in its
+  // snapshot; it still reads EEV Wire.
+  const legacy = receiptModel({
+    services: [], items: [{ itemName: 'Ecoil Wire', category: 'accessory', quantity: 1, price: 10 }], totalPrice: 10,
+  }, { catalog: labelCatalog });
+  expect(legacy.groups[0].lines).toEqual([{ label: 'EEV Wire', amount: 10 }]);
 });

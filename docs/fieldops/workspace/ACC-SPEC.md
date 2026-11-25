@@ -24,7 +24,7 @@ The template replaces the full grid (the full grid is dropped).
 
 ## +Add sheet
 
-Search, then the full catalog (companions ride with their board) with price and usage count ("used N×"):
+Search, then the full catalog (companions ride with their board, except **EEV Wire**, which can also be added on its own — Kristo, 2026-11-25) with price and usage count ("used N×"):
 - **Add** — shows the tile on this call only (and selects it; a group tile opens).
 - **★** — keeps the tile in the template permanently ("suggested" → "yours").
 - **+ Other** — description + $ + ✓. Every ✓ adds a new line: several Others per visit, each with its own description and price. Accessory Others are **TECH SUPPLIED** and never enter the catalog.
@@ -47,7 +47,7 @@ Selected lines show **×N with − / +** (no upper limit; 1 is the lowest, tap t
 
 ## Labels
 
-Labels only; catalog keys and history are unchanged (`catalog_items.label`): "Ecoil Wire" shows as **EEV Wire** (report text "EEV Wire"), "Weight-In-Data" as **Weigh-in**.
+Labels only; catalog keys and history are unchanged (`catalog_items.label`): "Weight-In-Data" shows as **Weigh-in**. **EEV Wire** is the catalog name itself since 2026-11-25 (formerly "Ecoil Wire" with that label; report text "EEV Wire" unchanged; migration 036).
 
 ## Running total
 

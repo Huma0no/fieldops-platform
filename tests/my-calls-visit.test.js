@@ -157,7 +157,7 @@ describe('My Calls expanded card briefing (FT-03)', () => {
       { model: 'EL296V', unit_type: 'furnace', brand: 'Lennox', refrigerant: null, btu: null, pesp: 0.5, charges: [] },
     ],
     manufacturers: [{ name: 'Lennox', oz_per_ft: 0.6, default_length_ft: 30 }],
-    catalogItems: [{ item_name: 'Ecoil Wire', label: 'EEV Wire' }, { item_name: 'UT3000', label: null }],
+    catalogItems: [{ item_name: 'Float Switch', label: 'Float SW' }, { item_name: 'UT3000', label: null }],
   }
 
   it('builds the card from the server detail: work type, chips, notes and per-system briefing', () => {
@@ -166,9 +166,10 @@ describe('My Calls expanded card briefing (FT-03)', () => {
       companyNotes: 'Gate code 1234',
       items: [
         { itemName: 'UT3000', category: 'accessory', quantity: 1 },
-        { itemName: 'Ecoil Wire', category: 'accessory', quantity: 2 },
+        { itemName: 'EEV Wire', category: 'accessory', quantity: 2 },
         { itemName: 'T6 Pro', category: 'thermostat', quantity: 2 },
         { itemName: 'Pressure Test', category: 'fix', quantity: 1 },
+        { itemName: 'Float Switch', category: 'accessory', quantity: 1 },
       ],
       systems: [{ systemNumber: 1, indoorModel: 'EL296V', outdoorModel: 'ML14KC1-036', refrigerant: null }],
     }, catalog)
@@ -177,9 +178,10 @@ describe('My Calls expanded card briefing (FT-03)', () => {
     // Fixes are work, not pre-specified load: no chip.
     expect(briefing.chips).toEqual([
       { label: 'UT3000', quantity: 1 }, { label: 'EEV Wire', quantity: 2 }, { label: 'T6 Pro', quantity: 2 },
+      { label: 'Float SW', quantity: 1 },
     ])
-    expect(briefing.items).toHaveLength(4)
-    expect(briefing.items[1]).toEqual({ itemName: 'Ecoil Wire', category: 'accessory', quantity: 2 })
+    expect(briefing.items).toHaveLength(5)
+    expect(briefing.items[1]).toEqual({ itemName: 'EEV Wire', category: 'accessory', quantity: 2 })
     expect(briefing.systems).toEqual([{
       systemNumber: 1,
       indoorModel: 'EL296V', indoorType: 'Furnace',
@@ -194,14 +196,14 @@ describe('My Calls expanded card briefing (FT-03)', () => {
   it('reads the Local Visit Draft the same way (offline), and leaves unknown values empty', () => {
     const briefing = myCallsBriefing({
       workType: 'prestart', companyNotes: null,
-      _items: [{ item_name: 'Ecoil Wire', category: 'accessory', quantity: 1 }],
+      _items: [{ item_name: 'EEV Wire', category: 'accessory', quantity: 1 }],
       systems: [
         { systemNumber: 1, indoorModel: 'Typed indoor', outdoorModel: 'Typed outdoor', refrigerant: 'R-410A' },
         { systemNumber: 2, indoorModel: null, outdoorModel: null, refrigerant: null },
       ],
     }, catalog)
     expect(briefing.chips).toEqual([{ label: 'EEV Wire', quantity: 1 }])
-    expect(briefing.items).toEqual([{ itemName: 'Ecoil Wire', category: 'accessory', quantity: 1 }])
+    expect(briefing.items).toEqual([{ itemName: 'EEV Wire', category: 'accessory', quantity: 1 }])
     expect(briefing.notes).toBeNull()
     expect(briefing.systems[0]).toEqual({
       systemNumber: 1, indoorModel: 'Typed indoor', indoorType: null, outdoorModel: 'Typed outdoor', outdoorType: null,

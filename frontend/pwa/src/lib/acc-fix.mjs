@@ -103,12 +103,16 @@ export function tilePriceLabel (tile) {
   return tile.minPrice === tile.price ? fmt(tile.price) : `${fmt(tile.minPrice)}–${fmt(tile.price).slice(1)}`
 }
 
+// Companions the technician can also add on their own from +Add (Kristo,
+// 2026-11-25); the others ride with their board.
+const SHEET_COMPANIONS = new Set(['EEV Wire'])
+
 // The +Add sheet: every tile (companions ride with their board), filtered by
 // a search on the tile label, its options or the catalog name.
 export function sheetTiles (tiles, query = '') {
   const q = query.trim().toLowerCase()
   return tiles
-    .filter(tile => !tile.companionOf)
+    .filter(tile => !tile.companionOf || SHEET_COMPANIONS.has(tile.key))
     .filter(tile => !q || [tile.label, ...tile.items.flatMap(item => [item.item_name, item.label, item.option_label])]
       .some(text => text && text.toLowerCase().includes(q)))
     .sort((a, b) => a.label.localeCompare(b.label))

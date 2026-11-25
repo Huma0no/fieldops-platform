@@ -3,7 +3,8 @@
 // for Reports → View report, online or offline.
 import { priceVisit, WEIGHT_IN_DATA } from '../../../shared/pricing.mjs'
 
-const ITEM_LABELS = { [WEIGHT_IN_DATA]: 'Weigh-in' }
+// "Ecoil Wire": EEV Wire's name before 2026-11-25, kept in earlier Reports.
+const ITEM_LABELS = { [WEIGHT_IN_DATA]: 'Weigh-in', 'Ecoil Wire': 'EEV Wire' }
 const GROUPS = [['thermostat', 'T-STAT'], ['accessory', 'ACCESSORIES'], ['fix', 'FIX']]
 
 function serviceLabel (row, multiSystem) {

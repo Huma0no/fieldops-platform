@@ -93,7 +93,7 @@ Accessories, fixes, and thermostats — the single source for default pricing, r
 | expected_price_min | real | Lower bound for anomaly detection — null if not applicable |
 | expected_price_max | real | Upper bound for anomaly detection — null if not applicable |
 | finish_addon_price | real | Extra amount added when this specific item is selected together with the Finish modifier on the same visit (e.g. Weigh-In-Data + Finish = +$10). It contributes to the item's resolved `visit_items.price`, rather than being a separate report-only amount. Lives here rather than on catalog_services because the addon is tied to which accessory is present, not to the service itself. |
-| label | text, nullable | Workspace display label when it differs from `item_name` (e.g. "EEV Wire" for `Ecoil Wire`, "Open eCoil", "Weigh-in"). The key and report history keep `item_name` (W2). |
+| label | text, nullable | Workspace display label when it differs from `item_name` (e.g. "Open eCoil", "Weigh-in"). The key and report history keep `item_name` (W2). |
 | group_label | text, nullable | Parent tile for a sub-option (e.g. "LP Kit", "Leaks", "Ext. Wire"). The tile itself is never a line; each chosen option is its own line at its own price (W2). |
 | option_label | text, nullable | The sub-option's label inside its group tile (e.g. "Lennox 1Stg", "eCoil", "Furnace"). |
 | template_rank | integer, nullable | Default Acc/Fix template for a technician with no history: 1 = first. A group tile takes the rank of its options (W2). |

@@ -11,7 +11,7 @@ describe('Acc + Fix template', () => {
     item('UT3000', 30, { template_rank: 1, tile_wide: true }),
     item('HZ322', 30, { template_rank: 2 }),
     item('Harmony', 40, { tile_wide: true }),
-    item('DAPC', 10), item('Ecoil Wire', 10, { label: 'EEV Wire' }), item('eBypass', 10), item('Bypass', 5),
+    item('DAPC', 10), item('EEV Wire', 10), item('eBypass', 10), item('Bypass', 5),
     item('FIN180P', 10, { template_rank: 3 }),
     item('Float Switch', 5, { template_rank: 4 }),
     item('Weight-In-Data', 10, { template_rank: 5, label: 'Weigh-in' }),
@@ -25,7 +25,7 @@ describe('Acc + Fix template', () => {
     { item_name: 'Pressure Test', category: 'fix', default_price: 10, template_rank: 1 },
   ]
   const relations = [
-    ...['DAPC', 'Ecoil Wire', 'eBypass'].map(related_item_name => ({ item_name: 'UT3000', relation_type: 'companion', related_item_name })),
+    ...['DAPC', 'EEV Wire', 'eBypass'].map(related_item_name => ({ item_name: 'UT3000', relation_type: 'companion', related_item_name })),
     { item_name: 'HZ322', relation_type: 'companion', related_item_name: 'Bypass' },
   ]
   const keys = tiles => tiles.map(tile => tile.key)
@@ -35,7 +35,7 @@ describe('Acc + Fix template', () => {
     const byKey = Object.fromEntries(tiles.map(tile => [tile.key, tile]))
     expect(byKey['LP Kit']).toMatchObject({ label: 'LP Kit', group: true, wide: true, price: 20 })
     expect(byKey['LP Kit'].items.map(i => i.option_label)).toEqual(['Lennox 1Stg', 'Goodman'])
-    expect(byKey['Ecoil Wire']).toMatchObject({ label: 'EEV Wire', companionOf: 'UT3000' })
+    expect(byKey['EEV Wire']).toMatchObject({ label: 'EEV Wire', companionOf: 'UT3000' })
     expect(byKey.UT3000).toMatchObject({ wide: true, board: true })
     expect(byKey.Other).toBeUndefined()
     expect(byKey.Retired).toBeUndefined()
@@ -60,19 +60,21 @@ describe('Acc + Fix template', () => {
     const shown = m.visibleTiles(tiles, {
       templateKeys: ['Float Switch', 'FIN180P'],
       addedKeys: ['RDS'],
-      selectedNames: ['UT3000', 'DAPC', 'Ecoil Wire', 'eBypass'],
+      selectedNames: ['UT3000', 'DAPC', 'EEV Wire', 'eBypass'],
       preIdentified: ['Harmony'],
     })
-    expect(keys(shown)).toEqual(['Harmony', 'UT3000', 'DAPC', 'Ecoil Wire', 'eBypass', 'FIN180P', 'RDS', 'Float Switch'])
+    expect(keys(shown)).toEqual(['Harmony', 'UT3000', 'DAPC', 'EEV Wire', 'eBypass', 'FIN180P', 'RDS', 'Float Switch'])
     // A companion selected on its own (board off) still shows; others stay hidden.
     expect(keys(m.visibleTiles(tiles, { selectedNames: ['Bypass'] }))).toEqual(['Bypass'])
   })
 
-  it('searches the sheet by label, option or catalog name; companions ride with their board', () => {
+  it('searches the sheet by label, option or catalog name; companions ride with their board, except EEV Wire', () => {
     const tiles = m.buildTiles(catalog, 'accessory', relations)
     expect(keys(m.sheetTiles(tiles, 'goodman'))).toEqual(['LP Kit'])
     expect(keys(m.sheetTiles(tiles, 'weigh'))).toEqual(['Weight-In-Data'])
-    expect(keys(m.sheetTiles(tiles, 'eev'))).toEqual([])
+    // EEV Wire can be added on its own (Kristo, 2026-11-25); DAPC cannot.
+    expect(keys(m.sheetTiles(tiles, 'eev'))).toEqual(['EEV Wire'])
+    expect(keys(m.sheetTiles(tiles, 'dapc'))).toEqual([])
   })
 
   it('sums option usage per group tile', () => {

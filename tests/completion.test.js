@@ -1141,7 +1141,7 @@ describe('POST /api/visits/:id/complete', () => {
       await pool.query(`
         DELETE FROM catalog_item_relations
         WHERE item_name IN ('HZ322', 'UT3000', 'Harmony')
-           OR related_item_name IN ('HZ322', 'UT3000', 'Harmony', 'Bypass', 'DAPC', 'eBypass', 'Ecoil Wire')
+           OR related_item_name IN ('HZ322', 'UT3000', 'Harmony', 'Bypass', 'DAPC', 'eBypass', 'EEV Wire')
       `);
       await pool.query(`
         INSERT INTO catalog_items
@@ -1153,7 +1153,7 @@ describe('POST /api/visits/:id/complete', () => {
           ('Bypass',     'accessory',  5, false, false, false),
           ('DAPC',       'accessory', 10, true,  false, false),
           ('eBypass',    'accessory', 10, false, false, false),
-          ('Ecoil Wire', 'accessory', 10, false, true,  false)
+          ('EEV Wire', 'accessory', 10, false, true,  false)
         ON CONFLICT (item_name) DO UPDATE SET
           category = EXCLUDED.category,
           default_price = EXCLUDED.default_price,
@@ -1167,7 +1167,7 @@ describe('POST /api/visits/:id/complete', () => {
           (gen_random_uuid()::text, 'HZ322',   'companion',       'Bypass',     null),
           (gen_random_uuid()::text, 'UT3000',  'companion',       'DAPC',       null),
           (gen_random_uuid()::text, 'UT3000',  'companion',       'eBypass',    null),
-          (gen_random_uuid()::text, 'UT3000',  'companion',       'Ecoil Wire', null),
+          (gen_random_uuid()::text, 'UT3000',  'companion',       'EEV Wire', null),
           (gen_random_uuid()::text, 'HZ322',   'exclusion_group', 'Harmony',    'zone-boards'),
           (gen_random_uuid()::text, 'HZ322',   'exclusion_group', 'UT3000',     'zone-boards'),
           (gen_random_uuid()::text, 'Harmony', 'exclusion_group', 'HZ322',      'zone-boards'),
@@ -1231,7 +1231,7 @@ describe('POST /api/visits/:id/complete', () => {
       ]);
     });
 
-    it('reconstructs UT3000 companions (DAPC, eBypass, Ecoil Wire) without duplicates on completion and retry', async () => {
+    it('reconstructs UT3000 companions (DAPC, eBypass, EEV Wire) without duplicates on completion and retry', async () => {
       const { visitId, token, tech } = await seedAssignedVisit();
       await addService(visitId, 'AC');
       await seedZoneBoardCatalog();
@@ -1241,8 +1241,8 @@ describe('POST /api/visits/:id/complete', () => {
         .set('Authorization', `Bearer ${token}`)
         .send({ category: 'accessory', itemName: 'UT3000' });
       expect(addRes.status).toBe(200);
-      expect(addRes.body.addedItems).toEqual(expect.arrayContaining(['UT3000', 'DAPC', 'eBypass', 'Ecoil Wire']));
-      expect(addRes.body.totalPrice).toBe(210); // 150 AC + 30 UT3000 + 10 DAPC + 10 eBypass + 10 Ecoil Wire
+      expect(addRes.body.addedItems).toEqual(expect.arrayContaining(['UT3000', 'DAPC', 'eBypass', 'EEV Wire']));
+      expect(addRes.body.totalPrice).toBe(210); // 150 AC + 30 UT3000 + 10 DAPC + 10 eBypass + 10 EEV Wire
 
       // The submitted snapshot includes all companions reconciled by Workspace.
       const snapshot = {
@@ -1258,7 +1258,7 @@ describe('POST /api/visits/:id/complete', () => {
           { id: addRes.body.id, item_name: 'UT3000', category: 'accessory', quantity: 1, price: 30 },
           { id: `${addRes.body.id}:DAPC`, item_name: 'DAPC', category: 'accessory', quantity: 1, price: 10 },
           { id: `${addRes.body.id}:eBypass`, item_name: 'eBypass', category: 'accessory', quantity: 1, price: 10 },
-          { id: `${addRes.body.id}:Ecoil Wire`, item_name: 'Ecoil Wire', category: 'accessory', quantity: 1, price: 10 },
+          { id: `${addRes.body.id}:EEV Wire`, item_name: 'EEV Wire', category: 'accessory', quantity: 1, price: 10 },
         ],
         weighInData: [],
         systems: [],
@@ -1281,13 +1281,13 @@ describe('POST /api/visits/:id/complete', () => {
       expect(retry.status).toBe(200);
       expect(first.body.totalPrice).toBe(210);
       expect(retry.body.totalPrice).toBe(210);
-      expect(first.body.items.map(i => i.itemName).sort()).toEqual(['DAPC', 'Ecoil Wire', 'UT3000', 'eBypass']);
+      expect(first.body.items.map(i => i.itemName).sort()).toEqual(['DAPC', 'EEV Wire', 'UT3000', 'eBypass']);
 
       const persistedItems = await pool.query(
         'SELECT item_name FROM visit_items WHERE visit_id = $1 ORDER BY item_name COLLATE "C"',
         [visitId]
       );
-      expect(persistedItems.rows.map(r => r.item_name)).toEqual(['DAPC', 'Ecoil Wire', 'UT3000', 'eBypass']);
+      expect(persistedItems.rows.map(r => r.item_name)).toEqual(['DAPC', 'EEV Wire', 'UT3000', 'eBypass']);
     });
 
     it('does not leave orphaned companions when a Zone Board is removed before completion', async () => {
@@ -1305,7 +1305,7 @@ describe('POST /api/visits/:id/complete', () => {
         .delete(`/api/visits/${visitId}/items/${addRes.body.id}`)
         .set('Authorization', `Bearer ${token}`);
       expect(delRes.status).toBe(200);
-      expect(delRes.body.removedItems).toEqual(expect.arrayContaining(['UT3000', 'DAPC', 'eBypass', 'Ecoil Wire']));
+      expect(delRes.body.removedItems).toEqual(expect.arrayContaining(['UT3000', 'DAPC', 'eBypass', 'EEV Wire']));
       expect(delRes.body.totalPrice).toBe(150);
 
       const snapshot = {

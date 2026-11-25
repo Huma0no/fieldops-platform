@@ -108,7 +108,7 @@ Accessory matching — normalize these variants to their canonical names:
 - "aprilaire", "aprilare" → "AprilAir"
 - "rds" → "RDS"
 - "trane harness" → "Trane Harness"
-- "ecoil wire" → "Ecoil Wire"
+- "ecoil wire", "eev wire" → "EEV Wire" (renamed 2026-11-25)
 - "lp kit lennox 1stg", "lp kit lennox 1 stage" → "LP Kit Lennox 1stg"
 - "lp kit lennox 2stg", "lp kit lennox 2 stage" → "LP Kit Lennox 2stg"
 - "lp kit goodman" → "LP Kit Goodman"

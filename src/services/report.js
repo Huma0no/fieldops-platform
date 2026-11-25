@@ -11,6 +11,8 @@ const ITEM_REPORT_TEXT = {
   Dehum: 'Dehum Box wired',
   'Float Switch': 'Float Switch',
   'Weight-In-Data': 'weigh-in data',
+  'EEV Wire': 'EEV Wire',
+  // Name before 2026-11-25: Reports accepted earlier keep it in their snapshot.
   'Ecoil Wire': 'EEV Wire',
   AprilAir: 'AprilAire',
   'F/A': 'Fresh Air damper wired',
